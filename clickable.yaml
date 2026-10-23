@@ -1,0 +1,9 @@
+clickable_minimum_required: 8.8.0
+builder: rust
+framework: ubuntu-touch-24.04-1.x
+kill: envio
+install_root_data:
+- manifest.json
+- envio.apparmor
+- envio.desktop
+- assets

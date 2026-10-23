@@ -1,0 +1,10 @@
+# Shift-left complexity gate (lint enabled in Cargo.toml's
+# [workspace.lints.clippy]). Not literal McCabe cyclomatic complexity —
+# clippy's nursery-tier cognitive_complexity lint, chosen over the closest
+# real cyclomatic-complexity tool (rust-code-analysis-cli) because that crate
+# hasn't been released since early 2023. Same threshold as the sibling
+# projects in ~/dev; it flags genuinely tangled control flow without nagging
+# on today's code.
+cognitive-complexity-threshold = 15
+
+too-many-arguments-threshold = 4

@@ -1,0 +1,14 @@
+[package]
+name = "envio-core"
+version = "0.1.0"
+authors = ["Austin Schaefer <austin.schaefer@mailo.eu>"]
+edition.workspace = true
+rust-version.workspace = true
+
+description = "Email client internals"
+license = "GPL-3.0-only"
+
+[lints]
+workspace = true
+
+[dependencies]

@@ -1,0 +1,15 @@
+{
+    "name": "envio.aps",
+    "description": "UT-First email client",
+    "architecture": "$ENV{ARCH}",
+    "title": "Envio",
+    "hooks": {
+        "envio": {
+            "apparmor": "envio.apparmor",
+            "desktop":  "envio.desktop"
+        }
+    },
+    "version": "0.1.0",
+    "maintainer": "Austin Schaefer <austin.schaefer@mailo.eu>",
+    "framework" : "$ENV{CLICK_FRAMEWORK}"
+}

@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # No debuginfo in CI's dev/test builds: nothing here reads it, and it is
+  # most of the size of target/, the link inputs, and the sccache objects.
+  # Full-debuginfo builds ran the runner's disk out mid-link (rust-lld
+  # SIGBUS / "No space left on device").
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  # sccache can't cache incremental compilations.
+  CARGO_INCREMENTAL: "0"
+  # Link the image's OpenSSL instead of building git2's vendored one: that
+  # is ./configure && make, which sccache can't cache, ~8 min per run over
+  # the three builds. The phone package (cargo make click) still vendors it.
+  OPENSSL_NO_VENDOR: "1"
+  # Bounds the sccache dir (default 10G), and so the cache tarball saved from it.
+  SCCACHE_CACHE_SIZE: "4G"
+  # src/build.rs asks qmake for Qt's paths; point it at Qt 5's rather than
+  # relying on qtchooser's default.
+  QMAKE: /usr/lib/qt5/bin/qmake
+
+jobs:
+  # One job, not separate build/test/coverage jobs: those each compiled the
+  # whole workspace in parallel on the same runner, and only the first to
+  # finish (build, holding just check/clippy output) ever saved its caches,
+  # so the test and coverage builds were never cached.
+  ci:
+    runs-on: rust-ci
+    steps:
+      - uses: actions/checkout@v4
+
+      # The app crate links Qt 5 and its build script runs xgettext/msgfmt;
+      # the rust-ci image carries neither. (gpg, git and perl, which
+      # passcore's tests and vendored OpenSSL need, come with the base image.)
+      - name: Install Qt 5 and gettext
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            qtbase5-dev qtdeclarative5-dev qtquickcontrols2-5-dev gettext
+
+      # CARGO_HOME is /usr/local/cargo in the rust image, not ~/.cargo
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/cargo/registry/index
+            /usr/local/cargo/registry/cache
+            /usr/local/cargo/git/db
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ runner.os }}-
+
+      # Compiled objects come from sccache (RUSTC_WRAPPER in the rust-ci
+      # image), so target/ itself isn't cached. Keyed on what decides how
+      # dependencies are built (versions, features, this file's env) rather
+      # than the run: a per-run key stored a new multi-GB entry on the
+      # runner every run. An existing key is never saved again, so a key on
+      # Cargo.lock alone kept missing every object a feature or env change
+      # touched; restore-keys carries objects across a change.
+      - name: Cache sccache compilation objects
+        uses: actions/cache@v4
+        with:
+          path: /root/.cache/sccache
+          key: sccache-${{ runner.os }}-${{ hashFiles('Cargo.lock', '**/Cargo.toml', '.forgejo/workflows/ci.yml') }}
+          restore-keys: |
+            sccache-${{ runner.os }}-
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      # Lint levels (incl. cognitive_complexity) come from Cargo.toml's
+      # [workspace.lints.clippy]; thresholds from clippy.toml.
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # Runs the whole test suite (and fails the job on a failing test) while
+      # measuring coverage, so there's no separate `cargo test` build.
+      # cargo-llvm-cov and llvm-tools-preview are baked into the rust-ci
+      # image. Reports only, no --fail-under-lines yet; see Makefile.toml >
+      # coverage-report for why main.rs is excluded.
+      - name: Test with coverage
+        run: cargo llvm-cov --workspace --ignore-filename-regex 'main\.rs' --summary-only
+
+      - name: Check release profile compiles
+        run: cargo check --workspace --release
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
+
+  # QML unit tests (tests/qml) in clickable's amd64 image, which has Lomiri's
+  # QML modules, Xvfb and qmltestrunner; no Rust build needed, the tests use
+  # fake backends. Same image and script as `cargo make qml-test`.
+  # After `ci`, not beside it: the runner takes two jobs at once, and this
+  # one's multi-GB image pull slowed the Rust build it shared the box with.
+  qml:
+    needs: ci
+    runs-on: docker
+    container:
+      image: clickable/amd64-ut24.04-1.x-amd64
+    steps:
+      # the image has no node, which actions/checkout runs on
+      - name: Install Node.js
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends nodejs
+
+      - uses: actions/checkout@v4
+
+      - name: QML tests
+        run: tests/qml/run.sh
+
+  audit:
+    needs: ci
+    runs-on: rust-ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: cargo audit
+        run: cargo audit

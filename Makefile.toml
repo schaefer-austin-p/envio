@@ -1,0 +1,98 @@
+[config]
+default_to_workspace = false
+
+# The Qt crates' build scripts ask qmake for Qt's paths. Where plain `qmake`
+# is Qt 6 (e.g. Arch/Manjaro), qttypes would pick Qt 6 while src/build.rs
+# links Qt 5; pin Qt 5 unless QMAKE is already set (CI sets it).
+[env]
+QMAKE = { value = "qmake-qt5", condition = { env_not_set = ["QMAKE"] } }
+# clickable's native amd64 image: Lomiri's QML modules, Xvfb, qmltestrunner.
+# Also the qml job's container in CI.
+QML_TEST_IMAGE = { value = "clickable/amd64-ut24.04-1.x-amd64", condition = { env_not_set = ["QML_TEST_IMAGE"] } }
+
+[tasks.format]
+command = "cargo"
+args = ["fmt", "--all"]
+
+[tasks.format-check]
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+# Covers the Qt app crate too, so it needs Qt 5 dev files (qmake) and
+# gettext on the host; CI installs them.
+[tasks.lint]
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["test", "--workspace"]
+
+# Named coverage-report, not coverage: cargo-make reserves "coverage" for
+# its own built-in tarpaulin/kcov-routing composite task, which clobbers a
+# same-named custom one.
+#
+# Reports coverage only; not gated on a threshold yet. What's measured is
+# envio-core, where the logic lives: the app crate (src/, Qt glue exercised on
+# the device) has `test = false`, so it isn't built for tests at all. The
+# main.rs filter is kept for parity with the sibling projects. passcore's
+# interop tests use gpg and git as references and skip themselves if those
+# aren't installed.
+[tasks.coverage-report]
+command = "cargo"
+args = ["llvm-cov", "--workspace", "--ignore-filename-regex", "main\\.rs", "--summary-only"]
+
+# QML unit tests (tests/qml/tst_*.qml) against fake backends, in Docker since
+# Lomiri isn't packaged for most desktops. Not part of `ci` (needs Docker);
+# CI runs them as their own job.
+[tasks.qml-test]
+description = "Run the QML tests in clickable's amd64 image"
+command = "docker"
+args = [
+    "run", "--rm",
+    "-v", "${CARGO_MAKE_WORKING_DIRECTORY}:/src", "-w", "/src",
+    "${QML_TEST_IMAGE}", "tests/qml/run.sh", "${@}",
+]
+
+[tasks.audit]
+command = "cargo"
+args = ["audit"]
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--workspace", "--release"]
+
+[tasks.install-hooks]
+description = "One-time setup: point git at the tracked hooks in .githooks/"
+command = "git"
+args = ["config", "core.hooksPath", ".githooks"]
+
+# Mirrors the CI workflow: coverage-report runs the whole test suite, so
+# there's no separate `test` step (`cargo make test` still runs it alone).
+[tasks.ci]
+dependencies = ["format-check", "lint", "coverage-report", "release-check", "audit"]
+
+[tasks.release-check]
+command = "cargo"
+args = ["check", "--workspace", "--release"]
+
+[tasks.default]
+alias = "ci"
+
+# The phone package, cross-compiled in clickable's Docker image (runs
+# click-review too). Not part of `ci`: the runner has no clickable.
+[tasks.click]
+description = "Build the arm64 .click for the phone"
+command = "clickable"
+args = ["build", "--arch", "arm64"]
+# the commit for the About dialog; clickable passes CLICKABLE_ENV_* into the
+# container, where a worktree's git directory isn't mounted
+env = { CLICKABLE_ENV_ENVIO_COMMIT = { script = ["git rev-parse --short=10 HEAD"] } }
+
+[tasks.click-install]
+description = "Build, install on the phone over adb, and launch"
+dependencies = ["click"]
+script = '''
+clickable install --arch arm64
+clickable launch --arch arm64
+'''
