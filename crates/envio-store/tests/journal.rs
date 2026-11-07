@@ -151,3 +151,12 @@ fn a_damaged_line_in_the_middle_is_an_error() {
         b"not json\n{\"op\":\"done\",\"seq\":1}\n"
     );
 }
+
+#[test]
+fn opening_under_a_missing_nested_folder_works() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a").join("b").join("journal.jsonl");
+    let mut journal = Journal::open(&path).unwrap();
+    journal.push(1, target(1), ActionKind::Delete).unwrap();
+    assert_eq!(Journal::open(&path).unwrap().pending().count(), 1);
+}

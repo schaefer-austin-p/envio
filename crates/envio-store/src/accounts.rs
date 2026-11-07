@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
-use crate::ids::fresh_key;
+use crate::ids::{fresh_key, is_key};
 
 const VERSION: u32 = 1;
 
@@ -134,6 +134,18 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
             "version {} is from a newer envio",
             file.version
         )));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for account in &file.accounts {
+        if !is_key(&account.key) {
+            return Err(bad(format!(
+                "account key {:?} is not a valid key",
+                account.key
+            )));
+        }
+        if !seen.insert(account.key.as_str()) {
+            return Err(bad(format!("account key {} appears twice", account.key)));
+        }
     }
     Ok(file.accounts)
 }

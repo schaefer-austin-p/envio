@@ -97,3 +97,36 @@ fn a_failed_save_changes_nothing() {
     assert!(accounts.add(settings("ada@example.org"), 1).is_err());
     assert!(accounts.list().is_empty());
 }
+
+#[test]
+fn a_key_that_is_not_a_key_is_a_bad_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let key = accounts.add(settings("ada@example.org"), 1_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace(&format!("\"{key}\""), "\"../x\"")).unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
+}
+
+#[test]
+fn two_accounts_with_one_key_are_a_bad_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let first = accounts.add(settings("ada@example.org"), 1_000).unwrap();
+    let second = accounts.add(settings("bob@example.org"), 2_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(
+        &path,
+        text.replace(&format!("\"{second}\""), &format!("\"{first}\"")),
+    )
+    .unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
+}

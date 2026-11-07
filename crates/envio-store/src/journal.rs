@@ -77,6 +77,10 @@ pub struct Journal {
 
 impl Journal {
     pub fn open(path: &Path) -> Result<Self> {
+        let existed = path.exists();
+        if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            fs::create_dir_all(dir)?;
+        }
         let replay = match fs::read(path) {
             Ok(bytes) => replay(path, &bytes)?,
             Err(error) if error.kind() == io::ErrorKind::NotFound => Replay::default(),
@@ -89,6 +93,9 @@ impl Journal {
             pending: replay.pending,
             needs_compact: replay.torn,
         };
+        if !existed && let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
+            File::open(dir)?.sync_all()?;
+        }
         if journal.needs_compact {
             journal.compact()?;
         }
@@ -134,12 +141,18 @@ impl Journal {
                 action: action.clone(),
             }));
         }
+        // Stays set until the new file is open: if the rename lands but a later
+        // step fails, `self.file` is the old unlinked inode and must not be used.
+        self.needs_compact = true;
         write_atomic(&self.path, &bytes)?;
         self.file = open_append(&self.path)?;
         self.needs_compact = false;
         Ok(())
     }
 
+    /// If the write or sync fails, the file may hold a torn or unacknowledged
+    /// record, so the next call rewrites it from memory first; memory never
+    /// holds a record that was not acknowledged, so it cannot replay later.
     fn append(&mut self, record: &Record) -> Result<()> {
         if self.needs_compact {
             self.compact()?;
