@@ -4,7 +4,7 @@
 //! enqueue, and the draft it came from still exists.
 
 use std::collections::HashSet;
-use std::fs;
+use std::fs::{self, File};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -167,9 +167,11 @@ impl Outbox {
         fs::remove_file(self.path(id, "json")).map_err(StoreError::missing_or_io)?;
         self.unwritten().remove(id);
         match fs::remove_file(self.path(id, "eml")) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
-            _ => Ok(()),
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
+            _ => {}
         }
+        // Without this a power loss can bring the item back, and it is sent again.
+        Ok(File::open(&self.dir)?.sync_all()?)
     }
 
     fn path(&self, id: &str, extension: &str) -> PathBuf {

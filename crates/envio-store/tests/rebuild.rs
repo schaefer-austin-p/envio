@@ -63,11 +63,12 @@ fn a_rebuilt_cache_can_be_rebuilt_again() {
 }
 
 #[test]
-fn a_path_that_cannot_be_opened_is_an_error_not_a_rebuild() {
+fn a_first_launch_creates_the_cache_folder() {
     let dir = tempfile::tempdir().unwrap();
     let paths = StorePaths::new(dir.path().join("missing"), dir.path().join("data"));
-    assert!(open_or_rebuild(&paths).is_err());
-    assert!(!dir.path().join("missing").exists());
+    let (_, opened) = open_or_rebuild(&paths).unwrap();
+    assert_eq!(opened, Opened::Created);
+    assert!(paths.db().exists());
 }
 
 #[test]

@@ -1,5 +1,6 @@
 //! Envio's local store: the SQLite cache of the server, message bodies on
-//! disk, and the unsent work (account settings, action journal, Outbox,
+//! disk, and the unsent work (account settings, action journal, Outbox and
+//! drafts) kept in files outside the cache so a rebuild can't lose it.
 
 mod accounts;
 mod atomic;

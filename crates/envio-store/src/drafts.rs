@@ -109,7 +109,9 @@ impl Drafts {
     /// Deletes a draft (sent, or discarded by the user).
     pub fn delete(&self, id: &str) -> Result<()> {
         check(id)?;
-        fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io)
+        fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io)?;
+        // Without this a power loss can bring a sent draft back.
+        Ok(fs::File::open(&self.dir)?.sync_all()?)
     }
 
     fn path(&self, id: &str) -> PathBuf {

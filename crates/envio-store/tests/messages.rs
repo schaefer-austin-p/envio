@@ -30,6 +30,16 @@ const ALL: Page = Page {
 };
 
 #[test]
+fn message_row_ids_are_never_reused() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = inbox(&db, "a1");
+    let first = db.upsert_message(folder, &message(1, "m", 1)).unwrap();
+    db.reset_folder(folder).unwrap();
+    let second = db.upsert_message(folder, &message(1, "m", 1)).unwrap();
+    assert_ne!(first, second);
+}
+
+#[test]
 fn a_message_round_trips() {
     let db = Db::open_in_memory().unwrap();
     let folder = inbox(&db, "a1");

@@ -14,7 +14,7 @@ CREATE TABLE folders (
 ) STRICT;
 
 CREATE TABLE messages (
-    id          INTEGER PRIMARY KEY,
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
     folder_id   INTEGER NOT NULL REFERENCES folders (id) ON DELETE CASCADE,
     uid         INTEGER NOT NULL,
     message_id  TEXT,
