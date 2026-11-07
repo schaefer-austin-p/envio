@@ -48,8 +48,10 @@ command = "tools/i18n/update.sh"
 description = "The app checks and build, as CI runs them"
 # Runs as the calling user so build-docker/ and target/ stay removable; the
 # image's CARGO_HOME is root-owned, so crates download into target/ instead.
+# The commit is read on the host: a worktree's gitdir isn't mounted.
 script = '''
 docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -e ENVIO_COMMIT="$(git rev-parse --short=10 HEAD 2>/dev/null)" \
   -v "${CARGO_MAKE_WORKING_DIRECTORY}:/src" -w /src \
   -e CARGO_HOME=/src/target/docker-cargo \
   -e BUILD_DIR=/src/build-docker -e CARGO_TARGET_DIR=/src/target/docker-qt \

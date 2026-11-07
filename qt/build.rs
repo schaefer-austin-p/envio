@@ -1,4 +1,5 @@
 use std::env;
+use std::path::Path;
 use std::process::Command;
 
 use cxx_qt_build::{CxxQtBuilder, QmlModule};
@@ -14,15 +15,17 @@ fn build_commit() -> String {
         return commit;
     }
     // Rebuild when HEAD moves: a checkout changes HEAD, a commit changes the
-    // branch's ref (--git-path finds it in a worktree's common dir too).
-    let mut watched = vec!["HEAD".to_owned()];
+    // branch's ref, loose or packed (--git-path finds them in a worktree's
+    // common dir too). Only existing files are watched: cargo treats a
+    // missing one as always changed.
+    let mut watched = vec!["HEAD".to_owned(), "packed-refs".to_owned()];
     let branch = git(&["symbolic-ref", "-q", "HEAD"]);
     if !branch.is_empty() {
         watched.push(branch);
     }
     for path in watched {
         let resolved = git(&["rev-parse", "--git-path", &path]);
-        if !resolved.is_empty() {
+        if !resolved.is_empty() && Path::new(&resolved).exists() {
             println!("cargo:rerun-if-changed={resolved}");
         }
     }
