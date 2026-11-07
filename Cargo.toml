@@ -7,7 +7,7 @@ edition = "2024"
 build = "build.rs"
 
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "xtask"]
 resolver = "3"
 
 [workspace.package]
