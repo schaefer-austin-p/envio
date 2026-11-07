@@ -41,6 +41,15 @@ impl StoreError {
             _ => false,
         }
     }
+
+    /// A missing file becomes `NotFound`; any other file error stays `Io`.
+    pub(crate) fn missing_or_io(error: io::Error) -> Self {
+        if error.kind() == io::ErrorKind::NotFound {
+            Self::NotFound
+        } else {
+            Self::Io(error)
+        }
+    }
 }
 
 #[cfg(test)]

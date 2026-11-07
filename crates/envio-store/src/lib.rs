@@ -2,17 +2,22 @@
 //! disk, and the unsent work (account settings, action journal, Outbox,
 //! drafts) kept in files outside the cache so a rebuild can't lose it.
 
+mod atomic;
+mod bodies;
 mod db;
 mod error;
 mod folders;
 mod messages;
 mod migrate;
+mod paths;
 mod rebuild;
 mod search;
 
+pub use bodies::Bodies;
 pub use db::Db;
 pub use error::{Result, StoreError};
 pub use folders::{Folder, FolderId, FolderRole, SyncState};
 pub use messages::{BodyState, Envelope, Flags, Message, MessageRowId, NewMessage, Page};
 pub use migrate::SCHEMA_VERSION;
+pub use paths::StorePaths;
 pub use rebuild::{Opened, open_or_rebuild};
