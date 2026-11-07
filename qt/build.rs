@@ -13,9 +13,28 @@ fn build_commit() -> String {
     {
         return commit;
     }
+    // Rebuild when HEAD moves: a checkout changes HEAD, a commit changes the
+    // branch's ref (--git-path finds it in a worktree's common dir too).
+    let mut watched = vec!["HEAD".to_owned()];
+    let branch = git(&["symbolic-ref", "-q", "HEAD"]);
+    if !branch.is_empty() {
+        watched.push(branch);
+    }
+    for path in watched {
+        let resolved = git(&["rev-parse", "--git-path", &path]);
+        if !resolved.is_empty() {
+            println!("cargo:rerun-if-changed={resolved}");
+        }
+    }
+    git(&["rev-parse", "--short=10", "HEAD"])
+}
+
+/// Runs git, returning its trimmed stdout, or empty on any failure.
+fn git(args: &[&str]) -> String {
     // the container's user doesn't own the mounted checkout
     Command::new("git")
-        .args(["-c", "safe.directory=*", "rev-parse", "--short=10", "HEAD"])
+        .args(["-c", "safe.directory=*"])
+        .args(args)
         .output()
         .ok()
         .filter(|o| o.status.success())

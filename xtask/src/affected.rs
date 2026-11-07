@@ -21,10 +21,12 @@ pub enum Selection {
     None,
 }
 
-/// Files that change how every crate is built.
+/// Files that change how every crate is built. manifest.json carries the
+/// version, which envio-core's tests check against the workspace version.
 fn runs_everything(file: &Path) -> bool {
     file == Path::new("Cargo.lock")
         || file == Path::new("Cargo.toml")
+        || file == Path::new("manifest.json")
         || file.starts_with(".cargo")
         || file.starts_with(".forgejo")
 }
@@ -148,6 +150,7 @@ mod tests {
         for file in [
             "Cargo.lock",
             "Cargo.toml",
+            "manifest.json",
             ".cargo/config.toml",
             ".forgejo/workflows/ci.yml",
         ] {
