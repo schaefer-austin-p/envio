@@ -23,4 +23,3 @@ cognitive_complexity = "warn"
 [profile.release]
 codegen-units = 1
 lto = "thin"
-panic = "abort"

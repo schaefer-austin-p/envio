@@ -697,7 +697,6 @@ unsafe_code = "forbid"
 [profile.release]
 codegen-units = 1
 lto = "thin"
-panic = "abort"
 ```
 
 Run: `cargo test --workspace`
@@ -748,7 +747,6 @@ cognitive_complexity = "warn"
 [profile.release]
 codegen-units = 1
 lto = "thin"
-panic = "abort"
 ```
 
 `qt/build.rs`:

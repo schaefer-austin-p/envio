@@ -60,9 +60,11 @@ jobs:
 
       - name: Pick crates to test
         id: pick
+        env:
+          BASE: ${{ github.base_ref }}
         run: |
           if [ "${{ github.event_name }}" = pull_request ]; then
-            args=$(cargo xtask affected --base "origin/${{ github.base_ref }}")
+            args=$(cargo xtask affected --base "origin/$BASE")
           else
             args="--workspace --exclude envio-e2e"
           fi
@@ -114,9 +116,9 @@ jobs:
           path: |
             target/ci-qt
             build-ci
-          key: app-build-v1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'CMakeLists.txt') }}
+          key: app-build-v1-24.04-2.x-1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'CMakeLists.txt') }}
           restore-keys: |
-            app-build-v1-
+            app-build-v1-24.04-2.x-1-
 
       - name: App checks
         run: tools/ci/app.sh

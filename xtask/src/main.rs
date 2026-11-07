@@ -34,7 +34,12 @@ fn run_affected(base: &str) -> Result<String, String> {
         .exec()
         .map_err(|e| e.to_string())?;
     let out = Command::new("git")
-        .args(["diff", "--name-only", &format!("{base}...HEAD")])
+        .args([
+            "diff",
+            "--name-only",
+            "--no-renames",
+            &format!("{base}...HEAD"),
+        ])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {

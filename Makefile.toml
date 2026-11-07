@@ -34,6 +34,7 @@ command = "cargo"
 args = ["llvm-cov", "--workspace", "--summary-only"]
 
 [tasks.audit]
+clear = true
 script = '''
 cargo audit
 cargo audit --file qt/Cargo.lock
