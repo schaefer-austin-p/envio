@@ -1219,7 +1219,7 @@ git commit -m "feat: switch the app shell to cxx-qt and CMake"
 
 **Interfaces:**
 - Consumes: `BuildInfo` (Task 3).
-- Produces: `Theme` (in `qml/platform`, `import "platform"`): properties `airmail: bool`, `darkOverride: var` (null = follow system), read-only `dark` and colour roles `ground, surface, text, heading, secondary, hairline, field, accent, primary, onPrimary, tintA, tintB, selected` with the values in `docs/10-design.md`. `InboxPage { theme: Theme }`.
+- Produces: `Theme` (in `qml/platform`, `import "platform"`): properties `airmail: bool`, `darkOverride: var` (null = follow system), read-only `dark` and colour roles `ground, surface, text, heading, secondary, hairline, field, accent, primary, primaryText, tintA, tintB, selected` with the values in `docs/10-design.md`. `InboxPage { theme: Theme }`.
 
 - [ ] **Step 1: The QML test runner and a failing test**
 
@@ -1265,7 +1265,7 @@ TestCase {
         compare(theme.dark, true)
         compare(String(theme.ground), "#15181d")
         compare(String(theme.accent), "#e36a60")
-        compare(String(theme.onPrimary), "#15181d")
+        compare(String(theme.primaryText), "#15181d")
     }
 
     function test_airmail_light_has_its_own_heading() {
@@ -1379,21 +1379,21 @@ Control {
         "carbon": {
             "light": { "ground": "#F8F6F1", "surface": "#FFFFFF", "text": "#1E2A38", "heading": "#1E2A38",
                        "secondary": "#5A5D62", "hairline": "#DAD7CE", "field": "#C9C6BD", "accent": "#B8342C",
-                       "primary": "#1E2A38", "onPrimary": "#F8F6F1", "tintA": "#F4E3E1", "tintB": "#E3E6EA",
+                       "primary": "#1E2A38", "primaryText": "#F8F6F1", "tintA": "#F4E3E1", "tintB": "#E3E6EA",
                        "selected": "#ECE9E1" },
             "dark":  { "ground": "#15181D", "surface": "#1F242B", "text": "#E8E5DE", "heading": "#E8E5DE",
                        "secondary": "#A2A5AA", "hairline": "#2E343C", "field": "#3A4049", "accent": "#E36A60",
-                       "primary": "#E8E5DE", "onPrimary": "#15181D", "tintA": "#3A2526", "tintB": "#26303B",
+                       "primary": "#E8E5DE", "primaryText": "#15181D", "tintA": "#3A2526", "tintB": "#26303B",
                        "selected": "#232932" }
         },
         "airmail": {
             "light": { "ground": "#FBF8F1", "surface": "#FFFFFF", "text": "#22303F", "heading": "#1F3A5F",
                        "secondary": "#5D6A78", "hairline": "#DDD5C4", "field": "#CFC6B1", "accent": "#B23A33",
-                       "primary": "#1F3A5F", "onPrimary": "#FBF8F1", "tintA": "#F3E2DF", "tintB": "#E0E7F0",
+                       "primary": "#1F3A5F", "primaryText": "#FBF8F1", "tintA": "#F3E2DF", "tintB": "#E0E7F0",
                        "selected": "#F1EADB" },
             "dark":  { "ground": "#141C27", "surface": "#1C2633", "text": "#ECE5D6", "heading": "#A9C1E3",
                        "secondary": "#A3AEBB", "hairline": "#2C3747", "field": "#3A475A", "accent": "#E58C84",
-                       "primary": "#A9C1E3", "onPrimary": "#141C27", "tintA": "#3A2427", "tintB": "#1F2D42",
+                       "primary": "#A9C1E3", "primaryText": "#141C27", "tintA": "#3A2427", "tintB": "#1F2D42",
                        "selected": "#1F2A38" }
         }
     })
@@ -1408,7 +1408,7 @@ Control {
     readonly property color field: current.field
     readonly property color accent: current.accent
     readonly property color primary: current.primary
-    readonly property color onPrimary: current.onPrimary
+    readonly property color primaryText: current.primaryText
     readonly property color tintA: current.tintA
     readonly property color tintB: current.tintB
     readonly property color selected: current.selected
