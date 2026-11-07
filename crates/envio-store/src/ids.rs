@@ -15,10 +15,6 @@ pub(crate) fn fresh_key(now_ms: i64, taken: impl Fn(&str) -> bool) -> String {
 
 /// Whether `key` has the shape `fresh_key` makes. Anything else (a path,
 /// `..`, an empty string) is refused before it reaches the file system.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "used by the Outbox and drafts in Tasks 9 and 10")
-)]
 pub(crate) fn is_key(key: &str) -> bool {
     !key.is_empty()
         && key
