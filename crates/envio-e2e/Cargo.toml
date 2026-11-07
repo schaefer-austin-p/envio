@@ -1,0 +1,15 @@
+[package]
+name = "envio-e2e"
+description = "Cross-crate tests of envio; no library code"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+envio-core = { path = "../envio-core" }

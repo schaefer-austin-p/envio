@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>Main.qml</file>
+        <file>pages/InboxPage.qml</file>
+        <file>platform/qmldir</file>
+        <file>platform/Theme.qml</file>
+        <file>platform/ut/SystemColours.qml</file>
+    </qresource>
+</RCC>

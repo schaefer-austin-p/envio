@@ -1,4 +1,8 @@
 /target
+/qt/target
 
 .idea
 build
+build-ci/
+build-docker/
+.qmlls.ini
