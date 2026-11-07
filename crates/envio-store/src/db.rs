@@ -18,6 +18,7 @@ impl Db {
     /// Opens (or creates) the cache at `path` and migrates it.
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)?;
+        conn.busy_timeout(Duration::from_secs(5))?;
         conn.pragma_update_and_check(None, "journal_mode", "wal", |row| row.get::<_, String>(0))?;
         conn.pragma_update(None, "synchronous", "normal")?;
         Self::setup(conn)

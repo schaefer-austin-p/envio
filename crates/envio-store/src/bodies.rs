@@ -11,6 +11,11 @@ use crate::db::Db;
 use crate::error::{Result, StoreError};
 use crate::folders::FolderId;
 
+/// Threading contract: body writes, `Db::set_body_state`, `retain` and
+/// `remove_folder` must all run on the one thread that owns the store (core's
+/// worker thread). A body file is written before `set_body_state(Downloaded)`,
+/// and pruning (mark, keep, retain) never interleaves with a download;
+/// otherwise `retain` could delete a body that is written but not yet marked.
 pub struct Bodies {
     dir: PathBuf,
 }
@@ -47,6 +52,10 @@ impl Bodies {
     /// Deletes every body not in `keep`, and interrupted writes. Files that
     /// aren't ours are left alone. Returns how many files were deleted.
     /// Run after `Db::mark_bodies_pruned`, with `Db::bodies_to_keep`.
+    ///
+    /// Must run on the store's owning thread, never between a body write and
+    /// its `set_body_state(Downloaded)`: that body is not in `keep` yet and
+    /// would be deleted.
     pub fn retain(&self, keep: &HashSet<(FolderId, u32)>) -> Result<usize> {
         let entries = match fs::read_dir(&self.dir) {
             Ok(entries) => entries,

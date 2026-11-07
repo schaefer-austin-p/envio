@@ -3,6 +3,9 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Writes `bytes` to a temp file beside `path`, syncs it, renames it over
 /// `path` and syncs the folder. Creates the folder if needed.
@@ -11,13 +14,26 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "no file name"));
     };
     fs::create_dir_all(dir)?;
-    let temp = dir.join(format!(".{}.tmp", name.to_string_lossy()));
-    let mut file = File::create(&temp)?;
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let temp = dir.join(format!(
+        ".{}.{}-{n}.tmp",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    let written = write_and_rename(&temp, path, bytes);
+    if written.is_err() {
+        let _ = fs::remove_file(&temp);
+    }
+    written?;
+    File::open(dir)?.sync_all()
+}
+
+fn write_and_rename(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = File::create(temp)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
-    fs::rename(&temp, path)?;
-    File::open(dir)?.sync_all()
+    fs::rename(temp, path)
 }
 
 /// A temp file `write_atomic` left behind when it was interrupted.
@@ -41,8 +57,19 @@ mod tests {
     }
 
     #[test]
+    fn a_failed_rename_leaves_no_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("a.json");
+        fs::create_dir(&target).unwrap();
+        fs::write(target.join("inside"), b"x").unwrap();
+        assert!(write_atomic(&target, b"data").is_err());
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
     fn temp_names_are_recognised() {
         assert!(is_temp(".a.json.tmp"));
+        assert!(is_temp(".a.json.42-7.tmp"));
         assert!(!is_temp("a.json"));
         assert!(!is_temp("a.tmp"));
     }

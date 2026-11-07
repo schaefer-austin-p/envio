@@ -17,8 +17,20 @@ pub struct MessageRowId(pub i64);
 
 /// The IMAP system flags envio uses (RFC 3501 §2.3.2).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
+#[serde(from = "u8", into = "u8")]
 pub struct Flags(u8);
+
+impl From<u8> for Flags {
+    fn from(bits: u8) -> Self {
+        Self::from_bits(bits)
+    }
+}
+
+impl From<Flags> for u8 {
+    fn from(flags: Flags) -> Self {
+        flags.0
+    }
+}
 
 impl Flags {
     pub const SEEN: Self = Self(1);
@@ -255,6 +267,15 @@ impl Db {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deserializing_flags_drops_unknown_bits() {
+        assert_eq!(
+            serde_json::from_str::<Flags>("255").unwrap().bits(),
+            0b1_1111
+        );
+        assert_eq!(serde_json::to_string(&Flags::SEEN).unwrap(), "1");
+    }
 
     #[test]
     fn flags_combine_and_test() {
