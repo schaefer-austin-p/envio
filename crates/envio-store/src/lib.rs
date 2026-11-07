@@ -4,8 +4,10 @@
 
 mod db;
 mod error;
+mod folders;
 mod migrate;
 
 pub use db::Db;
 pub use error::{Result, StoreError};
+pub use folders::{Folder, FolderId, FolderRole, SyncState};
 pub use migrate::SCHEMA_VERSION;

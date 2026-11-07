@@ -54,6 +54,20 @@ impl Db {
         result
     }
 
+    /// Runs `body` atomically whether or not a step is open: SQLite
+    /// savepoints nest inside transactions and inside each other.
+    pub(crate) fn savepoint<T>(&self, body: impl FnOnce() -> Result<T>) -> Result<T> {
+        self.conn.execute_batch("SAVEPOINT envio")?;
+        let result = body().and_then(|value| {
+            self.conn.execute_batch("RELEASE envio")?;
+            Ok(value)
+        });
+        if result.is_err() {
+            let _ = self.conn.execute_batch("ROLLBACK TO envio; RELEASE envio");
+        }
+        result
+    }
+
     /// Checks the file and the search index. An error means: rebuild.
     pub fn check(&self) -> Result<()> {
         let verdict: String = self
@@ -71,15 +85,17 @@ impl Db {
         Ok(())
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "used by the folder and message modules from the next commits"
-        )
-    )]
     pub(crate) fn conn(&self) -> &Connection {
         &self.conn
+    }
+}
+
+/// `NotFound` when a statement changed no row.
+pub(crate) fn found(changed: usize) -> Result<()> {
+    if changed == 0 {
+        Err(StoreError::NotFound)
+    } else {
+        Ok(())
     }
 }
 
