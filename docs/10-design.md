@@ -1,0 +1,119 @@
+# Design language: Carbon and Airmail
+
+The look of the app, decided while brainstorming on 2026-11-07 (mockups:
+`docs/design/`, spec: `docs/superpowers/specs/2026-11-07-envio-design.md`).
+Carbon is the default theme. Airmail is the alternative, picked in Settings.
+Both follow the system's light or dark mode.
+
+## Principles
+
+- Ubuntu Touch first: one column, thumb-reachable primary actions at the
+  bottom, nothing that fights the system's edge swipes.
+- Mail is the content. One accent colour, used for unread, links and the
+  few destructive actions.
+- Honest status. Envio says when it is offline, when it only syncs while
+  open, and when a message is waiting in the Outbox.
+- Private by default: remote images blocked, the link's real address shown,
+  no read receipts.
+
+## Colour roles
+
+One place in QML, `qml/platform/Theme.qml`, picks a role by theme and by the
+system's light/dark flag. The values are ours, not Suru's palette. Where the
+Rust core produces coloured text (rich-text conversion of HTML mail), it
+repeats these values, since the core is Qt-free.
+
+### Carbon
+
+| Role | Light | Dark | Used for |
+| --- | --- | --- | --- |
+| ground | `#F8F6F1` | `#15181D` | window, pages, sheets |
+| surface | `#FFFFFF` | `#1F242B` | cards, dialogs, fields |
+| text | `#1E2A38` | `#E8E5DE` | running text, titles |
+| secondary | `#5A5D62` | `#A2A5AA` | previews, captions, labels |
+| hairline | `#DAD7CE` | `#2E343C` | rules, row separators |
+| field border | `#C9C6BD` | `#3A4049` | text fields, outlined buttons |
+| accent | `#B8342C` | `#E36A60` | unread dot, links, destructive |
+| primary | `#1E2A38` on `#F8F6F1` | `#E8E5DE` on `#15181D` | primary buttons, selected tab |
+| tint A | `#F4E3E1` | `#3A2526` | offline and warning banners |
+| tint B | `#E3E6EA` | `#26303B` | info banners |
+| selected | `#ECE9E1` | `#232932` | selected rows |
+| scrim | `rgba(30,42,56,.45)` | `rgba(0,0,0,.55)` | behind sheets |
+
+### Airmail
+
+| Role | Light | Dark | Used for |
+| --- | --- | --- | --- |
+| ground | `#FBF8F1` | `#141C27` | window, pages, sheets |
+| surface | `#FFFFFF` | `#1C2633` | cards, dialogs, fields |
+| text | `#22303F` | `#ECE5D6` | running text |
+| heading | `#1F3A5F` | `#A9C1E3` | titles, sender names |
+| secondary | `#5D6A78` | `#A3AEBB` | previews, captions, labels |
+| hairline | `#DDD5C4` | `#2C3747` | rules, row separators |
+| field border | `#CFC6B1` | `#3A475A` | text fields, outlined buttons |
+| accent | `#B23A33` | `#E58C84` | unread, links, destructive |
+| primary | `#1F3A5F` on `#FBF8F1` | `#A9C1E3` on `#141C27` | primary buttons, selected tab |
+| chevron red / blue | `#B23A33` / `#1F3A5F` | `#C4473F` / `#5B7FB3` | the airmail border |
+| tint A | `#F3E2DF` | `#3A2427` | offline and warning banners |
+| tint B | `#E0E7F0` | `#1F2D42` | info banners |
+| selected | `#F1EADB` | `#1F2A38` | selected rows |
+
+Contrast of text, secondary and accent on ground is checked against WCAG AA
+(4.5:1) when `Theme.qml` is written; a value that fails is adjusted here
+first.
+
+## Type
+
+| | Carbon | Airmail |
+| --- | --- | --- |
+| Body and reading | Inter | Inter (lists), Lora (reading pane) |
+| Labels, headers, buttons | IBM Plex Mono | Lora (headers), Inter (buttons) |
+
+On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
+
+## Shapes
+
+- Carbon: 8 px corners, hairline rows, flat surfaces.
+- Airmail: 26 px corners on the phone frame and sheets, a red-and-blue
+  chevron border around the page.
+- Both: bottom sheets with a grab handle; one full-width primary button at
+  the bottom of a page.
+
+## Views
+
+| View | Boards | Notes |
+| --- | --- | --- |
+| Inbox and accounts | `*-inbox` | Unified inbox, per-account tabs (All, then each account), unread dot, "New message" at the bottom. |
+| Add account | `*-wizard` | Email first, autodetect, then password; manual server settings behind "Set up manually". |
+| Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (later); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
+| Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.2.0. Drafts save on their own. |
+| Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
+| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline banner and Undo toast. |
+| Contacts | `*-contacts` | Superseded in part, see below. |
+| Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". |
+| Dark | `*-dark` | Inbox, reader and sync settings in each dark theme. |
+| App icon | `*-icons` | Chosen: Airmail 2, the postage stamp with envelope, for both themes. |
+
+## Interaction rules
+
+- **No swipe actions on rows.** Ubuntu Touch uses edge swipes for the
+  launcher (left) and app switcher (right). Actions come from long-press
+  selection and the reader's buttons.
+- **Undo instead of confirm.** Archive, delete and move show an Undo toast
+  for about 5 s before they reach the server.
+- **Offline is a banner, not a dialog.** It says how many messages wait in
+  the Outbox.
+- **Errors sit with their item.** A refused send shows on its Outbox entry
+  with Edit and Retry.
+
+## Changes to the first boards
+
+From the canvas notes; these win over what the boards show.
+
+- Contacts is not an address book. It is an autocomplete source (people you
+  wrote to, later the system address book) plus "Add sender to Contacts".
+- Print is dropped (no printing on Ubuntu Touch). Export as PDF stays, later.
+- Sync "Push, when available" reads "While Envio is open" until a push relay
+  exists.
+- No swipe actions on list rows (see above).
+- Share into Envio is 0.2.0; `mailto:` links are 0.1.0.
