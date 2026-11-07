@@ -27,3 +27,6 @@ section "build: CMake, warnings as errors"
 cmake -S "$root" -B "$build" -DCMAKE_BUILD_TYPE=Release -DENVIO_WERROR=ON \
   ${FETCHCONTENT_BASE_DIR:+"-DFETCHCONTENT_BASE_DIR=$FETCHCONTENT_BASE_DIR"}
 cmake --build "$build" -j "$(nproc)"
+
+section "tests: QML"
+"$root/tests/qml/run.sh"

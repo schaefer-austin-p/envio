@@ -70,3 +70,9 @@ script = '''
 clickable install --arch arm64
 clickable launch --arch arm64
 '''
+
+[tasks.qml-test]
+description = "Run the QML tests in the CI image"
+command = "docker"
+args = ["run", "--rm", "-v", "${CARGO_MAKE_WORKING_DIRECTORY}:/src", "-w", "/src",
+        "${APP_CI_IMAGE}", "tests/qml/run.sh"]
