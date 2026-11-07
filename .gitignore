@@ -2,3 +2,6 @@
 
 .idea
 build
+build-ci/
+build-docker/
+.qmlls.ini

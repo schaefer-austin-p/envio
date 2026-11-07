@@ -1,7 +1,13 @@
 clickable_minimum_required: 8.8.0
-builder: rust
+builder: cmake
 framework: ubuntu-touch-24.04-1.x
 kill: envio
+env_vars:
+  # The image's /opt/rust/cargo is read-only; keep a crate cache in the build.
+  CARGO_HOME: ${ROOT}/target/click-cargo
+build_args:
+- -DRust_CARGO_TARGET=${ARCH_RUST}
+- -DENVIO_WERROR=ON
 install_root_data:
 - manifest.json
 - envio.apparmor

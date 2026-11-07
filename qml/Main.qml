@@ -1,19 +1,18 @@
-import QtQuick 2.7
-import QtQuick.Controls 2.2
-import Lomiri.Components 1.3
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import Envio 1.0
 
 ApplicationWindow {
-    id: root
-    objectName: 'mainView'
-
-    width: units.gu(45)
-    height: units.gu(75)
+    id: window
+    width: 360
+    height: 640
     visible: true
-    // The QtQuick.Controls Suru style ignores the system theme; Lomiri's follows it.
-    color: theme.palette.normal.background
+    title: "Envio"
 
     Label {
         anchors.centerIn: parent
-        text: i18n.tr("Hello world!")
+        text: qsTr("Envio %1").arg(BuildInfo.version)
     }
+
+    Component.onCompleted: console.info("envio " + BuildInfo.version + " (" + BuildInfo.commit + ")")
 }
