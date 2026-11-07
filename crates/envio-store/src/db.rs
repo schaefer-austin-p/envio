@@ -72,7 +72,11 @@ impl Db {
         result
     }
 
-    /// Checks the file and the search index. An error means: rebuild.
+    /// Checks the file's structure, then that the search index matches the
+    /// `messages` rows (FTS5 `integrity-check` with rank 1, which re-reads
+    /// every row). `Damaged` means: rebuild. Other errors say nothing about
+    /// the file. Cost grows with the cache: on the phone (arm64, warm) about
+    /// 80 ms for 10 000 messages and 340 ms for 40 000.
     pub fn check(&self) -> Result<()> {
         let verdict: String = self
             .conn
@@ -81,7 +85,9 @@ impl Db {
             return Err(StoreError::Damaged(verdict));
         }
         let checked = self.conn.execute(
-            "INSERT INTO messages_fts (messages_fts) VALUES ('integrity-check')",
+            // Rank 0 checks the index only against itself; rank 1 also
+            // compares it with the external content table.
+            "INSERT INTO messages_fts (messages_fts, rank) VALUES ('integrity-check', 1)",
             [],
         );
         match checked {
@@ -141,6 +147,26 @@ mod tests {
         assert!(matches!(error, StoreError::Sqlite(_)), "{error}");
         other.execute_batch("ROLLBACK").unwrap();
         db.check().unwrap();
+    }
+
+    #[test]
+    fn a_search_index_that_disagrees_with_the_messages_is_damaged() {
+        let db = Db::open_in_memory().unwrap();
+        db.check().unwrap();
+        // An index entry for a message row that does not exist, as a write
+        // that bypassed the triggers would leave behind.
+        db.conn()
+            .execute(
+                "INSERT INTO messages_fts (rowid, subject, from_addr, to_addrs, preview)
+                 VALUES (42, 'ghost', 'a@example.org', 'b@example.org', 'gone')",
+                [],
+            )
+            .unwrap();
+        let error = db.check().unwrap_err();
+        assert!(
+            matches!(&error, StoreError::Damaged(why) if why.starts_with("search index")),
+            "{error}"
+        );
     }
 
     #[test]
