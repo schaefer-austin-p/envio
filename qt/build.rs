@@ -16,8 +16,8 @@ fn build_commit() -> String {
     }
     // Rebuild when HEAD moves: a checkout changes HEAD, a commit changes the
     // branch's ref, loose or packed (--git-path finds them in a worktree's
-    // common dir too). Only existing files are watched: cargo treats a
-    // missing one as always changed.
+    // common dir too). Only existing paths are watched, since cargo treats a
+    // missing one as always changed; a packed branch's refs dir stands in.
     let mut watched = vec!["HEAD".to_owned(), "packed-refs".to_owned()];
     let branch = git(&["symbolic-ref", "-q", "HEAD"]);
     if !branch.is_empty() {
@@ -25,8 +25,14 @@ fn build_commit() -> String {
     }
     for path in watched {
         let resolved = git(&["rev-parse", "--git-path", &path]);
-        if !resolved.is_empty() && Path::new(&resolved).exists() {
-            println!("cargo:rerun-if-changed={resolved}");
+        let resolved = Path::new(&resolved);
+        if resolved.exists() {
+            println!("cargo:rerun-if-changed={}", resolved.display());
+        } else if path.starts_with("refs/")
+            && let Some(dir) = resolved.parent().filter(|d| d.exists())
+        {
+            // A packed ref comes back as a loose file on the next commit.
+            println!("cargo:rerun-if-changed={}", dir.display());
         }
     }
     git(&["rev-parse", "--short=10", "HEAD"])
