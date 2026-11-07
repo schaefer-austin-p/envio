@@ -7,6 +7,7 @@ mod error;
 mod folders;
 mod messages;
 mod migrate;
+mod search;
 
 pub use db::Db;
 pub use error::{Result, StoreError};
