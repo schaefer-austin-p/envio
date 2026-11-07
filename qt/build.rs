@@ -29,9 +29,11 @@ fn build_commit() -> String {
         if resolved.exists() {
             println!("cargo:rerun-if-changed={}", resolved.display());
         } else if path.starts_with("refs/")
-            && let Some(dir) = resolved.parent().filter(|d| d.exists())
+            && let Some(dir) = resolved.ancestors().skip(1).find(|d| d.exists())
         {
-            // A packed ref comes back as a loose file on the next commit.
+            // A packed ref comes back as a loose file on the next commit. Its
+            // own dir may be pruned too (`fix/foo`), so the nearest existing
+            // one is watched; cargo scans a watched dir recursively.
             println!("cargo:rerun-if-changed={}", dir.display());
         }
     }
