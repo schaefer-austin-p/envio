@@ -25,6 +25,9 @@ pub struct Draft {
     pub updated_at_ms: i64,
 }
 
+/// Readable drafts, then the ids of damaged ones.
+type Scan = (Vec<(String, Draft)>, Vec<String>);
+
 pub struct Drafts {
     dir: PathBuf,
 }
@@ -51,6 +54,9 @@ impl Drafts {
         Ok(id)
     }
 
+    /// Writes the draft, recreating it if it is missing. Core must cancel a
+    /// pending debounced save before it calls `delete`, or a late autosave
+    /// brings a sent or discarded draft back.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
         let bytes = serde_json::to_vec_pretty(draft).expect("drafts always serialize");
@@ -67,21 +73,37 @@ impl Drafts {
         })
     }
 
-    /// Every draft, most recently changed first.
+    /// Every readable draft, most recently changed first. A draft that cannot
+    /// be read is skipped (see `damaged`), never deleted.
     pub fn list(&self) -> Result<Vec<(String, Draft)>> {
+        Ok(self.scan()?.0)
+    }
+
+    /// Ids of drafts that could not be read or parsed, sorted. Their files are
+    /// left in place.
+    pub fn damaged(&self) -> Result<Vec<String>> {
+        Ok(self.scan()?.1)
+    }
+
+    fn scan(&self) -> Result<Scan> {
         let mut drafts = Vec::new();
+        let mut damaged = Vec::new();
         for entry in fs::read_dir(&self.dir)? {
             let name = entry?.file_name();
             let Some(id) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
                 continue;
             };
             if is_key(id) {
-                drafts.push((id.to_owned(), self.load(id)?));
+                match self.load(id) {
+                    Ok(draft) => drafts.push((id.to_owned(), draft)),
+                    Err(_) => damaged.push(id.to_owned()),
+                }
             }
         }
+        damaged.sort();
         drafts
             .sort_by(|(a_id, a), (b_id, b)| (b.updated_at_ms, b_id).cmp(&(a.updated_at_ms, a_id)));
-        Ok(drafts)
+        Ok((drafts, damaged))
     }
 
     /// Deletes a draft (sent, or discarded by the user).

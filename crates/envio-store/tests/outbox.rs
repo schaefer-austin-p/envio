@@ -113,3 +113,21 @@ fn ids_that_are_not_keys_are_refused() {
         ));
     }
 }
+
+#[test]
+fn a_damaged_item_is_reported_and_kept_while_the_rest_still_load() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let good = outbox.enqueue(new(5), b"x").unwrap();
+    outbox.set_state(&good.id, SendState::Sending).unwrap();
+    fs::write(dir.path().join("77.json"), b"garbage").unwrap();
+    fs::write(dir.path().join("77.eml"), b"keep me").unwrap();
+    drop(outbox);
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let items = outbox.items().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].meta.state, SendState::MayHaveBeenSent);
+    assert_eq!(outbox.damaged().unwrap(), ["77"]);
+    assert!(dir.path().join("77.json").exists());
+    assert!(dir.path().join("77.eml").exists());
+}

@@ -9,6 +9,9 @@ static COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Writes `bytes` to a temp file beside `path`, syncs it, renames it over
 /// `path` and syncs the folder. Creates the folder if needed.
+///
+/// An `Err` from the final folder sync means the new content may already be
+/// in place; only the durability of the rename is unconfirmed.
 pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "no file name"));

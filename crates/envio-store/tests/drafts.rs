@@ -106,3 +106,20 @@ fn ids_that_are_not_keys_are_refused() {
         assert!(matches!(drafts.delete(bad), Err(StoreError::NotFound)));
     }
 }
+
+#[test]
+fn a_damaged_draft_is_skipped_reported_and_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("ok", 1)).unwrap();
+    fs::write(dir.path().join("77.json"), b"garbage").unwrap();
+    let ids: Vec<String> = drafts
+        .list()
+        .unwrap()
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert_eq!(ids, [id]);
+    assert_eq!(drafts.damaged().unwrap(), ["77"]);
+    assert!(dir.path().join("77.json").exists());
+}

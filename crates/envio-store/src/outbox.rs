@@ -85,23 +85,39 @@ impl Outbox {
         Ok(OutboxItem { id, meta })
     }
 
-    /// Every item, oldest first.
+    /// Every readable item, oldest first. An item whose `.json` cannot be read
+    /// is skipped (see `damaged`), never deleted.
     pub fn items(&self) -> Result<Vec<OutboxItem>> {
+        Ok(self.scan()?.0)
+    }
+
+    /// Ids of items whose `.json` could not be read or parsed, sorted. Their
+    /// files are left in place; the UI should say a queued message can't be read.
+    pub fn damaged(&self) -> Result<Vec<String>> {
+        Ok(self.scan()?.1)
+    }
+
+    fn scan(&self) -> Result<(Vec<OutboxItem>, Vec<String>)> {
         let mut items = Vec::new();
+        let mut damaged = Vec::new();
         for entry in fs::read_dir(&self.dir)? {
             let name = entry?.file_name();
             let Some(id) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
                 continue;
             };
             if is_key(id) {
-                items.push(OutboxItem {
-                    id: id.to_owned(),
-                    meta: self.meta(id)?,
-                });
+                match self.meta(id) {
+                    Ok(meta) => items.push(OutboxItem {
+                        id: id.to_owned(),
+                        meta,
+                    }),
+                    Err(_) => damaged.push(id.to_owned()),
+                }
             }
         }
         items.sort_by(|a, b| (a.meta.queued_at_ms, &a.id).cmp(&(b.meta.queued_at_ms, &b.id)));
-        Ok(items)
+        damaged.sort();
+        Ok((items, damaged))
     }
 
     pub fn eml(&self, id: &str) -> Result<Vec<u8>> {
