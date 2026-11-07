@@ -56,6 +56,17 @@ fn an_item_left_sending_may_have_been_sent_after_a_restart() {
 }
 
 #[test]
+fn an_accepted_item_stays_accepted_after_a_restart() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    outbox.set_state(&item.id, SendState::Accepted).unwrap();
+    drop(outbox);
+    let outbox = Outbox::open(dir.path()).unwrap();
+    assert_eq!(outbox.items().unwrap()[0].meta.state, SendState::Accepted);
+}
+
+#[test]
 fn a_failure_reason_is_kept() {
     let dir = tempfile::tempdir().unwrap();
     let outbox = Outbox::open(dir.path()).unwrap();

@@ -167,9 +167,15 @@ impl Db {
     }
 
     /// Drops everything cached for an account, when the account is removed.
-    pub fn remove_account_cache(&self, account: &str) -> Result<()> {
-        self.conn()
-            .execute("DELETE FROM folders WHERE account = ?1", [account])?;
-        Ok(())
+    /// Returns the removed folders' ids, so the caller can call
+    /// `Bodies::remove_folder` for each.
+    pub fn remove_account_cache(&self, account: &str) -> Result<Vec<FolderId>> {
+        let mut statement = self
+            .conn()
+            .prepare("DELETE FROM folders WHERE account = ?1 RETURNING id")?;
+        let ids = statement
+            .query_map([account], |row| row.get(0).map(FolderId))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(ids)
     }
 }

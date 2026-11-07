@@ -77,13 +77,23 @@ impl Db {
         if verdict != "ok" {
             return Err(StoreError::Damaged(verdict));
         }
-        self.conn
-            .execute(
-                "INSERT INTO messages_fts (messages_fts) VALUES ('integrity-check')",
-                [],
-            )
-            .map_err(|error| StoreError::Damaged(format!("search index: {error}")))?;
-        Ok(())
+        let checked = self.conn.execute(
+            "INSERT INTO messages_fts (messages_fts) VALUES ('integrity-check')",
+            [],
+        );
+        match checked {
+            Ok(_) => Ok(()),
+            // Only corruption means rebuild; BUSY, IOERR, READONLY and the
+            // like are ordinary errors and say nothing about the file.
+            Err(error) => {
+                let error = StoreError::Sqlite(error);
+                if error.is_damage() {
+                    Err(StoreError::Damaged(format!("search index: {error}")))
+                } else {
+                    Err(error)
+                }
+            }
+        }
     }
 
     pub(crate) fn conn(&self) -> &Connection {
@@ -113,6 +123,21 @@ mod tests {
             )
             .unwrap()
             == 1
+    }
+
+    #[test]
+    fn a_busy_database_is_not_damaged() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("envio.db");
+        let db = Db::open(&path).unwrap();
+        db.conn().busy_timeout(Duration::ZERO).unwrap();
+        let other = Connection::open(&path).unwrap();
+        other.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let error = db.check().unwrap_err();
+        assert!(!error.is_damage(), "{error}");
+        assert!(matches!(error, StoreError::Sqlite(_)), "{error}");
+        other.execute_batch("ROLLBACK").unwrap();
+        db.check().unwrap();
     }
 
     #[test]

@@ -3,9 +3,11 @@
 //! is written last and removed first, so an `.eml` alone is a half-finished
 //! enqueue, and the draft it came from still exists.
 
+use std::collections::HashSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +24,9 @@ pub enum SendState {
     /// Envio stopped while `Sending`. Never resent on its own: core searches
     /// Sent for the Message-ID, otherwise the user chooses.
     MayHaveBeenSent,
+    /// SMTP accepted the message; the APPEND to Sent is still pending. Never
+    /// resent, not even after a restart: only the APPEND may be retried.
+    Accepted,
     Failed {
         reason: String,
     },
@@ -50,6 +55,9 @@ pub struct OutboxItem {
 
 pub struct Outbox {
     dir: PathBuf,
+    /// Items left `Sending` whose rewrite to `MayHaveBeenSent` failed at open
+    /// (disk full or read-only); they are reported as `MayHaveBeenSent` anyway.
+    unwritten: Mutex<HashSet<String>>,
 }
 
 impl Outbox {
@@ -59,11 +67,16 @@ impl Outbox {
         fs::create_dir_all(dir)?;
         let outbox = Self {
             dir: dir.to_owned(),
+            unwritten: Mutex::new(HashSet::new()),
         };
         outbox.clear_leftovers()?;
         for item in outbox.items()? {
-            if item.meta.state == SendState::Sending {
-                outbox.set_state(&item.id, SendState::MayHaveBeenSent)?;
+            if item.meta.state == SendState::Sending
+                && outbox
+                    .set_state(&item.id, SendState::MayHaveBeenSent)
+                    .is_err()
+            {
+                outbox.unwritten().insert(item.id);
             }
         }
         Ok(outbox)
@@ -100,6 +113,7 @@ impl Outbox {
     fn scan(&self) -> Result<(Vec<OutboxItem>, Vec<String>)> {
         let mut items = Vec::new();
         let mut damaged = Vec::new();
+        let unwritten = self.unwritten().clone();
         for entry in fs::read_dir(&self.dir)? {
             let name = entry?.file_name();
             let Some(id) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
@@ -107,10 +121,15 @@ impl Outbox {
             };
             if is_key(id) {
                 match self.meta(id) {
-                    Ok(meta) => items.push(OutboxItem {
-                        id: id.to_owned(),
-                        meta,
-                    }),
+                    Ok(mut meta) => {
+                        if meta.state == SendState::Sending && unwritten.contains(id) {
+                            meta.state = SendState::MayHaveBeenSent;
+                        }
+                        items.push(OutboxItem {
+                            id: id.to_owned(),
+                            meta,
+                        });
+                    }
                     Err(_) => damaged.push(id.to_owned()),
                 }
             }
@@ -131,13 +150,22 @@ impl Outbox {
             state,
             ..self.meta(id)?
         };
-        self.write_meta(id, &meta)
+        self.write_meta(id, &meta)?;
+        self.unwritten().remove(id);
+        Ok(())
+    }
+
+    fn unwritten(&self) -> MutexGuard<'_, HashSet<String>> {
+        self.unwritten
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     /// Removes an item once the server accepted it, or the user deleted it.
     pub fn remove(&self, id: &str) -> Result<()> {
         check(id)?;
         fs::remove_file(self.path(id, "json")).map_err(StoreError::missing_or_io)?;
+        self.unwritten().remove(id);
         match fs::remove_file(self.path(id, "eml")) {
             Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
             _ => Ok(()),

@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::error::Result;
+use crate::paths::StorePaths;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Opened {
@@ -19,9 +20,12 @@ pub enum Opened {
     },
 }
 
-/// Opens the cache at `path`, rebuilding it if it's damaged. Unsent work is
-/// in other files and is never touched here.
-pub fn open_or_rebuild(path: &Path) -> Result<(Db, Opened)> {
+/// Opens the cache database, rebuilding it if it's damaged; a rebuild also
+/// clears the bodies folder, since folder ids restart. Unsent work is in the
+/// data folder and is never touched here. When core finds damage mid-session
+/// (`StoreError::is_damage`), it drops the `Db` and calls this again.
+pub fn open_or_rebuild(paths: &StorePaths) -> Result<(Db, Opened)> {
+    let path = &paths.db();
     let existed = path.exists();
     let error = match Db::open(path).and_then(|db| db.check().map(|()| db)) {
         Ok(db) => {
@@ -36,6 +40,10 @@ pub fn open_or_rebuild(path: &Path) -> Result<(Db, Opened)> {
         Err(error) => return Err(error),
     };
     move_aside(path)?;
+    match fs::remove_dir_all(paths.bodies()) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
+        _ => {}
+    }
     let db = Db::open(path)?;
     Ok((
         db,

@@ -3,7 +3,7 @@
 -- cache keeps them. Rows name their account by its key.
 
 CREATE TABLE folders (
-    id            INTEGER PRIMARY KEY,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
     account       TEXT    NOT NULL,
     path          TEXT    NOT NULL,
     role          TEXT    NOT NULL DEFAULT 'other',

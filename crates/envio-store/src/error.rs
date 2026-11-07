@@ -30,8 +30,9 @@ impl StoreError {
         }
     }
 
-    /// The cache file can't be trusted and should be rebuilt.
-    pub(crate) fn is_damage(&self) -> bool {
+    /// The cache file can't be trusted and should be rebuilt. Core uses this
+    /// mid-session to decide on a rebuild.
+    pub fn is_damage(&self) -> bool {
         match self {
             Self::SchemaTooNew { .. } | Self::Damaged(_) => true,
             Self::Sqlite(error) => matches!(

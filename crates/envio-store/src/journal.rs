@@ -86,7 +86,7 @@ impl Journal {
             Err(error) if error.kind() == io::ErrorKind::NotFound => Replay::default(),
             Err(error) => return Err(error.into()),
         };
-        let mut journal = Self {
+        let journal = Self {
             path: path.to_owned(),
             file: open_append(path)?,
             next_seq: replay.next_seq,
@@ -96,9 +96,9 @@ impl Journal {
         if !existed && let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
             File::open(dir)?.sync_all()?;
         }
-        if journal.needs_compact {
-            journal.compact()?;
-        }
+        // Opening never writes: with a torn tail, `needs_compact` is set and
+        // the next push or done rewrites the file first. A full disk can't
+        // block startup that way.
         Ok(journal)
     }
 

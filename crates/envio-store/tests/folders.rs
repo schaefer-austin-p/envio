@@ -124,6 +124,21 @@ fn removing_an_account_cache_drops_only_its_folders() {
 }
 
 #[test]
+fn removed_account_folders_are_returned_and_ids_are_never_reused() {
+    let db = Db::open_in_memory().unwrap();
+    let inbox = db.upsert_folder("a1", "INBOX", FolderRole::Inbox).unwrap();
+    let sent = db.upsert_folder("a1", "Sent", FolderRole::Sent).unwrap();
+    let mut removed = db.remove_account_cache("a1").unwrap();
+    removed.sort_by_key(|id| id.0);
+    assert_eq!(removed, [inbox, sent]);
+    let fresh = db.upsert_folder("a2", "INBOX", FolderRole::Inbox).unwrap();
+    assert!(fresh.0 > sent.0);
+    db.remove_folder(fresh).unwrap();
+    let again = db.upsert_folder("a2", "INBOX", FolderRole::Inbox).unwrap();
+    assert_ne!(again, fresh);
+}
+
+#[test]
 fn a_failed_step_rolls_back_folder_changes() {
     let db = Db::open_in_memory().unwrap();
     let error = db
