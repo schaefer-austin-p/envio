@@ -24,7 +24,7 @@ pub use attachments::{AttachmentInfo, attachment_bytes};
 pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use envelope::{Envelope, envelope};
 pub use mailto::{MailtoDraft, parse_mailto};
-pub use message::{Body, Message, parse};
+pub use message::{Body, Message, parse, quote_text};
 pub use plain::plain_to_rich;
 pub use preview::{PREVIEW_CHARS, preview};
 pub use render::render;

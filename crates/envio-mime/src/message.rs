@@ -44,6 +44,26 @@ pub fn parse(raw: &[u8]) -> Message {
     }
 }
 
+/// The plain text to quote in a reply or forward: what envio-core passes to
+/// [`crate::reply`] as [`crate::Quote::text`] and to [`crate::forward`] as
+/// `original_text`. In order: the text/plain alternative, the HTML body
+/// turned into text, the plain body; for mail [`parse`] shows as
+/// [`Message::Raw`], the raw text. format=flowed text comes back as sent.
+/// Takes the raw bytes because [`Message`] keeps only the HTML when there
+/// is an alternative.
+pub fn quote_text(raw: &[u8]) -> String {
+    let Some(message) = parse_mail(raw).filter(|m| !is_broken_multipart(m)) else {
+        return String::from_utf8_lossy(raw).into_owned();
+    };
+    if let Some(PartType::Text(text)) = message.text_part(0).map(|p| &p.body) {
+        return text.to_string();
+    }
+    if let Some(PartType::Html(html)) = message.html_part(0).map(|p| &p.body) {
+        return mail_parser::decoders::html::html_to_text(html);
+    }
+    String::new()
+}
+
 fn body(message: &Parsed<'_>) -> Body {
     if let Some(PartType::Html(html)) = message.html_part(0).map(|p| &p.body) {
         return Body::Html(html.to_string());

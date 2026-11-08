@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use envio_mime::{Body, Message, attachment_bytes, envelope, parse};
+use envio_mime::{Body, Message, attachment_bytes, envelope, parse, quote_text};
 
 fn corpus(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -162,4 +162,41 @@ fn header_only_blob_gives_envelope_without_preview() {
     let e = envelope(raw).unwrap();
     assert_eq!(e.subject, "Hi");
     assert_eq!(e.preview, "");
+}
+
+/// What reply and forward quote: the plain alternative, the HTML as text,
+/// the plain body, or the raw text of a "Strange message".
+#[test]
+fn quote_text_picks_the_plain_text() {
+    let cases: [(&str, &[&str], &[&str]); 5] = [
+        (
+            "gmail-alternative.eml",
+            &["Hi Bob,\n\nAre you free for lunch on Friday? The place on Main Street"],
+            &["<div", "<b>"],
+        ),
+        (
+            "outlook-cid.eml",
+            &["Hi Bob,", "The chart is below.", "Carol"],
+            &["<p", "MsoNormal", "=3D"],
+        ),
+        (
+            "apple-flowed.eml",
+            &[
+                "the space at  \nthe end says it goes on.",
+                "> Did you keep the  \n",
+            ],
+            &["=20"],
+        ),
+        ("garbage.eml", &["PK this is not mail", "<<<<<<< HEAD"], &[]),
+        ("broken-boundary.eml", &["--some-other-boundary"], &[]),
+    ];
+    for (name, has, lacks) in cases {
+        let text = quote_text(&corpus(name));
+        for want in has {
+            assert!(text.contains(want), "{name}: no {want:?} in {text:?}");
+        }
+        for unwanted in lacks {
+            assert!(!text.contains(unwanted), "{name}: {unwanted:?} in {text:?}");
+        }
+    }
 }
