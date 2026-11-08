@@ -122,7 +122,8 @@ The database is a rebuildable cache of the server. Everything that is not
 on the server yet (Outbox, drafts, the action journal's pending actions) is
 kept outside the database so a rebuild cannot lose it: Outbox and drafts as
 files, pending actions in a small append-only journal file that envio-store
-owns beside the database.
+keeps in the app data folder, outside the cache, next to the Outbox and
+drafts.
 
 ## Passwords, certificates, privacy
 
