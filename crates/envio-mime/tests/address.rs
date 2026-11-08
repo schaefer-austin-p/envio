@@ -113,3 +113,10 @@ fn control_characters_never_survive() {
     assert_eq!(normalize_id(" <p@e.com> ").as_deref(), Some("p@e.com"));
     assert_eq!(thread_root("<a\nb@c>", None, &[]), "");
 }
+
+#[test]
+fn signature_separator_is_exactly_dash_dash_space() {
+    assert_eq!(preview("a\n-- \nsecret"), "a");
+    assert_eq!(preview("a\n--\nsecret"), "a");
+    assert_eq!(preview("a\n--  \nmore"), "a -- more");
+}

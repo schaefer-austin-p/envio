@@ -1,5 +1,7 @@
 //! Plain text to Qt rich text: format=flowed, quotes, links, escaping.
 
+use crate::preview::is_signature_line;
+
 /// Wraps the output so Qt keeps runs of spaces and wraps long lines.
 const BLOCK_STYLE: &str = "white-space:pre-wrap";
 /// Deeper quote levels render at this depth.
@@ -110,7 +112,7 @@ fn unflow(text: &str, delsp: bool) -> Vec<Line> {
         } else {
             body
         };
-        let soft = body.ends_with(' ') && body != "-- ";
+        let soft = body.ends_with(' ') && !is_signature_line(body);
         let piece = if soft && delsp {
             &body[..body.len() - 1]
         } else {

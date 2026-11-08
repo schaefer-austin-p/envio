@@ -24,9 +24,10 @@ pub fn preview(text: &str) -> String {
     out
 }
 
-/// The RFC 3676 signature separator, also when a client trimmed its space.
+/// The RFC 3676 signature separator: exactly `-- `, also bare `--` for a
+/// client that trimmed the space. Other trailing spaces (`--  `) are text.
 pub(crate) fn is_signature_line(line: &str) -> bool {
-    line == "-- " || line.trim_end() == "--"
+    line == "-- " || line == "--"
 }
 
 /// Appends `word` (with a separating space) up to the limit; false once full.
