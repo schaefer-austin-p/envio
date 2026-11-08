@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("enc-1@example.com")
+subject: "Grüße aus Köln and =?UTF-8?B?broken"
+from: [Gråta <greta@example.com>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: Some(1794414000)
+in_reply_to: None
+references: []
+thread_root: "enc-1@example.com"
+preview: "Encoded words in the subject, the last one broken."
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">Encoded words in the subject, the last one broken.</div>

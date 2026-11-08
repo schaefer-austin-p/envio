@@ -1,0 +1,20 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0@example.org")
+subject: "Signed contract"
+from: [Bob Example <bob@example.org>]
+to: [Alice Example <alice@example.com>]
+cc: [Carol Example <carol@example.com>]
+reply_to: []
+date: Some(1793948400)
+in_reply_to: None
+references: []
+thread_root: "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0@example.org"
+preview: "Hello both, The signed contract is attached. Bob"
+has_attachments: true
+attachment 0: Some("contract.pdf") application/pdf 24 bytes cid=None inline=false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">Hello both,<br><br>The signed contract is attached.<br><br>Bob</div>

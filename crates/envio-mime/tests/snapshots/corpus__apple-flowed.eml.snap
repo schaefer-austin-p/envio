@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("4F2A9C1E-0B7D-4C1A-9E0F-1234567890AB@example.com")
+subject: "Re: Trip notes"
+from: [Dan Example <dan@example.com>]
+to: [Bob Example <bob@example.org>]
+cc: []
+reply_to: []
+date: Some(1793922000)
+in_reply_to: Some("trip-1@example.org")
+references: ["trip-0@example.org", "trip-1@example.org"]
+thread_root: "trip-0@example.org"
+preview: "This line is long enough that Apple Mail wrapped it, and the space at the end says it goes on."
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">This line is long enough that Apple Mail wrapped it, and the space at the end says it goes on.<br><blockquote style="white-space:pre-wrap">On 5 Nov 2026, at 10:00, Bob Example &lt;bob@example.org&gt; wrote:<br><br>Did you keep the receipts?</blockquote><br>-- <br>Dan</div>
