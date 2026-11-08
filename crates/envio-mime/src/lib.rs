@@ -7,6 +7,7 @@ mod address;
 mod attachments;
 mod build;
 mod envelope;
+mod hidden;
 mod images;
 mod mail;
 mod mailto;
@@ -17,6 +18,7 @@ mod preview;
 mod render;
 mod reply;
 mod sanitize;
+mod style;
 mod thread;
 
 pub use address::{Address, same_email};

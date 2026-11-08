@@ -3,8 +3,10 @@
 //! attribute values and escapes `<` in text, so every `<` starts a tag and
 //! a quote-aware scan finds where it ends.
 
+use crate::hidden::skip_len;
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
+use crate::style::is_hidden;
 
 /// Hosts that serve tracking pixels; subdomains match too.
 const TRACKER_HOSTS: &[&str] = &[
@@ -28,13 +30,13 @@ const TRACKER_HOSTS: &[&str] = &[
 const PIXEL_MAX: u32 = 2;
 
 /// A start tag: lower-case name and unescaped attribute values.
-struct Tag {
-    name: String,
-    attrs: Vec<(String, String)>,
+pub(crate) struct Tag {
+    pub(crate) name: String,
+    pub(crate) attrs: Vec<(String, String)>,
 }
 
 impl Tag {
-    fn attr(&self, name: &str) -> Option<&str> {
+    pub(crate) fn attr(&self, name: &str) -> Option<&str> {
         self.attrs
             .iter()
             .find(|(n, _)| n == name)
@@ -66,7 +68,12 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];
+        let after = start + len;
         match parse_tag(raw) {
+            Some(tag) if tag.attr("style").is_some_and(is_hidden) => {
+                rest = &rest[after + skip_len(&rest[after..], &tag.name)..];
+                continue;
+            }
             Some(tag) if tag.name == "img" => image(&tag, options, &mut out),
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th") => {
                 limit_width(&mut tag, options.max_image_width);
@@ -82,7 +89,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
 
 /// Bytes up to and including the `>` that closes the tag at the start of
 /// `s`, skipping `>` inside double-quoted values.
-fn tag_len(s: &str) -> usize {
+pub(crate) fn tag_len(s: &str) -> usize {
     let mut quoted = false;
     for (i, c) in s.char_indices() {
         match c {
@@ -95,7 +102,7 @@ fn tag_len(s: &str) -> usize {
 }
 
 /// Parses `<name a="v" ...>`; `None` for end tags and anything else.
-fn parse_tag(raw: &str) -> Option<Tag> {
+pub(crate) fn parse_tag(raw: &str) -> Option<Tag> {
     let inner = raw.strip_prefix('<')?.strip_suffix('>')?;
     let inner = inner.strip_suffix('/').unwrap_or(inner);
     if !inner.starts_with(|c: char| c.is_ascii_alphabetic()) {
