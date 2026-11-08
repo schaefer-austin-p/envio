@@ -5,7 +5,7 @@ use std::hash::{BuildHasher, RandomState};
 use mail_builder::MessageBuilder;
 use mail_builder::headers::address::Address as BuilderAddress;
 
-use crate::address::{Address, dedup, has_specials};
+use crate::address::{Address, dedup, has_specials, is_special};
 
 /// A message as composed, ready to turn into bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -183,7 +183,7 @@ fn builder_address(address: &Address) -> BuilderAddress<'static> {
     let email: String = address
         .email
         .chars()
-        .filter(|c| !c.is_control() && !c.is_whitespace())
+        .filter(|&c| !c.is_control() && !c.is_whitespace() && !is_special(c))
         .collect();
     BuilderAddress::new_address(name, email)
 }

@@ -59,6 +59,28 @@ fn build_skips_ids_with_specials_but_keeps_brackets() {
 }
 
 #[test]
+fn from_address_specials_are_stripped() {
+    for special in "<>,;:\"()[]\\".chars() {
+        let mut o = outgoing();
+        o.from = Address {
+            name: None,
+            email: format!("a@b.test{special},evil@x.test"),
+        };
+        let built = build(&o, 0, "x@example.org");
+        let from = header_text(&built.bytes, "from");
+        // One mailbox, and nothing but the stripped text of the email in it.
+        assert_eq!(from, "From: <a@b.testevil@x.test>", "{special}: {from}");
+    }
+    let mut o = outgoing();
+    o.from = Address {
+        name: Some("Bob".to_owned()),
+        email: "a@b.test>,evil@x.test".to_owned(),
+    };
+    let from = header_text(&build(&o, 0, "x@example.org").bytes, "from");
+    assert_eq!(from, "From: \"Bob\" <a@b.testevil@x.test>");
+}
+
+#[test]
 fn address_parse_rejects_specials() {
     for bad in [
         "a@b.test>,evil@x.test",

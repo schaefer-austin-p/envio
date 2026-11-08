@@ -59,7 +59,15 @@ impl Address {
 /// Whether the text holds a character that ends or splits an address in a
 /// header: `< > , ; : " ( ) [ ] \`.
 pub(crate) fn has_specials(text: &str) -> bool {
-    text.contains(['<', '>', ',', ';', ':', '"', '(', ')', '[', ']', '\\'])
+    text.contains(is_special)
+}
+
+/// One of the characters [`has_specials`] looks for.
+pub(crate) fn is_special(c: char) -> bool {
+    matches!(
+        c,
+        '<' | '>' | ',' | ';' | ':' | '"' | '(' | ')' | '[' | ']' | '\\'
+    )
 }
 
 /// Email equality as users expect it: ASCII case and outer spaces ignored.
