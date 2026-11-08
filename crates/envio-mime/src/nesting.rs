@@ -20,6 +20,12 @@ use html5ever::tokenizer::{
 use html5ever::{LocalName, TokenizerResult};
 
 mod foreign;
+#[cfg(test)]
+mod fuzz;
+#[cfg(test)]
+mod fuzz_gen;
+#[cfg(test)]
+mod fuzz_sink;
 mod reopen;
 mod tables;
 mod tags;
