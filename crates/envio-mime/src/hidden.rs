@@ -2,6 +2,7 @@
 //! working on the balanced markup ammonia serializes.
 
 use crate::images::{parse_tag, tag_len};
+use crate::sanitize::TAGS;
 
 /// Elements that have no end tag.
 const VOID: &[&str] = &["br", "hr", "img"];
@@ -32,4 +33,14 @@ pub(crate) fn skip_len(after_start_tag: &str, name: &str) -> usize {
         }
     }
     after_start_tag.len()
+}
+
+/// Whether `raw` (a start or end tag) is of a name ammonia only let through
+/// so the style check could see it: the tag goes, its content stays.
+pub(crate) fn is_unwrapped(raw: &str) -> bool {
+    let name = raw.trim_start_matches('<').trim_start_matches('/');
+    let end = name
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+        .unwrap_or(name.len());
+    end > 0 && !TAGS.contains(&&name[..end])
 }

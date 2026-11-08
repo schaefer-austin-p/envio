@@ -3,16 +3,17 @@
 //! [`crate::hidden`] removes elements that CSS hides.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::LazyLock;
 
 use ammonia::{Builder, UrlRelative};
 
 use crate::style::filter_style;
+use crate::tagnames::stripped_names;
 
 /// Tags kept: Qt's "Supported HTML Subset" (Qt 5.15) minus document-level
 /// tags (html, head, body, title, meta, qt).
-const TAGS: &[&str] = &[
+pub(crate) const TAGS: &[&str] = &[
     "a",
     "address",
     "b",
@@ -65,7 +66,7 @@ const TAGS: &[&str] = &[
 ];
 
 /// Tags dropped together with everything inside them.
-const DROP_WITH_CONTENT: &[&str] = &[
+pub(crate) const DROP_WITH_CONTENT: &[&str] = &[
     "script",
     "style",
     "iframe",
@@ -157,10 +158,20 @@ pub struct Rendered {
     pub removed_trackers: usize,
 }
 
-static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| {
+static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| cleaner(&NO_EXTRA));
+
+static NO_EXTRA: BTreeSet<String> = BTreeSet::new();
+
+/// The cleaner, also letting `extra` tags through (see [`crate::tagnames`]).
+fn cleaner(extra: &BTreeSet<String>) -> Builder<'_> {
     let mut builder = Builder::empty();
     builder
-        .tags(TAGS.iter().copied().collect())
+        .tags(
+            TAGS.iter()
+                .copied()
+                .chain(extra.iter().map(String::as_str))
+                .collect(),
+        )
         .clean_content_tags(DROP_WITH_CONTENT.iter().copied().collect())
         .tag_attributes(tag_attributes())
         .generic_attributes(["style"].into_iter().collect())
@@ -170,7 +181,7 @@ static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| {
         .strip_comments(true)
         .attribute_filter(filter_attribute);
     builder
-});
+}
 
 /// Sanitizes HTML mail into Qt rich text.
 ///
@@ -184,7 +195,13 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
             ..Rendered::default()
         };
     }
-    let clean = CLEANER.clean(html).to_string();
+    let extra = stripped_names(html);
+    let clean = if extra.is_empty() {
+        CLEANER.clean(html)
+    } else {
+        cleaner(&extra).clean(html)
+    };
+    let clean = clean.to_string();
     crate::images::fit(&clean, options)
 }
 

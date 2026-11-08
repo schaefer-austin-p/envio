@@ -19,6 +19,7 @@ mod render;
 mod reply;
 mod sanitize;
 mod style;
+mod tagnames;
 mod thread;
 
 pub use address::{Address, same_email};

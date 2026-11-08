@@ -3,7 +3,7 @@
 //! attribute values and escapes `<` in text, so every `<` starts a tag and
 //! a quote-aware scan finds where it ends.
 
-use crate::hidden::skip_len;
+use crate::hidden::{is_unwrapped, skip_len};
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -74,6 +74,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
                 rest = &rest[after + skip_len(&rest[after..], &tag.name)..];
                 continue;
             }
+            _ if is_unwrapped(raw) => {}
             Some(tag) if tag.name == "img" => image(&tag, options, &mut out),
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th") => {
                 limit_width(&mut tag, options.max_image_width);
