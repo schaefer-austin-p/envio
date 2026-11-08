@@ -17,6 +17,8 @@ env:
   # sccache can't cache incremental compilations.
   CARGO_INCREMENTAL: "0"
   SCCACHE_CACHE_SIZE: "2G"
+  # Snapshot tests (insta) fail on a new or changed snapshot, never write it.
+  INSTA_UPDATE: "no"
 
 jobs:
   # The Qt-free workspace. On a PR, unit and single-crate integration tests
