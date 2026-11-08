@@ -10,6 +10,7 @@ mod mail;
 mod message;
 mod plain;
 mod preview;
+mod sanitize;
 mod thread;
 
 pub use address::{Address, same_email};
@@ -18,4 +19,5 @@ pub use envelope::{Envelope, envelope};
 pub use message::{Body, Message, parse};
 pub use plain::plain_to_rich;
 pub use preview::{PREVIEW_CHARS, preview};
+pub use sanitize::{RenderOptions, Rendered, sanitize_html};
 pub use thread::{normalize_id, thread_root};

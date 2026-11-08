@@ -1,0 +1,92 @@
+//! Sanitizer rules one at a time (images: tests/images.rs).
+
+use envio_mime::{RenderOptions, sanitize_html};
+
+fn clean(html: &str) -> String {
+    let options = RenderOptions::default();
+    sanitize_html(html, &options).html
+}
+
+#[test]
+fn keeps_qt_formatting() {
+    let html = r#"<p align="center"><b>bold</b> <i>it</i> <u>u</u> <font color="red" face="Sans" size="3">f</font></p><ul type="disc"><li>one</li></ul><hr width="50%">"#;
+    assert_eq!(clean(html), html);
+}
+
+#[test]
+fn drops_unknown_tags_but_keeps_their_text() {
+    assert_eq!(clean("<article><section>text</section></article>"), "text");
+}
+
+#[test]
+fn drops_script_style_and_their_content() {
+    assert_eq!(
+        clean("<p>a</p><script>x()</script><style>p{}</style><p>b</p>"),
+        "<p>a</p><p>b</p>"
+    );
+}
+
+#[test]
+fn drops_class_id_and_events() {
+    assert_eq!(
+        clean(r#"<p class="x" id="y" onclick="z()">t</p>"#),
+        "<p>t</p>"
+    );
+}
+
+#[test]
+fn keeps_exact_http_https_mailto_links() {
+    for href in [
+        "https://example.com/a?b=1&amp;c=2",
+        "http://example.com/",
+        "mailto:bob@example.org",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), html);
+    }
+}
+
+#[test]
+fn drops_other_link_schemes_but_keeps_text() {
+    for href in [
+        "javascript:alert(1)",
+        "  javascript:alert(1)",
+        "JAVASCRIPT:alert(1)",
+        "vbscript:x",
+        "data:text/html,x",
+        "file:///etc/passwd",
+        "cid:part1",
+        "relative/path",
+        "//example.com/x",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href}");
+    }
+}
+
+#[test]
+fn filters_style_properties() {
+    assert_eq!(
+        clean(r#"<p style="color: red; position: fixed; font-weight:bold">t</p>"#),
+        r#"<p style="color:red;font-weight:bold">t</p>"#
+    );
+    assert_eq!(
+        clean(r#"<p style="background-color:url(x);color:expression(1)">t</p>"#),
+        "<p>t</p>"
+    );
+    assert_eq!(
+        clean(r#"<p style="font-family:'Open Sans">t</p>"#),
+        "<p>t</p>"
+    );
+}
+
+#[test]
+fn width_in_style_only_counts_on_images() {
+    assert_eq!(clean(r#"<div style="width:900px">t</div>"#), "<div>t</div>");
+}
+
+#[test]
+fn escapes_text_and_attribute_values() {
+    assert_eq!(clean("<p>1 &lt; 2 &amp; 3</p>"), "<p>1 &lt; 2 &amp; 3</p>");
+    assert_eq!(clean("a < b"), "a &lt; b");
+}
