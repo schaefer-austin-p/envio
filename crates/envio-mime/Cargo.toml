@@ -16,7 +16,9 @@ getrandom = "0.4"
 # The nesting guard (src/nesting*) models exactly this version's tree
 # builder. Any bump must run
 #   NESTFUZZ_CASES=500000 cargo test -p envio-mime --release -- --ignored nesting_fuzz
-# and show 0 under-counts before it merges.
+# and show 0 under-counts, then update FUZZED_HTML5EVER in
+# src/nesting/fuzz_baseline.rs. A normal test compares it with Cargo.lock, so
+# a bump cannot merge green without that.
 html5ever = "=0.40.1"
 # Without default features mail-builder never calls gethostname, so the
 # device's hostname can't leak into Message-IDs. Cargo unifies features: if

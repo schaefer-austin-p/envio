@@ -23,6 +23,8 @@ mod foreign;
 #[cfg(test)]
 mod fuzz;
 #[cfg(test)]
+mod fuzz_baseline;
+#[cfg(test)]
 mod fuzz_gen;
 #[cfg(test)]
 mod fuzz_sink;
