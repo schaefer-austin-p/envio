@@ -5,11 +5,15 @@ use crate::images::{parse_tag, tag_len};
 use crate::sanitize::TAGS;
 
 /// Elements that have no end tag.
-const VOID: &[&str] = &["br", "hr", "img"];
+const VOID: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param",
+    "source", "track", "wbr",
+];
 
 /// Bytes to skip after the start tag of a hidden `name` element: its
 /// content and its end tag. Nested elements of the same name are counted;
-/// without a matching end tag the rest of the input goes.
+/// without a matching end tag (a void element we did not list) nothing
+/// but the start tag goes, never the rest of the document.
 pub(crate) fn skip_len(after_start_tag: &str, name: &str) -> usize {
     if VOID.contains(&name) {
         return 0;
@@ -32,7 +36,7 @@ pub(crate) fn skip_len(after_start_tag: &str, name: &str) -> usize {
             depth += 1;
         }
     }
-    after_start_tag.len()
+    0
 }
 
 /// Whether `raw` (a start or end tag) is of a name ammonia only let through
