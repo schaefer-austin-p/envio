@@ -179,7 +179,9 @@ fn parser_rules_the_old_scan_got_wrong() {
             "6 cdata",
             format!("<svg>{}", "<g><![CDATA[></g>]]>".repeat(n)),
         ),
-        ("8 formatting end", "<ul><b><li></b>".repeat(2_000)),
+        // 200 lists alone stay under the limit: only keeping the li open
+        // across `</b>` (html5ever's adoption agency does) makes it deep.
+        ("8 formatting end", "<ul><b><li></b>".repeat(200)),
     ] {
         assert!(fell_back(&html), "finding {finding}");
     }
@@ -215,4 +217,66 @@ fn deep_sloppy_tables_go_through() {
         ));
     }
     assert!(!fell_back(&html));
+}
+
+/// Outside a table, and right inside a template, html5ever ignores table
+/// parts: they must not close the lists and cells around them.
+#[test]
+fn table_parts_outside_a_table_close_nothing() {
+    for html in [
+        "<td><dt><li>".repeat(3_000),
+        "<tr><dt><li>".repeat(3_000),
+        "<dd><li><td>".repeat(3_000),
+        "<td><dt><li></td>".repeat(200),
+        "<tbody><td><ol>".repeat(200),
+        format!("<template>{}", "<ol><td>".repeat(300)),
+    ] {
+        assert!(fell_back(&html), "{}", &html[..20]);
+    }
+}
+
+/// A table html5ever has closed must not anchor a later row: every unit
+/// below closes its table, then opens 150 lists that a stray `<tr>` would
+/// pop, then 150 more.
+#[test]
+fn closed_tables_anchor_nothing() {
+    for table in [
+        "<table><dl></table>",
+        "<table><table></table>",
+        "<template><table></template>",
+        "<table><td><div></td></table>",
+    ] {
+        let lists = "<dl>".repeat(150);
+        let html = format!("{table}{lists}<tr>{lists}");
+        assert!(fell_back(&html), "{table}");
+    }
+}
+
+/// Formatting elements a closing table pops stay on html5ever's list of
+/// active formatting elements, and it reopens them right after the table.
+#[test]
+fn formatting_reopened_after_a_table_counts() {
+    // Each table holds 30 new ones; only the reopened ones pile up.
+    let html: String = (0..10)
+        .map(|table| {
+            let formatting: String = (0..30).map(|k| format!("<b class=c{table}-{k}>")).collect();
+            format!("<table>{formatting}</table><br>")
+        })
+        .collect();
+    assert!(fell_back(&html));
+    // A cell's marker clears them: sloppy cells don't add up.
+    let cells = "<table><tr><td><font face=x>text</td></tr></table>".repeat(400);
+    assert!(!fell_back(&cells));
+}
+
+/// html5ever inserts a tbody and a tr around a bare cell: they count.
+#[test]
+fn implied_rows_and_bodies_count() {
+    for html in [
+        "<table><td>".repeat(127),
+        "<table><tr><td>".repeat(80),
+        "<table><col><td>".repeat(127),
+    ] {
+        assert!(fell_back(&html), "{}", &html[..20]);
+    }
 }

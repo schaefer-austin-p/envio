@@ -19,6 +19,9 @@ use html5ever::tokenizer::{
 };
 use html5ever::{LocalName, TokenizerResult};
 
+mod foreign;
+mod reopen;
+mod tables;
 mod tags;
 
 use tags::{BLOCK, FORMATTING, VOID, breaks_out, raw_text};
@@ -42,6 +45,11 @@ struct Open {
     ns: Ns,
     /// svg foreignObject, desc, title; MathML text and annotation-xml.
     integration: bool,
+    /// A table part outside any table, which html5ever ignores: it is
+    /// counted but is neither closed nor passed by an implied end.
+    inert: bool,
+    /// Formatting elements html5ever will reopen until this marker closes.
+    debt: usize,
 }
 
 /// The model of the tree builder's stack. Foreign elements only ever sit at
@@ -49,6 +57,8 @@ struct Open {
 #[derive(Default)]
 struct Model {
     stack: Vec<Open>,
+    /// All reopen debt, also what no marker carries (see `reopen`).
+    debt: usize,
     starts: usize,
     tripped: bool,
 }
@@ -137,7 +147,11 @@ impl Model {
         match name {
             "svg" => self.open(tag, Ns::Svg),
             "math" => self.open(tag, Ns::Math),
+            "col" => self.start_col(),
             _ if VOID.contains(&name) => {}
+            "table" => self.start_table(),
+            "td" | "th" | "tr" => self.start_table_part(&tag.name),
+            "tbody" | "thead" | "tfoot" | "caption" | "colgroup" => self.start_section(&tag.name),
             _ => {
                 self.imply_end(name);
                 self.push(tag.name.clone(), Ns::Html, false);
@@ -147,23 +161,6 @@ impl Model {
         TokenSinkResult::Continue
     }
 
-    /// A foreign start tag: `/>` really closes it.
-    fn open(&mut self, tag: &Tag, ns: Ns) {
-        if tag.self_closing {
-            self.count();
-        } else {
-            let integration = match ns {
-                Ns::Svg => matches!(&*tag.name, "foreignobject" | "desc" | "title"),
-                Ns::Math => matches!(
-                    &*tag.name,
-                    "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
-                ),
-                Ns::Html => false,
-            };
-            self.push(tag.name.clone(), ns, integration);
-        }
-    }
-
     /// The end tags a start tag implies, but only where html5ever surely
     /// pops at least as much.
     fn imply_end(&mut self, name: &str) {
@@ -171,15 +168,13 @@ impl Model {
             "li" => (&["li"], &["p"]),
             "dd" | "dt" => (&["dd", "dt"], &["p"]),
             "p" => (&["p"], &["li", "dd", "dt", "tr"]),
-            "td" | "th" => (&["td", "th"], &["p", "li", "dd", "dt"]),
-            "tr" => (&["tr"], &["td", "th", "p", "li", "dd", "dt"]),
             "option" | "optgroup" => (&["option"], &[]),
             _ => return,
         };
         self.pop_through(targets, through);
         if matches!(name, "li" | "dd" | "dt") && self.top_is("p") {
             // html5ever closes a p in button scope before inserting these.
-            self.stack.pop();
+            self.pop();
         }
     }
 
@@ -196,45 +191,18 @@ impl Model {
         self.end_html(name);
     }
 
-    /// html5ever's foreign end tag: walk down through foreign elements and
-    /// pop through the first one of that name. Past them it would apply
-    /// the HTML rules with svg or math still open, which we do not model.
-    fn end_foreign(&mut self, name: &str) {
-        let foreign = self
-            .stack
-            .iter()
-            .rev()
-            .take_while(|open| open.ns != Ns::Html)
-            .count();
-        let base = self.stack.len() - foreign;
-        if let Some(index) = self.stack[base..]
-            .iter()
-            .rposition(|open| &*open.name == name)
-        {
-            self.stack.truncate(base + index);
+    fn end_html(&mut self, name: &str) {
+        if self.end_table_part(name) {
             return;
         }
-        let heading = |n: &str| matches!(n, "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
-        if self.stack[..base]
-            .iter()
-            .any(|open| &*open.name == name || (heading(name) && heading(&open.name)))
-        {
-            self.tripped = true;
-        }
-    }
-
-    fn end_html(&mut self, name: &str) {
         if self.top_is(name) {
-            self.stack.pop();
+            self.pop();
             return;
         }
         let through: &[&str] = match name {
             "p" => &["li", "dd", "dt", "tr"],
             "li" => &["p", "dd", "dt", "tr"],
             "dd" | "dt" => &["p", "li", "dd", "dt", "tr"],
-            "td" | "th" => &["p", "li", "dd", "dt"],
-            "tr" => &["td", "th", "p", "li", "dd", "dt"],
-            "table" => &["p", "li", "dd", "dt", "td", "th", "tr"],
             _ if FORMATTING.contains(&name) => return,
             _ if BLOCK.contains(&name) => &["p", "li", "dd", "dt", "tr"],
             _ => return,
@@ -246,11 +214,11 @@ impl Model {
     /// through elements named in `through`.
     fn pop_through(&mut self, targets: &[&str], through: &[&str]) {
         for (index, open) in self.stack.iter().enumerate().rev() {
-            if open.ns != Ns::Html {
+            if open.ns != Ns::Html || open.inert {
                 return;
             }
             if targets.contains(&&*open.name) {
-                self.stack.truncate(index);
+                self.truncate(index);
                 return;
             }
             if !through.contains(&&*open.name) {
@@ -259,26 +227,10 @@ impl Model {
         }
     }
 
-    /// html5ever pops foreign elements back to an HTML one. Stopping at an
-    /// integration point instead would build HTML inside it: trip.
-    fn leave_foreign(&mut self) -> bool {
-        while let Some(top) = self.stack.last() {
-            if top.ns == Ns::Html {
-                break;
-            }
-            if top.integration {
-                self.tripped = true;
-                return false;
-            }
-            self.stack.pop();
-        }
-        true
-    }
-
     fn top_is(&self, name: &str) -> bool {
         self.stack
             .last()
-            .is_some_and(|open| open.ns == Ns::Html && &*open.name == name)
+            .is_some_and(|open| open.ns == Ns::Html && !open.inert && &*open.name == name)
     }
 
     fn push(&mut self, name: LocalName, ns: Ns, integration: bool) {
@@ -287,8 +239,14 @@ impl Model {
             name,
             ns,
             integration,
+            inert: false,
+            debt: 0,
         });
-        if self.stack.len() > MAX_DEPTH {
+        self.check_depth();
+    }
+
+    fn check_depth(&mut self) {
+        if self.stack.len() + self.debt > MAX_DEPTH {
             self.tripped = true;
         }
     }
