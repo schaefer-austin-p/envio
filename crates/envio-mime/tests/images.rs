@@ -71,16 +71,21 @@ fn tracker_hosts_match_whole_labels() {
 }
 
 #[test]
-fn maps_cid_images_and_drops_unknown_ones() {
+fn maps_cid_images_and_labels_unknown_ones() {
     let options = RenderOptions {
         cid_urls: HashMap::from([("logo@example.org".to_owned(), "image://envio/3".to_owned())]),
         ..blocked()
     };
     let r = sanitize_html(
-        r#"<img src="cid:logo@example.org" alt="Logo"><img src="cid:other@example.org">"#,
+        r#"<img src="cid:logo@example.org" alt="Logo"><img src="cid:other@example.org"> <img src="cid:gone@example.org" alt="Chart &amp; key">"#,
         &options,
     );
-    assert_eq!(r.html, r#"<img src="image://envio/3" alt="Logo">"#);
+    // An unknown cid shows its alt text or the label, like a blocked
+    // remote image, but loading remote images would not bring it back.
+    assert_eq!(
+        r.html,
+        r#"<img src="image://envio/3" alt="Logo">[image] Chart &amp; key"#
+    );
     assert_eq!(r.blocked_images, 0);
 }
 

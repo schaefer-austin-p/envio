@@ -46,6 +46,10 @@ pub struct Built {
 /// Builds the message. `date_unix` is the Date header (seconds) and
 /// `message_id` (without angle brackets) comes from [`new_message_id`],
 /// so a retry from the Outbox sends the same id.
+///
+/// An unsafe `message_id` is replaced by a fresh one. envio-core must store
+/// [`Built::message_id`], not the id it passed in, so every retry sends the
+/// id of the first try.
 pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
     // Last line of defence: nothing with a control character or a space
     // reaches a header, whatever the caller passed in.
@@ -107,6 +111,10 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
 
 /// A fresh Message-ID (without angle brackets): 128 random bits in hex,
 /// then `@` and the sender's domain. Never the device's hostname.
+///
+/// A domain that isn't plain ASCII letters, digits, dots and hyphens (an
+/// IDN such as `例え.jp`, which is not punycoded here) gives `@invalid`.
+/// The id stays unique; only the domain part is lost.
 pub fn new_message_id(from_email: &str) -> String {
     let domain = from_email
         .rsplit_once('@')

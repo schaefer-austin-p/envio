@@ -14,6 +14,11 @@ workspace = true
 ammonia = "4.2"
 getrandom = "0.4"
 html5ever = "=0.40.1"
+# Without default features mail-builder never calls gethostname, so the
+# device's hostname can't leak into Message-IDs. Cargo unifies features: if
+# any other crate in the workspace depends on mail-builder with default
+# features, gethostname comes back here too. Keep every dependent on
+# `default-features = false`.
 mail-builder = { version = "2.0", default-features = false }
 mail-parser = { version = "0.11.9", features = ["full_encoding"] }
 

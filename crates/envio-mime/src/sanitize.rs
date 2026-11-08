@@ -179,8 +179,8 @@ pub struct RenderOptions {
     /// Content-ID (without angle brackets) to the URL the UI can load the
     /// inline part from.
     pub cid_urls: HashMap<String, String>,
-    /// Shown in place of a blocked image that has no alt text. Translated by
-    /// the caller.
+    /// Shown in place of a blocked image, or a `cid:` image the message
+    /// doesn't hold, that has no alt text. Translated by the caller.
     pub blocked_label: String,
     /// Widest image or table in pixels; wider ones are scaled down (images)
     /// or lose their width (tables, cells). 0 means no limit.

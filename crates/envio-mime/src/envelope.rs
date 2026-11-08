@@ -3,6 +3,7 @@
 use mail_parser::HeaderValue;
 
 use crate::address::{Address, from_header};
+use crate::attachments::{AttachmentInfo, list};
 use crate::mail::{Parsed, parse_mail};
 use crate::preview::preview;
 use crate::thread::{normalize_id, thread_root};
@@ -25,7 +26,9 @@ pub struct Envelope {
     /// Without angle brackets, oldest first.
     pub references: Vec<String>,
     pub preview: String,
-    /// A non-inline attachment is present.
+    /// A non-inline attachment is present. Always false for a header-only
+    /// blob, which has no parts to look at: sync must take this flag from
+    /// the IMAP BODYSTRUCTURE instead.
     pub has_attachments: bool,
 }
 
@@ -43,11 +46,12 @@ impl Envelope {
 /// The envelope of a full message or a header-only blob (then the preview is
 /// empty). `None` when the bytes don't look like mail.
 pub fn envelope(raw: &[u8]) -> Option<Envelope> {
-    parse_mail(raw).map(|message| from_parsed(&message))
+    parse_mail(raw).map(|message| from_parsed(&message, &list(&message)))
 }
 
-pub(crate) fn from_parsed(message: &Parsed<'_>) -> Envelope {
-    let attachments = crate::attachments::list(message);
+/// `attachments` is [`list`] of `message`, passed in because
+/// [`crate::parse`] keeps it too.
+pub(crate) fn from_parsed(message: &Parsed<'_>, attachments: &[AttachmentInfo]) -> Envelope {
     Envelope {
         message_id: message.message_id().and_then(normalize_id),
         subject: message.subject().unwrap_or_default().trim().to_owned(),

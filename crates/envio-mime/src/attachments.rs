@@ -11,6 +11,9 @@ pub struct AttachmentInfo {
     /// Position in the message's attachment list; pass it to
     /// [`attachment_bytes`].
     pub index: usize,
+    /// As the sender wrote it, so untrusted: it can hold `/`, `..` or
+    /// control characters. Sanitize it before using it as a file name or a
+    /// Content Hub name.
     pub filename: Option<String>,
     /// `type/subtype`, lower case.
     pub content_type: String,

@@ -35,11 +35,14 @@ pub enum Body {
 /// comes back as [`Message::Raw`].
 pub fn parse(raw: &[u8]) -> Message {
     match parse_mail(raw) {
-        Some(message) if !is_broken_multipart(&message) => Message::Parsed {
-            envelope: Box::new(from_parsed(&message)),
-            body: body(&message),
-            attachments: list(&message),
-        },
+        Some(message) if !is_broken_multipart(&message) => {
+            let attachments = list(&message);
+            Message::Parsed {
+                envelope: Box::new(from_parsed(&message, &attachments)),
+                body: body(&message),
+                attachments,
+            }
+        }
         _ => Message::Raw(String::from_utf8_lossy(raw).into_owned()),
     }
 }

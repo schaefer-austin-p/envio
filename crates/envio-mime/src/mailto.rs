@@ -52,7 +52,9 @@ pub fn parse_mailto(uri: &str) -> Option<MailtoDraft> {
 }
 
 /// Comma-separated addresses; entries that fail `Address::parse` (no `@`,
-/// control characters) are skipped.
+/// control characters) are skipped. RFC 6068 allows only addr-specs here,
+/// so a plain split is enough; a quoted display name with a comma
+/// (`"Doe, John" <j@x>`) breaks apart, which is rare and left as is.
 fn addresses(list: &str) -> Vec<Address> {
     list.split(',').filter_map(Address::parse).collect()
 }

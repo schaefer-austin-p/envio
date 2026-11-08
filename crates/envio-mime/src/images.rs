@@ -150,18 +150,17 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     let url = if lower.starts_with("cid:") {
         match cid_url(&src[4..], options) {
             Some(url) => url.to_owned(),
-            None => return,
+            None => {
+                // Not in the message: shown like a blocked image, but not
+                // counted, since loading remote images won't bring it back.
+                alt_or_label(tag, options, out);
+                return;
+            }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
-            let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
-            let label = if alt.is_empty() {
-                &options.blocked_label
-            } else {
-                alt
-            };
-            escape_into(label, &mut out.html);
+            alt_or_label(tag, options, out);
             return;
         }
         src.to_owned()
@@ -187,6 +186,17 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
 }
 
 /// The loadable URL for a `cid:` reference, with or without angle brackets.
+/// An image that isn't shown: its alt text, or the caller's label.
+fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
+    let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
+    let label = if alt.is_empty() {
+        &options.blocked_label
+    } else {
+        alt
+    };
+    escape_into(label, &mut out.html);
+}
+
 fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<&'o str> {
     let id = crate::thread::normalize_id(cid)?;
     options.cid_urls.get(&id).map(String::as_str)
