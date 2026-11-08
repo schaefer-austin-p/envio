@@ -196,10 +196,10 @@ fn is_tracker(src: &str, width: Option<u32>, height: Option<u32>) -> bool {
     if width.is_some_and(|w| w <= PIXEL_MAX) || height.is_some_and(|h| h <= PIXEL_MAX) {
         return true;
     }
-    let Some(host) = ammonia::Url::parse(src)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-    else {
+    let Some(host) = ammonia::Url::parse(src).ok().and_then(|url| {
+        url.host_str()
+            .map(|h| h.trim_end_matches('.').to_ascii_lowercase())
+    }) else {
         return false;
     };
     TRACKER_HOSTS.iter().any(|t| {
@@ -226,11 +226,24 @@ fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
     })
 }
 
-/// `20`, `20px` or ` 20 px` as pixels; percentages and the like are `None`.
+/// A length as whole pixels: `20`, `20px`, `1.0PX`, `0.5`, ` 20 px`,
+/// `15pt` (pt x 4/3) and a trailing `!important`. Percentages, negatives
+/// and the like are `None`; a number too large for `u32` is `u32::MAX`.
 fn pixels(value: &str) -> Option<u32> {
-    let value = value.trim();
-    let value = value.strip_suffix("px").unwrap_or(value).trim_end();
-    value.parse().ok()
+    let value = value.trim().to_ascii_lowercase();
+    let value = value.strip_suffix("!important").unwrap_or(&value).trim();
+    let (number, factor) = match value.strip_suffix("pt") {
+        Some(number) => (number, 4.0 / 3.0),
+        None => (value.strip_suffix("px").unwrap_or(value), 1.0),
+    };
+    let number = number.trim();
+    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let px = (number.parse::<f64>().ok()? * factor).round();
+    // Saturating on purpose: huge values count as "too wide".
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Some(px.min(f64::from(u32::MAX)) as u32)
 }
 
 /// Scales a too-wide image down to `max`, keeping its aspect ratio when

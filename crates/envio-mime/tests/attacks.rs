@@ -207,3 +207,44 @@ fn tag_scanner_sees_quoted_angle_brackets() {
         vec!["src", "onerror"]
     );
 }
+
+fn render_file(name: &str, remote: bool) -> envio_mime::Rendered {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/attacks")
+        .join(name);
+    sanitize_html(&std::fs::read_to_string(path).unwrap(), &options(remote))
+}
+
+/// The safe content of an attack file must survive: a sanitizer that
+/// deletes everything would pass the negative checks above.
+#[test]
+fn attack_files_keep_their_safe_content() {
+    for remote in [false, true] {
+        let forbidden = render_file("forbidden-tags.html", remote);
+        assert!(forbidden.html.contains("<p>kept</p>"), "{}", forbidden.html);
+
+        let links = render_file("javascript-links.html", remote);
+        assert!(
+            links
+                .html
+                .contains(r#"<a href="https://example.com/ok">ok</a>"#),
+            "{}",
+            links.html
+        );
+        assert!(links.html.contains("one"), "text of dropped links stays");
+
+        let pixels = render_file("tracking-pixel.html", remote);
+        assert_eq!(pixels.removed_trackers, 3);
+        assert!(pixels.html.contains("<p>Newsletter</p>"), "{}", pixels.html);
+        assert_eq!(pixels.html.contains("photo.jpg"), remote, "{}", pixels.html);
+        assert_eq!(pixels.blocked_images, usize::from(!remote));
+
+        let confusion = render_file("attribute-confusion.html", remote);
+        assert!(
+            confusion.html.contains(r#"src="image://envio/part/0""#),
+            "{}",
+            confusion.html
+        );
+        assert!(confusion.html.contains("cid link"));
+    }
+}

@@ -127,3 +127,58 @@ fn no_width_limit_when_zero() {
     let html = r#"<img src="https://example.com/a.png" width="5000">"#;
     assert_eq!(sanitize_html(html, &options).html, html);
 }
+
+#[test]
+fn tracker_sizes_in_any_spelling() {
+    for size in [
+        "0",
+        "0px",
+        "1PX",
+        "1Px",
+        "1.0px",
+        "0.5",
+        "1pt",
+        "1PT",
+        "1px !important",
+        " 1 px ",
+        "2px",
+        "0.75pt",
+    ] {
+        for html in [
+            format!(r#"<img src="https://example.com/p.gif" width="{size}" height="50">"#),
+            format!(r#"<img src="https://example.com/p.gif" style="height:{size};width:50px">"#),
+        ] {
+            let r = sanitize_html(&html, &allowed());
+            assert_eq!(r.removed_trackers, 1, "{html}");
+            assert_eq!(r.html, "", "{html}");
+        }
+    }
+}
+
+#[test]
+fn real_images_are_not_trackers() {
+    for size in ["3", "3px", "2.6px", "3pt", "100%", "auto", "10"] {
+        let html = format!(r#"<img src="https://example.com/p.gif" width="{size}" height="50">"#);
+        let r = sanitize_html(&html, &allowed());
+        assert_eq!(r.removed_trackers, 0, "{html}");
+    }
+}
+
+#[test]
+fn tracker_host_with_trailing_dot_matches() {
+    let r = sanitize_html(
+        r#"<img src="https://t.yesware.com./o.gif"><img src="https://x.list-manage.com./o.gif">"#,
+        &allowed(),
+    );
+    assert_eq!(r.removed_trackers, 2);
+    assert_eq!(r.html, "");
+}
+
+#[test]
+fn huge_table_widths_are_dropped() {
+    let html =
+        r#"<table width="99999999999999999999"><tr><td width="4294967296">x</td></tr></table>"#;
+    let out = clean(html);
+    assert!(!out.contains("width"), "{out}");
+    assert!(out.contains("x"));
+}
