@@ -91,7 +91,7 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
     }
     for file in &outgoing.attachments {
         builder = builder.attachment(
-            file.content_type.as_str(),
+            safe_content_type(&file.content_type),
             file.filename.as_str(),
             file.bytes.as_slice(),
         );
@@ -127,6 +127,19 @@ pub fn new_message_id(from_email: &str) -> String {
     }
     let hex: String = random.iter().map(|b| format!("{b:02x}")).collect();
     format!("{hex}@{domain}")
+}
+
+/// `type/subtype` of RFC 2045 token characters, else `application/octet-stream`.
+fn safe_content_type(content_type: &str) -> &str {
+    let token = |t: &str| {
+        !t.is_empty()
+            && t.chars()
+                .all(|c| c.is_ascii_alphanumeric() || "!#$&-^_.+".contains(c))
+    };
+    match content_type.split_once('/') {
+        Some((kind, sub)) if token(kind) && token(sub) => content_type,
+        _ => "application/octet-stream",
+    }
 }
 
 /// Empty, or holding a control character or whitespace.

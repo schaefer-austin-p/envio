@@ -216,3 +216,40 @@ fn message_id_domain_is_restricted() {
     assert!(new_message_id("a@ex<ample>.org").ends_with("@invalid"));
     assert!(new_message_id("a@sub-1.example.org").ends_with("@sub-1.example.org"));
 }
+
+#[test]
+fn attachment_content_type_is_validated() {
+    let mut o = simple();
+    o.attachments = vec![
+        OutgoingAttachment {
+            filename: "a.txt".to_owned(),
+            content_type: "text/plain\r\nBcc: e@e.org".to_owned(),
+            bytes: b"x".to_vec(),
+        },
+        OutgoingAttachment {
+            filename: "b.txt".to_owned(),
+            content_type: "text/plain\nBcc: e@e.org".to_owned(),
+            bytes: b"x".to_vec(),
+        },
+        OutgoingAttachment {
+            filename: "c.png".to_owned(),
+            content_type: "image/svg+xml".to_owned(),
+            bytes: b"x".to_vec(),
+        },
+        OutgoingAttachment {
+            filename: "d".to_owned(),
+            content_type: "nonsense".to_owned(),
+            bytes: b"x".to_vec(),
+        },
+    ];
+    let built = build(&o, 0, "x@example.org");
+    let text = String::from_utf8_lossy(&built.bytes);
+    assert!(!text.contains("e@e.org"), "{text}");
+    assert!(
+        !text
+            .lines()
+            .any(|l| l.to_ascii_lowercase().starts_with("bcc:"))
+    );
+    assert!(text.contains("image/svg+xml"));
+    assert_eq!(text.matches("application/octet-stream").count(), 3);
+}
