@@ -120,3 +120,10 @@ fn signature_separator_is_exactly_dash_dash_space() {
     assert_eq!(preview("a\n--\nsecret"), "a");
     assert_eq!(preview("a\n--  \nmore"), "a -- more");
 }
+
+#[test]
+fn unicode_whitespace_in_an_email_is_refused() {
+    assert_eq!(Address::parse("a@b.com\u{2028}Bcc:x@y.org"), None);
+    assert_eq!(Address::parse("a@b.com\u{85}x"), None);
+    assert_eq!(Address::parse("a b@c.com"), None);
+}

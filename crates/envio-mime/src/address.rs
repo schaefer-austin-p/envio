@@ -24,7 +24,7 @@ impl Address {
     }
 
     /// Reads `Name <email>`, `<email>` or a bare `email`. `None` when there
-    /// is no `@` in the address part or it holds a control character.
+    /// is no `@` in the address part or it holds a control character or whitespace.
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         let (name, email) = match (text.rfind('<'), text.ends_with('>')) {
@@ -35,7 +35,7 @@ impl Address {
             _ => (None, text),
         };
         let email = email.trim();
-        (email.contains('@') && !email.chars().any(char::is_control))
+        (email.contains('@') && !email.chars().any(|c| c.is_control() || c.is_whitespace()))
             .then(|| Self::new(name, email))
     }
 
