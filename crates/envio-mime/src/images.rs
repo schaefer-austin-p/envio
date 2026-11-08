@@ -3,7 +3,7 @@
 //! attribute values and escapes `<` in text, so every `<` starts a tag and
 //! a quote-aware scan finds where it ends.
 
-use crate::hidden::{is_unwrapped, skip_len};
+use crate::hidden::{Ends, is_unwrapped};
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -64,6 +64,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
         ..Rendered::default()
     };
     let mut rest = html;
+    let mut ends: Option<Ends> = None;
     while let Some(start) = rest.find('<') {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
@@ -71,7 +72,12 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
         let after = start + len;
         match parse_tag(raw) {
             Some(tag) if tag.attr("style").is_some_and(is_hidden) => {
-                rest = &rest[after + skip_len(&rest[after..], &tag.name)..];
+                let at = html.len() - rest.len() + start;
+                let ends = ends.get_or_insert_with(|| Ends::new(html));
+                rest = match ends.end_of(at) {
+                    Some(end) => &html[end..],
+                    None => &rest[after..],
+                };
                 continue;
             }
             _ if is_unwrapped(raw) => {}
