@@ -189,7 +189,17 @@ static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| {
 });
 
 /// Sanitizes HTML mail into Qt rich text.
+///
+/// Mail nested deeper than [`crate::nesting::MAX_DEPTH`] skips ammonia and Qt
+/// layout (both blow up on deep nesting) and shows as escaped plain text.
 pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
+    if crate::nesting::too_deep(html) {
+        let text = mail_parser::decoders::html::html_to_text(html);
+        return Rendered {
+            html: crate::plain::plain_to_rich(&text, false, false),
+            ..Rendered::default()
+        };
+    }
     let clean = CLEANER.clean(html).to_string();
     crate::images::fit(&clean, options)
 }

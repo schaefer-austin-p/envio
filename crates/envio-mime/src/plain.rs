@@ -2,6 +2,8 @@
 
 /// Wraps the output so Qt keeps runs of spaces and wraps long lines.
 const BLOCK_STYLE: &str = "white-space:pre-wrap";
+/// Deeper quote levels render at this depth.
+const MAX_QUOTE_DEPTH: usize = 10;
 const SCHEMES: [&str; 4] = ["https://", "http://", "mailto:", "www."];
 
 /// One displayed line and its quote depth.
@@ -84,7 +86,7 @@ fn split_quote(line: &str) -> (usize, &str) {
     } else {
         rest
     };
-    (depth, rest)
+    (depth.min(MAX_QUOTE_DEPTH), rest)
 }
 
 fn fixed_line(line: &str) -> Line {

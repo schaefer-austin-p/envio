@@ -90,3 +90,34 @@ fn escapes_text_and_attribute_values() {
     assert_eq!(clean("<p>1 &lt; 2 &amp; 3</p>"), "<p>1 &lt; 2 &amp; 3</p>");
     assert_eq!(clean("a < b"), "a &lt; b");
 }
+
+#[test]
+fn absurd_nesting_becomes_escaped_plain_text() {
+    let n = 10_000;
+    let html = format!(
+        "{}hello <b>&amp; world{}",
+        "<div>".repeat(n),
+        "</div>".repeat(n)
+    );
+    let out = clean(&html);
+    assert!(out.contains("hello"), "{}", &out[..out.len().min(200)]);
+    assert!(out.contains("world"));
+    assert!(!out.contains("<div>"));
+    assert!(!out.contains("<b>"));
+    let evil = format!("{}<script>x</script>&lt;b&gt;", "<div>".repeat(n));
+    assert!(!clean(&evil).contains("<script"));
+}
+
+#[test]
+fn ordinary_nesting_still_goes_through_ammonia() {
+    let n = 50;
+    let html = format!(
+        "{}<b>cell</b>{}",
+        "<table><tr><td>".repeat(n),
+        "</td></tr></table>".repeat(n)
+    );
+    let out = clean(&html);
+    assert_eq!(out.matches("<table>").count(), n);
+    assert!(out.contains("<b>cell</b>"));
+    assert!(!out.contains("white-space"));
+}

@@ -107,3 +107,14 @@ fn non_ascii_text_survives() {
         wrap(r#"Grüße 会議 <a href="https://例え.example/">https://例え.example/</a>"#)
     );
 }
+
+#[test]
+fn quote_depth_is_clamped() {
+    let line = format!("{}deep", ">".repeat(100_000));
+    let out = rich(&line);
+    assert!(out.matches("<blockquote").count() <= 10);
+    assert_eq!(out.matches("<blockquote").count(), 10);
+    assert!(out.contains("deep"));
+    let spaced = format!("{}deep", "> ".repeat(100_000));
+    assert_eq!(rich(&spaced).matches("<blockquote").count(), 10);
+}

@@ -11,6 +11,7 @@ mod images;
 mod mail;
 mod mailto;
 mod message;
+mod nesting;
 mod plain;
 mod preview;
 mod render;
