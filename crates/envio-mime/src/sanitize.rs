@@ -63,9 +63,31 @@ const TAGS: &[&str] = &[
 
 /// Tags dropped together with everything inside them.
 const DROP_WITH_CONTENT: &[&str] = &[
-    "script", "style", "iframe", "object", "embed", "applet", "form", "meta", "base", "link",
-    "svg", "math", "title", "head", "noscript", "template", "frame", "frameset", "select",
-    "textarea", "button",
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "applet",
+    "form",
+    "meta",
+    "base",
+    "link",
+    "svg",
+    "math",
+    "title",
+    "head",
+    "noscript",
+    "template",
+    "frame",
+    "frameset",
+    "select",
+    "textarea",
+    "button",
+    "xmp",
+    "noembed",
+    "noframes",
+    "plaintext",
 ];
 
 const BLOCK_ATTRS: &[&str] = &["align", "dir"];
@@ -143,6 +165,8 @@ const BAD_CSS: &[&str] = &[
     "/*",
     "<",
     ">",
+    "{",
+    "}",
     "javascript:",
     "vbscript:",
 ];
@@ -208,13 +232,18 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
 /// (the reader shows it) but only for http, https and mailto.
 fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Option<Cow<'u, str>> {
     match attribute {
-        "href" => {
-            has_scheme(value, &["http:", "https:", "mailto:"]).then_some(Cow::Borrowed(value))
-        }
+        "href" => (clean_url(value) && has_scheme(value, &["http:", "https:", "mailto:"]))
+            .then_some(Cow::Borrowed(value)),
         "src" => has_scheme(value, &["http:", "https:", "cid:"]).then_some(Cow::Borrowed(value)),
         "style" => filter_style(element, value).map(Cow::Owned),
         _ => Some(Cow::Borrowed(value)),
     }
+}
+
+/// No control character anywhere and no whitespace inside the scheme.
+fn clean_url(url: &str) -> bool {
+    let scheme = url.trim_start().split(':').next().unwrap_or_default();
+    !url.chars().any(char::is_control) && !scheme.contains(char::is_whitespace)
 }
 
 fn has_scheme(url: &str, schemes: &[&str]) -> bool {
@@ -233,7 +262,8 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             let value = value.trim();
             let allowed = STYLE_PROPS.contains(&prop.as_str())
                 || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()));
-            (allowed && safe_css_value(value)).then(|| format!("{prop}:{value}"))
+            (allowed && safe_css_value(value) && sane_lengths(&prop, value))
+                .then(|| format!("{prop}:{value}"))
         })
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
@@ -246,4 +276,35 @@ fn safe_css_value(value: &str) -> bool {
         && !BAD_CSS.iter().any(|bad| lower.contains(bad))
         && balanced('"')
         && balanced('\'')
+}
+
+/// Longest length (in any unit) we keep in a style.
+const MAX_LENGTH: f64 = 10_000.0;
+
+/// For the properties that hold lengths, every number must parse and stay
+/// at or below [`MAX_LENGTH`]; anything else (`calc(`, `1e999`) is dropped.
+fn sane_lengths(prop: &str, value: &str) -> bool {
+    let is_length = matches!(prop, "width" | "height" | "font-size")
+        || prop.starts_with("margin")
+        || prop.starts_with("padding");
+    if !is_length {
+        return true;
+    }
+    let value = value.to_ascii_lowercase();
+    let value = value.replace("!important", "");
+    if value.contains('(') {
+        return false;
+    }
+    let numeric = |c: char| c.is_ascii_digit() || "+-.".contains(c);
+    value.split_whitespace().all(|token| {
+        if !token.starts_with(numeric) {
+            return true;
+        }
+        let end = token.find(|c: char| !numeric(c)).unwrap_or(token.len());
+        let unit = &token[end..];
+        unit.chars().all(|c| c.is_ascii_alphabetic() || c == '%')
+            && token[..end]
+                .parse::<f64>()
+                .is_ok_and(|n| n.is_finite() && n.abs() <= MAX_LENGTH)
+    })
 }

@@ -121,3 +121,57 @@ fn ordinary_nesting_still_goes_through_ammonia() {
     assert!(out.contains("<b>cell</b>"));
     assert!(!out.contains("white-space"));
 }
+
+#[test]
+fn css_braces_are_refused() {
+    assert_eq!(
+        clean(r#"<p style="color:red}p{color:blue">t</p>"#),
+        "<p>t</p>"
+    );
+}
+
+#[test]
+fn links_with_control_characters_or_spaced_schemes_lose_the_href() {
+    for href in [
+        "https://example.com/&#10;x",
+        "https://exa&#9;mple.com",
+        "ht tps://example.com",
+        "https ://example.com",
+        "mailto:a@b.com&#13;&#10;Bcc:x@y.org",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href}");
+    }
+}
+
+#[test]
+fn rawtext_tags_are_dropped_with_their_content() {
+    for tag in ["xmp", "noembed", "noframes", "plaintext"] {
+        let out = clean(&format!("<p>a</p><{tag}><b>secret</b></{tag}><p>b</p>"));
+        assert!(!out.contains("secret"), "{tag}: {out}");
+        assert!(out.contains("<p>a</p>"), "{tag}: {out}");
+    }
+}
+
+#[test]
+fn absurd_or_unparseable_lengths_are_dropped() {
+    assert_eq!(
+        clean(r#"<p style="margin:99999px;color:red">t</p>"#),
+        r#"<p style="color:red">t</p>"#
+    );
+    for decl in [
+        "font-size:1e999px",
+        "padding:5px 20000px",
+        "margin-left:calc(1px + 2px)",
+        "font-size:--1px",
+        "height:10001px",
+    ] {
+        assert_eq!(
+            clean(&format!(r#"<p style="{decl}">t</p>"#)),
+            "<p>t</p>",
+            "{decl}"
+        );
+    }
+    let ok = r#"<p style="margin:0 auto;padding:10px 2em;font-size:12PT !important">t</p>"#;
+    assert_eq!(clean(ok), ok);
+}
