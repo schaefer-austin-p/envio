@@ -3,10 +3,25 @@
 //! super-linear, so mail nested deeper than [`MAX_DEPTH`] never reaches
 //! them.
 //!
-//! The scan keeps a model of that stack that must never count *less* than
-//! the parser: where html5ever's rules are subtle (adoption agency, scope
-//! boundaries, foreign content) the model keeps the element open. Counting
-//! too much only sends very odd mail to the plain-text fallback.
+//! html5ever's own tokenizer reads the markup (linear, and right about
+//! comments, quoting, names and CDATA); a small model of the tree builder's
+//! stack of open elements sits behind it. The model must never count *less*
+//! than the tree builder: where html5ever's rules are subtle (adoption
+//! agency, scopes) it keeps elements open, and where foreign content could
+//! make the two disagree about what is markup at all, the guard gives up.
+//! Counting too much only sends very odd mail to the plain-text fallback.
+
+use std::cell::{Cell, RefCell};
+
+use html5ever::tendril::StrTendril;
+use html5ever::tokenizer::{
+    BufferQueue, Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts,
+};
+use html5ever::{LocalName, TokenizerResult};
+
+mod tags;
+
+use tags::{BLOCK, FORMATTING, VOID, breaks_out, raw_text};
 
 /// Deepest element nesting we hand to ammonia and Qt.
 pub(crate) const MAX_DEPTH: usize = 256;
@@ -14,216 +29,274 @@ pub(crate) const MAX_DEPTH: usize = 256;
 /// Whatever the depth, this many start tags is too many.
 const MAX_START_TAGS: usize = 50_000;
 
-/// Elements that have no end tag.
-const VOID: &[&str] = &[
-    "br", "img", "hr", "meta", "link", "input", "wbr", "col", "area", "base", "source", "track",
-    "embed", "param", "keygen",
-];
-
-/// Elements whose end tag can be implied.
-const IMPLIED_END: &[&str] = &[
-    "p", "li", "dt", "dd", "td", "th", "tr", "option", "optgroup", "thead", "tbody", "tfoot", "rb",
-    "rt", "rp",
-];
-
-/// Elements whose content is text, not tags.
-const RAW_TEXT: &[&str] = &[
-    "script",
-    "style",
-    "textarea",
-    "title",
-    "xmp",
-    "iframe",
-    "noembed",
-    "noframes",
-    "noscript",
-    "plaintext",
-];
-
-/// Elements where `/>` really closes the element (foreign content).
-const FOREIGN: &[&str] = &["svg", "math"];
-
-const NAME_MAX: usize = 16;
-
-/// How a start tag ended.
-enum TagEnd {
-    /// Index of the closing `>`.
-    At(usize),
-    /// A quoted attribute value never closes.
-    OpenQuote,
-    /// No `>` before the end of the input.
-    Cut,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Ns {
+    Html,
+    Svg,
+    Math,
 }
 
-/// Whether the approximate element nesting of `html` goes above
-/// [`MAX_DEPTH`] (or it has too many start tags). One linear pass over the
-/// bytes, nothing indexes without checking. Constructs that never end are
-/// skipped up to the next `>`, so the scan keeps counting wherever the
-/// parser might keep building elements.
+/// One entry of the model's stack of open elements.
+struct Open {
+    name: LocalName,
+    ns: Ns,
+    /// svg foreignObject, desc, title; MathML text and annotation-xml.
+    integration: bool,
+}
+
+/// The model of the tree builder's stack. Foreign elements only ever sit at
+/// the top: anything that would put HTML inside svg or math trips the guard.
+#[derive(Default)]
+struct Model {
+    stack: Vec<Open>,
+    starts: usize,
+    tripped: bool,
+}
+
+#[derive(Default)]
+struct Sink {
+    model: RefCell<Model>,
+    /// `Tokenizer::end` must not be stopped.
+    ending: Cell<bool>,
+}
+
+/// Whether the element nesting of `html` (as html5ever would build it)
+/// goes above [`MAX_DEPTH`], or it has too many start tags. Linear in the
+/// input: html5ever's tokenizer plus constant work per tag at a bounded
+/// depth.
 pub(crate) fn too_deep(html: &str) -> bool {
-    let bytes = html.as_bytes();
-    let mut stack: Vec<String> = Vec::new();
-    let mut starts = 0usize;
-    // Raw-text names whose end tag was not found: do not search again.
-    let mut no_close: Vec<String> = Vec::new();
-    let mut i = 0;
-    while let Some(lt) = find(bytes, i, b"<") {
-        let after = lt + 1;
-        // Resume point for a construct that never ends.
-        let resume = |from: usize| find(bytes, from, b">").map(|gt| gt + 1);
-        match bytes.get(after) {
-            Some(b'!') if bytes[after..].starts_with(b"!--") => {
-                match find(bytes, after + 3, b"-->")
-                    .map(|end| end + 3)
-                    .or_else(|| resume(lt))
-                {
-                    Some(next) => i = next,
-                    None => return false,
-                }
-            }
-            Some(b'!' | b'?') => match resume(after) {
-                Some(next) => i = next,
-                None => return false,
-            },
-            Some(b'/') => {
-                let name = tag_name(bytes, after + 1);
-                let Some(next) = resume(after + 1) else {
-                    return false;
-                };
-                if !name.is_empty() {
-                    pop_through(&mut stack, &name);
-                }
-                i = next;
-            }
-            Some(b) if b.is_ascii_alphabetic() => {
-                let name = tag_name(bytes, after);
-                let end = match tag_end(bytes, after + name.len().min(NAME_MAX)) {
-                    TagEnd::At(end) => end,
-                    TagEnd::OpenQuote => match resume(lt) {
-                        Some(gt) => gt - 1,
-                        None => return false,
-                    },
-                    TagEnd::Cut => return false,
-                };
-                i = end + 1;
-                let slash = end > 0 && bytes.get(end - 1) == Some(&b'/');
-                if VOID.contains(&name.as_str()) || (slash && FOREIGN.contains(&name.as_str())) {
-                    continue;
-                }
-                starts += 1;
-                if starts > MAX_START_TAGS {
-                    return true;
-                }
-                if IMPLIED_END.contains(&name.as_str()) {
-                    pop_through(&mut stack, &name);
-                }
-                stack.push(name.clone());
-                if stack.len() > MAX_DEPTH {
-                    return true;
-                }
-                if RAW_TEXT.contains(&name.as_str()) && !no_close.contains(&name) {
-                    // Skip the content up to the end tag, which pops it.
-                    match find_ci(bytes, i, format!("</{name}").as_bytes()) {
-                        Some(at) => i = at,
-                        None => no_close.push(name),
-                    }
-                }
-            }
-            _ => i = after,
-        }
+    let tokenizer = Tokenizer::new(Sink::default(), TokenizerOpts::default());
+    let input = BufferQueue::default();
+    input.push_back(StrTendril::from_slice(html));
+    if !matches!(tokenizer.feed(&input), TokenizerResult::Done) {
+        // The sink stops the tokenizer only once it has tripped.
+        return true;
     }
-    false
+    tokenizer.sink.ending.set(true);
+    tokenizer.end();
+    tokenizer.sink.model.borrow().tripped
 }
 
-/// Closes the nearest open `name`, but only through elements whose end tag
-/// can be implied; anything else in the way keeps it open (the parser may
-/// nest deeper there, so we never close less than it does).
-fn pop_through(stack: &mut Vec<String>, name: &str) {
-    for (index, open) in stack.iter().enumerate().rev() {
-        if open == name {
-            stack.truncate(index);
-            return;
+impl TokenSink for Sink {
+    type Handle = ();
+
+    fn process_token(&self, token: Token, _line: u64) -> TokenSinkResult<()> {
+        let Token::TagToken(tag) = token else {
+            return TokenSinkResult::Continue;
+        };
+        let mut model = self.model.borrow_mut();
+        if model.tripped {
+            return TokenSinkResult::Continue;
         }
-        if !IMPLIED_END.contains(&open.as_str()) {
-            return;
+        let next = match tag.kind {
+            TagKind::StartTag => model.start(&tag),
+            TagKind::EndTag => {
+                model.end(&tag.name);
+                TokenSinkResult::Continue
+            }
+        };
+        if model.tripped && !self.ending.get() {
+            // Stops `feed`: nothing after this matters.
+            return TokenSinkResult::Script(());
         }
+        next
+    }
+
+    /// CDATA sections exist only in foreign content.
+    fn adjusted_current_node_present_but_not_in_html_namespace(&self) -> bool {
+        self.model
+            .borrow()
+            .stack
+            .last()
+            .is_some_and(|open| open.ns != Ns::Html)
     }
 }
 
-/// Lower-case tag name at `start` (ASCII letters and digits); more than
-/// [`NAME_MAX`] bytes counts as one shared name.
-fn tag_name(bytes: &[u8], start: usize) -> String {
-    let rest = bytes.get(start..).unwrap_or_default();
-    let len = rest
-        .iter()
-        .position(|b| !b.is_ascii_alphanumeric())
-        .unwrap_or(rest.len());
-    if len > NAME_MAX {
-        return "~long".to_owned();
+impl Model {
+    fn start(&mut self, tag: &Tag) -> TokenSinkResult<()> {
+        if let Some(top) = self.stack.last().filter(|open| open.ns != Ns::Html) {
+            if top.integration {
+                // html5ever would build HTML inside svg or math here.
+                self.tripped = true;
+                return TokenSinkResult::Continue;
+            }
+            if !breaks_out(tag) {
+                let ns = top.ns;
+                self.open(tag, ns);
+                return TokenSinkResult::Continue;
+            }
+            if !self.leave_foreign() {
+                return TokenSinkResult::Continue;
+            }
+        }
+        self.start_html(tag)
     }
-    String::from_utf8_lossy(&rest[..len]).to_ascii_lowercase()
-}
 
-/// Walks the attributes of a start tag the way the tokenizer does: an `=`
-/// at the start of an attribute name belongs to the name, and a quote opens
-/// a value only after `name =`.
-fn tag_end(bytes: &[u8], from: usize) -> TagEnd {
-    let ws = |b: u8| b.is_ascii_whitespace();
-    let mut i = from;
-    loop {
-        while bytes.get(i).is_some_and(|&b| ws(b) || b == b'/') {
-            i += 1;
+    fn start_html(&mut self, tag: &Tag) -> TokenSinkResult<()> {
+        let name = &*tag.name;
+        match name {
+            "svg" => self.open(tag, Ns::Svg),
+            "math" => self.open(tag, Ns::Math),
+            _ if VOID.contains(&name) => {}
+            _ => {
+                self.imply_end(name);
+                self.push(tag.name.clone(), Ns::Html, false);
+                return raw_text(name);
+            }
         }
-        match bytes.get(i) {
-            None => return TagEnd::Cut,
-            Some(b'>') => return TagEnd::At(i),
-            Some(_) => {}
+        TokenSinkResult::Continue
+    }
+
+    /// A foreign start tag: `/>` really closes it.
+    fn open(&mut self, tag: &Tag, ns: Ns) {
+        if tag.self_closing {
+            self.count();
+        } else {
+            let integration = match ns {
+                Ns::Svg => matches!(&*tag.name, "foreignobject" | "desc" | "title"),
+                Ns::Math => matches!(
+                    &*tag.name,
+                    "mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml"
+                ),
+                Ns::Html => false,
+            };
+            self.push(tag.name.clone(), ns, integration);
         }
-        // Attribute name: the first byte is always part of it.
-        i += 1;
-        while bytes
-            .get(i)
-            .is_some_and(|&b| !ws(b) && !matches!(b, b'/' | b'=' | b'>'))
+    }
+
+    /// The end tags a start tag implies, but only where html5ever surely
+    /// pops at least as much.
+    fn imply_end(&mut self, name: &str) {
+        let (targets, through): (&[&str], &[&str]) = match name {
+            "li" => (&["li"], &["p"]),
+            "dd" | "dt" => (&["dd", "dt"], &["p"]),
+            "p" => (&["p"], &["li", "dd", "dt", "tr"]),
+            "td" | "th" => (&["td", "th"], &["p", "li", "dd", "dt"]),
+            "tr" => (&["tr"], &["td", "th", "p", "li", "dd", "dt"]),
+            "option" | "optgroup" => (&["option"], &[]),
+            _ => return,
+        };
+        self.pop_through(targets, through);
+        if matches!(name, "li" | "dd" | "dt") && self.top_is("p") {
+            // html5ever closes a p in button scope before inserting these.
+            self.stack.pop();
+        }
+    }
+
+    fn end(&mut self, name: &LocalName) {
+        if self.stack.last().is_some_and(|open| open.ns != Ns::Html) {
+            if !matches!(&**name, "p" | "br") {
+                self.end_foreign(name);
+                return;
+            }
+            if !self.leave_foreign() {
+                return;
+            }
+        }
+        self.end_html(name);
+    }
+
+    /// html5ever's foreign end tag: walk down through foreign elements and
+    /// pop through the first one of that name. Past them it would apply
+    /// the HTML rules with svg or math still open, which we do not model.
+    fn end_foreign(&mut self, name: &str) {
+        let foreign = self
+            .stack
+            .iter()
+            .rev()
+            .take_while(|open| open.ns != Ns::Html)
+            .count();
+        let base = self.stack.len() - foreign;
+        if let Some(index) = self.stack[base..]
+            .iter()
+            .rposition(|open| &*open.name == name)
         {
-            i += 1;
+            self.stack.truncate(base + index);
+            return;
         }
-        let mut j = i;
-        while bytes.get(j).is_some_and(|&b| ws(b)) {
-            j += 1;
+        let heading = |n: &str| matches!(n, "h1" | "h2" | "h3" | "h4" | "h5" | "h6");
+        if self.stack[..base]
+            .iter()
+            .any(|open| &*open.name == name || (heading(name) && heading(&open.name)))
+        {
+            self.tripped = true;
         }
-        if bytes.get(j) != Some(&b'=') {
-            continue;
+    }
+
+    fn end_html(&mut self, name: &str) {
+        if self.top_is(name) {
+            self.stack.pop();
+            return;
         }
-        j += 1;
-        while bytes.get(j).is_some_and(|&b| ws(b)) {
-            j += 1;
-        }
-        match bytes.get(j) {
-            None => return TagEnd::Cut,
-            Some(&q) if q == b'"' || q == b'\'' => match find(bytes, j + 1, &[q]) {
-                Some(close) => i = close + 1,
-                None => return TagEnd::OpenQuote,
-            },
-            Some(_) => {
-                i = j;
-                while bytes.get(i).is_some_and(|&b| !ws(b) && b != b'>') {
-                    i += 1;
-                }
+        let through: &[&str] = match name {
+            "p" => &["li", "dd", "dt", "tr"],
+            "li" => &["p", "dd", "dt", "tr"],
+            "dd" | "dt" => &["p", "li", "dd", "dt", "tr"],
+            "td" | "th" => &["p", "li", "dd", "dt"],
+            "tr" => &["td", "th", "p", "li", "dd", "dt"],
+            "table" => &["p", "li", "dd", "dt", "td", "th", "tr"],
+            _ if FORMATTING.contains(&name) => return,
+            _ if BLOCK.contains(&name) => &["p", "li", "dd", "dt", "tr"],
+            _ => return,
+        };
+        self.pop_through(&[name], through);
+    }
+
+    /// Closes the nearest open HTML element named in `targets`, but only
+    /// through elements named in `through`.
+    fn pop_through(&mut self, targets: &[&str], through: &[&str]) {
+        for (index, open) in self.stack.iter().enumerate().rev() {
+            if open.ns != Ns::Html {
+                return;
+            }
+            if targets.contains(&&*open.name) {
+                self.stack.truncate(index);
+                return;
+            }
+            if !through.contains(&&*open.name) {
+                return;
             }
         }
     }
-}
 
-fn find(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
-    let hay = bytes.get(from..)?;
-    hay.windows(needle.len())
-        .position(|w| w == needle)
-        .map(|p| from + p)
-}
+    /// html5ever pops foreign elements back to an HTML one. Stopping at an
+    /// integration point instead would build HTML inside it: trip.
+    fn leave_foreign(&mut self) -> bool {
+        while let Some(top) = self.stack.last() {
+            if top.ns == Ns::Html {
+                break;
+            }
+            if top.integration {
+                self.tripped = true;
+                return false;
+            }
+            self.stack.pop();
+        }
+        true
+    }
 
-fn find_ci(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
-    let hay = bytes.get(from..)?;
-    hay.windows(needle.len())
-        .position(|w| w.eq_ignore_ascii_case(needle))
-        .map(|p| from + p)
+    fn top_is(&self, name: &str) -> bool {
+        self.stack
+            .last()
+            .is_some_and(|open| open.ns == Ns::Html && &*open.name == name)
+    }
+
+    fn push(&mut self, name: LocalName, ns: Ns, integration: bool) {
+        self.count();
+        self.stack.push(Open {
+            name,
+            ns,
+            integration,
+        });
+        if self.stack.len() > MAX_DEPTH {
+            self.tripped = true;
+        }
+    }
+
+    fn count(&mut self) {
+        self.starts += 1;
+        if self.starts > MAX_START_TAGS {
+            self.tripped = true;
+        }
+    }
 }

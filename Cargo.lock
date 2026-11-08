@@ -178,6 +178,7 @@ version = "0.1.0"
 dependencies = [
  "ammonia",
  "getrandom",
+ "html5ever",
  "insta",
  "mail-builder",
  "mail-parser",
