@@ -5,7 +5,7 @@ use std::hash::{BuildHasher, RandomState};
 use mail_builder::MessageBuilder;
 use mail_builder::headers::address::Address as BuilderAddress;
 
-use crate::address::{Address, dedup};
+use crate::address::{Address, dedup, has_specials};
 
 /// A message as composed, ready to turn into bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -53,7 +53,7 @@ pub struct Built {
 pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
     // Last line of defence: nothing with a control character or a space
     // reaches a header, whatever the caller passed in.
-    let message_id = if unsafe_token(message_id) {
+    let message_id = if unsafe_email(message_id) {
         new_message_id(&outgoing.from.email)
     } else {
         message_id.to_owned()
@@ -77,18 +77,14 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
     if !cc.is_empty() {
         builder = builder.cc(address_list(&cc));
     }
-    if let Some(id) = outgoing
-        .in_reply_to
-        .as_deref()
-        .filter(|id| !unsafe_token(id))
-    {
+    if let Some(id) = outgoing.in_reply_to.as_deref().filter(|id| !unsafe_id(id)) {
         builder = builder.in_reply_to(id);
     }
     let refs: Vec<&str> = outgoing
         .references
         .iter()
         .map(String::as_str)
-        .filter(|id| !unsafe_token(id))
+        .filter(|id| !unsafe_id(id))
         .collect();
     if !refs.is_empty() {
         builder = builder.references(refs);
@@ -155,11 +151,23 @@ fn unsafe_token(text: &str) -> bool {
     text.is_empty() || text.contains(|c: char| c.is_control() || c.is_whitespace())
 }
 
+/// An email that is empty, or holds a control character, whitespace or an
+/// address special: mail-builder writes it unquoted, so `a@b>,evil@x` would
+/// add a recipient.
+fn unsafe_email(text: &str) -> bool {
+    unsafe_token(text) || has_specials(text)
+}
+
+/// Like [`unsafe_email`], but a Message-ID may carry its own `<` and `>`.
+fn unsafe_id(text: &str) -> bool {
+    unsafe_token(text) || has_specials(&text.replace(['<', '>'], ""))
+}
+
 /// The addresses that are safe to write into a header.
 fn safe_list(addresses: &[Address]) -> Vec<Address> {
     addresses
         .iter()
-        .filter(|a| !unsafe_token(&a.email))
+        .filter(|a| !unsafe_email(&a.email))
         .cloned()
         .collect()
 }

@@ -51,7 +51,7 @@ pub fn parse_mailto(uri: &str) -> Option<MailtoDraft> {
     Some(draft)
 }
 
-/// Comma-separated addresses; entries that fail `Address::parse` (no `@`,
+/// Comma-separated addresses; entries that fail `Address::parse` (no `@`, address specials,
 /// control characters) are skipped. RFC 6068 allows only addr-specs here,
 /// so a plain split is enough; a quoted display name with a comma
 /// (`"Doe, John" <j@x>`) breaks apart, which is rare and left as is.

@@ -24,7 +24,8 @@ impl Address {
     }
 
     /// Reads `Name <email>`, `<email>` or a bare `email`. `None` when there
-    /// is no `@` in the address part or it holds a control character or whitespace.
+    /// is no `@` in the address part or it holds a control character,
+    /// whitespace or an address special (`< > , ; : " ( ) [ ] \`).
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         let (name, email) = match (text.rfind('<'), text.ends_with('>')) {
@@ -35,8 +36,10 @@ impl Address {
             _ => (None, text),
         };
         let email = email.trim();
-        (email.contains('@') && !email.chars().any(|c| c.is_control() || c.is_whitespace()))
-            .then(|| Self::new(name, email))
+        (email.contains('@')
+            && !email.chars().any(|c| c.is_control() || c.is_whitespace())
+            && !has_specials(email))
+        .then(|| Self::new(name, email))
     }
 
     /// "Name <email>", or the bare email when there is no name.
@@ -51,6 +54,12 @@ impl Address {
     pub fn is(&self, email: &str) -> bool {
         same_email(&self.email, email)
     }
+}
+
+/// Whether the text holds a character that ends or splits an address in a
+/// header: `< > , ; : " ( ) [ ] \`.
+pub(crate) fn has_specials(text: &str) -> bool {
+    text.contains(['<', '>', ',', ';', ':', '"', '(', ')', '[', ']', '\\'])
 }
 
 /// Email equality as users expect it: ASCII case and outer spaces ignored.
