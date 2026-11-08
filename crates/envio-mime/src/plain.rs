@@ -134,8 +134,9 @@ fn unflow(text: &str, delsp: bool) -> Vec<Line> {
 /// is the address exactly as written; `www.` links get `https://`.
 fn linkify(line: &str, out: &mut String) {
     let lower = line.to_ascii_lowercase();
+    let mut finder = Finder::new(&lower);
     let mut pos = 0;
-    while let Some((start, end)) = next_link(line, &lower, pos) {
+    while let Some((start, end)) = finder.next_link(line, pos) {
         escape_into(&line[pos..start], out);
         let url = &line[start..end];
         let href = if lower[start..].starts_with("www.") {
@@ -153,25 +154,55 @@ fn linkify(line: &str, out: &mut String) {
     escape_into(&line[pos..], out);
 }
 
-/// The byte range of the next link at or after `from`. A link starts at a
-/// word boundary and needs at least one character after its scheme.
-fn next_link(line: &str, lower: &str, from: usize) -> Option<(usize, usize)> {
-    let mut search = from;
-    loop {
-        let (start, scheme) = SCHEMES
-            .iter()
-            .filter_map(|s| lower[search..].find(s).map(|i| (i + search, *s)))
-            .min_by_key(|(i, _)| *i)?;
-        let at_boundary = line[..start]
-            .chars()
-            .next_back()
-            .is_none_or(|c| c.is_whitespace() || "(<[\"'".contains(c));
-        let end = url_end(line, start);
-        if at_boundary && end > start + scheme.len() {
-            return Some((start, end));
+/// Finds scheme candidates in one pass over the line: each scheme's next
+/// position is cached and searched again only once the scan has passed it.
+struct Finder<'a> {
+    lower: &'a str,
+    /// `None` once a scheme does not occur again.
+    next: [Option<usize>; 4],
+}
+
+impl<'a> Finder<'a> {
+    fn new(lower: &'a str) -> Self {
+        Self {
+            lower,
+            next: SCHEMES.map(|s| lower.find(s)),
         }
-        // Schemes are ASCII, so the next byte is a char boundary.
-        search = start + 1;
+    }
+
+    /// The first scheme at or after `from`, and its position.
+    fn candidate(&mut self, from: usize) -> Option<(usize, &'static str)> {
+        for (next, scheme) in self.next.iter_mut().zip(SCHEMES) {
+            if next.is_some_and(|i| i < from) {
+                *next = self.lower[from..].find(scheme).map(|i| i + from);
+            }
+        }
+        self.next
+            .iter()
+            .zip(SCHEMES)
+            .filter_map(|(next, scheme)| next.map(|i| (i, scheme)))
+            .min_by_key(|(i, _)| *i)
+    }
+
+    /// The byte range of the next link at or after `from`. A link starts at
+    /// a word boundary and needs at least one character after its scheme.
+    fn next_link(&mut self, line: &str, from: usize) -> Option<(usize, usize)> {
+        let mut search = from;
+        loop {
+            let (start, scheme) = self.candidate(search)?;
+            let at_boundary = line[..start]
+                .chars()
+                .next_back()
+                .is_none_or(|c| c.is_whitespace() || "(<[\"'".contains(c));
+            if at_boundary {
+                let end = url_end(line, start);
+                if end > start + scheme.len() {
+                    return Some((start, end));
+                }
+            }
+            // Schemes are ASCII, so the next byte is a char boundary.
+            search = start + 1;
+        }
     }
 }
 
@@ -183,9 +214,11 @@ fn url_end(line: &str, start: usize) -> usize {
         .find(|c: char| c.is_whitespace() || matches!(c, '<' | '>' | '"'))
         .unwrap_or(rest.len());
     let mut url = &rest[..len];
+    // Trimming never removes a `(`, so look for one once.
+    let has_open = url.contains('(');
     loop {
         let mut trimmed = url.trim_end_matches(['.', ',', ';', ':', '!', '?', '\'']);
-        if trimmed.ends_with(')') && !trimmed.contains('(') {
+        if trimmed.ends_with(')') && !has_open {
             trimmed = &trimmed[..trimmed.len() - 1];
         }
         if trimmed.len() == url.len() {

@@ -118,3 +118,13 @@ fn quote_depth_is_clamped() {
     let spaced = format!("{}deep", "> ".repeat(100_000));
     assert_eq!(rich(&spaced).matches("<blockquote").count(), 10);
 }
+
+#[test]
+fn linkify_is_linear_on_one_long_line() {
+    // About 200 000 candidates, none at a word boundary.
+    let line = "xwww.".repeat(200_000);
+    assert!(!rich(&line).contains("<a "));
+    // A long run of trailing punctuation to trim.
+    let line = format!("https://a{}", ".)".repeat(500_000));
+    assert!(rich(&line).contains(r#"<a href="https://a">"#));
+}
