@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("latin1-1@example.com")
+subject: "Café crème"
+from: [François Example <francois@example.com>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: Some(1794119400)
+in_reply_to: None
+references: []
+thread_root: "latin1-1@example.com"
+preview: "Bonjour Bob, Le café est prêt. À bientôt ! François"
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">Bonjour Bob,<br><br>Le café est prêt. À bientôt !<br><br>François</div>

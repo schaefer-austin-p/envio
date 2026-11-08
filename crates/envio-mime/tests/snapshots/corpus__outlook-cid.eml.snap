@@ -1,0 +1,28 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("AM0PR01MB1234@eurprd01.prod.example.com")
+subject: "Quarterly figures"
+from: [Carol Example <carol@example.com>]
+to: [Bob Example <bob@example.org>]
+cc: []
+reply_to: []
+date: Some(1793800931)
+in_reply_to: None
+references: []
+thread_root: "AM0PR01MB1234@eurprd01.prod.example.com"
+preview: "Hi Bob, The chart is below. Carol"
+has_attachments: false
+attachment 0: Some("image001.png") image/png 24 bytes cid=Some("image001.png@01DA0000.12345670") inline=true
+blocked: 0 trackers: 0
+---
+
+
+
+<div>
+<p style="margin:0cm">Hi Bob,</p>
+<p>The chart is below.</p>
+<p><img src="image://envio/part/0" alt="Chart" width="600" height="450"></p>
+<p>Carol</p>
+</div>

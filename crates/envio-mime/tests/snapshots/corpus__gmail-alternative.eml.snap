@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("CAF1a2b3c4d5e6f7@mail.example.com")
+subject: "Lunch on Friday?"
+from: [Alice Example <alice@example.com>]
+to: [Bob Example <bob@example.org>]
+cc: []
+reply_to: []
+date: Some(1793693702)
+in_reply_to: None
+references: []
+thread_root: "CAF1a2b3c4d5e6f7@mail.example.com"
+preview: "Hi Bob, Are you free for lunch on Friday? The place on Main Street is open again. Alice"
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div dir="ltr">Hi Bob,<div><br></div><div>Are you free for lunch on Friday? The place on <b>Main Street</b> is open again.</div><div><br></div><div>Alice</div></div>

@@ -1,0 +1,13 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+envelope: none
+raw message
+blocked: 0 trackers: 0
+---
+<pre>PK this is not mail, it only lives in the corpus folder
+{&quot;json&quot;: true, &quot;also&quot;: &quot;not mail&quot;}
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+=?UTF-8?B?junk?= ==== ---- %%%%
+</pre>

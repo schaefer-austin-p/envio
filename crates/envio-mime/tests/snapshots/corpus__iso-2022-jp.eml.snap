@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("jp-1@example.com")
+subject: "会議の件"
+from: [Taro Example <taro@example.com>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: Some(1794186000)
+in_reply_to: None
+references: []
+thread_root: "jp-1@example.com"
+preview: "会議は明日の10時からです。 よろしくお願いします。"
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">会議は明日の10時からです。<br>よろしくお願いします。</div>

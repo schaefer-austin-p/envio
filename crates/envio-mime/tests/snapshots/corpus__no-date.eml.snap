@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("nodate-1@example.com")
+subject: "No date on this one"
+from: [Henry Example <henry@example.com>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: None
+in_reply_to: None
+references: []
+thread_root: "nodate-1@example.com"
+preview: "This message has no Date header."
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">This message has no Date header.</div>

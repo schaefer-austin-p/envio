@@ -1,0 +1,32 @@
+[package]
+name = "envio-mime"
+description = "Envio's mail formats: parse, render to Qt rich text, build, reply and forward"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ammonia = "4.2"
+getrandom = "0.4"
+# The nesting guard (src/nesting*) models exactly this version's tree
+# builder. Any bump must run
+#   NESTFUZZ_CASES=500000 cargo test -p envio-mime --release -- --ignored nesting_fuzz
+# and show 0 under-counts, then update FUZZED_HTML5EVER in
+# src/nesting/fuzz_baseline.rs. A normal test compares it with Cargo.lock, so
+# a bump cannot merge green without that.
+html5ever = "=0.40.1"
+# Without default features mail-builder never calls gethostname, so the
+# device's hostname can't leak into Message-IDs. Cargo unifies features: if
+# any other crate in the workspace depends on mail-builder with default
+# features, gethostname comes back here too. Keep every dependent on
+# `default-features = false`.
+mail-builder = { version = "2.0", default-features = false }
+mail-parser = { version = "0.11.9", features = ["full_encoding"] }
+
+[dev-dependencies]
+insta = "1.49"

@@ -1,0 +1,19 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("list-42@example.com")
+subject: "[dev] Re: Release schedule"
+from: [Erin Example <erin@example.com>]
+to: [dev@lists.example.org]
+cc: []
+reply_to: [dev@lists.example.org]
+date: Some(1794049871)
+in_reply_to: Some("list-41@example.org")
+references: ["list-40@example.org", "list-41@example.org"]
+thread_root: "list-40@example.org"
+preview: "I agree with shipping on the 20th. _______________________________________________ dev mailing list -- dev@lists.example.org To unsubscribe send an email to dev-leave@lists.example.org https://lists.e"
+has_attachments: false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">I agree with shipping on the 20th.<br><blockquote style="white-space:pre-wrap">Shall we ship on the 20th?</blockquote><br>_______________________________________________<br>dev mailing list -- dev@lists.example.org<br>To unsubscribe send an email to dev-leave@lists.example.org<br><a href="https://lists.example.org/mailman/listinfo/dev">https://lists.example.org/mailman/listinfo/dev</a></div>

@@ -1,0 +1,34 @@
+---
+source: tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("broken-1@example.com")
+subject: "Report"
+from: [Frank Example <frank@example.com>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: Some(1794312000)
+in_reply_to: None
+references: []
+thread_root: "broken-1@example.com"
+preview: ""
+has_attachments: false
+raw message
+blocked: 0 trackers: 0
+---
+<pre>Date: Tue, 10 Nov 2026 12:00:00 +0000
+From: Frank Example &lt;frank@example.com&gt;
+To: bob@example.org
+Message-ID: &lt;broken-1@example.com&gt;
+Subject: Report
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=&quot;expected-boundary&quot;
+
+--some-other-boundary
+Content-Type: text/plain
+
+The parts of this message use a boundary the header never declared.
+
+--some-other-boundary--
+</pre>

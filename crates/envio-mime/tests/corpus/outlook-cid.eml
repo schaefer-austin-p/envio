@@ -1,0 +1,36 @@
+MIME-Version: 1.0
+Date: Wed, 4 Nov 2026 14:02:11 +0000
+Message-ID: <AM0PR01MB1234@eurprd01.prod.example.com>
+Subject: Quarterly figures
+From: "Carol Example" <carol@example.com>
+To: "Bob Example" <bob@example.org>
+Content-Type: multipart/related; boundary="_004_rel_"; type="text/html"
+
+--_004_rel_
+Content-Type: text/html; charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+<html xmlns:o=3D"urn:schemas-microsoft-com:office:office"><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dus-ascii">
+<style><!--
+p.MsoNormal {margin:0cm; font-size:11.0pt; font-family:"Calibri",sans-serif;}
+--></style></head>
+<body lang=3D"EN-GB" link=3D"#0563C1"><div class=3D"WordSection1">
+<p class=3DMsoNormal style=3D"margin:0cm;mso-line-height-rule:exactly">Hi B=
+ob,<o:p></o:p></p>
+<p class=3DMsoNormal>The chart is below.<o:p></o:p></p>
+<p class=3DMsoNormal><img width=3D"640" height=3D"480" src=3D"cid:image001.=
+png@01DA0000.12345670" alt=3D"Chart"></p>
+<p class=3DMsoNormal>Carol<o:p></o:p></p>
+</div></body></html>
+
+--_004_rel_
+Content-Type: image/png; name="image001.png"
+Content-Description: image001.png
+Content-Disposition: inline; filename="image001.png"
+Content-ID: <image001.png@01DA0000.12345670>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAAAAAAAAAAAAAAAAAAA
+
+--_004_rel_--
