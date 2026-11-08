@@ -36,8 +36,14 @@ pub fn parse_mailto(uri: &str) -> Option<MailtoDraft> {
             "to" => draft.to.extend(addresses(&value)),
             "cc" => draft.cc.extend(addresses(&value)),
             "bcc" => draft.bcc.extend(addresses(&value)),
-            "subject" => draft.subject = value,
-            "body" => draft.body = value.replace("\r\n", "\n"),
+            "subject" => draft.subject = value.chars().filter(|c| !c.is_control()).collect(),
+            "body" => {
+                draft.body = value
+                    .replace("\r\n", "\n")
+                    .chars()
+                    .filter(|&c| c == '\n' || c == '\t' || !c.is_control())
+                    .collect();
+            }
             "in-reply-to" => draft.in_reply_to = normalize_id(&value),
             _ => {}
         }
@@ -45,7 +51,8 @@ pub fn parse_mailto(uri: &str) -> Option<MailtoDraft> {
     Some(draft)
 }
 
-/// Comma-separated addresses; entries without `@` are skipped.
+/// Comma-separated addresses; entries that fail `Address::parse` (no `@`,
+/// control characters) are skipped.
 fn addresses(list: &str) -> Vec<Address> {
     list.split(',').filter_map(Address::parse).collect()
 }
@@ -59,7 +66,10 @@ fn decode(text: &str) -> String {
     while i < bytes.len() {
         let hex = bytes.get(i + 1..i + 3).and_then(|h| {
             let h = std::str::from_utf8(h).ok()?;
-            u8::from_str_radix(h, 16).ok()
+            h.bytes()
+                .all(|b| b.is_ascii_hexdigit())
+                .then(|| u8::from_str_radix(h, 16).ok())
+                .flatten()
         });
         match (bytes[i], hex) {
             (b'%', Some(byte)) => {

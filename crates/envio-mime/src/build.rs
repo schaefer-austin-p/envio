@@ -47,23 +47,46 @@ pub struct Built {
 /// `message_id` (without angle brackets) comes from [`new_message_id`],
 /// so a retry from the Outbox sends the same id.
 pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
+    // Last line of defence: nothing with a control character or a space
+    // reaches a header, whatever the caller passed in.
+    let message_id = if unsafe_token(message_id) {
+        new_message_id(&outgoing.from.email)
+    } else {
+        message_id.to_owned()
+    };
+    let subject: String = outgoing
+        .subject
+        .chars()
+        .filter(|c| !c.is_control())
+        .collect();
+    let to = safe_list(&outgoing.to);
+    let cc = safe_list(&outgoing.cc);
     let mut builder = MessageBuilder::new()
         .from(builder_address(&outgoing.from))
-        .subject(outgoing.subject.as_str())
+        .subject(subject)
         .date(date_unix)
-        .message_id(message_id)
+        .message_id(message_id.as_str())
         .text_body(outgoing.text.replace("\r\n", "\n"));
-    if !outgoing.to.is_empty() {
-        builder = builder.to(address_list(&outgoing.to));
+    if !to.is_empty() {
+        builder = builder.to(address_list(&to));
     }
-    if !outgoing.cc.is_empty() {
-        builder = builder.cc(address_list(&outgoing.cc));
+    if !cc.is_empty() {
+        builder = builder.cc(address_list(&cc));
     }
-    if let Some(id) = &outgoing.in_reply_to {
-        builder = builder.in_reply_to(id.as_str());
+    if let Some(id) = outgoing
+        .in_reply_to
+        .as_deref()
+        .filter(|id| !unsafe_token(id))
+    {
+        builder = builder.in_reply_to(id);
     }
-    if !outgoing.references.is_empty() {
-        let refs: Vec<&str> = outgoing.references.iter().map(String::as_str).collect();
+    let refs: Vec<&str> = outgoing
+        .references
+        .iter()
+        .map(String::as_str)
+        .filter(|id| !unsafe_token(id))
+        .collect();
+    if !refs.is_empty() {
         builder = builder.references(refs);
     }
     for file in &outgoing.attachments {
@@ -76,7 +99,7 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
     let mut bytes = Vec::new();
     builder.serialize(&mut bytes);
     Built {
-        message_id: message_id.to_owned(),
+        message_id,
         bytes,
         recipients: recipients(outgoing),
     }
@@ -88,7 +111,11 @@ pub fn new_message_id(from_email: &str) -> String {
     let domain = from_email
         .rsplit_once('@')
         .map(|(_, d)| d.trim())
-        .filter(|d| !d.is_empty() && !d.contains(['<', '>', ' ']))
+        .filter(|d| {
+            !d.is_empty()
+                && d.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        })
         .unwrap_or("invalid");
     let mut random = [0u8; 16];
     if getrandom::fill(&mut random).is_err() {
@@ -102,19 +129,44 @@ pub fn new_message_id(from_email: &str) -> String {
     format!("{hex}@{domain}")
 }
 
-fn builder_address(address: &Address) -> BuilderAddress<'_> {
-    BuilderAddress::new_address(address.name.as_deref(), address.email.as_str())
+/// Empty, or holding a control character or whitespace.
+fn unsafe_token(text: &str) -> bool {
+    text.is_empty() || text.contains(|c: char| c.is_control() || c.is_whitespace())
 }
 
-fn address_list(addresses: &[Address]) -> BuilderAddress<'_> {
+/// The addresses that are safe to write into a header.
+fn safe_list(addresses: &[Address]) -> Vec<Address> {
+    addresses
+        .iter()
+        .filter(|a| !unsafe_token(&a.email))
+        .cloned()
+        .collect()
+}
+
+fn builder_address(address: &Address) -> BuilderAddress<'static> {
+    let clean = |text: &str, replacement: char| -> String {
+        text.chars()
+            .map(|c| if c.is_control() { replacement } else { c })
+            .filter(|c| *c != '\0')
+            .collect()
+    };
+    let name = address.name.as_deref().map(|n| clean(n, ' '));
+    let email: String = address
+        .email
+        .chars()
+        .filter(|c| !c.is_control() && !c.is_whitespace())
+        .collect();
+    BuilderAddress::new_address(name, email)
+}
+
+fn address_list(addresses: &[Address]) -> BuilderAddress<'static> {
     BuilderAddress::new_list(addresses.iter().map(builder_address).collect())
 }
 
 fn recipients(outgoing: &Outgoing) -> Vec<String> {
     let all = [&outgoing.to, &outgoing.cc, &outgoing.bcc]
         .into_iter()
-        .flatten()
-        .cloned()
+        .flat_map(|list| safe_list(list))
         .collect();
     dedup(all).into_iter().map(|a| a.email).collect()
 }

@@ -38,3 +38,24 @@ fn mailto_keeps_bad_percent_escapes() {
     let draft = parse_mailto("mailto:a@example.com?subject=100%25%zz%").unwrap();
     assert_eq!(draft.subject, "100%%zz%");
 }
+
+#[test]
+fn mailto_plus_after_percent_stays_literal() {
+    let draft = parse_mailto("mailto:a@example.com?subject=a%+1b").unwrap();
+    assert_eq!(draft.subject, "a%+1b");
+}
+
+#[test]
+fn mailto_drops_control_characters() {
+    let draft = parse_mailto(
+        "mailto:a@example.com%0D%0ABcc:%20evil@y.org?cc=ok@example.com%0Aevil@y.org\
+         &subject=Hi%0D%0ABcc:%20x%00!&body=a%0D%0Ab%0Bc%09d\
+         &in-reply-to=%3Cp@e.com%0D%0ABcc:%20evil@y.org%3E",
+    )
+    .unwrap();
+    assert!(draft.to.is_empty());
+    assert!(draft.cc.is_empty());
+    assert_eq!(draft.subject, "HiBcc: x!");
+    assert_eq!(draft.body, "a\nbc\td");
+    assert_eq!(draft.in_reply_to, None);
+}

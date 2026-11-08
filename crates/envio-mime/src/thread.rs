@@ -1,12 +1,13 @@
 //! Message-ID normalization and the thread root.
 
 /// A Message-ID without its angle brackets or outer spaces; `None` when
-/// nothing is left.
+/// nothing is left or the id holds a control character or whitespace.
 pub fn normalize_id(raw: &str) -> Option<String> {
     let id = raw.trim();
     let id = id.strip_prefix('<').unwrap_or(id);
     let id = id.strip_suffix('>').unwrap_or(id).trim();
-    (!id.is_empty()).then(|| id.to_owned())
+    let bad = |c: char| c.is_control() || c.is_whitespace();
+    (!id.is_empty() && !id.contains(bad)).then(|| id.to_owned())
 }
 
 /// The id a thread is grouped under: the first reference, else the

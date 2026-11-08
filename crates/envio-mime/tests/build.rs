@@ -130,3 +130,89 @@ fn message_ids_are_random_and_use_the_sender_domain() {
     assert!(new_message_id("no-at-sign").ends_with("@invalid"));
     assert!(new_message_id("a@").ends_with("@invalid"));
 }
+
+fn assert_header_block_clean(bytes: &[u8]) {
+    let text = String::from_utf8_lossy(bytes);
+    let head = text.split("\r\n\r\n").next().unwrap();
+    for line in head.split("\r\n") {
+        let folded = line.starts_with(' ') || line.starts_with('\t');
+        let (name, _) = line.split_once(':').unwrap_or(("", ""));
+        let valid = !name.is_empty() && name.chars().all(|c| c.is_ascii_graphic());
+        assert!(folded || valid, "bad header line {line:?}");
+    }
+    let has_bcc_header = head
+        .split("\r\n")
+        .any(|l| l.to_ascii_lowercase().starts_with("bcc:"));
+    assert!(!has_bcc_header, "{head}");
+}
+
+fn simple() -> Outgoing {
+    Outgoing {
+        from: Address::new(None, "bob@example.org"),
+        to: vec![Address::new(None, "alice@example.com")],
+        subject: "Hi".to_owned(),
+        text: "Hello".to_owned(),
+        ..Outgoing::default()
+    }
+}
+
+#[test]
+fn injected_in_reply_to_is_not_written() {
+    let mut o = simple();
+    o.in_reply_to = Some("p@e.com\r\nBcc: evil@y.org".to_owned());
+    o.references = vec!["ok@e.com".to_owned(), "r@e.com\nBcc: evil@y.org".to_owned()];
+    let built = build(&o, 0, "x@example.org");
+    assert_header_block_clean(&built.bytes);
+    let text = String::from_utf8_lossy(&built.bytes);
+    assert!(!text.contains("evil@y.org"));
+    assert!(!text.to_ascii_lowercase().contains("in-reply-to:"));
+    assert!(text.contains("ok@e.com"));
+}
+
+#[test]
+fn mailto_injection_parsed_then_built_stays_clean() {
+    let draft = envio_mime::parse_mailto(
+        "mailto:alice@example.com%0D%0ABcc:%20evil@y.org\
+         ?to=bob@example.com%0D%0ABcc:%20evil@y.org\
+         &in-reply-to=%3Cp@e.com%0D%0ABcc:%20evil@y.org%3E&subject=S%0D%0ABcc:%20evil@y.org",
+    )
+    .unwrap();
+    let mut o = simple();
+    o.to = draft.to;
+    o.subject = draft.subject;
+    o.in_reply_to = draft.in_reply_to;
+    let built = build(&o, 0, "x@example.org");
+    assert_header_block_clean(&built.bytes);
+    assert!(built.recipients.is_empty());
+}
+
+#[test]
+fn build_skips_unsafe_recipients_and_ids() {
+    let mut o = simple();
+    o.to.push(Address {
+        name: None,
+        email: "a@b.com\r\nBcc: evil@y.org".to_owned(),
+    });
+    o.cc.push(Address {
+        name: Some("Eve\r\nBcc: evil@y.org".to_owned()),
+        email: "eve@example.com".to_owned(),
+    });
+    o.bcc.push(Address {
+        name: None,
+        email: "x y@example.com".to_owned(),
+    });
+    o.subject = "Hi\r\nBcc: evil@y.org".to_owned();
+    let built = build(&o, 0, "id@e.com\r\nBcc: evil@y.org");
+    assert_header_block_clean(&built.bytes);
+    assert_eq!(built.recipients, ["alice@example.com", "eve@example.com"]);
+    assert!(!built.message_id.contains(['\r', '\n', ' ']));
+    assert!(built.message_id.ends_with("@example.org"));
+}
+
+#[test]
+fn message_id_domain_is_restricted() {
+    assert!(new_message_id("a@ex\r\nBcc: x.org").ends_with("@invalid"));
+    assert!(new_message_id("a@ex ample.org").ends_with("@invalid"));
+    assert!(new_message_id("a@ex<ample>.org").ends_with("@invalid"));
+    assert!(new_message_id("a@sub-1.example.org").ends_with("@sub-1.example.org"));
+}

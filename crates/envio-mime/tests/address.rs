@@ -89,3 +89,27 @@ fn preview_caps_length_on_char_boundaries() {
     let p = preview(&text);
     assert_eq!(p.chars().count(), envio_mime::PREVIEW_CHARS);
 }
+
+#[test]
+fn control_characters_never_survive() {
+    assert_eq!(Address::parse("a@b.com\r\nBcc: x@y.org"), None);
+    assert_eq!(
+        Address::parse("<a@b.com\n>"),
+        Some(Address::new(None, "a@b.com"))
+    );
+    assert_eq!(
+        Address::parse("Eve\r\nBcc: x <e@b.com>")
+            .unwrap()
+            .name
+            .as_deref(),
+        Some("Eve  Bcc: x")
+    );
+    assert_eq!(
+        Address::new(Some("A\tB\0"), "a@b.com").name.as_deref(),
+        Some("A B")
+    );
+    assert_eq!(normalize_id("<p@e.com\r\nBcc: evil@y.org>"), None);
+    assert_eq!(normalize_id("<p@e .com>"), None);
+    assert_eq!(normalize_id(" <p@e.com> ").as_deref(), Some("p@e.com"));
+    assert_eq!(thread_root("<a\nb@c>", None, &[]), "");
+}

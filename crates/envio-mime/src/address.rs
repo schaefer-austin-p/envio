@@ -8,9 +8,15 @@ pub struct Address {
 }
 
 impl Address {
-    /// An address with an optional name. A blank name counts as none.
+    /// An address with an optional name. A blank name counts as none, and
+    /// control characters in a name become spaces.
     pub fn new(name: Option<&str>, email: &str) -> Self {
-        let name = name.map(str::trim).filter(|n| !n.is_empty());
+        let name = name.map(|n| {
+            n.chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .collect::<String>()
+        });
+        let name = name.as_deref().map(str::trim).filter(|n| !n.is_empty());
         Self {
             name: name.map(str::to_owned),
             email: email.trim().to_owned(),
@@ -18,7 +24,7 @@ impl Address {
     }
 
     /// Reads `Name <email>`, `<email>` or a bare `email`. `None` when there
-    /// is no `@` in the address part.
+    /// is no `@` in the address part or it holds a control character.
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         let (name, email) = match (text.rfind('<'), text.ends_with('>')) {
@@ -28,7 +34,9 @@ impl Address {
             ),
             _ => (None, text),
         };
-        email.contains('@').then(|| Self::new(name, email))
+        let email = email.trim();
+        (email.contains('@') && !email.chars().any(char::is_control))
+            .then(|| Self::new(name, email))
     }
 
     /// "Name <email>", or the bare email when there is no name.
