@@ -1,5 +1,5 @@
-//! HTML mail to Qt rich text: ammonia does the cleaning, then the image
-//! pass (Task 5) decides about images and over-wide tables.
+//! HTML mail to Qt rich text: ammonia does the cleaning, then
+//! [`crate::images`] decides about images and over-wide tables.
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -189,11 +189,9 @@ static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| {
 });
 
 /// Sanitizes HTML mail into Qt rich text.
-pub fn sanitize_html(html: &str, _options: &RenderOptions) -> Rendered {
-    Rendered {
-        html: CLEANER.clean(html).to_string(),
-        ..Rendered::default()
-    }
+pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
+    let clean = CLEANER.clean(html).to_string();
+    crate::images::fit(&clean, options)
 }
 
 /// Runs on every attribute ammonia kept. Links keep their exact address
