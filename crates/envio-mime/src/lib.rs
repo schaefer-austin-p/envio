@@ -5,6 +5,7 @@
 
 mod address;
 mod attachments;
+mod build;
 mod envelope;
 mod images;
 mod mail;
@@ -17,6 +18,7 @@ mod thread;
 
 pub use address::{Address, same_email};
 pub use attachments::{AttachmentInfo, attachment_bytes};
+pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use envelope::{Envelope, envelope};
 pub use message::{Body, Message, parse};
 pub use plain::plain_to_rich;

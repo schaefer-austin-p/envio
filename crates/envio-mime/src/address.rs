@@ -61,3 +61,14 @@ pub(crate) fn from_header(header: Option<&mail_parser::Address<'_>>) -> Vec<Addr
         })
         .collect()
 }
+
+/// Removes later duplicates (by email, ignoring case), keeping order.
+pub(crate) fn dedup(addresses: Vec<Address>) -> Vec<Address> {
+    let mut out: Vec<Address> = Vec::with_capacity(addresses.len());
+    for address in addresses {
+        if !out.iter().any(|kept| kept.is(&address.email)) {
+            out.push(address);
+        }
+    }
+    out
+}
