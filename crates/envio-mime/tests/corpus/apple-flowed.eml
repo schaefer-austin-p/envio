@@ -1,0 +1,21 @@
+Mime-Version: 1.0 (Mac OS X Mail 16.0)
+Date: Thu, 5 Nov 2026 18:40:00 -0500
+Message-Id: <4F2A9C1E-0B7D-4C1A-9E0F-1234567890AB@example.com>
+Subject: Re: Trip notes
+From: Dan Example <dan@example.com>
+To: Bob Example <bob@example.org>
+In-Reply-To: <trip-1@example.org>
+References: <trip-0@example.org> <trip-1@example.org>
+Content-Type: text/plain; charset=utf-8; format=flowed; delsp=yes
+Content-Transfer-Encoding: quoted-printable
+
+This line is long enough that Apple Mail wrapped it, and the space at=20=20
+the end says it goes on.
+
+> On 5 Nov 2026, at 10:00, Bob Example <bob@example.org> wrote:
+>
+> Did you keep the=20=20
+> receipts?
+
+--=20
+Dan

@@ -49,3 +49,15 @@ impl Address {
 pub fn same_email(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
+
+/// The mailboxes of a parsed header, groups flattened, empty ones skipped.
+pub(crate) fn from_header(header: Option<&mail_parser::Address<'_>>) -> Vec<Address> {
+    header
+        .into_iter()
+        .flat_map(|list| list.iter())
+        .filter_map(|addr| {
+            let email = addr.address.as_deref()?;
+            (!email.trim().is_empty()).then(|| Address::new(addr.name.as_deref(), email))
+        })
+        .collect()
+}

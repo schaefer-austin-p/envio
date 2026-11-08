@@ -1,0 +1,14 @@
+Date: Tue, 10 Nov 2026 12:00:00 +0000
+From: Frank Example <frank@example.com>
+To: bob@example.org
+Message-ID: <broken-1@example.com>
+Subject: Report
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="expected-boundary"
+
+--some-other-boundary
+Content-Type: text/plain
+
+The parts of this message use a boundary the header never declared.
+
+--some-other-boundary--

@@ -1,0 +1,21 @@
+Date: Sat, 7 Nov 2026 11:11:11 +0000
+From: Erin Example <erin@example.com>
+To: dev@lists.example.org
+Message-ID: <list-42@example.com>
+In-Reply-To: <list-41@example.org>
+References: <list-40@example.org> <list-41@example.org>
+Subject: [dev] Re: Release schedule
+List-Id: Developers <dev.lists.example.org>
+List-Unsubscribe: <mailto:dev-leave@lists.example.org>
+Reply-To: dev@lists.example.org
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+
+I agree with shipping on the 20th.
+
+> Shall we ship on the 20th?
+
+_______________________________________________
+dev mailing list -- dev@lists.example.org
+To unsubscribe send an email to dev-leave@lists.example.org
+https://lists.example.org/mailman/listinfo/dev

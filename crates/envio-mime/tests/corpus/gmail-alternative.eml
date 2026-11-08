@@ -1,0 +1,23 @@
+MIME-Version: 1.0
+Date: Tue, 3 Nov 2026 09:15:02 +0100
+Message-ID: <CAF1a2b3c4d5e6f7@mail.example.com>
+Subject: Lunch on Friday?
+From: Alice Example <alice@example.com>
+To: Bob Example <bob@example.org>
+Content-Type: multipart/alternative; boundary="000000000000a1b2c3"
+
+--000000000000a1b2c3
+Content-Type: text/plain; charset="UTF-8"
+
+Hi Bob,
+
+Are you free for lunch on Friday? The place on Main Street is open again.
+
+Alice
+
+--000000000000a1b2c3
+Content-Type: text/html; charset="UTF-8"
+
+<div dir="ltr">Hi Bob,<div><br></div><div>Are you free for lunch on Friday? The place on <b>Main Street</b> is open again.</div><div><br></div><div>Alice</div></div>
+
+--000000000000a1b2c3--

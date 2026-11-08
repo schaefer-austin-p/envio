@@ -1,0 +1,7 @@
+From: Henry Example <henry@example.com>
+To: bob@example.org
+Message-ID: <nodate-1@example.com>
+Subject: No date on this one
+Content-Type: text/plain; charset=us-ascii
+
+This message has no Date header.

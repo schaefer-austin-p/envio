@@ -1,0 +1,79 @@
+//! The envelope: what the message list and the store keep for each message.
+
+use mail_parser::HeaderValue;
+
+use crate::address::{Address, from_header};
+use crate::mail::{Parsed, parse_mail};
+use crate::preview::preview;
+use crate::thread::{normalize_id, thread_root};
+
+/// Headers plus the preview and the attachment flag.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Envelope {
+    /// Without angle brackets.
+    pub message_id: Option<String>,
+    /// Decoded; empty when missing.
+    pub subject: String,
+    pub from: Vec<Address>,
+    pub to: Vec<Address>,
+    pub cc: Vec<Address>,
+    pub reply_to: Vec<Address>,
+    /// Unix seconds; `None` when missing or invalid.
+    pub date: Option<i64>,
+    /// Without angle brackets.
+    pub in_reply_to: Option<String>,
+    /// Without angle brackets, oldest first.
+    pub references: Vec<String>,
+    pub preview: String,
+    /// A non-inline attachment is present.
+    pub has_attachments: bool,
+}
+
+impl Envelope {
+    /// The id this message's thread is grouped under.
+    pub fn thread_root(&self) -> String {
+        thread_root(
+            self.message_id.as_deref().unwrap_or_default(),
+            self.in_reply_to.as_deref(),
+            &self.references,
+        )
+    }
+}
+
+/// The envelope of a full message or a header-only blob (then the preview is
+/// empty). `None` when the bytes don't look like mail.
+pub fn envelope(raw: &[u8]) -> Option<Envelope> {
+    parse_mail(raw).map(|message| from_parsed(&message))
+}
+
+pub(crate) fn from_parsed(message: &Parsed<'_>) -> Envelope {
+    let attachments = crate::attachments::list(message);
+    Envelope {
+        message_id: message.message_id().and_then(normalize_id),
+        subject: message.subject().unwrap_or_default().trim().to_owned(),
+        from: from_header(message.from()),
+        to: from_header(message.to()),
+        cc: from_header(message.cc()),
+        reply_to: from_header(message.reply_to()),
+        date: message
+            .date()
+            .filter(|d| d.is_valid())
+            .map(|d| d.to_timestamp()),
+        in_reply_to: ids(message.in_reply_to()).into_iter().next(),
+        references: ids(message.references()),
+        preview: message
+            .body_text(0)
+            .map(|text| preview(&text))
+            .unwrap_or_default(),
+        has_attachments: attachments.iter().any(|a| !a.inline),
+    }
+}
+
+/// Message-IDs from an In-Reply-To or References header, normalized.
+fn ids(value: &HeaderValue<'_>) -> Vec<String> {
+    match value {
+        HeaderValue::Text(id) => normalize_id(id).into_iter().collect(),
+        HeaderValue::TextList(list) => list.iter().filter_map(|id| normalize_id(id)).collect(),
+        _ => Vec::new(),
+    }
+}
