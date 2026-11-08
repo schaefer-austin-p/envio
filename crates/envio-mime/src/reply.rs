@@ -108,6 +108,12 @@ pub fn reply(original: &Envelope, quote: &Quote<'_>, me: &[String], kind: ReplyK
         }
     };
     let mut references = original.references.clone();
+    if references.is_empty()
+        && let Some(parent) = &original.in_reply_to
+    {
+        // RFC 5322 §3.6.4: no References, a single In-Reply-To.
+        references.push(parent.clone());
+    }
     if let Some(id) = &original.message_id
         && !references.contains(id)
     {

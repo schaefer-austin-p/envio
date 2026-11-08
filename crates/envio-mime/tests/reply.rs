@@ -99,6 +99,18 @@ fn missing_message_id_keeps_references() {
 }
 
 #[test]
+fn parent_without_references_passes_on_its_in_reply_to() {
+    // RFC 5322 §3.6.4: the parent's In-Reply-To stands in for References.
+    let mut e = original();
+    e.references.clear();
+    let draft = reply(&e, &QUOTE, &me(), ReplyKind::Sender);
+    assert_eq!(draft.references, ["m2@example.com", "m3@example.com"]);
+    e.in_reply_to = None;
+    let draft = reply(&e, &QUOTE, &me(), ReplyKind::Sender);
+    assert_eq!(draft.references, ["m3@example.com"]);
+}
+
+#[test]
 fn reply_into_outgoing_puts_text_above_quote() {
     let draft = reply(&original(), &QUOTE, &me(), ReplyKind::Sender);
     let quoted = draft.quoted.clone();
