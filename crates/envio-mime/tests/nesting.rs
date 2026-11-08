@@ -86,3 +86,45 @@ fn cut_off_input_never_panics() {
         let _ = render(html);
     }
 }
+
+#[test]
+fn nesting_the_parser_keeps_is_counted() {
+    let n = 10_000;
+    for html in [
+        "<ul><li>".repeat(n),
+        "<dl><dd>".repeat(n),
+        "<ul><p>".repeat(n),
+        "<b><div></b>".repeat(n),
+        "<a href=x><div></a>".repeat(n),
+        format!("<div =\">{}", "<div>".repeat(n)),
+        format!("<div a='{}", "<div>".repeat(n)),
+        format!("<!-- never closed {}", "<div>".repeat(n)),
+        format!("<title>{}", "<div>".repeat(n)),
+        "<i>".repeat(60_000),
+    ] {
+        assert!(fell_back(&html), "{}", &html[..20]);
+    }
+}
+
+#[test]
+fn realistic_newsletter_shape_goes_through_ammonia() {
+    let mut html = String::new();
+    for level in 0..40 {
+        // Every fourth level misnests its formatting tags.
+        let format = if level % 4 == 0 {
+            "<b><i>x</b></i>"
+        } else {
+            "<b>x</b>"
+        };
+        html.push_str(&format!(
+            "<table><tr><td>cell<p>para<br>{format}<tr><td>more<td>cells "
+        ));
+    }
+    for _ in 0..40 {
+        html.push_str("</table>");
+    }
+    assert!(!fell_back(&html));
+    assert!(render(&html).contains("<table>"));
+    let sloppy = "<b><i>x</b></i> <p>y".repeat(40);
+    assert!(!fell_back(&sloppy));
+}
