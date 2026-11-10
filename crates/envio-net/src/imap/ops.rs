@@ -75,7 +75,7 @@ impl ImapSession {
         .await?;
         self.exists = state.exists;
         // What the old folder reported no longer matters.
-        self.take_changes();
+        let _ = self.take_changes();
         Ok(state)
     }
 

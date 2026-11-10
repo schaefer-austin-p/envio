@@ -20,6 +20,9 @@ use crate::error::Result;
 /// before that.
 pub const IDLE_MAX: Duration = Duration::from_secs(29 * 60);
 
+/// The size of async-imap's unsolicited-response channel.
+const UNSOLICITED_CAPACITY: usize = 100;
+
 /// Why `idle` returned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Woke {
@@ -34,11 +37,14 @@ pub enum Woke {
 impl ImapSession {
     /// Whether the server reported a change in the selected folder since
     /// the last call (EXISTS, EXPUNGE, FETCH sent along with other
-    /// replies). Drains what was reported; async-imap keeps at most 100
-    /// and drops the rest, which still leaves this true.
+    /// replies). Drains what was reported. async-imap keeps at most 100 and
+    /// drops the rest, so a full channel counts as changed.
+    #[must_use]
     pub fn take_changes(&mut self) -> bool {
         let mut changed = false;
+        let mut drained = 0;
         while let Ok(response) = self.session.unsolicited_responses.try_recv() {
+            drained += 1;
             // STATUS is about a folder's counts, sent by some servers
             // (Stalwart) on their own; RECENT comes with EXISTS.
             changed |= !matches!(
@@ -46,7 +52,7 @@ impl ImapSession {
                 UnsolicitedResponse::Status { .. } | UnsolicitedResponse::Recent(_)
             );
         }
-        changed
+        changed || drained >= UNSOLICITED_CAPACITY
     }
 
     /// Waits in IDLE until the selected folder changes, `wait` passes
@@ -67,12 +73,16 @@ impl ImapSession {
         connect::within(async { handle.init().await.map_err(map_error) }).await?;
         let deadline = Instant::now() + wait.min(IDLE_MAX);
         let mut stop = pin!(stop);
+        // async-imap restarts its own timer on every response, keepalives
+        // included, so the deadline is enforced here.
+        let mut expired = pin!(tokio::time::sleep_until(deadline));
         let woke = loop {
             let left = deadline.saturating_duration_since(Instant::now());
             let (waiting, interrupt) = handle.wait_with_timeout(left);
-            let heard = match select(pin!(waiting), stop.as_mut()).await {
+            let heard = match select(pin!(waiting), select(stop.as_mut(), expired.as_mut())).await {
                 Either::Left((heard, _)) => heard.map_err(map_error)?,
-                Either::Right(((), _)) => break Woke::Stopped,
+                Either::Right((Either::Left(((), _)), _)) => break Woke::Stopped,
+                Either::Right((Either::Right(((), _)), _)) => break Woke::Quiet,
             };
             drop(interrupt);
             match heard {
