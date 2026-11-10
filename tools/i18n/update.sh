@@ -1,7 +1,7 @@
 #!/bin/sh
 # Regenerates po/envio.aps.pot from the QML's qsTr() strings and merges it
 # into each po/*.po. With --check, changes nothing and fails if the files
-# are out of date (CI). Rust strings join in when the core has some (Plan 6).
+# are out of date (CI). Rust strings come from crates/envio-core/src/text/.
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
@@ -12,6 +12,15 @@ trap 'rm -f "$new"' EXIT
 find qml -name '*.qml' | LC_ALL=C sort | xgettext --files-from=- --output="$new" \
   --language=JavaScript --keyword=qsTr:1 --keyword=qsTr:1,2c \
   --from-code=UTF-8 --add-comments=i18n --package-name=envio.aps
+
+# The core's strings: tr()/tr_n() calls live only in src/text/.
+ls crates/envio-core/src/text/*.rs | LC_ALL=C sort | xgettext --files-from=- --output="$new" \
+  --join-existing --language=C --keyword= --keyword=tr:1 --keyword=tr_n:1,2 \
+  --from-code=UTF-8 --add-comments=i18n --package-name=envio.aps
+
+# Older xgettext (the CI image) leaves charset=CHARSET after a join; newer
+# ones write UTF-8. Pin it so every version produces the same file.
+sed -i 's/charset=CHARSET/charset=UTF-8/' "$new"
 
 # The creation date changes every run; compare without it.
 strip() { grep -v '^"POT-Creation-Date:' "$1" || true; }
