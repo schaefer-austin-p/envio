@@ -5,4 +5,5 @@
 pub mod certs;
 pub mod fake_imap;
 pub mod fake_smtp;
+pub mod proxy;
 pub mod stalwart;
