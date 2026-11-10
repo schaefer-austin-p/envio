@@ -7,6 +7,7 @@
 
 pub mod convert;
 pub mod error;
+pub mod plan;
 pub mod schedule;
 
 pub use error::{ErrorKind, Result, SyncError};
