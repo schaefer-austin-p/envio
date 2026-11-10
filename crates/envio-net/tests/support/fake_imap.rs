@@ -33,6 +33,9 @@ pub struct Script {
     /// IDLE is answered with `+ idling` and then `* OK Still here` every
     /// 100 ms until DONE.
     pub keepalive: bool,
+    /// Untagged lines (each ending in CRLF) sent after the client's DONE,
+    /// before IDLE's tagged OK.
+    pub before_idle_ok: &'static str,
 }
 
 impl Default for Script {
@@ -48,6 +51,7 @@ impl Default for Script {
             signed_out_capabilities: "",
             plain_accepts: "\0alice\0pässwort",
             keepalive: false,
+            before_idle_ok: "",
         }
     }
 }
@@ -173,7 +177,7 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
-            "IDLE" => idle_reply(io, log, &tag, script.keepalive).await,
+            "IDLE" => idle_reply(io, log, &tag, &script).await,
             // Accepted and recorded; the tests read the transcript.
             _ if accepted(&verb, &sub_verb) => format!("{tag} OK done\r\n"),
             "APPEND" => {
@@ -209,13 +213,13 @@ async fn idle_reply<S: AsyncRead + AsyncWrite + Unpin>(
     io: &mut BufReader<S>,
     log: &Transcript,
     tag: &str,
-    enabled: bool,
+    script: &Script,
 ) -> String {
-    if !enabled {
+    if !script.keepalive {
         return format!("{tag} BAD what\r\n");
     }
     if io.write_all(b"+ idling\r\n").await.is_ok() && keepalives_until_done(io, log).await {
-        format!("{tag} OK idle done\r\n")
+        format!("{}{tag} OK idle done\r\n", script.before_idle_ok)
     } else {
         String::new()
     }

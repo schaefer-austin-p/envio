@@ -46,11 +46,14 @@ impl ImapSession {
         while let Ok(response) = self.session.unsolicited_responses.try_recv() {
             drained += 1;
             // STATUS is about a folder's counts, sent by some servers
-            // (Stalwart) on their own; RECENT comes with EXISTS.
-            changed |= !matches!(
-                response,
-                UnsolicitedResponse::Status { .. } | UnsolicitedResponse::Recent(_)
-            );
+            // (Stalwart) on their own; RECENT comes with EXISTS; an
+            // untagged OK/NO/BAD/BYE (an IDLE keepalive caught by DONE,
+            // say) changes nothing in the folder.
+            changed |= !match &response {
+                UnsolicitedResponse::Status { .. } | UnsolicitedResponse::Recent(_) => true,
+                UnsolicitedResponse::Other(data) => matches!(data.parsed(), Response::Data { .. }),
+                _ => false,
+            };
         }
         changed || drained >= UNSOLICITED_CAPACITY
     }

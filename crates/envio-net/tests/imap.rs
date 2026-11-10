@@ -342,3 +342,43 @@ async fn idle_returns_quiet_at_its_deadline_despite_keepalives() {
     assert_eq!(woke, Woke::Quiet);
     session.logout().await.unwrap();
 }
+
+#[tokio::test]
+async fn a_keepalive_caught_by_done_is_not_a_change() {
+    use envio_net::imap::Woke;
+    use std::time::Duration;
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        keepalive: true,
+        before_idle_ok: "* OK Still here\r\n",
+        ..Script::default()
+    };
+    let (session, _, _) = open(&cert, script).await;
+    let session = session.unwrap();
+    let (session, woke) = session
+        .idle(Duration::from_millis(50), std::future::pending())
+        .await
+        .unwrap();
+    assert_eq!(woke, Woke::Quiet);
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn new_mail_caught_by_done_is_a_change() {
+    use envio_net::imap::Woke;
+    use std::time::Duration;
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        keepalive: true,
+        before_idle_ok: "* 4 EXISTS\r\n",
+        ..Script::default()
+    };
+    let (session, _, _) = open(&cert, script).await;
+    let session = session.unwrap();
+    let (session, woke) = session
+        .idle(Duration::from_millis(50), std::future::pending())
+        .await
+        .unwrap();
+    assert_eq!(woke, Woke::Changed);
+    session.logout().await.unwrap();
+}
