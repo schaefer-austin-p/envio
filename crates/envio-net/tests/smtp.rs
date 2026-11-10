@@ -11,6 +11,24 @@ use support::fake_smtp::{Script, serve};
 const MAIL: &[u8] =
     b"From: ada@example.org\r\nTo: bob@example.org\r\nSubject: hi\r\n\r\nHello.\r\n";
 
+/// Standard base64 with padding, the form AUTH PLAIN carries.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b = |i: usize| u32::from(*chunk.get(i).unwrap_or(&0));
+        let n = (b(0) << 16) | (b(1) << 8) | b(2);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 fn endpoint(port: u16, security: Security, cert: &Cert) -> Endpoint {
     Endpoint {
         pin: Some(Fingerprint::of(&cert.der)),
@@ -52,7 +70,12 @@ async fn starttls_sends_only_ehlo_and_starttls_in_the_clear() {
         "{secure:?}"
     );
     assert!(secure.iter().any(|l| l == "Subject: hi"), "{secure:?}");
-    assert!(lines.iter().all(|(_, l)| !l.contains("secret-pw")));
+    // AUTH PLAIN is base64, so look for the encoded credentials: they
+    // must appear, and only on lines that went over TLS.
+    let token = base64(b"\0ada\0secret-pw");
+    let carrying: Vec<_> = lines.iter().filter(|(_, l)| l.contains(&token)).collect();
+    assert!(!carrying.is_empty(), "{lines:?}");
+    assert!(carrying.iter().all(|(tls, _)| *tls), "{lines:?}");
 }
 
 #[tokio::test]
@@ -99,7 +122,25 @@ async fn bytes_injected_after_the_starttls_reply_are_refused() {
     let err = send_one(&endpoint(port, Security::StartTls, &cert))
         .await
         .unwrap_err();
-    assert!(matches!(err, NetError::Protocol(_)), "{err:?}");
+    assert!(
+        matches!(&err, NetError::Protocol(m) if m == "data after the STARTTLS reply"),
+        "{err:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_greeting_cut_short_is_a_temporary_io_error() {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        cut_greeting: true,
+        ..Script::default()
+    };
+    let (port, _) = serve(&cert, script).await;
+    let err = send_one(&endpoint(port, Security::StartTls, &cert))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, NetError::Io(_)), "{err:?}");
+    assert!(err.is_temporary());
 }
 
 #[tokio::test]

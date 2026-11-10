@@ -17,6 +17,8 @@ pub struct Script {
     pub inject: bool,
     /// The reply to AUTH.
     pub auth_reply: &'static str,
+    /// Send the start of the greeting with no line end, then close.
+    pub cut_greeting: bool,
 }
 
 impl Default for Script {
@@ -26,6 +28,7 @@ impl Default for Script {
             offer_starttls: true,
             inject: false,
             auth_reply: "235 2.7.0 ok",
+            cut_greeting: false,
         }
     }
 }
@@ -64,6 +67,10 @@ pub async fn serve(cert: &Cert, script: Script) -> (u16, Transcript) {
             return;
         }
         let mut io = BufReader::new(tcp);
+        if script.cut_greeting {
+            io.write_all(b"220 smtp.examp").await.unwrap();
+            return;
+        }
         io.write_all(b"220 fake ESMTP\r\n").await.unwrap();
         let Some(_ehlo) = line(&mut io, false, &log).await else {
             return;

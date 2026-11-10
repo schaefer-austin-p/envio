@@ -75,6 +75,12 @@ where
             return Err(NetError::Io(std::io::ErrorKind::UnexpectedEof.into()));
         }
         if raw.last() != Some(&b'\n') {
+            // Short of the limit, the read only stops at end of stream: the
+            // server closed in the middle of a line. A full-length line is
+            // a protocol violation.
+            if raw.len() < MAX_LINE {
+                return Err(NetError::Io(std::io::ErrorKind::UnexpectedEof.into()));
+            }
             return Err(NetError::Protocol("SMTP reply line too long".into()));
         }
         let text = String::from_utf8_lossy(&raw);

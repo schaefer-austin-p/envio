@@ -34,6 +34,12 @@ pub(crate) async fn within_for<T>(
         .map_err(|_| NetError::Timeout)?
 }
 
+/// How long sending a message of `len` bytes may take: the command time,
+/// plus one second per 16 KiB, which allows for a 16 KiB/s uplink.
+pub(crate) fn transfer_timeout(len: usize) -> Duration {
+    COMMAND_TIMEOUT + Duration::from_secs((len / 16_384) as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,6 +55,19 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, NetError::Timeout));
         assert!(err.is_temporary());
+    }
+
+    #[test]
+    fn an_empty_message_gets_the_command_time() {
+        assert_eq!(transfer_timeout(0), COMMAND_TIMEOUT);
+    }
+
+    #[test]
+    fn a_message_gets_a_second_per_16_kib_on_top() {
+        assert_eq!(
+            transfer_timeout(16_384 * 10),
+            COMMAND_TIMEOUT + Duration::from_secs(10)
+        );
     }
 
     #[tokio::test]

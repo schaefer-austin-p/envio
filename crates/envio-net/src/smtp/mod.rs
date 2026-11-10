@@ -70,7 +70,9 @@ impl SmtpSession {
     /// from its headers (Bcc).
     pub async fn send(&mut self, from: &str, to: &[String], eml: &[u8]) -> Result<()> {
         let envelope = envelope(from, to)?;
-        connect::within(async {
+        // The upload alone can outlast a command, so the limit grows with
+        // the message.
+        connect::within_for(connect::transfer_timeout(eml.len()), async {
             self.conn
                 .send(&envelope, eml)
                 .await
