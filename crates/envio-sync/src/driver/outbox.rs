@@ -2,6 +2,7 @@
 //! Outbox only when the server accepted it and it is in Sent, or when its
 //! Message-ID turns up in Sent. Nothing is ever resent on its own.
 
+use envio_net::NetError;
 use envio_net::imap::Flag;
 use envio_store::{FolderRole, OutboxItem, SendState};
 
@@ -75,6 +76,10 @@ pub struct Filed {
     /// May have been sent and not found in Sent: the user decides (Send
     /// again, or Move to Sent).
     pub ask: Vec<String>,
+    /// Accepted by the server but left in the Outbox because the server
+    /// refused something (the Sent folder, the APPEND). Core shows these as
+    /// "sent, not yet in Sent".
+    pub unfiled: Vec<String>,
 }
 
 /// Files accepted items in Sent (APPEND, unless the server does it itself
@@ -82,7 +87,8 @@ pub struct Filed {
 /// have been sent. A retried APPEND first checks Sent, so a cut never
 /// files a message twice. With no folders cached at all (the folder list
 /// hasn't been fetched yet) nothing is filed: items stay in the Outbox, in
-/// neither list, until a run that knows the account's folders.
+/// no list, until a run that knows the account's folders. A refusal leaves
+/// the item in the Outbox; an accepted one is reported in `unfiled`.
 pub async fn file_sent(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -106,7 +112,15 @@ pub async fn file_sent(
         let search = step == ItemStep::Resolve || !files_itself;
         let done = match &sent_folder {
             Some(path) if search => {
-                server.select(path).await?;
+                match server.select(path).await {
+                    Ok(_) => {}
+                    // Nothing can be filed: every item stays, and the
+                    // accepted ones are reported.
+                    Err(NetError::Refused(_)) => {
+                        return Ok(refused_select(items(local, account)?));
+                    }
+                    Err(error) => return Err(error.into()),
+                }
                 // Only an accepted item is appended; a May have been sent
                 // one is only looked for.
                 let eml = match step {
@@ -118,7 +132,12 @@ pub async fn file_sent(
                     // One item's refusal (quota, a Message-ID the server
                     // won't take) leaves it in the Outbox, untouched, and
                     // doesn't hold up the others.
-                    Err(error) if error.kind() == ErrorKind::Refused => continue,
+                    Err(error) if error.kind() == ErrorKind::Refused => {
+                        if step == ItemStep::File {
+                            filed.unfiled.push(item.id);
+                        }
+                        continue;
+                    }
                     Err(error) => return Err(error),
                 }
             }
@@ -134,6 +153,19 @@ pub async fn file_sent(
         }
     }
     Ok(filed)
+}
+
+/// The result when the Sent folder can't be selected: nothing moves, and
+/// each accepted item is reported.
+fn refused_select(items: Vec<OutboxItem>) -> Filed {
+    Filed {
+        unfiled: items
+            .into_iter()
+            .filter(|item| item_step(&item.meta.state) == ItemStep::File)
+            .map(|item| item.id)
+            .collect(),
+        ..Filed::default()
+    }
 }
 
 /// Looks for the item in the selected Sent folder and appends an accepted

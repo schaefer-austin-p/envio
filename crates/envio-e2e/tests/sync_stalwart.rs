@@ -193,7 +193,7 @@ async fn sent_mail_is_filed_in_sent_once_and_leaves_the_outbox() {
         let filed = file_sent(&mut session, &mut store.local(), frank.name, false)
             .await
             .unwrap();
-        assert!(filed.ask.is_empty());
+        assert!(filed.ask.is_empty() && filed.unfiled.is_empty());
         // The first run files it; the second finds nothing left to do.
         assert_eq!(filed.removed.len(), usize::from(round == 0));
     }

@@ -59,6 +59,21 @@ async fn a_flag_change_waits_for_the_undo_window_then_goes_once() {
 }
 
 #[tokio::test]
+async fn with_no_folders_cached_a_delete_stays_pending_and_nothing_is_expunged() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    take(&mut store, 1, ActionKind::Delete);
+    let mut empty = Store::new();
+    empty.journal = store.journal;
+    let replayed = replay(&mut server, &mut empty.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(replayed.done, 0);
+    assert_eq!(server.uids("INBOX"), [1]);
+    assert_eq!(empty.journal.pending().count(), 1);
+}
+
+#[tokio::test]
 async fn delete_moves_to_trash_and_deletes_for_good_in_trash() {
     let mut server = FakeServer::new();
     server.add_folder("Trash", Some(Role::Trash));

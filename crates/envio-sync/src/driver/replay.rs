@@ -30,16 +30,21 @@ pub struct Replayed {
 
 /// Replays the account's due actions. Stops at the first error that isn't
 /// the server refusing one action, since the session is gone after it.
+/// With no folders cached at all (the folder list hasn't been fetched yet)
+/// nothing is replayed and the actions stay pending: without a known Trash a
+/// Delete would be sent as a permanent EXPUNGE.
 pub async fn replay(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     account: &str,
     now_ms: i64,
 ) -> Result<Replayed> {
+    let folders = local.db.folders(account)?;
+    if folders.is_empty() {
+        return Ok(Replayed::default());
+    }
     let due = due_actions(local, account, now_ms);
-    let trash = local
-        .db
-        .folders(account)?
+    let trash = folders
         .into_iter()
         .find(|folder| folder.role == FolderRole::Trash)
         .map(|folder| folder.path);

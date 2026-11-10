@@ -228,6 +228,33 @@ async fn a_refused_item_does_not_block_filing_the_others() {
     assert_eq!(left.len(), 1);
     assert_eq!(left[0].meta.state, SendState::Accepted);
     assert_ne!(left[0].id, filed.removed[0]);
+    // The refused one is reported, not skipped silently.
+    assert_eq!(filed.unfiled, [left[0].id.clone()]);
+}
+
+#[tokio::test]
+async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let accepted = queue(&store, "one");
+    store
+        .outbox
+        .set_state(&accepted, SendState::Accepted)
+        .unwrap();
+    let unsure = queue(&store, "two");
+    store
+        .outbox
+        .set_state(&unsure, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert!(filed.removed.is_empty());
+    assert!(filed.ask.is_empty());
+    assert_eq!(filed.unfiled, std::slice::from_ref(&accepted));
+    assert_eq!(state(&store, &accepted), Some(SendState::Accepted));
+    assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
 }
 
 #[tokio::test]
