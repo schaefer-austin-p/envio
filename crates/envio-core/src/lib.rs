@@ -2,9 +2,10 @@
 
 pub mod build_info;
 pub mod logging;
+pub mod secrets;
+pub mod servers;
 
 // The helpers below are consumed by later modules of this crate.
-#[allow(dead_code)]
 mod fsutil;
 #[allow(dead_code)]
 mod i18n;
