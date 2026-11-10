@@ -5,6 +5,7 @@
 
 mod connect;
 pub mod error;
+pub mod imap;
 pub mod server;
 pub mod smtp;
 pub mod tls;
