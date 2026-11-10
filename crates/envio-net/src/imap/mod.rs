@@ -5,6 +5,7 @@
 
 mod client;
 pub mod names;
+mod ops;
 pub mod query;
 
 use async_imap::Session;
@@ -16,6 +17,7 @@ use crate::tls::Roots;
 use client::{Stream, map_error};
 
 pub use names::Role;
+pub use ops::SCAN;
 pub use query::{Flag, MessageFlags};
 
 /// The extensions envio uses when the server has them.
@@ -102,6 +104,8 @@ pub struct FlagUpdate {
 pub struct ImapSession {
     session: Session<Stream>,
     caps: Caps,
+    /// EXISTS of the selected folder, as of SELECT.
+    exists: u32,
 }
 
 impl ImapSession {
@@ -120,7 +124,11 @@ impl ImapSession {
             })))
         })
         .await?;
-        Ok(Self { session, caps })
+        Ok(Self {
+            session,
+            caps,
+            exists: 0,
+        })
     }
 
     pub fn caps(&self) -> Caps {

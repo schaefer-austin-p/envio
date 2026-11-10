@@ -73,12 +73,21 @@ jobs:
           echo "args=$args" >>"$GITHUB_OUTPUT"
           echo "Testing: ${args:-no crates changed}"
 
+      - name: Start Stalwart (envio-net integration tests)
+        id: stalwart
+        if: contains(steps.pick.outputs.args, 'envio-net') || startsWith(steps.pick.outputs.args, '--workspace')
+        run: tools/ci/stalwart.sh
+
       - name: Unit and crate integration tests (changed crates)
         if: steps.pick.outputs.args != ''
         run: cargo llvm-cov ${{ steps.pick.outputs.args }} --locked --summary-only
 
       - name: Cross-crate tests
         run: cargo test -p envio-e2e --locked
+
+      - name: Stop Stalwart
+        if: always() && steps.stalwart.outcome != 'skipped'
+        run: docker rm -f "$STALWART_NAME" || true
 
       - name: sccache stats
         if: always()
