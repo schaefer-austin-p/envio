@@ -1,0 +1,21 @@
+[package]
+name = "envio-sync"
+description = "Envio's sync engine: pure planners and a thin driver over envio-net and envio-store"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+envio-mime = { path = "../envio-mime" }
+envio-net = { path = "../envio-net" }
+envio-store = { path = "../envio-store" }
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1.54", features = ["macros", "rt"] }

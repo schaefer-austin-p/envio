@@ -1,0 +1,179 @@
+//! Translations between envio-net's view of the server and envio-store's
+//! rows. Pure: no I/O.
+
+use envio_net::imap::{Flag, MessageFlags, Role, Summary};
+use envio_store::{Envelope, Flags, FolderRole, Message, NewMessage};
+
+/// The store's flag bits from the server's flags. Keywords are not
+/// cached.
+pub fn store_flags(flags: &MessageFlags) -> Flags {
+    [
+        (flags.seen, Flags::SEEN),
+        (flags.answered, Flags::ANSWERED),
+        (flags.flagged, Flags::FLAGGED),
+        (flags.deleted, Flags::DELETED),
+        (flags.draft, Flags::DRAFT),
+    ]
+    .into_iter()
+    .filter(|(set, _)| *set)
+    .fold(Flags::empty(), |all, (_, flag)| all.with(flag))
+}
+
+/// The IMAP flags named by `flags`, for STORE.
+pub fn net_flags(flags: Flags) -> Vec<Flag> {
+    [
+        (Flags::SEEN, Flag::Seen),
+        (Flags::ANSWERED, Flag::Answered),
+        (Flags::FLAGGED, Flag::Flagged),
+        (Flags::DELETED, Flag::Deleted),
+        (Flags::DRAFT, Flag::Draft),
+    ]
+    .into_iter()
+    .filter(|(bit, _)| flags.contains(*bit))
+    .map(|(_, flag)| flag)
+    .collect()
+}
+
+pub fn folder_role(role: Option<Role>) -> FolderRole {
+    match role {
+        Some(Role::Inbox) => FolderRole::Inbox,
+        Some(Role::Sent) => FolderRole::Sent,
+        Some(Role::Drafts) => FolderRole::Drafts,
+        Some(Role::Trash) => FolderRole::Trash,
+        Some(Role::Junk) => FolderRole::Junk,
+        Some(Role::Archive) => FolderRole::Archive,
+        Some(Role::All | Role::Flagged) | None => FolderRole::Other,
+    }
+}
+
+/// The row for a message from its summary. A header that doesn't parse
+/// still gives a row (empty subject and sender), so sync goes on; the
+/// date falls back to the server's arrival time.
+pub fn new_message(summary: &Summary) -> NewMessage {
+    let parsed = envio_mime::envelope(&summary.header).unwrap_or_default();
+    NewMessage {
+        uid: summary.uid,
+        size: summary.size,
+        envelope: store_envelope(&parsed, summary.internal_date.unwrap_or(0)),
+        flags: store_flags(&summary.flags),
+        preview: parsed.preview,
+    }
+}
+
+/// `message`'s row again with what the whole message adds: the preview.
+pub fn with_body(message: &Message, eml: &[u8]) -> NewMessage {
+    let preview = envio_mime::envelope(eml)
+        .map(|parsed| parsed.preview)
+        .unwrap_or_default();
+    NewMessage {
+        uid: message.uid,
+        size: message.size,
+        envelope: message.envelope.clone(),
+        flags: message.flags,
+        preview,
+    }
+}
+
+/// The Message-ID as the store and the journal keep it: in angle brackets.
+pub fn bracketed(message_id: &str) -> String {
+    format!("<{message_id}>")
+}
+
+fn store_envelope(parsed: &envio_mime::Envelope, arrived: i64) -> Envelope {
+    let shown = |list: &[envio_mime::Address]| {
+        list.iter()
+            .map(envio_mime::Address::display)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    Envelope {
+        message_id: parsed.message_id.as_deref().map(bracketed),
+        subject: parsed.subject.clone(),
+        from: shown(&parsed.from),
+        to: shown(&parsed.to),
+        date: parsed.date.unwrap_or(arrived),
+        in_reply_to: parsed.in_reply_to.as_deref().map(bracketed),
+        references: parsed.references.iter().map(|id| bracketed(id)).collect(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn summary(header: &[u8]) -> Summary {
+        Summary {
+            uid: 12,
+            flags: MessageFlags::from_flags([Flag::Seen, Flag::Keyword("$Junk".into())]),
+            size: 3_456,
+            internal_date: Some(1_800_000_000),
+            modseq: Some(9),
+            header: header.to_vec(),
+        }
+    }
+
+    #[test]
+    fn flags_go_both_ways_without_keywords() {
+        let flags =
+            MessageFlags::from_flags([Flag::Seen, Flag::Flagged, Flag::Keyword("x".into())]);
+        let bits = store_flags(&flags);
+        assert_eq!(bits, Flags::SEEN.with(Flags::FLAGGED));
+        assert_eq!(net_flags(bits), [Flag::Seen, Flag::Flagged]);
+        assert!(net_flags(Flags::empty()).is_empty());
+    }
+
+    #[test]
+    fn roles_without_a_store_twin_are_other() {
+        assert_eq!(folder_role(Some(Role::Trash)), FolderRole::Trash);
+        assert_eq!(folder_role(Some(Role::All)), FolderRole::Other);
+        assert_eq!(folder_role(None), FolderRole::Other);
+    }
+
+    #[test]
+    fn a_summary_becomes_a_row_with_bracketed_ids() {
+        let header = b"From: Ada <ada@example.org>\r\nTo: bob@example.org, Cy <cy@example.org>\r\n\
+            Subject: Plans\r\nMessage-ID: <m1@example.org>\r\nIn-Reply-To: <m0@example.org>\r\n\
+            References: <r1@example.org> <m0@example.org>\r\n\
+            Date: Sun, 08 Nov 2026 10:00:00 +0000\r\n\r\n";
+        let row = new_message(&summary(header));
+        assert_eq!(row.uid, 12);
+        assert_eq!(row.size, 3_456);
+        assert_eq!(row.flags, Flags::SEEN);
+        assert_eq!(row.envelope.message_id.as_deref(), Some("<m1@example.org>"));
+        assert_eq!(
+            row.envelope.in_reply_to.as_deref(),
+            Some("<m0@example.org>")
+        );
+        assert_eq!(
+            row.envelope.references,
+            ["<r1@example.org>", "<m0@example.org>"]
+        );
+        assert_eq!(row.envelope.from, "Ada <ada@example.org>");
+        assert_eq!(row.envelope.to, "bob@example.org, Cy <cy@example.org>");
+        assert_eq!(row.envelope.subject, "Plans");
+        assert_eq!(row.envelope.date, 1_794_132_000);
+    }
+
+    #[test]
+    fn a_header_that_does_not_parse_still_gives_a_row() {
+        let row = new_message(&summary(b""));
+        assert_eq!(row.envelope.subject, "");
+        assert_eq!(row.envelope.message_id, None);
+        assert_eq!(row.envelope.date, 1_800_000_000);
+    }
+
+    #[test]
+    fn a_body_brings_the_preview() {
+        let header = b"Subject: Hi\r\nMessage-ID: <p@example.org>\r\n\r\n";
+        let row = new_message(&summary(header));
+        let db = envio_store::Db::open_in_memory().unwrap();
+        let folder = db.upsert_folder("1", "INBOX", FolderRole::Inbox).unwrap();
+        let id = db.upsert_message(folder, &row).unwrap();
+        let cached = db.message(id).unwrap();
+        let eml = b"Subject: Hi\r\nMessage-ID: <p@example.org>\r\n\r\nSee you at noon.\r\n";
+        let full = with_body(&cached, eml);
+        assert_eq!(full.preview, "See you at noon.");
+        assert_eq!(full.envelope, cached.envelope);
+        assert_eq!(full.size, 3_456);
+    }
+}
