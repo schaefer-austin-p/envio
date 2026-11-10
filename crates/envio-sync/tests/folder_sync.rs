@@ -193,3 +193,17 @@ async fn opening_a_message_that_is_gone_drops_its_row() {
     assert_eq!(body, None);
     assert!(store.subjects("INBOX").is_empty());
 }
+
+#[tokio::test]
+async fn a_failed_window_search_keeps_the_cache() {
+    let mut server = FakeServer::new();
+    server.deliver_id("INBOX", "a");
+    server.deliver_id("INBOX", "b");
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    assert_eq!(store.uids("INBOX"), [1, 2]);
+    server.fail_on("search_since", NetError::Timeout);
+    assert!(sync_inbox(&mut server, &mut store).await.is_err());
+    assert_eq!(store.uids("INBOX"), [1, 2], "nothing was dropped");
+    assert_eq!(store.subjects("INBOX").len(), 2);
+}
