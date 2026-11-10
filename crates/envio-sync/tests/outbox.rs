@@ -258,6 +258,33 @@ async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
 }
 
 #[tokio::test]
+async fn a_refused_sent_select_keeps_what_was_already_filed() {
+    // The server files sent mail itself, so the accepted item needs no
+    // Sent folder; only the May have been sent one is looked for there.
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let accepted = queue(&store, "one");
+    store
+        .outbox
+        .set_state(&accepted, SendState::Accepted)
+        .unwrap();
+    let unsure = queue(&store, "two");
+    store
+        .outbox
+        .set_state(&unsure, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, true)
+        .await
+        .unwrap();
+    assert_eq!(filed.removed, std::slice::from_ref(&accepted));
+    assert!(filed.unfiled.is_empty(), "it needed no Sent folder");
+    assert!(filed.ask.is_empty());
+    assert_eq!(state(&store, &accepted), None);
+    assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
+}
+
+#[tokio::test]
 async fn with_no_folders_cached_an_accepted_item_is_left_in_the_outbox() {
     let mut server = FakeServer::new();
     let mut store = Store::new();

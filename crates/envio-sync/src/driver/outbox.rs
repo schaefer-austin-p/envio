@@ -104,6 +104,7 @@ pub async fn file_sent(
         .find(|folder| folder.role == FolderRole::Sent)
         .map(|folder| folder.path);
     let mut filed = Filed::default();
+    let mut sent_refused = false;
     for item in items(local, account)? {
         let step = item_step(&item.meta.state);
         if !matches!(step, ItemStep::File | ItemStep::Resolve) {
@@ -112,14 +113,22 @@ pub async fn file_sent(
         let search = step == ItemStep::Resolve || !files_itself;
         let done = match &sent_folder {
             Some(path) if search => {
-                match server.select(path).await {
-                    Ok(_) => {}
-                    // Nothing can be filed: every item stays, and the
-                    // accepted ones are reported.
-                    Err(NetError::Refused(_)) => {
-                        return Ok(refused_select(items(local, account)?));
+                if !sent_refused {
+                    match server.select(path).await {
+                        Ok(_) => {}
+                        Err(NetError::Refused(_)) => sent_refused = true,
+                        Err(error) => return Err(error.into()),
                     }
-                    Err(error) => return Err(error.into()),
+                }
+                // Sent can't be selected: this item and every later one
+                // that needs Sent stay, and the accepted ones are
+                // reported. Items settled before, or needing no Sent,
+                // still count.
+                if sent_refused {
+                    if step == ItemStep::File {
+                        filed.unfiled.push(item.id);
+                    }
+                    continue;
                 }
                 // Only an accepted item is appended; a May have been sent
                 // one is only looked for.
@@ -153,19 +162,6 @@ pub async fn file_sent(
         }
     }
     Ok(filed)
-}
-
-/// The result when the Sent folder can't be selected: nothing moves, and
-/// each accepted item is reported.
-fn refused_select(items: Vec<OutboxItem>) -> Filed {
-    Filed {
-        unfiled: items
-            .into_iter()
-            .filter(|item| item_step(&item.meta.state) == ItemStep::File)
-            .map(|item| item.id)
-            .collect(),
-        ..Filed::default()
-    }
 }
 
 /// Looks for the item in the selected Sent folder and appends an accepted
