@@ -1,15 +1,11 @@
-//! Autoconfig's order end to end with scripted lookups, and the HTTPS
-//! fetch against an in-process server.
-
-mod support;
+//! Autoconfig's order end to end with scripted lookups. The HTTPS fetch
+//! is in `autoconfig_fetch.rs`.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
-use envio_net::autoconfig::{self, Internet, Lookups, Source, SrvRecord};
-use envio_net::{Endpoint, NetError, Roots, Security};
-use support::certs::Ca;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use envio_net::autoconfig::{self, Lookups, Source, SrvRecord};
+use envio_net::{Endpoint, NetError, Security};
 
 #[derive(Default)]
 struct Scripted {
@@ -164,63 +160,27 @@ async fn srv_servers_outside_the_domain_ask_for_confirmation() {
     assert!(!found.confirm);
 }
 
-/// An HTTPS server on localhost: /moved redirects to /config, which
-/// answers `body`; anything else is 404.
-async fn https_server(ca: &Ca, body: String) -> u16 {
-    let acceptor = ca.sign("localhost").acceptor();
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = listener.local_addr().unwrap().port();
-    tokio::spawn(async move {
-        while let Ok((tcp, _)) = listener.accept().await {
-            let acceptor = acceptor.clone();
-            let body = body.clone();
-            tokio::spawn(async move {
-                let Ok(mut tls) = acceptor.accept(tcp).await else {
-                    return;
-                };
-                let mut buf = vec![0; 4096];
-                let n = tls.read(&mut buf).await.unwrap_or(0);
-                let request = String::from_utf8_lossy(&buf[..n]).into_owned();
-                let reply = if request.starts_with("GET /moved ") {
-                    format!(
-                        "HTTP/1.1 301 Moved\r\nLocation: https://localhost:{port}/config\r\n\r\n"
-                    )
-                } else if request.starts_with("GET /config ") {
-                    format!("HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\n\r\n{body}")
-                } else {
-                    "HTTP/1.1 404 Not Found\r\n\r\n".to_owned()
-                };
-                let _ = tls.write_all(reply.as_bytes()).await;
-                let _ = tls.shutdown().await;
-            });
-        }
-    });
-    port
+/// Hangs on every lookup: only the budget can end the search.
+struct Hangs;
+
+impl Lookups for Hangs {
+    async fn fetch(&self, _url: &str) -> Option<String> {
+        std::future::pending().await
+    }
+
+    async fn srv(&self, _name: &str) -> Vec<SrvRecord> {
+        std::future::pending().await
+    }
 }
 
 #[tokio::test]
-async fn https_fetch_follows_a_redirect_and_needs_a_trusted_certificate() {
-    let ca = Ca::new();
-    let port = https_server(&ca, config("x.example.org")).await;
-    let trusted = Internet::new(Roots::from_der([ca.der()]));
-    let body = trusted
-        .fetch(&format!("https://localhost:{port}/moved"))
-        .await
-        .unwrap();
-    assert!(body.contains("x.example.org"));
-    assert_eq!(
-        trusted
-            .fetch(&format!("https://localhost:{port}/missing"))
-            .await,
-        None
-    );
-
-    // Autoconfig has no trust prompt: an unknown certificate is no answer.
-    let untrusted = Internet::new(Roots::empty());
-    assert_eq!(
-        untrusted
-            .fetch(&format!("https://localhost:{port}/config"))
-            .await,
-        None
-    );
+async fn a_search_that_runs_out_of_time_gives_the_guess() {
+    let found = tokio::time::timeout(
+        Duration::from_secs(10),
+        autoconfig::detect_within("me@example.org", &Hangs, Duration::from_millis(100)),
+    )
+    .await
+    .expect("detect ignored its budget")
+    .unwrap();
+    assert_eq!(found.source, Source::Guess);
 }

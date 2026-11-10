@@ -6,6 +6,16 @@ use hickory_resolver::proto::rr::RData;
 use super::plan::SrvRecord;
 use crate::connect;
 
+/// The name as a fully qualified one. The trailing dot stops the resolver
+/// from trying the search domains of resolv.conf.
+pub fn fqdn(name: &str) -> String {
+    if name.ends_with('.') {
+        name.to_owned()
+    } else {
+        format!("{name}.")
+    }
+}
+
 /// The SRV records for `name`; empty when there are none or DNS fails
 /// (autoconfig then moves on to the next step).
 pub async fn lookup(name: &str) -> Vec<SrvRecord> {
@@ -16,7 +26,7 @@ pub async fn lookup(name: &str) -> Vec<SrvRecord> {
         return Vec::new();
     };
     let Ok(Ok(answer)) =
-        tokio::time::timeout(connect::CONNECT_TIMEOUT, resolver.srv_lookup(name)).await
+        tokio::time::timeout(connect::CONNECT_TIMEOUT, resolver.srv_lookup(fqdn(name))).await
     else {
         return Vec::new();
     };
@@ -33,4 +43,15 @@ pub async fn lookup(name: &str) -> Vec<SrvRecord> {
             _ => None,
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_are_fully_qualified_once() {
+        assert_eq!(fqdn("_imaps._tcp.example.org"), "_imaps._tcp.example.org.");
+        assert_eq!(fqdn("_imaps._tcp.example.org."), "_imaps._tcp.example.org.");
+    }
 }
