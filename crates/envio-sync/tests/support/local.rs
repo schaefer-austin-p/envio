@@ -41,6 +41,18 @@ impl Store {
         }
     }
 
+    /// `local()` plus the drafts, for the calls that take both.
+    pub fn with_drafts(&mut self) -> (Local<'_>, &Drafts) {
+        let local = Local {
+            db: &self.db,
+            bodies: &self.bodies,
+            journal: &mut self.journal,
+            outbox: &self.outbox,
+            schedule: &mut self.schedule,
+        };
+        (local, &self.drafts)
+    }
+
     pub fn folder(&self, path: &str) -> Folder {
         self.db
             .folder_by_path(ACCOUNT, path)

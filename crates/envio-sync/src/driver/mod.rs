@@ -3,12 +3,16 @@
 //! (the session is unusable after it); everything done so far is kept, and
 //! the next run resumes from the cache.
 
+mod account;
 mod actions;
 mod folders;
+mod outbox;
 mod replay;
 
+pub use account::{AccountSynced, Unsent, has_due_mail, remove_account, sync_account, unsent};
 pub use actions::{Undo, record, undo};
 pub use folders::{Synced, fetch_body, sync_folder, sync_folders};
+pub use outbox::{Filed, Sent, file_sent, send_outbox};
 pub use replay::{Replayed, replay};
 
 use envio_store::{Bodies, Db, Journal, Outbox};
