@@ -170,18 +170,40 @@ pub fn same_message_id(found: &str, wanted: &str) -> bool {
     !wanted.is_empty() && found == wanted
 }
 
+/// The biggest literal LITERAL- allows without waiting for the server
+/// (RFC 7888).
+pub const SMALL_LITERAL: usize = 4096;
+
+/// Which non-synchronizing literals (`{n+}`) the server accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Literals {
+    /// LITERAL+ and LITERAL- are both missing.
+    None,
+    /// LITERAL- only: up to [`SMALL_LITERAL`] bytes.
+    Small,
+    /// LITERAL+.
+    Any,
+}
+
 /// A full-text search. ASCII is quoted; anything else needs a literal,
-/// sent non-synchronizing (`{n+}`), which needs LITERAL+ or LITERAL-.
-pub fn search_text(text: &str, literal_plus: bool) -> Result<String> {
+/// sent non-synchronizing (`{n+}`). A text over the server's literal limit
+/// is refused: truncating or splitting it would change what matches, and
+/// a synchronizing literal needs a round trip mid-command.
+pub fn search_text(text: &str, literals: Literals) -> Result<String> {
     if text.is_ascii() {
         return Ok(format!("TEXT {}", quote(text)?));
     }
     if text.contains(['\r', '\n', '\0']) {
         return Err(NetError::Refused("search text with line breaks".into()));
     }
-    if !literal_plus {
+    let fits = match literals {
+        Literals::None => false,
+        Literals::Small => text.len() <= SMALL_LITERAL,
+        Literals::Any => true,
+    };
+    if !fits {
         return Err(NetError::Refused(
-            "this server can't search for non-ASCII text".into(),
+            "this server can't search for that non-ASCII text".into(),
         ));
     }
     Ok(format!("CHARSET UTF-8 TEXT {{{}+}}\r\n{text}", text.len()))
@@ -231,13 +253,25 @@ mod tests {
 
     #[test]
     fn non_ascii_search_needs_a_literal() {
-        assert_eq!(search_text("hello", false).unwrap(), "TEXT \"hello\"");
         assert_eq!(
-            search_text("Grüße", true).unwrap(),
+            search_text("hello", Literals::None).unwrap(),
+            "TEXT \"hello\""
+        );
+        assert_eq!(
+            search_text("Grüße", Literals::Any).unwrap(),
             "CHARSET UTF-8 TEXT {7+}\r\nGrüße"
         );
-        assert!(search_text("Grüße", false).is_err());
-        assert!(search_text("Grüße\r\nA1 LOGOUT", true).is_err());
+        assert!(search_text("Grüße", Literals::None).is_err());
+        assert!(search_text("Grüße\r\nA1 LOGOUT", Literals::Any).is_err());
+    }
+
+    #[test]
+    fn literal_minus_stops_at_4096_bytes() {
+        let fits = "ü".repeat(SMALL_LITERAL / 2);
+        let over = format!("{fits}ü");
+        assert!(search_text(&fits, Literals::Small).is_ok());
+        assert!(search_text(&over, Literals::Small).is_err());
+        assert!(search_text(&over, Literals::Any).is_ok());
     }
 
     #[test]

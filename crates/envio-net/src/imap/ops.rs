@@ -267,7 +267,7 @@ impl ImapSession {
 
     /// "Search on server" in the selected folder.
     pub async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
-        let key = query::search_text(text, self.caps.literal_plus)?;
+        let key = query::search_text(text, self.caps.literals())?;
         self.search(&key).await
     }
 

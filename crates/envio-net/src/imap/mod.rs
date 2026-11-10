@@ -30,8 +30,11 @@ pub struct Caps {
     pub r#move: bool,
     pub uidplus: bool,
     pub special_use: bool,
-    /// LITERAL+ or LITERAL- (IMAP4rev2 has the latter).
+    /// LITERAL+: non-synchronizing literals of any size.
     pub literal_plus: bool,
+    /// LITERAL- (IMAP4rev2 has it): non-synchronizing literals up to
+    /// [`query::SMALL_LITERAL`] bytes.
+    pub literal_minus: bool,
 }
 
 impl Caps {
@@ -48,17 +51,29 @@ impl Caps {
                 "MOVE" => caps.r#move = true,
                 "UIDPLUS" => caps.uidplus = true,
                 "SPECIAL-USE" => caps.special_use = true,
-                "LITERAL+" | "LITERAL-" => caps.literal_plus = true,
+                "LITERAL+" => caps.literal_plus = true,
+                "LITERAL-" => caps.literal_minus = true,
                 "IMAP4REV2" => {
                     caps.r#move = true;
                     caps.uidplus = true;
                     caps.special_use = true;
-                    caps.literal_plus = true;
+                    caps.literal_minus = true;
                 }
                 _ => {}
             }
         }
         caps
+    }
+
+    /// The non-synchronizing literals the server accepts.
+    pub fn literals(&self) -> query::Literals {
+        if self.literal_plus {
+            query::Literals::Any
+        } else if self.literal_minus {
+            query::Literals::Small
+        } else {
+            query::Literals::None
+        }
     }
 }
 
@@ -161,7 +176,9 @@ mod tests {
     #[test]
     fn imap4rev2_and_qresync_imply_what_they_include() {
         let caps = Caps::from_names(["IMAP4rev2", "QRESYNC"]);
-        assert!(caps.r#move && caps.uidplus && caps.special_use && caps.literal_plus);
+        assert!(caps.r#move && caps.uidplus && caps.special_use);
+        assert!(caps.literal_minus && !caps.literal_plus);
+        assert_eq!(caps.literals(), query::Literals::Small);
         assert!(caps.qresync && caps.condstore);
     }
 }
