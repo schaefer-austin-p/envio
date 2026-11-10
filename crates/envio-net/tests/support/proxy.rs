@@ -2,6 +2,7 @@
 //! out in the middle of a download, an upload or SMTP DATA.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -16,10 +17,22 @@ pub enum Direction {
     Down,
 }
 
+/// How long the proxy waits to reach the real server.
+const CONNECT: Duration = Duration::from_secs(5);
+
+/// What arms the one cut.
+#[derive(Clone, Copy)]
+enum Trigger {
+    /// Bytes still allowed; the chunk that spends the last of them is cut.
+    Bytes(usize),
+    /// Chunks still allowed; the chunk that would be the last is cut,
+    /// unforwarded.
+    Chunks(usize),
+}
+
 #[derive(Default)]
 struct Budget {
-    /// Bytes still allowed in one direction before every connection is cut.
-    left: Option<(Direction, usize)>,
+    left: Option<(Direction, Trigger)>,
 }
 
 pub struct Proxy {
@@ -37,10 +50,16 @@ impl Proxy {
         let shared = budget.clone();
         tokio::spawn(async move {
             while let Ok((client, _)) = listener.accept().await {
-                let Ok(server) = TcpStream::connect(&target).await else {
-                    continue;
-                };
-                tokio::spawn(pipe(client, server, shared.clone()));
+                let target = target.clone();
+                let shared = shared.clone();
+                // Connect per connection, so one slow connect cannot hold
+                // up the accept loop.
+                tokio::spawn(async move {
+                    let connect = TcpStream::connect(&target);
+                    if let Ok(Ok(server)) = tokio::time::timeout(CONNECT, connect).await {
+                        pipe(client, server, shared).await;
+                    }
+                });
             }
         });
         Self {
@@ -49,11 +68,26 @@ impl Proxy {
         }
     }
 
-    /// From now on, cut every open connection once `bytes` more have
-    /// passed in `direction`. The budget is spent once: later
+    /// From now on, once `bytes` more have passed in `direction` (counted
+    /// across all connections), the connection that passes the last of
+    /// them is cut: both of its legs close at that byte, and the client
+    /// sees the stream end there. The budget is spent once, so later
     /// connections pass untouched.
+    ///
+    /// Bytes are what goes over the TCP socket, so under TLS they include
+    /// record overhead; a test that needs an exact point uses
+    /// [`Proxy::cut_at_chunk`].
     pub fn cut_after(&self, direction: Direction, bytes: usize) {
-        self.budget.lock().unwrap().left = Some((direction, bytes));
+        self.budget.lock().unwrap().left = Some((direction, Trigger::Bytes(bytes)));
+    }
+
+    /// From now on, the `chunk`-th read in `direction` (counted across all
+    /// connections, 1-based) is not forwarded: its connection is cut
+    /// instead. Each read is one chunk, so the earlier reads pass through
+    /// and the cut lands on a known message boundary. Spent once, like
+    /// [`Proxy::cut_after`].
+    pub fn cut_at_chunk(&self, direction: Direction, chunk: usize) {
+        self.budget.lock().unwrap().left = Some((direction, Trigger::Chunks(chunk)));
     }
 }
 
@@ -100,11 +134,11 @@ impl Leg {
                 },
                 _ = self.cut_rx.changed() => return,
             };
-            let allowed = take(&self.budget, self.direction, n);
+            let (allowed, cut) = take(&self.budget, self.direction, n);
             if to.write_all(&buf[..allowed]).await.is_err() {
                 break;
             }
-            if allowed < n {
+            if cut {
                 let _ = self.cut_tx.send(true);
                 return;
             }
@@ -113,19 +147,32 @@ impl Leg {
     }
 }
 
-/// How many of `n` bytes may pass; spends the budget.
-fn take(budget: &Mutex<Budget>, direction: Direction, n: usize) -> usize {
+/// How many of `n` bytes may pass, and whether this chunk ends the
+/// connection. Spends the budget.
+fn take(budget: &Mutex<Budget>, direction: Direction, n: usize) -> (usize, bool) {
     let mut budget = budget.lock().unwrap();
-    match budget.left {
-        Some((cut, left)) if cut == direction => {
-            if n <= left {
-                budget.left = Some((cut, left - n));
-                n
-            } else {
-                budget.left = None;
-                left
-            }
+    let Some((cut, trigger)) = budget.left else {
+        return (n, false);
+    };
+    if cut != direction {
+        return (n, false);
+    }
+    match trigger {
+        Trigger::Bytes(left) if n < left => {
+            budget.left = Some((cut, Trigger::Bytes(left - n)));
+            (n, false)
         }
-        _ => n,
+        Trigger::Bytes(left) => {
+            budget.left = None;
+            (left.min(n), true)
+        }
+        Trigger::Chunks(1) => {
+            budget.left = None;
+            (0, true)
+        }
+        Trigger::Chunks(k) => {
+            budget.left = Some((cut, Trigger::Chunks(k - 1)));
+            (n, false)
+        }
     }
 }
