@@ -7,6 +7,7 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 
 use super::Local;
 use crate::error::{ErrorKind, Result};
+use crate::plan::message_id::usable_message_id;
 use crate::plan::outbox::{ItemStep, after_send, item_step};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
@@ -79,16 +80,20 @@ pub struct Filed {
 /// Files accepted items in Sent (APPEND, unless the server does it itself
 /// or the account has no Sent folder) and looks in Sent for items that may
 /// have been sent. A retried APPEND first checks Sent, so a cut never
-/// files a message twice.
+/// files a message twice. With no folders cached at all (the folder list
+/// hasn't been fetched yet) nothing is filed: items stay in the Outbox, in
+/// neither list, until a run that knows the account's folders.
 pub async fn file_sent(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     account: &str,
     files_itself: bool,
 ) -> Result<Filed> {
-    let sent_folder = local
-        .db
-        .folders(account)?
+    let folders = local.db.folders(account)?;
+    if folders.is_empty() {
+        return Ok(Filed::default());
+    }
+    let sent_folder = folders
         .into_iter()
         .find(|folder| folder.role == FolderRole::Sent)
         .map(|folder| folder.path);
@@ -152,14 +157,6 @@ async fn settle(
     Ok(found || append.is_some())
 }
 
-/// `<x>` with something inside: the only shape searched for in Sent.
-fn usable_message_id(id: &str) -> bool {
-    id.trim()
-        .strip_prefix('<')
-        .and_then(|rest| rest.strip_suffix('>'))
-        .is_some_and(|inner| !inner.is_empty())
-}
-
 /// The account's readable Outbox items, oldest first.
 fn items(local: &Local<'_>, account: &str) -> Result<Vec<OutboxItem>> {
     let mut items: Vec<OutboxItem> = local
@@ -170,18 +167,4 @@ fn items(local: &Local<'_>, account: &str) -> Result<Vec<OutboxItem>> {
         .collect();
     items.sort_by_key(|item| item.meta.queued_at_ms);
     Ok(items)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::usable_message_id;
-
-    #[test]
-    fn only_an_angle_bracketed_id_is_searched_for() {
-        assert!(usable_message_id("<a@b>"));
-        assert!(usable_message_id(" <a@b> "));
-        for bad in ["", "  ", "<>", "a@b", "<a@b", "a@b>"] {
-            assert!(!usable_message_id(bad), "{bad:?}");
-        }
-    }
 }

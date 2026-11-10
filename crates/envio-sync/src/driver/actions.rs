@@ -4,6 +4,7 @@
 
 use envio_store::{
     ActionKind, BodyState, Flags, FolderId, MessageRef, MessageRowId, NewMessage, StoreError,
+    SyncState,
 };
 
 use super::Local;
@@ -22,11 +23,13 @@ pub struct Undo {
 enum Restore {
     Flags {
         folder: FolderId,
+        uidvalidity: u32,
         uid: u32,
         flags: Flags,
     },
     Row {
         folder: FolderId,
+        uidvalidity: u32,
         row: NewMessage,
         downloaded: bool,
     },
@@ -60,6 +63,7 @@ pub fn record(
                 .step(|db| db.set_flags(folder.id, message.uid, flags))?;
             Restore::Flags {
                 folder: folder.id,
+                uidvalidity: sync.uidvalidity,
                 uid: message.uid,
                 flags: message.flags,
             }
@@ -70,6 +74,7 @@ pub fn record(
                 .step(|db| db.delete_messages(folder.id, &[message.uid]))?;
             Restore::Row {
                 folder: folder.id,
+                uidvalidity: sync.uidvalidity,
                 row: row_of(&message),
                 downloaded: message.body == BodyState::Downloaded,
             }
@@ -82,20 +87,61 @@ pub fn record(
 }
 
 /// Takes an action back if it hasn't gone to the server yet. Returns false
-/// when it's too late (already replayed).
+/// when it's too late (already replayed). The action is undone even when
+/// there is nothing to restore: the folder is gone, or its UIDVALIDITY
+/// changed since (its UIDs now name other messages, and the refetch has
+/// already shown the server's state).
 pub fn undo(local: &mut Local<'_>, undo: &Undo) -> Result<bool> {
     if !local.journal.pending().any(|action| action.seq == undo.seq) {
         return Ok(false);
     }
     local.journal.done(undo.seq)?;
+    let (folder, uidvalidity) = match &undo.restore {
+        Restore::Flags {
+            folder,
+            uidvalidity,
+            ..
+        }
+        | Restore::Row {
+            folder,
+            uidvalidity,
+            ..
+        } => (*folder, *uidvalidity),
+    };
+    let current = match local.db.folder(folder) {
+        Ok(current) => current,
+        Err(StoreError::NotFound) => return Ok(true),
+        Err(error) => return Err(error.into()),
+    };
+    if current.sync.map(|sync| sync.uidvalidity) != Some(uidvalidity) {
+        return Ok(true);
+    }
     match &undo.restore {
-        Restore::Flags { folder, uid, flags } => {
-            local.db.step(|db| db.set_flags(*folder, *uid, *flags))?;
+        Restore::Flags {
+            folder, uid, flags, ..
+        } => {
+            // The cache may now be ahead of the server's flags for this
+            // message, and CONDSTORE would skip it: have the next sync
+            // check every flag once.
+            local.db.step(|db| {
+                db.set_flags(*folder, *uid, *flags)?;
+                if let Some(sync) = current.sync {
+                    db.set_sync_state(
+                        *folder,
+                        &SyncState {
+                            highestmodseq: None,
+                            ..sync
+                        },
+                    )?;
+                }
+                Ok(())
+            })?;
         }
         Restore::Row {
             folder,
             row,
             downloaded,
+            ..
         } => {
             local.db.step(|db| {
                 let id = db.upsert_message(*folder, row)?;

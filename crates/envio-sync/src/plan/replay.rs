@@ -5,6 +5,7 @@ use envio_net::NetError;
 use envio_store::{Action, ActionKind, Flags, MessageRef};
 
 use crate::error::{ErrorKind, net_kind};
+use crate::plan::message_id::usable_message_id;
 use crate::schedule::{Key, Schedule, UNDO_MS};
 
 /// The Undo window has passed and no retry wait is running.
@@ -19,7 +20,7 @@ pub enum Find {
     Uid(u32),
     /// UIDVALIDITY changed: search by Message-ID.
     ByMessageId(String),
-    /// UIDVALIDITY changed and the message has no Message-ID: it can't be
+    /// UIDVALIDITY changed and the message has no usable Message-ID: it can't be
     /// found, so the action is dropped.
     Lost,
 }
@@ -28,10 +29,10 @@ pub fn find(target: &MessageRef, uid_validity: u32) -> Find {
     if target.uidvalidity == uid_validity {
         return Find::Uid(target.uid);
     }
-    target
-        .message_id
-        .clone()
-        .map_or(Find::Lost, Find::ByMessageId)
+    match &target.message_id {
+        Some(id) if usable_message_id(id) => Find::ByMessageId(id.clone()),
+        _ => Find::Lost,
+    }
 }
 
 /// What to do on the server.
@@ -82,8 +83,8 @@ pub enum MoveRoute {
 pub fn move_route(has_move: bool, message_id: Option<&str>) -> MoveRoute {
     match (has_move, message_id) {
         (true, _) => MoveRoute::Direct,
-        (false, Some(id)) => MoveRoute::CheckTarget(id.to_owned()),
-        (false, None) => MoveRoute::Copy,
+        (false, Some(id)) if usable_message_id(id) => MoveRoute::CheckTarget(id.to_owned()),
+        (false, _) => MoveRoute::Copy,
     }
 }
 
@@ -153,6 +154,13 @@ mod tests {
         );
         target.message_id = None;
         assert_eq!(find(&target, 8), Find::Lost);
+        target.message_id = Some("<>".into());
+        assert_eq!(
+            find(&target, 8),
+            Find::Lost,
+            "an unusable id matches anything"
+        );
+        assert_eq!(find(&target, 7), Find::Uid(42), "the uid needs no id");
     }
 
     #[test]
@@ -189,6 +197,7 @@ mod tests {
             MoveRoute::CheckTarget("<m@x>".into())
         );
         assert_eq!(move_route(false, None), MoveRoute::Copy);
+        assert_eq!(move_route(false, Some("<>")), MoveRoute::Copy);
     }
 
     #[test]

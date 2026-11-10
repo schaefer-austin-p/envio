@@ -74,7 +74,9 @@ pub fn has_due_mail(local: &Local<'_>, account: &str, now_ms: i64) -> Result<boo
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Unsent {
     /// Outbox items not yet accepted by the server (Queued, Sending, May
-    /// have been sent, Failed). Accepted ones only wait for filing.
+    /// have been sent, Failed). Accepted ones (sent, not yet filed in Sent)
+    /// are left out, but `remove_account` drops them with the rest: core's
+    /// dialog must say that removing the account loses their Sent copy.
     pub outbox: usize,
     pub drafts: usize,
     /// Actions not yet on the server.

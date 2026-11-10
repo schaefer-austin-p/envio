@@ -229,3 +229,17 @@ async fn a_refused_item_does_not_block_filing_the_others() {
     assert_eq!(left[0].meta.state, SendState::Accepted);
     assert_ne!(left[0].id, filed.removed[0]);
 }
+
+#[tokio::test]
+async fn with_no_folders_cached_an_accepted_item_is_left_in_the_outbox() {
+    let mut server = FakeServer::new();
+    let mut store = Store::new();
+    let id = queue(&store, "one");
+    store.outbox.set_state(&id, SendState::Accepted).unwrap();
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert!(filed.removed.is_empty());
+    assert!(filed.ask.is_empty());
+    assert_eq!(state(&store, &id), Some(SendState::Accepted));
+}
