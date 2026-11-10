@@ -89,12 +89,14 @@ async fn bytes_injected_after_the_starttls_ok_are_never_read() {
         ..Script::default()
     };
     let (session, _, _) = open(&cert, script).await;
-    // Dropped with the plaintext buffer, or the handshake fails on them;
-    // never a MOVE capability taken from the clear.
-    match session {
-        Ok(session) => assert!(!session.caps().r#move),
-        Err(err) => assert!(matches!(err, NetError::Tls(_) | NetError::Io(_)), "{err:?}"),
-    }
+    // The server writes the OK and the injected line in one write, which
+    // reaches the client as one segment on loopback. The client drops the
+    // plaintext buffer, so the session opens and its capabilities come
+    // from the TLS side only: no MOVE from the clear.
+    let session = session.unwrap();
+    let caps = session.caps();
+    assert!(caps.idle && caps.uidplus, "{caps:?}");
+    assert!(!caps.r#move, "{caps:?}");
 }
 
 #[tokio::test]
@@ -109,6 +111,20 @@ async fn a_wrong_password_is_a_sign_in_error() {
     let err = session.err().unwrap();
     assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
     assert!(!err.is_temporary());
+}
+
+#[tokio::test]
+async fn a_temporary_login_refusal_is_busy_not_a_wrong_password() {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        implicit: true,
+        login: "NO [UNAVAILABLE] Temporary authentication failure",
+        ..Script::default()
+    };
+    let (session, _, _) = open(&cert, script).await;
+    let err = session.err().unwrap();
+    assert!(matches!(err, NetError::Busy(_)), "{err:?}");
+    assert!(err.is_temporary());
 }
 
 #[tokio::test]

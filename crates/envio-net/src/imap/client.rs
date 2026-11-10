@@ -47,7 +47,8 @@ pub(crate) async fn open(
             .login(&credentials.username, password)
             .await
             .map_err(|(error, _)| match error {
-                async_imap::error::Error::No(text) => NetError::SignIn(text),
+                // A "not now" NO (RFC 5530) is not a wrong password.
+                async_imap::error::Error::No(text) if !is_busy(&text) => NetError::SignIn(text),
                 other => map_error(other),
             })
     })
