@@ -4,6 +4,7 @@
 //! (nothing sent: safe to retry) from one after it (the server may have
 //! taken it: retrying could send it twice).
 
+use std::borrow::Cow;
 use std::cell::Cell;
 
 use lettre::address::Envelope;
@@ -62,6 +63,8 @@ impl SmtpSession {
         let envelope = envelope(from, to).map_err(SendError::confirmed)?;
         let non_ascii = !from.is_ascii() || to.iter().any(|t| !t.is_ascii());
         let options = self.mail_options(non_ascii, eml)?;
+        let eml = crlf(eml);
+        let eml: &[u8] = &eml;
         let all_out = Cell::new(false);
         // The upload alone can outlast a command, so the limit grows with
         // the message.
@@ -127,6 +130,35 @@ impl SmtpSession {
     }
 }
 
+/// Every bare LF and bare CR becomes CRLF. lettre dot-stuffs only after
+/// CRLF, so a bare `\n.\r\n` in the body would pass unstuffed and a server
+/// that takes bare LF could read it as the end of the data (smuggling).
+/// Borrowed when the message is already clean.
+fn crlf(eml: &[u8]) -> Cow<'_, [u8]> {
+    let bare = |i: usize| match eml[i] {
+        b'\n' => i == 0 || eml[i - 1] != b'\r',
+        b'\r' => eml.get(i + 1) != Some(&b'\n'),
+        _ => false,
+    };
+    if !(0..eml.len()).any(bare) {
+        return Cow::Borrowed(eml);
+    }
+    let mut out = Vec::with_capacity(eml.len() + 16);
+    for (i, &b) in eml.iter().enumerate() {
+        out.push(b);
+        if bare(i) {
+            if b == b'\r' {
+                out.push(b'\n');
+            } else {
+                // A bare LF: put the CR in front of it.
+                out.pop();
+                out.extend_from_slice(b"\r\n");
+            }
+        }
+    }
+    Cow::Owned(out)
+}
+
 /// The message in [`CHUNK`]s. lettre asks for the next chunk only after
 /// writing the previous one, so asking past the end means every byte was
 /// written: from then on, only the final dot and the reply are missing.
@@ -166,6 +198,23 @@ mod tests {
         assert!(!all_out.get());
         assert!(chunks.next().is_none());
         assert!(all_out.get());
+    }
+
+    #[test]
+    fn clean_input_is_borrowed() {
+        assert!(matches!(crlf(b"a\r\nb\r\n"), Cow::Borrowed(_)));
+        assert!(matches!(crlf(b""), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn bare_line_ends_become_crlf() {
+        assert_eq!(&*crlf(b"a\nb"), b"a\r\nb");
+        assert_eq!(&*crlf(b"a\rb"), b"a\r\nb");
+        assert_eq!(&*crlf(b"a\r\nb\nc\rd\r\n"), b"a\r\nb\r\nc\r\nd\r\n");
+        assert_eq!(&*crlf(b"\na\n"), b"\r\na\r\n");
+        assert_eq!(&*crlf(b"\r"), b"\r\n");
+        assert_eq!(&*crlf(b"\n\n"), b"\r\n\r\n");
+        assert_eq!(&*crlf(b"a\n.\r\n"), b"a\r\n.\r\n");
     }
 
     #[test]
