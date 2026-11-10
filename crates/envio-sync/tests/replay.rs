@@ -177,3 +177,91 @@ async fn a_sign_in_failure_stops_and_keeps_the_action() {
         .unwrap();
     assert_eq!(after.done, 2);
 }
+
+fn live_ids(server: &FakeServer, path: &str) -> usize {
+    server.folders[path]
+        .messages
+        .values()
+        .filter(|message| !message.flags.deleted)
+        .count()
+}
+
+#[tokio::test]
+async fn moving_back_without_move_or_uidplus_is_not_fooled_by_the_deleted_leftover() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::default();
+    server.add_folder("Archive", Some(Role::Archive));
+    let mut store = synced(&mut server, &["a"]).await;
+    take(
+        &mut store,
+        1,
+        ActionKind::Move {
+            to: "Archive".into(),
+        },
+    );
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(live_ids(&server, "Archive"), 1);
+    let archive = store.folder("Archive").id;
+    sync_folder(&mut server, &mut store.local(), archive, LATER)
+        .await
+        .unwrap();
+    let id = store.db.message_at(archive, 1).unwrap().unwrap().id;
+    let back = ActionKind::Move { to: "INBOX".into() };
+    record(&mut store.local(), id, back, LATER).unwrap();
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER + UNDO_MS)
+        .await
+        .unwrap();
+    assert_eq!(live_ids(&server, "INBOX"), 1, "one live copy in INBOX");
+    assert_eq!(live_ids(&server, "Archive"), 0);
+}
+
+#[tokio::test]
+async fn later_actions_on_a_message_wait_behind_one_that_is_backing_off() {
+    let mut server = FakeServer::new();
+    server.add_folder("Archive", Some(Role::Archive));
+    let mut store = synced(&mut server, &["a"]).await;
+    let inbox = store.folder("INBOX").id;
+    let id = store.db.message_at(inbox, 1).unwrap().unwrap().id;
+    record(&mut store.local(), id, read(), NOW_MS).unwrap();
+    let to = ActionKind::Move {
+        to: "Archive".into(),
+    };
+    record(&mut store.local(), id, to, NOW_MS).unwrap();
+    server.fail_on("store_flags", NetError::Timeout);
+    let first = replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(first.stopped, Some(ErrorKind::Temporary));
+    let held = replay(&mut server, &mut store.local(), ACCOUNT, LATER + 1)
+        .await
+        .unwrap();
+    assert_eq!(held.done, 0, "the move waits for the flag change");
+    assert_eq!(server.uids("INBOX"), [1]);
+    assert!(server.ids("Archive").is_empty());
+    let retry = store.schedule.next_due().unwrap();
+    let both = replay(&mut server, &mut store.local(), ACCOUNT, retry)
+        .await
+        .unwrap();
+    assert_eq!(both.done, 2);
+    assert!(
+        server.message("Archive", 1).unwrap().flags.seen,
+        "the flag went first"
+    );
+}
+
+#[tokio::test]
+async fn a_failed_revert_keeps_the_run_result() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    take(&mut store, 1, read());
+    server.fail_on("store_flags", NetError::Refused("read-only".into()));
+    server.fail_on("fetch_flags", NetError::Timeout);
+    let replayed = replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(replayed.reverted.len(), 1);
+    assert_eq!(replayed.stopped, Some(ErrorKind::Temporary));
+    assert_eq!(store.journal.pending().count(), 0);
+}

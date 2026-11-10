@@ -1,12 +1,14 @@
 //! Sends due journal actions to the server, oldest first.
 
+use std::collections::HashSet;
+
 use envio_net::NetError;
 use envio_store::{Action, ActionKind, FolderRole};
 
 use super::Local;
 use super::folders::apply_flags;
 use crate::convert::net_flags;
-use crate::error::{ErrorKind, Result};
+use crate::error::{ErrorKind, Result, SyncError, net_kind};
 use crate::plan::pending::Pending;
 use crate::plan::replay::{
     Find, MoveRoute, Outcome, ServerOp, find, is_due, move_route, outcome, server_op,
@@ -34,13 +36,7 @@ pub async fn replay(
     account: &str,
     now_ms: i64,
 ) -> Result<Replayed> {
-    let due: Vec<Action> = local
-        .journal
-        .pending()
-        .filter(|action| action.target.account == account)
-        .filter(|action| is_due(action, local.schedule, now_ms))
-        .cloned()
-        .collect();
+    let due = due_actions(local, account, now_ms);
     let trash = local
         .db
         .folders(account)?
@@ -60,8 +56,17 @@ pub async fn replay(
             Outcome::Revert => {
                 local.journal.done(action.seq)?;
                 local.schedule.succeeded(&key);
-                revert(server, local, &action).await?;
+                // The action is done either way; a failed revert only ends
+                // the run (the next sync reads the flags again).
+                let reverted = revert(server, local, &action).await;
                 replayed.reverted.push(action);
+                if let Err(error) = reverted {
+                    replayed.stopped = Some(match &error {
+                        SyncError::Net(error) => net_kind(error),
+                        SyncError::Store(_) => return Err(error),
+                    });
+                    break;
+                }
             }
             Outcome::Retry => {
                 local.schedule.failed(key, now_ms);
@@ -78,6 +83,44 @@ pub async fn replay(
         local.journal.compact()?;
     }
     Ok(replayed)
+}
+
+/// Identifies a message across actions: its Message-ID, else its place.
+#[derive(Debug, PartialEq, Eq, Hash)]
+enum MessageKey<'a> {
+    Id(&'a str),
+    Place(&'a str, u32, u32),
+}
+
+fn message_key(action: &Action) -> MessageKey<'_> {
+    let target = &action.target;
+    match &target.message_id {
+        Some(id) => MessageKey::Id(id),
+        None => MessageKey::Place(&target.folder, target.uidvalidity, target.uid),
+    }
+}
+
+/// The account's actions that may go now, oldest first. One that waits (its
+/// Undo window or a backoff) holds back later actions on the same message,
+/// so they never overtake it.
+fn due_actions(local: &Local<'_>, account: &str, now_ms: i64) -> Vec<Action> {
+    let mut held = HashSet::new();
+    let mut due = Vec::new();
+    for action in local.journal.pending() {
+        if action.target.account != account {
+            continue;
+        }
+        let key = message_key(action);
+        if held.contains(&key) {
+            continue;
+        }
+        if is_due(action, local.schedule, now_ms) {
+            due.push(action.clone());
+        } else {
+            held.insert(key);
+        }
+    }
+    due
 }
 
 /// Runs one action. A message or folder that's gone counts as done: there

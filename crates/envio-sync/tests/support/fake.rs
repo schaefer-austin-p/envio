@@ -301,7 +301,9 @@ impl MailServer for FakeServer {
         Ok(folder
             .messages
             .iter()
-            .filter(|(_, message)| self::message_id(&message.eml).as_deref() == Some(&wanted))
+            .filter(|(_, message)| {
+                !message.flags.deleted && self::message_id(&message.eml).as_deref() == Some(&wanted)
+            })
             .map(|(uid, _)| *uid)
             .collect())
     }

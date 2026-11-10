@@ -127,9 +127,13 @@ pub fn flag_items(changed_since: Option<u64>) -> String {
     }
 }
 
-/// The search key for one Message-ID header.
+/// The search key for one Message-ID header, live messages only (a
+/// \Deleted leftover must not count as a copy).
 pub fn search_message_id(message_id: &str) -> Result<String> {
-    Ok(format!("HEADER Message-ID {}", quote(message_id)?))
+    Ok(format!(
+        "UNDELETED HEADER Message-ID {}",
+        quote(message_id)?
+    ))
 }
 
 /// The Message-ID in a `BODY[HEADER.FIELDS (MESSAGE-ID)]` answer: the
@@ -238,6 +242,14 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn message_id_search_skips_deleted() {
+        assert_eq!(
+            search_message_id("a@example.org").unwrap(),
+            "UNDELETED HEADER Message-ID \"a@example.org\""
+        );
+    }
 
     #[test]
     fn since_names_the_utc_day() {
