@@ -20,7 +20,7 @@ envio-store = { path = "../envio-store" }
 envio-mime = { path = "../envio-mime" }
 tokio = { version = "1.54", features = ["rt", "time", "sync", "macros"] }
 futures = "0.3"
-secrecy = "0.10"
+secrecy = { version = "0.10", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = { version = "0.4", features = ["std"] }

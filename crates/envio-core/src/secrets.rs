@@ -8,8 +8,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 pub const FILE_NAME: &str = "passwords.json";
@@ -27,7 +26,13 @@ pub enum SecretsError {
 #[derive(Deserialize)]
 struct FileV1 {
     version: u32,
-    passwords: BTreeMap<String, String>,
+    passwords: BTreeMap<String, SecretString>,
+}
+
+#[derive(Serialize)]
+struct FileOut<'a> {
+    version: u32,
+    passwords: BTreeMap<&'a str, &'a str>,
 }
 
 pub struct Secrets {
@@ -83,10 +88,12 @@ fn write(path: &Path, map: &BTreeMap<String, SecretString>) -> Result<(), Secret
         .iter()
         .map(|(k, v)| (k.as_str(), v.expose_secret()))
         .collect();
-    let bytes = Zeroizing::new(
-        serde_json::to_vec(&json!({ "version": VERSION, "passwords": plain }))
-            .map_err(|_| SecretsError::Damaged)?,
-    );
+    let out = FileOut {
+        version: VERSION,
+        passwords: plain,
+    };
+    let mut bytes = Zeroizing::new(Vec::new());
+    serde_json::to_writer(&mut *bytes, &out).map_err(|_| SecretsError::Damaged)?;
     Ok(crate::fsutil::write_atomic(path, &bytes, 0o600)?)
 }
 
@@ -101,11 +108,7 @@ fn read(path: &Path) -> Result<BTreeMap<String, SecretString>, SecretsError> {
     }
     let bytes = Zeroizing::new(fs::read(path)?);
     match serde_json::from_slice::<FileV1>(&bytes) {
-        Ok(f) if f.version == VERSION => Ok(f
-            .passwords
-            .into_iter()
-            .map(|(k, v)| (k, SecretString::from(v)))
-            .collect()),
+        Ok(f) if f.version == VERSION => Ok(f.passwords),
         _ => {
             let mut aside = path.as_os_str().to_owned();
             aside.push(".damaged");
