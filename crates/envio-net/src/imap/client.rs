@@ -149,8 +149,10 @@ fn failure_of(status: &Status, outcome: &Outcome<'_>) -> Option<NetError> {
     }
 }
 
-/// How a command with a literal ends: the tagged status, or a NO/BAD.
-/// `None` means "keep reading" (untagged data).
+/// How a command with a literal ends: only its tagged status does.
+/// An untagged `* NO`/`* BAD` (such as `* NO [ALERT] ...`) is a warning
+/// and the tagged reply still follows, so it means "keep reading" like
+/// any other untagged data (`None`).
 pub(crate) fn command_end(response: &Response<'_>, id: &RequestId) -> Option<Result<()>> {
     match response {
         Response::Done {
@@ -161,7 +163,6 @@ pub(crate) fn command_end(response: &Response<'_>, id: &RequestId) -> Option<Res
             Some(error) => Err(error),
             None => Ok(()),
         }),
-        Response::Data { status, outcome } => failure_of(status, outcome).map(Err),
         _ => None,
     }
 }
@@ -211,7 +212,7 @@ mod tests {
         for line in [
             &b"A1 NO [UNAVAILABLE] try later\r\n"[..],
             b"A1 NO [inuse] mailbox busy\r\n",
-            b"* NO [Limit] too many\r\n",
+            b"A1 NO [Limit] too many\r\n",
         ] {
             assert!(
                 matches!(end_of(line), Some(Err(NetError::Busy(_)))),
@@ -224,6 +225,8 @@ mod tests {
         ));
         assert!(matches!(end_of(b"A1 OK done\r\n"), Some(Ok(()))));
         assert!(end_of(b"* 3 EXISTS\r\n").is_none());
+        assert!(end_of(b"* NO [ALERT] mailbox nearly full\r\n").is_none());
+        assert!(end_of(b"* BAD odd line\r\n").is_none());
         assert!(end_of(b"A2 NO [UNAVAILABLE] other\r\n").is_none());
     }
 
