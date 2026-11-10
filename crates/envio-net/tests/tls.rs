@@ -6,10 +6,15 @@ use envio_net::{Endpoint, Fingerprint, NetError, Roots, Security, Untrusted};
 use support::certs::{Ca, Cert};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
 
 /// Serves TLS with `cert` on a free port; each connection gets "ok".
 async fn serve(cert: &Cert) -> u16 {
-    let acceptor = cert.acceptor();
+    serve_with(cert.acceptor()).await
+}
+
+/// Serves TLS with `acceptor` on a free port; each connection gets "ok".
+async fn serve_with(acceptor: TlsAcceptor) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -147,4 +152,89 @@ async fn the_system_roots_load_or_come_back_empty() {
     let port = serve(&cert).await;
     let err = read_all(&endpoint(port, None), &roots).await.unwrap_err();
     assert!(matches!(err, NetError::Untrusted { .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_pinned_certificate_with_a_forged_signature_fails_the_handshake() {
+    // The server shows the pinned certificate but signs with another key.
+    // The pin matches, so only the signature check can catch this.
+    let cert = Cert::self_signed("localhost");
+    let donor = Cert::self_signed("localhost");
+    let port = serve_with(cert.acceptor_with_key_of(&donor)).await;
+    let pin = Some(Fingerprint::of(&cert.der));
+    let err = read_all(&endpoint(port, pin), &Roots::empty())
+        .await
+        .unwrap_err();
+    assert!(
+        !matches!(
+            err,
+            NetError::PinChanged { .. } | NetError::Untrusted { .. }
+        ),
+        "{err:?}"
+    );
+    assert!(matches!(err, NetError::Tls(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_trusted_chain_with_a_forged_signature_fails_the_handshake() {
+    // The chain checks out, but the server cannot prove it holds the key.
+    let ca = Ca::new();
+    let cert = ca.sign("localhost");
+    let donor = Cert::self_signed("localhost");
+    let port = serve_with(cert.acceptor_with_key_of(&donor)).await;
+    let err = read_all(&endpoint(port, None), &Roots::from_der([ca.der()]))
+        .await
+        .unwrap_err();
+    assert!(matches!(err, NetError::Tls(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_self_signed_server_under_another_ca_is_an_unknown_issuer() {
+    let other = Ca::new();
+    let port = serve(&Cert::self_signed("localhost")).await;
+    let err = read_all(&endpoint(port, None), &Roots::from_der([other.der()]))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            NetError::Untrusted {
+                reason: Untrusted::UnknownIssuer,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}
+
+#[tokio::test]
+async fn an_expired_certificate_connects_when_its_pin_matches() {
+    // Decision 3: the user accepted this exact certificate, so its dates
+    // don't matter.
+    let cert = Cert::self_signed_expired("localhost");
+    let port = serve(&cert).await;
+    let pin = Some(Fingerprint::of(&cert.der));
+    let text = read_all(&endpoint(port, pin), &Roots::empty())
+        .await
+        .unwrap();
+    assert_eq!(text, "ok");
+}
+
+#[tokio::test]
+async fn an_expired_ca_signed_certificate_without_a_pin_asks_the_user() {
+    let ca = Ca::new();
+    let port = serve(&ca.sign_expired("localhost")).await;
+    let err = read_all(&endpoint(port, None), &Roots::from_der([ca.der()]))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            NetError::Untrusted {
+                reason: Untrusted::Expired,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
 }

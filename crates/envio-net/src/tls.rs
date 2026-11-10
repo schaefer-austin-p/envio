@@ -1,6 +1,7 @@
 //! TLS client setup: which roots to trust, the handshake, and turning a
 //! rejected certificate into `NetError::Untrusted` or `PinChanged`.
 
+use std::fmt;
 use std::sync::Arc;
 
 use rustls::pki_types::{CertificateDer, ServerName};
@@ -18,8 +19,16 @@ use crate::verifier::{self, PinningVerifier};
 pub use tokio_rustls::client::TlsStream;
 
 /// The certificate authorities an unpinned server must chain to.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Roots(Arc<RootCertStore>);
+
+impl fmt::Debug for Roots {
+    /// Only the count: the CA certificates are not secrets, but a dump of
+    /// the whole system bundle in a log is noise.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Roots").field("len", &self.len()).finish()
+    }
+}
 
 impl Roots {
     /// The system's CA bundle. Certificates that fail to load are skipped;
