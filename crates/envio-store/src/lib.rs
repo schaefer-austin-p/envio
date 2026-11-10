@@ -18,7 +18,7 @@ mod paths;
 mod rebuild;
 mod search;
 
-pub use accounts::{Account, AccountSettings, Accounts, Server};
+pub use accounts::{Account, AccountSettings, Accounts, Security, Server};
 pub use bodies::Bodies;
 pub use db::Db;
 pub use drafts::{Draft, Drafts};

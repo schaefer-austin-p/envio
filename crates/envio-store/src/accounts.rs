@@ -12,12 +12,33 @@ use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
 
-const VERSION: u32 = 1;
+/// 2 added `security` and `pin`. An envio that only knows 1 refuses the
+/// file rather than rewriting it without the pins.
+const VERSION: u32 = 2;
+
+/// How the connection is encrypted; envio-net's `Security`, kept here as
+/// plain data because store and net don't depend on each other.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Security {
+    /// TLS from the first byte. Version 1 files had only this.
+    #[default]
+    Tls,
+    StartTls,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Server {
     pub host: String,
     pub port: u16,
+    #[serde(default)]
+    pub security: Security,
+    /// The accepted self-signed certificate: SHA-256 of its DER as 64
+    /// lowercase hex digits (envio-net's `Fingerprint::to_hex`). Here and
+    /// not in the cache, so a rebuilt cache can't drop it and quietly
+    /// trust whatever certificate comes next.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +133,8 @@ impl Accounts {
     fn change(&mut self, edit: impl FnOnce(&mut Vec<Account>)) -> Result<()> {
         let mut next = self.accounts.clone();
         edit(&mut next);
+        // Never write a file that `open` would refuse.
+        check(&self.path, &next)?;
         let file = FileOut {
             version: VERSION,
             accounts: &next,
@@ -123,20 +146,30 @@ impl Accounts {
     }
 }
 
-fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
-    let bad = |reason: String| StoreError::BadRecord {
+fn bad(path: &Path, reason: String) -> StoreError {
+    StoreError::BadRecord {
         file: path.display().to_string(),
         reason,
-    };
-    let file: FileIn = serde_json::from_slice(bytes).map_err(|error| bad(error.to_string()))?;
-    if file.version > VERSION {
-        return Err(bad(format!(
-            "version {} is from a newer envio",
-            file.version
-        )));
     }
+}
+
+fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
+    let file: FileIn =
+        serde_json::from_slice(bytes).map_err(|error| bad(path, error.to_string()))?;
+    if file.version > VERSION {
+        return Err(bad(
+            path,
+            format!("version {} is from a newer envio", file.version),
+        ));
+    }
+    check(path, &file.accounts)?;
+    Ok(file.accounts)
+}
+
+fn check(path: &Path, accounts: &[Account]) -> Result<()> {
+    let bad = |reason: String| bad(path, reason);
     let mut seen = std::collections::HashSet::new();
-    for account in &file.accounts {
+    for account in accounts {
         if !is_key(&account.key) {
             return Err(bad(format!(
                 "account key {:?} is not a valid key",
@@ -146,6 +179,22 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
         if !seen.insert(account.key.as_str()) {
             return Err(bad(format!("account key {} appears twice", account.key)));
         }
+        let settings = &account.settings;
+        for pin in [&settings.imap.pin, &settings.smtp.pin]
+            .into_iter()
+            .flatten()
+        {
+            if !is_pin(pin) {
+                return Err(bad(format!(
+                    "account {} has a malformed certificate pin",
+                    account.key
+                )));
+            }
+        }
     }
-    Ok(file.accounts)
+    Ok(())
+}
+
+fn is_pin(text: &str) -> bool {
+    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }

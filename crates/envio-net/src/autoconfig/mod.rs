@@ -1,0 +1,102 @@
+//! Finding an account's servers from its address: Thunderbird's ISPDB,
+//! the provider's autoconfig file, the well-known URL, DNS SRV, then a
+//! guess for the manual form. The order and choices are in `plan`; the
+//! lookups sit behind [`Lookups`] so tests run without a network.
+
+mod fetch;
+mod http;
+pub mod plan;
+mod srv;
+pub mod xml;
+
+use std::future::Future;
+use std::time::Duration;
+
+use crate::error::{NetError, Result};
+use crate::tls::Roots;
+use plan::{Candidates, Service};
+
+pub use plan::{Found, Setting, Source, SrvRecord};
+
+/// All of one `detect`, every lookup included. When it runs out, the
+/// answer is the guess.
+pub const DETECT_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The two kinds of lookup autoconfig makes. Failures are "nothing
+/// here": autoconfig moves on to the next source.
+pub trait Lookups: Sync {
+    /// The body at an https URL, or None.
+    fn fetch(&self, url: &str) -> impl Future<Output = Option<String>> + Send;
+    /// The SRV records for a name; empty if none.
+    fn srv(&self, name: &str) -> impl Future<Output = Vec<SrvRecord>> + Send;
+}
+
+/// The real thing: HTTPS checked against `roots`, DNS from the system.
+pub struct Internet {
+    roots: Roots,
+    limit: Duration,
+}
+
+impl Internet {
+    pub fn new(roots: Roots) -> Self {
+        Self::with_fetch_limit(roots, fetch::FETCH_TIMEOUT)
+    }
+
+    /// As `new`, with another limit on each fetch (redirects included).
+    /// Tests use a short one.
+    pub fn with_fetch_limit(roots: Roots, limit: Duration) -> Self {
+        Self { roots, limit }
+    }
+}
+
+impl Lookups for Internet {
+    async fn fetch(&self, url: &str) -> Option<String> {
+        fetch::get(url, &self.roots, self.limit)
+            .await
+            .ok()
+            .flatten()
+    }
+
+    async fn srv(&self, name: &str) -> Vec<SrvRecord> {
+        srv::lookup(name).await
+    }
+}
+
+/// The settings for `email`, within [`DETECT_TIMEOUT`]. Only an address
+/// without a domain is an error; when every lookup comes up empty or
+/// runs out of time, the answer is the guess.
+pub async fn detect(email: &str, lookups: &impl Lookups) -> Result<Found> {
+    detect_within(email, lookups, DETECT_TIMEOUT).await
+}
+
+/// As [`detect`], with `budget` in place of [`DETECT_TIMEOUT`].
+pub async fn detect_within(email: &str, lookups: &impl Lookups, budget: Duration) -> Result<Found> {
+    let domain =
+        plan::domain_of(email).ok_or_else(|| NetError::Refused("not an email address".into()))?;
+    let found = tokio::time::timeout(budget, find(&domain, email, lookups))
+        .await
+        .ok()
+        .flatten();
+    Ok(found.unwrap_or_else(|| plan::guess(&domain, email)))
+}
+
+/// The config files, then SRV; None when neither settles on a pair.
+async fn find(domain: &str, email: &str, lookups: &impl Lookups) -> Option<Found> {
+    for (source, url) in plan::config_urls(domain) {
+        let Some(body) = lookups.fetch(&url).await else {
+            continue;
+        };
+        if let Some(found) = xml::parse(&body, email).and_then(|c| plan::best(&c, source, domain)) {
+            return Some(found);
+        }
+    }
+    let mut candidates = Candidates::default();
+    for (name, service, security) in plan::srv_queries(domain) {
+        let settings = plan::srv_candidates(lookups.srv(&name).await, security, email);
+        match service {
+            Service::Imap => candidates.imap.extend(settings),
+            Service::Smtp => candidates.smtp.extend(settings),
+        }
+    }
+    plan::best(&candidates, Source::Srv, domain)
+}
