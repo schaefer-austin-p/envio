@@ -1,6 +1,8 @@
 //! The IMAP operations sync uses. Each is one or two commands; arguments
 //! are built (and checked) in `query`.
 
+use std::time::Duration;
+
 use futures::TryStreamExt;
 
 use super::client::map_error;
@@ -12,6 +14,17 @@ use crate::error::{NetError, Result};
 
 /// How many of the newest messages the Message-ID fallback reads.
 pub const SCAN: u32 = 200;
+
+/// What one message adds to a summary FETCH reply (flags, size, date and
+/// header), for the time limit.
+const SUMMARY_BYTES: usize = 1024;
+/// What one message adds to a flags-only FETCH reply.
+const FLAGS_BYTES: usize = 64;
+
+/// The time limit of a FETCH of `count` messages at `per_message` bytes.
+fn fetch_timeout(count: usize, per_message: usize) -> Duration {
+    connect::transfer_timeout(count.saturating_mul(per_message))
+}
 
 impl ImapSession {
     /// Every folder (LIST "" "*").
@@ -70,7 +83,7 @@ impl ImapSession {
             return Ok(Vec::new());
         };
         let items = query::summary_items(self.caps.condstore);
-        connect::within(async {
+        connect::within_for(fetch_timeout(uids.len(), SUMMARY_BYTES), async {
             let fetches: Vec<_> = self
                 .session
                 .uid_fetch(&set, items)
@@ -106,7 +119,7 @@ impl ImapSession {
         let Some(set) = query::uid_set(uids) else {
             return Ok(Vec::new());
         };
-        self.fetch_flags_in(&set, changed_since).await
+        self.fetch_flags_in(&set, uids.len(), changed_since).await
     }
 
     /// Flags of every message from `first` up (`first:*`).
@@ -115,17 +128,21 @@ impl ImapSession {
         first: u32,
         changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>> {
-        self.fetch_flags_in(&format!("{first}:*"), changed_since)
+        // `first:*` has no count; the folder's size is the most it can be.
+        let most = self.exists as usize;
+        self.fetch_flags_in(&format!("{first}:*"), most, changed_since)
             .await
     }
 
+    /// `count` is how many messages `set` may name, for the time limit.
     async fn fetch_flags_in(
         &mut self,
         set: &str,
+        count: usize,
         changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>> {
         let items = query::flag_items(changed_since);
-        connect::within(async {
+        connect::within_for(fetch_timeout(count, FLAGS_BYTES), async {
             let fetches: Vec<_> = self
                 .session
                 .uid_fetch(set, &items)
@@ -293,4 +310,28 @@ fn flags_of(fetch: &async_imap::types::Fetch) -> MessageFlags {
         F::Custom(word) => Some(Flag::Keyword(word.into_owned())),
         F::Recent | F::MayCreate => None,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fetch_gets_time_in_proportion_to_its_size() {
+        assert_eq!(fetch_timeout(0, SUMMARY_BYTES), connect::COMMAND_TIMEOUT);
+        // 16 summaries are 16 KiB: one extra second.
+        assert_eq!(
+            fetch_timeout(16, SUMMARY_BYTES),
+            connect::COMMAND_TIMEOUT + Duration::from_secs(1)
+        );
+        assert_eq!(
+            fetch_timeout(20_000, SUMMARY_BYTES),
+            connect::COMMAND_TIMEOUT + Duration::from_secs(1250)
+        );
+        assert_eq!(
+            fetch_timeout(20_000, FLAGS_BYTES),
+            connect::COMMAND_TIMEOUT + Duration::from_secs(78)
+        );
+        assert!(fetch_timeout(usize::MAX, SUMMARY_BYTES).as_secs() > 1_000_000);
+    }
 }
