@@ -22,6 +22,8 @@ pub struct Draft {
     pub body: String,
     pub in_reply_to: Option<String>,
     pub references: Vec<String>,
+    /// Paths of files to attach.
+    pub attachments: Vec<PathBuf>,
     pub updated_at_ms: i64,
 }
 

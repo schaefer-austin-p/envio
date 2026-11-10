@@ -123,3 +123,25 @@ fn a_damaged_draft_is_skipped_reported_and_kept() {
     assert_eq!(drafts.damaged().unwrap(), ["77"]);
     assert!(dir.path().join("77.json").exists());
 }
+
+#[test]
+fn attachments_round_trip_through_a_draft() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let with = Draft {
+        attachments: vec!["/home/u/a.pdf".into(), "/home/u/b.png".into()],
+        ..draft("Files", 1)
+    };
+    let id = drafts.create(&with).unwrap();
+    assert_eq!(drafts.load(&id).unwrap(), with);
+}
+
+#[test]
+fn a_draft_without_attachments_field_loads_with_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    fs::write(dir.path().join("9.json"), br#"{"subject":"old"}"#).unwrap();
+    let loaded = drafts.load("9").unwrap();
+    assert!(loaded.attachments.is_empty());
+    assert_eq!(loaded.subject, "old");
+}

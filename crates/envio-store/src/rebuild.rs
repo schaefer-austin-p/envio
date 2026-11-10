@@ -26,7 +26,8 @@ pub enum Opened {
 /// (`StoreError::is_damage`), it drops the `Db` and calls this again.
 pub fn open_or_rebuild(paths: &StorePaths) -> Result<(Db, Opened)> {
     let path = &paths.db();
-    let existed = path.exists();
+    // A zero-byte file (a crash right after creation) is a new cache.
+    let existed = fs::metadata(path).is_ok_and(|m| m.len() > 0);
     let error = match Db::open(path).and_then(|db| db.check().map(|()| db)) {
         Ok(db) => {
             let opened = if existed {

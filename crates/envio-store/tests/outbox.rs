@@ -155,3 +155,28 @@ fn a_damaged_item_is_reported_and_kept_while_the_rest_still_load() {
     assert!(dir.path().join("77.json").exists());
     assert!(dir.path().join("77.eml").exists());
 }
+
+#[test]
+fn an_item_without_its_eml_is_damaged_not_listed() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    fs::remove_file(dir.path().join(format!("{}.eml", item.id))).unwrap();
+    assert!(outbox.items().unwrap().is_empty());
+    assert_eq!(outbox.damaged().unwrap(), [item.id]);
+}
+
+#[test]
+fn a_damaged_item_can_be_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    fs::remove_file(dir.path().join(format!("{}.eml", item.id))).unwrap();
+    outbox.remove(&item.id).unwrap();
+    assert!(outbox.damaged().unwrap().is_empty());
+    fs::write(dir.path().join("77.json"), b"garbage").unwrap();
+    fs::write(dir.path().join("77.eml"), b"x").unwrap();
+    outbox.remove("77").unwrap();
+    assert!(outbox.damaged().unwrap().is_empty());
+    assert!(!dir.path().join("77.eml").exists());
+}

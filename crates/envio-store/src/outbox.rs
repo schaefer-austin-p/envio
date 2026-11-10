@@ -107,12 +107,14 @@ impl Outbox {
     }
 
     /// Every readable item, oldest first. An item whose `.json` cannot be read
-    /// is skipped (see `damaged`), never deleted.
+    /// is skipped, as is one whose `.eml` is missing (see `damaged`); neither
+    /// is deleted.
     pub fn items(&self) -> Result<Vec<OutboxItem>> {
         Ok(self.scan()?.0)
     }
 
-    /// Ids of items whose `.json` could not be read or parsed, sorted. Their
+    /// Ids of items whose `.json` could not be read or parsed, or whose
+    /// `.eml` is missing, sorted. Their
     /// files are left in place; the UI should say a queued message can't be read.
     pub fn damaged(&self) -> Result<Vec<String>> {
         Ok(self.scan()?.1)
@@ -128,6 +130,10 @@ impl Outbox {
                 continue;
             };
             if is_key(id) {
+                if !self.path(id, "eml").exists() {
+                    damaged.push(id.to_owned());
+                    continue;
+                }
                 match self.meta(id) {
                     Ok(mut meta) => {
                         if meta.state == SendState::Sending && unwritten.contains(id) {
