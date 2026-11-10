@@ -26,8 +26,9 @@ struct Server {
 
 /// The servers in `xml` for `email`; None if it isn't an autoconfig file.
 pub fn parse(xml: &str, email: &str) -> Option<Candidates> {
+    // No trim_text: it would also trim the spaces either side of an entity
+    // (`a &amp; b` became `a&b`). setting() trims each field once instead.
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
     let mut out = Candidates::default();
     let mut saw_root = false;
     let mut server: Option<(Kind, Server)> = None;
@@ -172,6 +173,17 @@ mod tests {
         assert_eq!(
             parse(xml, "x@example.org").unwrap().smtp[0].username,
             "a&b@example.org"
+        );
+    }
+
+    #[test]
+    fn spaces_around_an_entity_are_kept() {
+        let xml = r#"<clientConfig><emailProvider><outgoingServer type="smtp">
+          <hostname>smtp.example.org</hostname><port>465</port><socketType>SSL</socketType>
+          <username> a &amp; b </username></outgoingServer></emailProvider></clientConfig>"#;
+        assert_eq!(
+            parse(xml, "x@example.org").unwrap().smtp[0].username,
+            "a & b"
         );
     }
 

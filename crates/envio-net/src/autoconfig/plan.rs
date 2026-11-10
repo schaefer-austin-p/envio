@@ -38,6 +38,10 @@ pub struct Found {
     pub imap: Setting,
     pub smtp: Setting,
     pub source: Source,
+    /// The servers came from unauthenticated DNS and at least one host is
+    /// outside the email domain; the setup screen must show the hosts and
+    /// ask before sending the password (RFC 6186 §6).
+    pub confirm: bool,
 }
 
 /// One SRV answer.
@@ -62,15 +66,31 @@ pub fn domain_of(email: &str) -> Option<String> {
     (!local.is_empty() && domain.contains('.') && is_hostname(&domain)).then_some(domain)
 }
 
-/// Letters, digits, '-' and '.', not starting or ending with a dot.
+/// Letters, digits and '-' in labels separated by single dots. A label
+/// may not be empty or start or end with '-'.
 pub fn is_hostname(host: &str) -> bool {
     !host.is_empty()
         && host.len() <= 253
-        && !host.starts_with('.')
-        && !host.ends_with('.')
-        && host
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.')
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+}
+
+/// Whether `host` is `domain` or under it. Case-insensitive, one trailing
+/// dot ignored, and label-aware: `mail.example.org` is in `example.org`,
+/// `badexample.org` is not.
+fn within(host: &str, domain: &str) -> bool {
+    let host = host.strip_suffix('.').unwrap_or(host).to_ascii_lowercase();
+    let domain = domain
+        .strip_suffix('.')
+        .unwrap_or(domain)
+        .to_ascii_lowercase();
+    host == domain || host.ends_with(&format!(".{domain}"))
 }
 
 /// The config files to try, in order. https only: a plain-http answer
@@ -140,17 +160,23 @@ pub fn srv_candidates(
 }
 
 /// The first implicit-TLS server of each kind, else the first STARTTLS
-/// one. None unless there is both an IMAP and an SMTP server.
-pub fn best(candidates: &Candidates, source: Source) -> Option<Found> {
+/// one. None unless there is both an IMAP and an SMTP server. `confirm`
+/// is set only for SRV answers with a host outside `domain`.
+pub fn best(candidates: &Candidates, source: Source, domain: &str) -> Option<Found> {
     fn pick(list: &[Setting]) -> Option<&Setting> {
         list.iter()
             .find(|s| s.endpoint.security == Security::Tls)
             .or_else(|| list.first())
     }
+    let imap = pick(&candidates.imap)?.clone();
+    let smtp = pick(&candidates.smtp)?.clone();
+    let outside = |s: &Setting| !within(&s.endpoint.host, domain);
+    let confirm = source == Source::Srv && (outside(&imap) || outside(&smtp));
     Some(Found {
-        imap: pick(&candidates.imap)?.clone(),
-        smtp: pick(&candidates.smtp)?.clone(),
+        imap,
+        smtp,
         source,
+        confirm,
     })
 }
 
@@ -164,6 +190,7 @@ pub fn guess(domain: &str, email: &str) -> Found {
         imap: setting(format!("imap.{domain}"), 993),
         smtp: setting(format!("smtp.{domain}"), 465),
         source: Source::Guess,
+        confirm: false,
     }
 }
 
@@ -242,7 +269,7 @@ mod tests {
             SrvRecord {
                 priority: 0,
                 weight: 0,
-                port: 0,
+                port: 993,
                 target: ".".into(),
             },
         ];
@@ -269,14 +296,14 @@ mod tests {
             ],
             smtp: vec![setting("c", 587, Security::StartTls)],
         };
-        let found = best(&candidates, Source::Provider).unwrap();
+        let found = best(&candidates, Source::Provider, "example.org").unwrap();
         assert_eq!(found.imap.endpoint.host, "b");
         assert_eq!(found.smtp.endpoint.host, "c");
         let no_smtp = Candidates {
             smtp: vec![],
             ..candidates
         };
-        assert_eq!(best(&no_smtp, Source::Provider), None);
+        assert_eq!(best(&no_smtp, Source::Provider, "example.org"), None);
     }
 
     #[test]
@@ -291,5 +318,50 @@ mod tests {
             Endpoint::new("smtp.example.org", 465, Security::Tls)
         );
         assert_eq!(found.source, Source::Guess);
+        assert!(!found.confirm);
+    }
+
+    #[test]
+    fn hostnames_need_non_empty_labels_without_dash_edges() {
+        for good in ["mail.example.org", "a-b.example.org", "x"] {
+            assert!(is_hostname(good), "{good}");
+        }
+        for bad in ["", "a..b", ".a", "a.", "-a.com", "a-.com", "a.b-", "a.-b.c"] {
+            assert!(!is_hostname(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn only_srv_servers_outside_the_domain_need_confirming() {
+        let pair = |imap: &str, smtp: &str| Candidates {
+            imap: vec![setting(imap, 993, Security::Tls)],
+            smtp: vec![setting(smtp, 465, Security::Tls)],
+        };
+        let confirm =
+            |c: &Candidates, source: Source| best(c, source, "example.org").unwrap().confirm;
+        assert!(!confirm(
+            &pair("imap.example.org", "smtp.example.org"),
+            Source::Srv
+        ));
+        assert!(!confirm(
+            &pair("mail.example.org.", "EXAMPLE.org"),
+            Source::Srv
+        ));
+        assert!(confirm(
+            &pair("evil.attacker.net.", "smtp.example.org"),
+            Source::Srv
+        ));
+        assert!(confirm(
+            &pair("imap.example.org", "smtp.attacker.net"),
+            Source::Srv
+        ));
+        assert!(confirm(
+            &pair("badexample.org", "smtp.example.org"),
+            Source::Srv
+        ));
+        for source in [Source::Ispdb, Source::Provider, Source::WellKnown] {
+            let off = pair("evil.attacker.net", "smtp.attacker.net");
+            assert!(!confirm(&off, source), "{source:?}");
+        }
     }
 }
