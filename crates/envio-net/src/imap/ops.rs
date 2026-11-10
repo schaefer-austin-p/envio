@@ -228,24 +228,6 @@ impl ImapSession {
         .await
     }
 
-    /// Uploads a message (Sent copy, draft) with `flags`.
-    pub async fn append(&mut self, folder: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {
-        let flags = if flags.is_empty() {
-            None
-        } else {
-            Some(query::flag_list(flags)?)
-        };
-        // The upload alone can outlast a command, so the limit grows with
-        // the message.
-        connect::within_for(connect::transfer_timeout(eml.len()), async {
-            self.session
-                .append(folder, flags.as_deref(), None, eml)
-                .await
-                .map_err(map_error)
-        })
-        .await
-    }
-
     /// UIDs in the selected folder with this Message-ID (the Outbox's
     /// "may have been sent" check). Some servers (Stalwart 1.0) never
     /// match HEADER Message-ID, so an empty answer is checked against the

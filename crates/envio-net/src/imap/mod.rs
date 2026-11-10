@@ -3,6 +3,7 @@
 //! command timeout; any error leaves the session unusable, and the caller
 //! opens a new one.
 
+mod append;
 mod client;
 pub mod names;
 mod ops;

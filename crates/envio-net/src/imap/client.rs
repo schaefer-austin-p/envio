@@ -1,7 +1,7 @@
 //! Opening an IMAP connection: TLS (implicit or STARTTLS), the greeting,
 //! LOGIN; and what async-imap's errors mean for envio.
 
-use async_imap::imap_proto::{Response, Status};
+use async_imap::imap_proto::{Outcome, RequestId, Response, Status};
 
 /// How the server greeted us.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,11 +126,44 @@ pub(crate) fn map_error(error: async_imap::error::Error) -> NetError {
     }
 }
 
-/// RFC 5530 codes for "not now".
+/// RFC 5530 codes for "not now". Response codes are case-insensitive.
 fn is_busy(text: &str) -> bool {
+    let text = text.to_ascii_uppercase();
     ["[UNAVAILABLE]", "[INUSE]", "[LIMIT]"]
         .iter()
         .any(|code| text.contains(code))
+}
+
+/// The server's NO or BAD, as the error async-imap's own commands raise
+/// for it (so LOGIN, APPEND and the rest map alike).
+fn failure_of(status: &Status, outcome: &Outcome<'_>) -> Option<NetError> {
+    let text = format!(
+        "code: {:?}, info: {:?}",
+        outcome.code,
+        outcome.information.as_deref()
+    );
+    match status {
+        Status::No => Some(map_error(async_imap::error::Error::No(text))),
+        Status::Bad => Some(map_error(async_imap::error::Error::Bad(text))),
+        _ => None,
+    }
+}
+
+/// How a command with a literal ends: the tagged status, or a NO/BAD.
+/// `None` means "keep reading" (untagged data).
+pub(crate) fn command_end(response: &Response<'_>, id: &RequestId) -> Option<Result<()>> {
+    match response {
+        Response::Done {
+            tag,
+            status,
+            outcome,
+        } if tag == id => Some(match failure_of(status, outcome) {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }),
+        Response::Data { status, outcome } => failure_of(status, outcome).map(Err),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -166,5 +199,38 @@ mod tests {
             map_error(Error::Bad("eh".into())),
             NetError::Protocol(_)
         ));
+    }
+
+    fn end_of(line: &[u8]) -> Option<Result<()>> {
+        let (_, response) = Response::parse(line).unwrap();
+        command_end(&response, &RequestId("A1".into()))
+    }
+
+    #[test]
+    fn append_replies_with_busy_codes_are_busy() {
+        for line in [
+            &b"A1 NO [UNAVAILABLE] try later\r\n"[..],
+            b"A1 NO [inuse] mailbox busy\r\n",
+            b"* NO [Limit] too many\r\n",
+        ] {
+            assert!(
+                matches!(end_of(line), Some(Err(NetError::Busy(_)))),
+                "{line:?}"
+            );
+        }
+        assert!(matches!(
+            end_of(b"A1 NO [OVERQUOTA] full\r\n"),
+            Some(Err(NetError::Refused(_)))
+        ));
+        assert!(matches!(end_of(b"A1 OK done\r\n"), Some(Ok(()))));
+        assert!(end_of(b"* 3 EXISTS\r\n").is_none());
+        assert!(end_of(b"A2 NO [UNAVAILABLE] other\r\n").is_none());
+    }
+
+    #[test]
+    fn busy_codes_match_in_any_case() {
+        assert!(is_busy("[unavailable] x"));
+        assert!(is_busy("code: None, info: Some(\"[InUse] x\")"));
+        assert!(!is_busy("[OVERQUOTA]"));
     }
 }
