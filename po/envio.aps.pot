@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-10 22:29+0100\n"
+"POT-Creation-Date: 2026-11-10 22:40+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -23,4 +23,116 @@ msgstr ""
 
 #: qml/pages/InboxPage.qml:38
 msgid "No accounts yet."
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:7
+msgid "The server refused: {reason}"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:11
+msgid "The mail cache was damaged and is being rebuilt from the server"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:15
+msgid "Storage is full. Free some space to keep mail up to date"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:19
+msgid ""
+"Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:25
+msgid "Couldn't update the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:26
+msgid "Couldn't move the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:27
+msgid "Couldn't delete the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:34
+msgid "Gave up updating the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:35
+msgid "Gave up moving the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:36
+msgid "Gave up deleting the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:11
+msgid "Ready"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:12
+msgid "Syncing"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:13
+msgid "Offline, retrying"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:14
+msgid "Sign-in failed, update password"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:16
+msgid "The server certificate needs your attention"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:17
+msgid "Storage is full, downloads stopped"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:18
+msgid "Removing account"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:24
+msgid "incoming mail"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:25
+msgid "outgoing mail"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:31
+msgid ""
+"The certificate of the {service} server changed.\n"
+"Old fingerprint: {old}\n"
+"New fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:41
+msgid ""
+"The certificate of the {service} server is not trusted: {reason}.\n"
+"Fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:50
+msgid ""
+"The certificate of the {service} server is not trusted.\n"
+"Fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:58
+msgid "self-signed or from an unknown authority"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:59
+msgid "expired"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:60
+msgid "issued for another server name"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:61
+msgid "not valid"
 msgstr ""

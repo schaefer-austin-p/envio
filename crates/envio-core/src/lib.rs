@@ -1,7 +1,9 @@
 //! Envio's logic. Qt-free: the app talks to it through qt/.
 
 pub mod build_info;
+pub mod health;
 pub mod logging;
+pub mod problem;
 pub mod secrets;
 pub mod servers;
 

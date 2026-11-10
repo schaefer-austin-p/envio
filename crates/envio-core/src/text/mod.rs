@@ -1,6 +1,9 @@
 //! User-facing core text. `tr`/`tr_n` are called only from this folder, so
 //! xgettext reads only these files (see tools/i18n/update.sh).
 
+pub mod notice;
+pub mod status;
+
 #[cfg(test)]
 mod tests {
     // This file is scanned too, so the scanner spells its characters as
