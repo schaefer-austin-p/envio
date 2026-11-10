@@ -61,27 +61,45 @@ pub fn request(url: &Url) -> String {
     )
 }
 
-/// Whether a redirect may point at `host`. Localhost and IP literals (also
-/// the all-digit last label of the legacy IPv4 forms) are refused, so a
-/// redirect cannot aim the handshake at the machine or the LAN.
+/// Whether a redirect may point at `host`. Localhost and IP literals are
+/// refused, and so are the legacy IPv4 forms that the resolver reads as
+/// addresses (an all-digit or `0x` last label, e.g. `2130706433`, `127.1`,
+/// `0x7f.0x1`), so a redirect cannot aim the handshake at the machine or LAN.
 pub fn allowed_redirect_host(host: &str) -> bool {
     let host = host.strip_suffix('.').unwrap_or(host).to_ascii_lowercase();
     let local = host == "localhost" || host.ends_with(".localhost");
     let literal = host.parse::<IpAddr>().is_ok()
-        || host
-            .rsplit('.')
-            .next()
-            .is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()));
+        || host.rsplit('.').next().is_some_and(|last| {
+            last.starts_with("0x") || (!last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()))
+        });
     !local && !literal
+}
+
+/// The Content-Length of a reply, once every such header is read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Length {
+    /// No Content-Length header: the body runs to EOF or the cap.
+    None,
+    Known(usize),
+    /// Missing digits, not a number, or repeated with different values.
+    Invalid,
 }
 
 /// The status, the headers autoconfig uses, and where the body starts.
 struct Head {
     status: u16,
     location: Option<String>,
-    content_length: Option<usize>,
+    length: Length,
     chunked: bool,
     body_start: usize,
+}
+
+/// A Content-Length value: ASCII digits only, and within `usize`.
+fn digits_length(value: &str) -> Option<usize> {
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    value.parse().ok()
 }
 
 fn head(raw: &[u8]) -> Option<Head> {
@@ -96,7 +114,7 @@ fn head(raw: &[u8]) -> Option<Head> {
     let mut head = Head {
         status,
         location: None,
-        content_length: None,
+        length: Length::None,
         chunked: false,
         body_start: split + 4,
     };
@@ -108,7 +126,13 @@ fn head(raw: &[u8]) -> Option<Head> {
         if name.eq_ignore_ascii_case("location") {
             head.location.get_or_insert_with(|| value.to_owned());
         } else if name.eq_ignore_ascii_case("content-length") {
-            head.content_length = value.parse().ok();
+            // Repeats are fine only when they agree (RFC 9112 6.3).
+            head.length = match (head.length, digits_length(value)) {
+                (Length::Invalid, _) | (_, None) => Length::Invalid,
+                (Length::None, Some(n)) => Length::Known(n),
+                (Length::Known(m), Some(n)) if m == n => Length::Known(m),
+                (Length::Known(_), Some(_)) => Length::Invalid,
+            };
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
             head.chunked |= value.to_ascii_lowercase().contains("chunked");
         }
@@ -116,17 +140,26 @@ fn head(raw: &[u8]) -> Option<Head> {
     Some(head)
 }
 
-/// Whether `raw` already holds the whole reply: a chunked head (refused, so
-/// nothing more is needed), or a body as long as its Content-Length. A reply
-/// with no length is complete only at EOF or at the cap.
+/// Whether `raw` already holds the whole reply, or nothing more can change
+/// the answer: a chunked head, a bad or over-cap Content-Length (both refused),
+/// or a body as long as its Content-Length. A reply with no length is complete
+/// only at EOF or at the cap.
 pub fn reply_complete(raw: &[u8]) -> bool {
     let Some(head) = head(raw) else {
         return false;
     };
     head.chunked
-        || head
-            .content_length
-            .is_some_and(|n| raw.len() >= head.body_start + n)
+        || match head.length {
+            Length::None => false,
+            Length::Invalid => true,
+            Length::Known(n) => {
+                n > MAX_BODY
+                    || head
+                        .body_start
+                        .checked_add(n)
+                        .is_some_and(|end| raw.len() >= end)
+            }
+        }
 }
 
 /// The reply in `raw` (the bytes read so far, up to its end).
@@ -138,11 +171,12 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
         200 if head.chunked => Reply::Chunked,
         200 => {
             let rest = &raw[head.body_start..];
-            let body = match head.content_length {
-                Some(n) if n > MAX_BODY || rest.len() < n => return Reply::Nothing,
-                Some(n) => &rest[..n],
-                None if rest.len() > MAX_BODY => return Reply::Nothing,
-                None => rest,
+            let body = match head.length {
+                Length::Invalid => return Reply::Nothing,
+                Length::Known(n) if n > MAX_BODY || rest.len() < n => return Reply::Nothing,
+                Length::Known(n) => &rest[..n],
+                Length::None if rest.len() > MAX_BODY => return Reply::Nothing,
+                Length::None => rest,
             };
             String::from_utf8(body.to_vec()).map_or(Reply::Nothing, Reply::Body)
         }
@@ -253,6 +287,44 @@ mod tests {
             parse_reply(without(MAX_BODY + 1).as_bytes()),
             Reply::Nothing
         );
+    }
+
+    #[test]
+    fn a_content_length_past_the_cap_is_refused_before_the_body_arrives() {
+        for length in [
+            "18446744073709551615".to_owned(),
+            (MAX_BODY + 1).to_string(),
+        ] {
+            let raw = format!("HTTP/1.1 200 OK\r\nContent-Length: {length}\r\n\r\nhi");
+            assert!(reply_complete(raw.as_bytes()), "{length}");
+            assert_eq!(parse_reply(raw.as_bytes()), Reply::Nothing, "{length}");
+        }
+    }
+
+    #[test]
+    fn repeated_content_lengths_must_agree() {
+        let same = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\nhello";
+        assert_eq!(parse_reply(same), Reply::Body("hello".into()));
+        let differ = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\nhello!";
+        assert_eq!(parse_reply(differ), Reply::Nothing);
+        assert!(reply_complete(differ));
+    }
+
+    #[test]
+    fn a_length_that_is_not_digits_is_an_error() {
+        for value in ["-1", "+5", "5 apples", "", "18446744073709551616"] {
+            let raw = format!("HTTP/1.1 200 OK\r\nContent-Length: {value}\r\n\r\nhello");
+            assert_eq!(parse_reply(raw.as_bytes()), Reply::Nothing, "{value:?}");
+            assert!(reply_complete(raw.as_bytes()), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn redirects_may_not_use_hex_or_short_ipv4_forms() {
+        for refused in ["0x7f000001", "0x7f.0x1", "2130706433", "127.1"] {
+            assert!(!allowed_redirect_host(refused), "{refused}");
+        }
+        assert!(allowed_redirect_host("autoconfig.example.org"));
     }
 
     #[test]
