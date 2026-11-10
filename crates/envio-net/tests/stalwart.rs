@@ -99,7 +99,10 @@ async fn an_appended_message_reads_back_with_flags_and_changes() {
     assert!(summaries[0].flags.seen && !summaries[0].flags.flagged);
     assert!(String::from_utf8_lossy(&summaries[0].header).contains(&id));
     assert!(summaries[0].internal_date.is_some());
-    assert_eq!(session.fetch_body(uid).await.unwrap().unwrap(), eml);
+    assert_eq!(
+        session.fetch_body(uid, eml.len()).await.unwrap().unwrap(),
+        eml
+    );
 
     // CONDSTORE: only the message whose flags changed comes back. Other
     // tests append to the same INBOX in parallel, so keep our UID only.

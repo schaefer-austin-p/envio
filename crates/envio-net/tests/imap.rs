@@ -161,3 +161,70 @@ async fn an_unpinned_self_signed_server_goes_to_the_prompt() {
     assert!(matches!(err, NetError::Untrusted { .. }), "{err:?}");
     assert!(transcript.lines().is_empty());
 }
+
+/// Moves UID 5 to Trash on a server with `capabilities` and returns the
+/// commands the client sent after sign-in, without tags.
+async fn move_commands(capabilities: &'static str) -> Vec<String> {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        implicit: true,
+        capabilities,
+        ..Script::default()
+    };
+    let (port, transcript) = serve(&cert, script).await;
+    let endpoint = Endpoint {
+        pin: Some(Fingerprint::of(&cert.der)),
+        ..Endpoint::new("localhost", port, Security::Tls)
+    };
+    let credentials = Credentials::new("alice", "s3cret");
+    let mut session = ImapSession::open(&endpoint, &Roots::empty(), &credentials)
+        .await
+        .unwrap();
+    assert!(!session.caps().r#move, "{capabilities}");
+    session.move_to(&[5], "Trash").await.unwrap();
+    session.logout().await.unwrap();
+    // Let the server record the LOGOUT.
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    transcript
+        .lines()
+        .into_iter()
+        .filter(|(tls, _)| *tls)
+        .filter_map(|(_, line)| line.split_once(' ').map(|(_, command)| command.to_owned()))
+        .filter(|command| !command.starts_with("LOGIN") && !command.starts_with("CAPABILITY"))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_move_without_move_copies_marks_and_expunges_by_uid() {
+    // UIDPLUS: only the moved UID is expunged, never a bare EXPUNGE that
+    // would also take other messages already marked \Deleted.
+    let commands = move_commands("IDLE UIDPLUS").await;
+    assert_eq!(
+        commands,
+        [
+            r#"UID COPY 5 "Trash""#,
+            r"UID STORE 5 +FLAGS.SILENT (\Deleted)",
+            "UID EXPUNGE 5",
+            "LOGOUT",
+        ],
+    );
+}
+
+#[tokio::test]
+async fn a_move_without_move_or_uidplus_expunges_nothing() {
+    // Without UIDPLUS there is no safe way to remove only the moved
+    // message, so the original stays, marked \Deleted.
+    let commands = move_commands("IDLE").await;
+    assert_eq!(
+        commands,
+        [
+            r#"UID COPY 5 "Trash""#,
+            r"UID STORE 5 +FLAGS.SILENT (\Deleted)",
+            "LOGOUT",
+        ],
+    );
+    assert!(
+        commands.iter().all(|c| !c.contains("EXPUNGE")),
+        "{commands:?}"
+    );
+}

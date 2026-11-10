@@ -61,7 +61,11 @@ docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
 [tasks.net-it]
 description = "envio-net's tests against a throwaway Stalwart in local Docker"
 script = '''
-eval "$(crates/envio-net/tests/stalwart/up.sh)"
+set -eu
+# Removed on exit, whatever the tests did; a failed start fails the task.
+trap 'docker rm -f "${STALWART_NAME:-envio-stalwart}" >/dev/null 2>&1 || true' EXIT
+settings=$(crates/envio-net/tests/stalwart/up.sh)
+eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-net
 '''
 

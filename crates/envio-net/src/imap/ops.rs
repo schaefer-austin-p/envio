@@ -148,9 +148,11 @@ impl ImapSession {
         .await
     }
 
-    /// The whole message, without setting \Seen. None if it's gone.
-    pub async fn fetch_body(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
-        connect::within(async {
+    /// The whole message, without setting \Seen. None if it's gone. `size`
+    /// is the message's size from its summary: the limit grows with it, as
+    /// it does for sending.
+    pub async fn fetch_body(&mut self, uid: u32, size: usize) -> Result<Option<Vec<u8>>> {
+        connect::within_for(connect::transfer_timeout(size), async {
             let fetches: Vec<_> = self
                 .session
                 .uid_fetch(uid.to_string(), "(UID BODY.PEEK[])")
@@ -270,8 +272,8 @@ impl ImapSession {
             let mut uids: Vec<u32> = fetches
                 .iter()
                 .filter(|fetch| {
-                    query::message_id_of(fetch.header().unwrap_or_default()).as_deref()
-                        == Some(message_id)
+                    query::message_id_of(fetch.header().unwrap_or_default())
+                        .is_some_and(|found| query::same_message_id(&found, message_id))
                 })
                 .filter_map(|fetch| fetch.uid)
                 .collect();

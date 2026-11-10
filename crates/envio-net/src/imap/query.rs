@@ -156,6 +156,20 @@ pub fn message_id_of(fields: &[u8]) -> Option<String> {
     value.filter(|id| !id.is_empty())
 }
 
+/// Whether two Message-IDs name the same message. Surrounding whitespace
+/// and one pair of angle brackets don't count: `<id@x>` and `id@x` match.
+pub fn same_message_id(found: &str, wanted: &str) -> bool {
+    fn bare(text: &str) -> &str {
+        let text = text.trim();
+        text.strip_prefix('<')
+            .and_then(|inner| inner.strip_suffix('>'))
+            .unwrap_or(text)
+            .trim()
+    }
+    let (found, wanted) = (bare(found), bare(wanted));
+    !wanted.is_empty() && found == wanted
+}
+
 /// A full-text search. ASCII is quoted; anything else needs a literal,
 /// sent non-synchronizing (`{n+}`), which needs LITERAL+ or LITERAL-.
 pub fn search_text(text: &str, literal_plus: bool) -> Result<String> {
@@ -238,6 +252,16 @@ mod tests {
         );
         assert_eq!(message_id_of(b"\r\n"), None);
         assert_eq!(message_id_of(b"Message-ID:   \r\n\r\n"), None);
+    }
+
+    #[test]
+    fn message_ids_match_with_or_without_angle_brackets() {
+        assert!(same_message_id("<id@x>", "id@x"));
+        assert!(same_message_id("id@x", "<id@x>"));
+        assert!(same_message_id(" <id@x> ", "<id@x>"));
+        assert!(!same_message_id("<id@x>", "<other@x>"));
+        assert!(!same_message_id("<<id@x>>", "id@x"));
+        assert!(!same_message_id("<>", ""));
     }
 
     #[test]

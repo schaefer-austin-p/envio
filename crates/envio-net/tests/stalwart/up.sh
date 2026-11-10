@@ -6,7 +6,8 @@
 #
 # Stalwart 1.0 starts in bootstrap mode without a config file, so: bootstrap
 # through its JMAP API, restart, add the STARTTLS listeners and two users,
-# restart again. The container removes itself after 30 minutes.
+# restart again. The container removes itself after 2 hours, a backstop for
+# runs that never reach their cleanup step.
 set -euo pipefail
 
 image=${STALWART_IMAGE:-stalwartlabs/stalwart:v1.0.3}
@@ -20,7 +21,7 @@ docker rm -f "$name" >/dev/null 2>&1 || true
 docker run -d --rm --name "$name" \
   -e STALWART_RECOVERY_ADMIN="$admin" \
   -p 993 -p 143 -p 465 -p 587 -p 8080 \
-  --entrypoint timeout "$image" 1800 \
+  --entrypoint timeout "$image" 7200 \
   /usr/local/bin/stalwart --config /etc/stalwart/config.json >/dev/null
 
 port() { docker port "$name" "$1/tcp" | head -n 1 | sed 's/.*://'; }

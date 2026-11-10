@@ -20,6 +20,8 @@ pub struct Script {
     pub inject: &'static str,
     /// The status and text LOGIN gets.
     pub login: &'static str,
+    /// The CAPABILITY words after IMAP4rev1, e.g. "IDLE UIDPLUS".
+    pub capabilities: &'static str,
 }
 
 impl Default for Script {
@@ -30,6 +32,7 @@ impl Default for Script {
             starttls: "OK",
             inject: "",
             login: "OK signed in",
+            capabilities: "IDLE UIDPLUS",
         }
     }
 }
@@ -106,10 +109,20 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
 ) {
     while let Some(command) = line(io, true, log).await {
         let (tag, verb) = split(&command);
+        // "UID COPY ...": the word after UID, for the commands that need it.
+        let sub_verb = command.split(' ').nth(2).unwrap_or("").to_ascii_uppercase();
         let reply = match verb.as_str() {
             "LOGIN" => format!("{tag} {}\r\n", script.login),
-            "CAPABILITY" => format!("* CAPABILITY IMAP4rev1 IDLE UIDPLUS\r\n{tag} OK done\r\n"),
+            "CAPABILITY" => format!(
+                "* CAPABILITY IMAP4rev1 {}\r\n{tag} OK done\r\n",
+                script.capabilities
+            ),
             "NOOP" => format!("{tag} OK done\r\n"),
+            // Accepted and recorded; the tests read the transcript.
+            "EXPUNGE" => format!("{tag} OK done\r\n"),
+            "UID" if matches!(sub_verb.as_str(), "COPY" | "STORE" | "EXPUNGE") => {
+                format!("{tag} OK done\r\n")
+            }
             "LOGOUT" => {
                 let _ = io
                     .write_all(format!("* BYE bye\r\n{tag} OK done\r\n").as_bytes())
