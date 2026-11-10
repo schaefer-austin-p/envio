@@ -2,3 +2,5 @@
 //! each is a table test.
 
 pub mod folders;
+pub mod pending;
+pub mod sync;
