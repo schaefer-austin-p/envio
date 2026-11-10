@@ -1,6 +1,6 @@
 //! A scripted IMAP server, in process, that records what the client says.
 //! Just enough for the connect path: greeting, STARTTLS, LOGIN,
-//! CAPABILITY, NOOP, APPEND, LOGOUT.
+//! CAPABILITY, AUTHENTICATE PLAIN, NOOP, APPEND, LOGOUT.
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
@@ -25,6 +25,9 @@ pub struct Script {
     /// Untagged lines (each ending in CRLF) sent after an APPEND's
     /// literal, before its tagged OK.
     pub before_append_ok: &'static str,
+    /// The CAPABILITY words after IMAP4rev1 while still signed out, e.g.
+    /// "AUTH=PLAIN".
+    pub signed_out_capabilities: &'static str,
 }
 
 impl Default for Script {
@@ -37,6 +40,7 @@ impl Default for Script {
             login: "OK signed in",
             capabilities: "IDLE UIDPLUS",
             before_append_ok: "",
+            signed_out_capabilities: "",
         }
     }
 }
@@ -128,15 +132,38 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     script: Script,
     log: &Transcript,
 ) {
+    let mut signed_in = false;
     while let Some(command) = line(io, true, log).await {
         let (tag, verb) = split(&command);
         // "UID COPY ...": the word after UID, for the commands that need it.
         let sub_verb = command.split(' ').nth(2).unwrap_or("").to_ascii_uppercase();
         let reply = match verb.as_str() {
-            "LOGIN" => format!("{tag} {}\r\n", script.login),
+            "LOGIN" => {
+                signed_in = script.login.starts_with("OK");
+                format!("{tag} {}\r\n", script.login)
+            }
+            "AUTHENTICATE" if command.to_ascii_uppercase().ends_with(" PLAIN") => {
+                if io.write_all(b"+ \r\n").await.is_err() {
+                    return;
+                }
+                let Some(answer) = line(io, true, log).await else {
+                    return;
+                };
+                // RFC 4616: NUL, user name, NUL, password, in UTF-8.
+                signed_in = base64_decode(&answer) == Some("\0alice\0pässwort".as_bytes().to_vec());
+                if signed_in {
+                    format!("{tag} OK signed in\r\n")
+                } else {
+                    format!("{tag} NO [AUTHENTICATIONFAILED] invalid credentials\r\n")
+                }
+            }
             "CAPABILITY" => format!(
                 "* CAPABILITY IMAP4rev1 {}\r\n{tag} OK done\r\n",
-                script.capabilities
+                if signed_in {
+                    script.capabilities
+                } else {
+                    script.signed_out_capabilities
+                }
             ),
             "NOOP" => format!("{tag} OK done\r\n"),
             "APPEND" => {
@@ -162,4 +189,28 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
             return;
         }
     }
+}
+
+/// Standard base64, enough to read one AUTHENTICATE answer.
+fn base64_decode(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::new();
+    let (mut bits, mut have) = (0u32, 0);
+    for c in text.trim_end_matches('=').bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return None,
+        };
+        bits = (bits << 6) | u32::from(v);
+        have += 6;
+        if have >= 8 {
+            have -= 8;
+            out.push((bits >> have) as u8);
+            bits &= (1 << have) - 1;
+        }
+    }
+    Some(out)
 }

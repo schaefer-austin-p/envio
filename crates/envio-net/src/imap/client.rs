@@ -1,5 +1,5 @@
 //! Opening an IMAP connection: TLS (implicit or STARTTLS), the greeting,
-//! LOGIN; and what async-imap's errors mean for envio.
+//! sign-in (see `sign_in`); and what async-imap's errors mean for envio.
 
 use async_imap::imap_proto::{Outcome, RequestId, Response, Status};
 
@@ -12,9 +12,9 @@ pub(crate) enum Greeting {
     Other,
 }
 use async_imap::{Client, Session};
-use secrecy::ExposeSecret;
 use tokio::net::TcpStream;
 
+use super::sign_in;
 use crate::connect;
 use crate::error::{NetError, Result};
 use crate::server::{Credentials, Endpoint, Security};
@@ -40,19 +40,7 @@ pub(crate) async fn open(
             Client::new(tls::handshake(tcp, &endpoint.host, roots, endpoint.pin).await?)
         }
     };
-    // async-imap refuses CR and LF here and sends both as quoted strings.
-    let password = credentials.password.expose_secret();
-    connect::within(async move {
-        client
-            .login(&credentials.username, password)
-            .await
-            .map_err(|(error, _)| match error {
-                // A "not now" NO (RFC 5530) is not a wrong password.
-                async_imap::error::Error::No(text) if !is_busy(&text) => NetError::SignIn(text),
-                other => map_error(other),
-            })
-    })
-    .await
+    connect::within(sign_in::run(client, credentials)).await
 }
 
 /// The plaintext prelude: greeting, then STARTTLS. Nothing else is sent
@@ -127,7 +115,7 @@ pub(crate) fn map_error(error: async_imap::error::Error) -> NetError {
 }
 
 /// RFC 5530 codes for "not now". Response codes are case-insensitive.
-fn is_busy(text: &str) -> bool {
+pub(crate) fn is_busy(text: &str) -> bool {
     let text = text.to_ascii_uppercase();
     ["[UNAVAILABLE]", "[INUSE]", "[LIMIT]"]
         .iter()

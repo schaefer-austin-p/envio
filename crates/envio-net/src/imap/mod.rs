@@ -8,6 +8,7 @@ mod client;
 pub mod names;
 mod ops;
 pub mod query;
+mod sign_in;
 
 use async_imap::Session;
 

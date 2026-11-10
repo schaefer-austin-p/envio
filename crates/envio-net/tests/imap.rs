@@ -12,6 +12,14 @@ async fn open(
     cert: &Cert,
     script: Script,
 ) -> (Result<ImapSession, NetError>, Vec<(bool, String)>, u16) {
+    open_as(cert, script, Credentials::new("alice", "s3cret")).await
+}
+
+async fn open_as(
+    cert: &Cert,
+    script: Script,
+    credentials: Credentials,
+) -> (Result<ImapSession, NetError>, Vec<(bool, String)>, u16) {
     let (port, transcript) = serve(cert, script).await;
     let security = if script.implicit {
         Security::Tls
@@ -22,7 +30,6 @@ async fn open(
         pin: Some(Fingerprint::of(&cert.der)),
         ..Endpoint::new("localhost", port, security)
     };
-    let credentials = Credentials::new("alice", "s3cret");
     let result = ImapSession::open(&endpoint, &Roots::empty(), &credentials).await;
     // Let the server record whatever came after the error.
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -247,4 +254,63 @@ async fn untagged_warnings_during_append_do_not_end_it() {
             .unwrap_or_else(|e| panic!("{warning:?}: {e:?}"));
         session.logout().await.unwrap();
     }
+}
+
+const NON_ASCII: &str = "pässwort";
+
+fn lines_of(lines: &[(bool, String)]) -> Vec<&str> {
+    lines.iter().map(|(_, line)| line.as_str()).collect()
+}
+
+#[tokio::test]
+async fn a_non_ascii_password_signs_in_with_authenticate_plain() {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        implicit: true,
+        signed_out_capabilities: "AUTH=PLAIN",
+        ..Script::default()
+    };
+    let (session, lines, _) = open_as(&cert, script, Credentials::new("alice", NON_ASCII)).await;
+    session.unwrap().logout().await.unwrap();
+    let seen = lines_of(&lines);
+    assert!(
+        seen.iter().any(|l| l.contains("AUTHENTICATE PLAIN")),
+        "{seen:?}"
+    );
+    assert!(!seen.iter().any(|l| l.contains("LOGIN")), "{seen:?}");
+    assert!(!seen.iter().any(|l| l.contains(NON_ASCII)), "{seen:?}");
+    assert!(!seen.iter().any(|l| l.contains("p\u{e4}ss")), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_wrong_non_ascii_password_is_a_sign_in_error() {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        implicit: true,
+        signed_out_capabilities: "AUTH=PLAIN",
+        ..Script::default()
+    };
+    let (session, _, _) = open_as(&cert, script, Credentials::new("alice", "påsswort")).await;
+    let err = session.err().unwrap();
+    assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn a_non_ascii_password_without_auth_plain_is_refused_and_nothing_is_sent() {
+    let cert = Cert::self_signed("localhost");
+    let script = Script {
+        implicit: true,
+        ..Script::default()
+    };
+    let (session, lines, _) = open_as(&cert, script, Credentials::new("alice", NON_ASCII)).await;
+    let err = session.err().unwrap();
+    assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
+    assert!(!err.to_string().contains(NON_ASCII));
+    let seen = lines_of(&lines);
+    assert!(
+        !seen
+            .iter()
+            .any(|l| l.contains("LOGIN") || l.contains("AUTHENTICATE")),
+        "{seen:?}"
+    );
 }
