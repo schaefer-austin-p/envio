@@ -3,6 +3,7 @@
 //! thread's runtime. Decisions (trust, reply parsing, query building,
 //! autoconfig order) are pure functions; the I/O around them is thin.
 
+pub mod autoconfig;
 mod connect;
 pub mod error;
 pub mod imap;
