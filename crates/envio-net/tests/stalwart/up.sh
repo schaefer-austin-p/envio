@@ -51,10 +51,12 @@ wait_ports() {
   # A port answers once the listener is up; mail ports greet on connect.
   for p in 993 143 465 587; do
     local hp; hp=$(port "$p")
+    local open=0
     for _ in $(seq 1 60); do
-      if (exec 3<>"/dev/tcp/$host/$hp") 2>/dev/null; then break; fi
+      if (exec 3<>"/dev/tcp/$host/$hp") 2>/dev/null; then open=1; break; fi
       sleep 1
     done
+    if [ "$open" -ne 1 ]; then log "port $p ($host:$hp) never opened"; exit 1; fi
   done
 }
 

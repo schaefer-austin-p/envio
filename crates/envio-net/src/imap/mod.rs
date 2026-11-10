@@ -135,7 +135,8 @@ impl ImapSession {
         self.caps
     }
 
-    /// A round trip: keeps the connection alive and collects news.
+    /// A round trip that keeps the connection alive. Unsolicited responses
+    /// (new mail, expunges) are not surfaced yet.
     pub async fn noop(&mut self) -> Result<()> {
         connect::within(async { self.session.noop().await.map_err(map_error) }).await
     }
