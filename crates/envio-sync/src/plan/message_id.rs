@@ -9,9 +9,20 @@ pub fn usable_message_id(id: &str) -> bool {
         .is_some_and(|inner| !inner.is_empty())
 }
 
+/// The trimmed id to search for, when it is usable.
+pub fn search_id(id: &str) -> Option<&str> {
+    usable_message_id(id).then(|| id.trim())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::usable_message_id;
+    use super::{search_id, usable_message_id};
+
+    #[test]
+    fn search_id_trims_and_rejects_unusable() {
+        assert_eq!(search_id(" <a@b> "), Some("<a@b>"));
+        assert_eq!(search_id("<>"), None);
+    }
 
     #[test]
     fn only_an_angle_bracketed_id_is_searched_for() {

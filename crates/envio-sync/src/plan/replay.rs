@@ -5,7 +5,7 @@ use envio_net::NetError;
 use envio_store::{Action, ActionKind, Flags, MessageRef};
 
 use crate::error::{ErrorKind, net_kind};
-use crate::plan::message_id::usable_message_id;
+use crate::plan::message_id::search_id;
 use crate::schedule::{Key, Schedule, UNDO_MS};
 
 /// The Undo window has passed and no retry wait is running.
@@ -29,9 +29,9 @@ pub fn find(target: &MessageRef, uid_validity: u32) -> Find {
     if target.uidvalidity == uid_validity {
         return Find::Uid(target.uid);
     }
-    match &target.message_id {
-        Some(id) if usable_message_id(id) => Find::ByMessageId(id.clone()),
-        _ => Find::Lost,
+    match target.message_id.as_deref().and_then(search_id) {
+        Some(id) => Find::ByMessageId(id.to_owned()),
+        None => Find::Lost,
     }
 }
 
@@ -81,11 +81,22 @@ pub enum MoveRoute {
 }
 
 pub fn move_route(has_move: bool, message_id: Option<&str>) -> MoveRoute {
-    match (has_move, message_id) {
-        (true, _) => MoveRoute::Direct,
-        (false, Some(id)) if usable_message_id(id) => MoveRoute::CheckTarget(id.to_owned()),
-        (false, _) => MoveRoute::Copy,
+    if has_move {
+        return MoveRoute::Direct;
     }
+    match message_id.and_then(search_id) {
+        Some(id) => MoveRoute::CheckTarget(id.to_owned()),
+        None => MoveRoute::Copy,
+    }
+}
+
+/// After this many failures in a row a Protocol-failing action is dropped.
+pub const GIVE_UP_AFTER: u32 = 10;
+
+/// An action the server keeps answering with garbage is given up on so it
+/// doesn't block its message forever. Temporary failures never give up.
+pub fn give_up(kind: ErrorKind, failures_so_far: u32) -> bool {
+    kind == ErrorKind::Protocol && failures_so_far + 1 >= GIVE_UP_AFTER
 }
 
 /// What a server result means for the action.
@@ -95,8 +106,9 @@ pub enum Outcome {
     Done,
     /// Refused for good: mark it done and undo it locally, with a notice.
     Revert,
-    /// Temporary: retry after a backoff. The session is gone.
-    Retry,
+    /// Temporary, protocol or local failure: retry after a backoff, unless
+    /// `give_up` says the ceiling is reached. The session is gone.
+    Retry(ErrorKind),
     /// Sign-in or certificate: pause the account. The action stays pending.
     Stop(ErrorKind),
 }
@@ -107,7 +119,9 @@ pub fn outcome(result: Result<(), &NetError>) -> Outcome {
     };
     match net_kind(error) {
         ErrorKind::Refused => Outcome::Revert,
-        ErrorKind::Temporary | ErrorKind::Protocol | ErrorKind::Local => Outcome::Retry,
+        kind @ (ErrorKind::Temporary | ErrorKind::Protocol | ErrorKind::Local) => {
+            Outcome::Retry(kind)
+        }
         kind @ (ErrorKind::SignIn | ErrorKind::Certificate) => Outcome::Stop(kind),
     }
 }
@@ -207,10 +221,13 @@ mod tests {
             outcome(Err(&NetError::Refused("NO".into()))),
             Outcome::Revert
         );
-        assert_eq!(outcome(Err(&NetError::Timeout)), Outcome::Retry);
+        assert_eq!(
+            outcome(Err(&NetError::Timeout)),
+            Outcome::Retry(ErrorKind::Temporary)
+        );
         assert_eq!(
             outcome(Err(&NetError::Protocol("?".into()))),
-            Outcome::Retry
+            Outcome::Retry(ErrorKind::Protocol)
         );
         assert_eq!(
             outcome(Err(&NetError::SignIn("no".into()))),
@@ -250,9 +267,19 @@ mod tests {
     }
 
     #[test]
+    fn give_up_only_for_protocol_at_the_ceiling() {
+        assert!(!give_up(ErrorKind::Protocol, 8));
+        assert!(give_up(ErrorKind::Protocol, 9));
+        assert!(!give_up(ErrorKind::Temporary, 100));
+    }
+
+    #[test]
     fn busy_and_network_errors_retry() {
         let io = NetError::Io(std::io::Error::other("reset"));
-        assert_eq!(outcome(Err(&io)), Outcome::Retry);
-        assert_eq!(outcome(Err(&NetError::Busy("BYE".into()))), Outcome::Retry);
+        assert_eq!(outcome(Err(&io)), Outcome::Retry(ErrorKind::Temporary));
+        assert_eq!(
+            outcome(Err(&NetError::Busy("BYE".into()))),
+            Outcome::Retry(ErrorKind::Temporary)
+        );
     }
 }

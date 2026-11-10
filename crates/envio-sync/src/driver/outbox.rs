@@ -8,7 +8,7 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 
 use super::Local;
 use crate::error::{ErrorKind, Result};
-use crate::plan::message_id::usable_message_id;
+use crate::plan::message_id::search_id;
 use crate::plan::outbox::{ItemStep, after_send, item_step};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
@@ -121,13 +121,11 @@ pub async fn file_sent(
                     }
                 }
                 // Sent can't be selected: this item and every later one
-                // that needs Sent stay, and the accepted ones are
-                // reported. Items settled before, or needing no Sent,
-                // still count.
+                // that needs Sent stay. The accepted ones are reported;
+                // a May have been sent one is asked about. Items settled
+                // before, or needing no Sent, still count.
                 if sent_refused {
-                    if step == ItemStep::File {
-                        filed.unfiled.push(item.id);
-                    }
+                    refused(&mut filed, step, item.id);
                     continue;
                 }
                 // Only an accepted item is appended; a May have been sent
@@ -142,9 +140,7 @@ pub async fn file_sent(
                     // won't take) leaves it in the Outbox, untouched, and
                     // doesn't hold up the others.
                     Err(error) if error.kind() == ErrorKind::Refused => {
-                        if step == ItemStep::File {
-                            filed.unfiled.push(item.id);
-                        }
+                        refused(&mut filed, step, item.id);
                         continue;
                     }
                     Err(error) => return Err(error),
@@ -164,6 +160,16 @@ pub async fn file_sent(
     Ok(filed)
 }
 
+/// Sent refused something for this item: an accepted one is reported as
+/// unfiled, a May have been sent one goes to the user to decide.
+fn refused(filed: &mut Filed, step: ItemStep, id: String) {
+    if step == ItemStep::File {
+        filed.unfiled.push(id);
+    } else {
+        filed.ask.push(id);
+    }
+}
+
 /// Looks for the item in the selected Sent folder and appends an accepted
 /// one (`append` is its text) that isn't there. True when it is now in Sent.
 async fn settle(
@@ -174,11 +180,10 @@ async fn settle(
 ) -> Result<bool> {
     // Without a usable id there is nothing to look for: a substring search
     // for "" would match any message.
-    let found = usable_message_id(&item.meta.message_id)
-        && !server
-            .search_message_id(&item.meta.message_id)
-            .await?
-            .is_empty();
+    let found = match search_id(&item.meta.message_id) {
+        Some(id) => !server.search_message_id(id).await?.is_empty(),
+        None => false,
+    };
     if let (false, Some(eml)) = (found, append) {
         server.append(path, &[Flag::Seen], eml).await?;
     }

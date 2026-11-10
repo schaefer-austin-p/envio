@@ -251,7 +251,7 @@ async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
         .await
         .unwrap();
     assert!(filed.removed.is_empty());
-    assert!(filed.ask.is_empty());
+    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
     assert_eq!(filed.unfiled, std::slice::from_ref(&accepted));
     assert_eq!(state(&store, &accepted), Some(SendState::Accepted));
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
@@ -279,7 +279,7 @@ async fn a_refused_sent_select_keeps_what_was_already_filed() {
         .unwrap();
     assert_eq!(filed.removed, std::slice::from_ref(&accepted));
     assert!(filed.unfiled.is_empty(), "it needed no Sent folder");
-    assert!(filed.ask.is_empty());
+    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
     assert_eq!(state(&store, &accepted), None);
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
 }
@@ -296,4 +296,66 @@ async fn with_no_folders_cached_an_accepted_item_is_left_in_the_outbox() {
     assert!(filed.removed.is_empty());
     assert!(filed.ask.is_empty());
     assert_eq!(state(&store, &id), Some(SendState::Accepted));
+}
+
+#[tokio::test]
+async fn a_maybe_sent_item_whose_sent_search_is_refused_is_asked() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let unsure = queue(&store, "two");
+    store
+        .outbox
+        .set_state(&unsure, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.fail_on("search_message_id", NetError::Refused("no search".into()));
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.removed.is_empty());
+    assert!(filed.unfiled.is_empty());
+    assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
+}
+
+#[tokio::test]
+async fn a_refused_sent_select_asks_for_maybe_sent_items() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let unsure = queue(&store, "two");
+    store
+        .outbox
+        .set_state(&unsure, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.unfiled.is_empty());
+    assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
+}
+
+#[tokio::test]
+async fn a_padded_message_id_is_searched_trimmed() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let item = NewOutboxItem {
+        account: ACCOUNT.into(),
+        message_id: " <out@example.org> ".into(),
+        queued_at_ms: NOW_MS,
+        from: "carol@example.org".into(),
+        recipients: vec!["dave@example.org".into()],
+    };
+    let id = store.outbox.enqueue(item, &eml("out")).unwrap().id;
+    store
+        .outbox
+        .set_state(&id, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.deliver_id("Sent", "out");
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(filed.removed, [id.as_str()]);
+    let trimmed = "search_message_id <out@example.org>".to_owned();
+    assert!(server.calls.contains(&trimmed));
 }

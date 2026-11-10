@@ -11,7 +11,7 @@ use crate::convert::net_flags;
 use crate::error::{ErrorKind, Result, SyncError, net_kind};
 use crate::plan::pending::Pending;
 use crate::plan::replay::{
-    Find, MoveRoute, Outcome, ServerOp, find, is_due, move_route, outcome, server_op,
+    Find, MoveRoute, Outcome, ServerOp, find, give_up, is_due, move_route, outcome, server_op,
 };
 use crate::schedule::Key;
 use crate::server::MailServer;
@@ -23,8 +23,12 @@ pub struct Replayed {
     pub done: usize,
     /// Refused for good and undone locally; core shows a notice for each.
     pub reverted: Vec<Action>,
-    /// Why the run stopped early, if it did. Temporary: the action waits
-    /// out its backoff. Sign-in or certificate: the account pauses.
+    /// Dropped after too many protocol failures: marked done without being
+    /// sent. Core resyncs the folder to show what the server has.
+    pub given_up: Vec<Action>,
+    /// Why the run stopped early, if it did, by its real kind. Temporary or
+    /// Protocol: the action waits out its backoff (or was given up).
+    /// Sign-in or certificate: the account pauses.
     pub stopped: Option<ErrorKind>,
 }
 
@@ -73,9 +77,15 @@ pub async fn replay(
                     break;
                 }
             }
-            Outcome::Retry => {
-                local.schedule.failed(key, now_ms);
-                replayed.stopped = Some(ErrorKind::Temporary);
+            Outcome::Retry(kind) => {
+                if give_up(kind, local.schedule.failures(&key)) {
+                    local.journal.done(action.seq)?;
+                    local.schedule.succeeded(&key);
+                    replayed.given_up.push(action);
+                } else {
+                    local.schedule.failed(key, now_ms);
+                }
+                replayed.stopped = Some(kind);
                 break;
             }
             Outcome::Stop(kind) => {
@@ -84,7 +94,7 @@ pub async fn replay(
             }
         }
     }
-    if replayed.done > 0 || !replayed.reverted.is_empty() {
+    if replayed.done > 0 || !replayed.reverted.is_empty() || !replayed.given_up.is_empty() {
         local.journal.compact()?;
     }
     Ok(replayed)
