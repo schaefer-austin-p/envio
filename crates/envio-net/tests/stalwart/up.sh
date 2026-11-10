@@ -10,7 +10,7 @@
 # runs that never reach their cleanup step.
 set -euo pipefail
 
-image=${STALWART_IMAGE:-stalwartlabs/stalwart:v1.0.3}
+image=${STALWART_IMAGE:-stalwartlabs/stalwart:v1.0.3@sha256:73c684a84c24f5b4206ec266a8deb8986fe44a9f623997e07f084388d943c8bd}
 name=${STALWART_NAME:-envio-stalwart}
 host=${STALWART_HOST:-127.0.0.1}
 admin="admin:envio-admin-$$"
