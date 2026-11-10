@@ -6,9 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
 
-# A newer push to a PR (or to master) cancels that ref's older run.
+# A newer push to a PR cancels that PR's older run. Runs outside a PR (pushes
+# to master, tags) each get a group of their own, so they run side by side
+# instead of cancelling each other.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 env:

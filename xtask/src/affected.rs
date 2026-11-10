@@ -21,12 +21,23 @@ pub enum Selection {
     None,
 }
 
-/// Files that change how every crate is built. manifest.json carries the
-/// version, which envio-core's tests check against the workspace version.
+/// Files that change how every crate is built, linted or tested.
+/// manifest.json carries the version, which envio-core's tests check
+/// against the workspace version; tools/ci/stalwart.sh is the server
+/// envio-net's integration tests run against.
 fn runs_everything(file: &Path) -> bool {
-    file == Path::new("Cargo.lock")
-        || file == Path::new("Cargo.toml")
-        || file == Path::new("manifest.json")
+    const FILES: &[&str] = &[
+        "Cargo.lock",
+        "Cargo.toml",
+        "manifest.json",
+        "clippy.toml",
+        "rustfmt.toml",
+        "rust-toolchain",
+        "rust-toolchain.toml",
+        "Makefile.toml",
+        "tools/ci/stalwart.sh",
+    ];
+    FILES.iter().any(|f| file == Path::new(f))
         || file.starts_with(".cargo")
         || file.starts_with(".forgejo")
 }
@@ -151,6 +162,12 @@ mod tests {
             "Cargo.lock",
             "Cargo.toml",
             "manifest.json",
+            "clippy.toml",
+            "rustfmt.toml",
+            "rust-toolchain",
+            "rust-toolchain.toml",
+            "Makefile.toml",
+            "tools/ci/stalwart.sh",
             ".cargo/config.toml",
             ".forgejo/workflows/ci.yml",
         ] {
