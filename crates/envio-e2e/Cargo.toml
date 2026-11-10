@@ -13,3 +13,10 @@ workspace = true
 
 [dependencies]
 envio-core = { path = "../envio-core" }
+
+[dev-dependencies]
+envio-net = { path = "../envio-net" }
+envio-store = { path = "../envio-store" }
+envio-sync = { path = "../envio-sync" }
+tempfile = "3"
+tokio = { version = "1.54", features = ["macros", "rt"] }
