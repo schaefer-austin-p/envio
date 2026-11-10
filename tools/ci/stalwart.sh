@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # CI only: starts Stalwart on the runner's shared dind daemon for
-# envio-net's integration tests and appends what the tests read to
-# $GITHUB_ENV. Locally, use `cargo make net-it` instead.
+# envio-net's and envio-e2e's integration tests and appends what the tests read to
+# $GITHUB_ENV. Locally, use `cargo make net-it` or `cargo make e2e-it` instead.
 #
 # The job container has no docker CLI and no DOCKER_HOST; the dind daemon
 # is its default gateway, listening on 2375, and ports Stalwart publishes

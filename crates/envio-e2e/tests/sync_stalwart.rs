@@ -34,16 +34,20 @@ async fn deliver(session: &mut ImapSession, subjects: &[&str]) -> Vec<String> {
     ids
 }
 
-async fn synced(server: &Stalwart, user: &User, subjects: &[&str]) -> (ImapSession, Store) {
+async fn synced(
+    server: &Stalwart,
+    user: &User,
+    subjects: &[&str],
+) -> (ImapSession, Store, Vec<String>) {
     let mut session = server.imap(&user.credentials()).await;
-    deliver(&mut session, subjects).await;
+    let ids = deliver(&mut session, subjects).await;
     let mut store = Store::new(user.name);
     clean(
         sync_account(&mut session, &mut store.local(), user.name, now_ms())
             .await
             .unwrap(),
     );
-    (session, store)
+    (session, store, ids)
 }
 
 #[tokio::test]
@@ -52,7 +56,7 @@ async fn a_first_sync_caches_the_inbox_and_a_second_fetches_nothing() {
         return;
     };
     let carol = User::new("carol");
-    let (mut session, mut store) = synced(&server, &carol, &["One", "Two"]).await;
+    let (mut session, mut store, _) = synced(&server, &carol, &["One", "Two"]).await;
     let mut subjects = store.subjects(FolderRole::Inbox);
     subjects.sort();
     assert_eq!(subjects, ["One", "Two"]);
@@ -64,6 +68,7 @@ async fn a_first_sync_caches_the_inbox_and_a_second_fetches_nothing() {
             .await
             .unwrap(),
     );
+    assert!(!again.folders.is_empty());
     assert!(again.folders.iter().all(|(_, synced)| synced.fetched == 0));
     session.logout().await.unwrap();
 }
@@ -74,7 +79,7 @@ async fn a_flag_change_reaches_the_server_after_the_undo_window() {
         return;
     };
     let dave = User::new("dave");
-    let (mut session, mut store) = synced(&server, &dave, &["Read me"]).await;
+    let (mut session, mut store, _) = synced(&server, &dave, &["Read me"]).await;
     let inbox = store.folder(FolderRole::Inbox);
     let message = store
         .db
@@ -113,7 +118,7 @@ async fn delete_with_undo_then_delete_for_real_moves_to_trash() {
         return;
     };
     let erin = User::new("erin");
-    let (mut session, mut store) = synced(&server, &erin, &["Keep", "Bin"]).await;
+    let (mut session, mut store, ids) = synced(&server, &erin, &["Keep", "Bin"]).await;
     let inbox = store.folder(FolderRole::Inbox);
     let page = envio_store::Page {
         offset: 0,
@@ -131,14 +136,27 @@ async fn delete_with_undo_then_delete_for_real_moves_to_trash() {
     let taken = record(&mut store.local(), pick("Keep"), ActionKind::Delete, now).unwrap();
     assert!(undo(&mut store.local(), &taken).unwrap());
     record(&mut store.local(), pick("Bin"), ActionKind::Delete, now).unwrap();
-    clean(
+    let run = clean(
         sync_account(&mut session, &mut store.local(), erin.name, now + UNDO_MS)
             .await
             .unwrap(),
     );
+    assert_eq!(run.replayed.done, 1);
+    assert!(run.replayed.reverted.is_empty());
     assert_eq!(store.subjects(FolderRole::Inbox), ["Keep"]);
     assert_eq!(store.subjects(FolderRole::Trash), ["Bin"]);
     session.logout().await.unwrap();
+    // The server, on a fresh session: Keep (ids[0]) in INBOX, Bin (ids[1])
+    // moved to Trash.
+    let trash_path = store.folder(FolderRole::Trash).path;
+    let mut fresh = server.imap(&erin.credentials()).await;
+    fresh.select("INBOX").await.unwrap();
+    assert_eq!(fresh.search_message_id(&ids[0]).await.unwrap().len(), 1);
+    assert!(fresh.search_message_id(&ids[1]).await.unwrap().is_empty());
+    fresh.select(&trash_path).await.unwrap();
+    assert_eq!(fresh.search_message_id(&ids[1]).await.unwrap().len(), 1);
+    assert!(fresh.search_message_id(&ids[0]).await.unwrap().is_empty());
+    fresh.logout().await.unwrap();
 }
 
 #[tokio::test]
@@ -147,7 +165,7 @@ async fn sent_mail_is_filed_in_sent_once_and_leaves_the_outbox() {
         return;
     };
     let frank = User::new("frank");
-    let (mut session, mut store) = synced(&server, &frank, &[]).await;
+    let (mut session, mut store, _) = synced(&server, &frank, &[]).await;
     let id = message_id();
     let item = NewOutboxItem {
         account: frank.name.into(),
@@ -169,11 +187,15 @@ async fn sent_mail_is_filed_in_sent_once_and_leaves_the_outbox() {
         .await
         .unwrap();
     assert_eq!(sent.accepted.len(), 1);
+    assert!(sent.failed.is_empty() && sent.unconfirmed.is_empty() && sent.stopped.is_none());
     smtp.quit().await.unwrap();
-    for _ in 0..2 {
-        file_sent(&mut session, &mut store.local(), frank.name, false)
+    for round in 0..2 {
+        let filed = file_sent(&mut session, &mut store.local(), frank.name, false)
             .await
             .unwrap();
+        assert!(filed.ask.is_empty());
+        // The first run files it; the second finds nothing left to do.
+        assert_eq!(filed.removed.len(), usize::from(round == 0));
     }
     assert!(store.outbox.items().unwrap().is_empty());
     let sent_path = store.folder(FolderRole::Sent).path;
