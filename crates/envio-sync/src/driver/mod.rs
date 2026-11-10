@@ -5,9 +5,11 @@
 
 mod actions;
 mod folders;
+mod replay;
 
 pub use actions::{Undo, record, undo};
 pub use folders::{Synced, fetch_body, sync_folder, sync_folders};
+pub use replay::{Replayed, replay};
 
 use envio_store::{Bodies, Db, Journal, Outbox};
 

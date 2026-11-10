@@ -1,5 +1,6 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use envio_net::imap::FlagUpdate;
 use envio_store::{BodyState, Folder, FolderId, MessageRowId};
 
 use super::Local;
@@ -123,7 +124,18 @@ async fn check_flags(
         FlagCheck::All => None,
     };
     let updates = server.fetch_flags(&plan.check, since).await?;
-    let changes = plan_flags(&local.db.flags_by_uid(id)?, &updates, pending);
+    apply_flags(local, id, &updates, pending)
+}
+
+/// Stores the server's flags for cached messages, pending changes on top;
+/// \Deleted ones leave the cache. Returns how many changed.
+pub(super) fn apply_flags(
+    local: &Local<'_>,
+    id: FolderId,
+    updates: &[FlagUpdate],
+    pending: &Pending,
+) -> Result<usize> {
+    let changes = plan_flags(&local.db.flags_by_uid(id)?, updates, pending);
     local.db.step(|db| {
         for (uid, flags) in &changes.set {
             db.set_flags(id, *uid, *flags)?;
