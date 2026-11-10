@@ -91,7 +91,7 @@ pub fn files_itself(smtp_host: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use envio_net::NetError;
+    use envio_net::{Fingerprint, NetError, Untrusted};
 
     use super::*;
 
@@ -109,11 +109,60 @@ mod tests {
         assert_eq!(item_step(&failed), ItemStep::Wait);
     }
 
+    fn fp(byte: u8) -> Fingerprint {
+        Fingerprint::from_bytes([byte; 32])
+    }
+
+    fn certificate_errors() -> Vec<NetError> {
+        vec![
+            NetError::Untrusted {
+                presented: fp(1),
+                reason: Untrusted::UnknownIssuer,
+            },
+            NetError::PinChanged {
+                pinned: fp(1),
+                presented: fp(2),
+            },
+            NetError::Tls("handshake".into()),
+            NetError::NoStartTls,
+        ]
+    }
+
+    fn every_error() -> Vec<NetError> {
+        let mut all = vec![
+            NetError::Io(std::io::Error::other("reset")),
+            NetError::Timeout,
+            NetError::Busy("421 later".into()),
+            NetError::Protocol("junk".into()),
+            NetError::Refused("550 no".into()),
+            NetError::SignIn("535".into()),
+        ];
+        all.extend(certificate_errors());
+        all
+    }
+
     #[test]
     fn an_unconfirmed_failure_is_never_retried() {
-        let after = after_send(&failed(NetError::Timeout, true));
-        assert_eq!(after.state, SendState::MayHaveBeenSent);
-        assert!(!after.retry);
+        for error in every_error() {
+            let label = format!("{error:?}");
+            let after = after_send(&failed(error, true));
+            assert_eq!(after.state, SendState::MayHaveBeenSent, "{label}");
+            assert!(!after.retry, "{label}");
+            assert_eq!(after.stop, None, "{label}");
+        }
+    }
+
+    #[test]
+    fn sign_in_and_certificate_failures_stop_without_retrying() {
+        let mut errors = certificate_errors();
+        errors.push(NetError::SignIn("535".into()));
+        for error in errors {
+            let label = format!("{error:?}");
+            let after = after_send(&failed(error, false));
+            assert!(!after.retry, "{label}");
+            assert!(after.stop.is_some(), "{label}");
+            assert_eq!(after.state, SendState::Queued, "{label}");
+        }
     }
 
     #[test]

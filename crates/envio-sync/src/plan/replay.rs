@@ -113,6 +113,8 @@ pub fn outcome(result: Result<(), &NetError>) -> Outcome {
 
 #[cfg(test)]
 mod tests {
+    use envio_net::{Fingerprint, Untrusted};
+
     use super::*;
 
     fn action(folder: &str, kind: ActionKind) -> Action {
@@ -209,5 +211,39 @@ mod tests {
             outcome(Err(&NetError::NoStartTls)),
             Outcome::Stop(ErrorKind::Certificate)
         );
+    }
+
+    #[test]
+    fn sign_in_and_certificate_errors_stop_and_never_retry() {
+        let fp = |byte| Fingerprint::from_bytes([byte; 32]);
+        let cases = [
+            (NetError::SignIn("no".into()), ErrorKind::SignIn),
+            (
+                NetError::Untrusted {
+                    presented: fp(1),
+                    reason: Untrusted::UnknownIssuer,
+                },
+                ErrorKind::Certificate,
+            ),
+            (
+                NetError::PinChanged {
+                    pinned: fp(1),
+                    presented: fp(2),
+                },
+                ErrorKind::Certificate,
+            ),
+            (NetError::Tls("x".into()), ErrorKind::Certificate),
+            (NetError::NoStartTls, ErrorKind::Certificate),
+        ];
+        for (error, kind) in cases {
+            assert_eq!(outcome(Err(&error)), Outcome::Stop(kind), "{error:?}");
+        }
+    }
+
+    #[test]
+    fn busy_and_network_errors_retry() {
+        let io = NetError::Io(std::io::Error::other("reset"));
+        assert_eq!(outcome(Err(&io)), Outcome::Retry);
+        assert_eq!(outcome(Err(&NetError::Busy("BYE".into()))), Outcome::Retry);
     }
 }
