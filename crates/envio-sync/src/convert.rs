@@ -60,17 +60,25 @@ pub fn new_message(summary: &Summary) -> NewMessage {
     }
 }
 
+/// A cached message as a row to write back (Undo puts a removed one back).
+pub fn row_of(message: &Message) -> NewMessage {
+    NewMessage {
+        uid: message.uid,
+        size: message.size,
+        envelope: message.envelope.clone(),
+        flags: message.flags,
+        preview: message.preview.clone(),
+    }
+}
+
 /// `message`'s row again with what the whole message adds: the preview.
 pub fn with_body(message: &Message, eml: &[u8]) -> NewMessage {
     let preview = envio_mime::envelope(eml)
         .map(|parsed| parsed.preview)
         .unwrap_or_default();
     NewMessage {
-        uid: message.uid,
-        size: message.size,
-        envelope: message.envelope.clone(),
-        flags: message.flags,
         preview,
+        ..row_of(message)
     }
 }
 

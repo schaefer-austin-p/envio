@@ -37,9 +37,15 @@ pub struct FakeServer {
     pub caps: Caps,
     pub folders: BTreeMap<String, FakeFolder>,
     selected: Option<String>,
-    failures: Vec<(&'static str, NetError)>,
+    failures: Vec<Failure>,
     /// Every operation, in order, e.g. `select INBOX`.
     pub calls: Vec<String>,
+}
+
+struct Failure {
+    op: &'static str,
+    skip: usize,
+    error: NetError,
 }
 
 impl FakeServer {
@@ -94,7 +100,12 @@ impl FakeServer {
 
     /// The next call of `op` (e.g. "select", "move_to") fails with `error`.
     pub fn fail_on(&mut self, op: &'static str, error: NetError) {
-        self.failures.push((op, error));
+        self.fail_after(op, 0, error);
+    }
+
+    /// The call of `op` after `skip` successful ones fails with `error`.
+    pub fn fail_after(&mut self, op: &'static str, skip: usize, error: NetError) {
+        self.failures.push(Failure { op, skip, error });
     }
 
     pub fn uids(&self, path: &str) -> Vec<u32> {
@@ -139,10 +150,14 @@ impl FakeServer {
     fn call(&mut self, op: &'static str, detail: &str) -> Result<()> {
         self.calls
             .push(format!("{op} {detail}").trim_end().to_owned());
-        match self.failures.iter().position(|(failing, _)| *failing == op) {
-            Some(at) => Err(self.failures.remove(at).1),
-            None => Ok(()),
+        let Some(at) = self.failures.iter().position(|failure| failure.op == op) else {
+            return Ok(());
+        };
+        if self.failures[at].skip > 0 {
+            self.failures[at].skip -= 1;
+            return Ok(());
         }
+        Err(self.failures.remove(at).error)
     }
 
     fn selected(&mut self) -> Result<&mut FakeFolder> {
