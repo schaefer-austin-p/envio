@@ -5,6 +5,7 @@
 
 mod append;
 mod client;
+mod idle;
 pub mod names;
 mod ops;
 pub mod query;
@@ -18,6 +19,7 @@ use crate::server::{Credentials, Endpoint};
 use crate::tls::Roots;
 use client::{Stream, map_error};
 
+pub use idle::{IDLE_MAX, Woke};
 pub use names::Role;
 pub use ops::SCAN;
 pub use query::{Flag, MessageFlags};
@@ -152,8 +154,8 @@ impl ImapSession {
         self.caps
     }
 
-    /// A round trip that keeps the connection alive. Unsolicited responses
-    /// (new mail, expunges) are not surfaced yet.
+    /// A round trip that keeps the connection alive; afterwards
+    /// `take_changes` says whether the folder changed.
     pub async fn noop(&mut self) -> Result<()> {
         connect::within(async { self.session.noop().await.map_err(map_error) }).await
     }
