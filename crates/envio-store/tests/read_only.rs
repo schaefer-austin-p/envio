@@ -40,6 +40,8 @@ fn item() -> NewOutboxItem {
         account: "1".into(),
         message_id: "<a@example.org>".into(),
         queued_at_ms: 5,
+        from: "ada@example.org".into(),
+        recipients: vec!["bob@example.org".into()],
     }
 }
 

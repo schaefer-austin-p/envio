@@ -11,6 +11,7 @@ mod error;
 mod folders;
 mod ids;
 mod journal;
+mod lookup;
 mod messages;
 mod migrate;
 mod outbox;

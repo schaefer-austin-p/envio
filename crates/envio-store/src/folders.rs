@@ -67,9 +67,9 @@ pub struct Folder {
     pub sync: Option<SyncState>,
 }
 
-const COLUMNS: &str = "id, account, path, role, uidvalidity, uidnext, highestmodseq";
+pub(crate) const COLUMNS: &str = "id, account, path, role, uidvalidity, uidnext, highestmodseq";
 
-fn from_row(row: &Row<'_>) -> rusqlite::Result<Folder> {
+pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Folder> {
     let role: String = row.get(3)?;
     let uidvalidity: Option<u32> = row.get(4)?;
     let uidnext: Option<u32> = row.get(5)?;

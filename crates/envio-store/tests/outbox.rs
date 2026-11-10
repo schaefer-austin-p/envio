@@ -7,6 +7,8 @@ fn new(queued_at_ms: i64) -> NewOutboxItem {
         account: "1700".into(),
         message_id: format!("<{queued_at_ms}@example.org>"),
         queued_at_ms,
+        from: "ada@example.org".into(),
+        recipients: vec!["bob@example.org".into()],
     }
 }
 
@@ -81,6 +83,17 @@ fn a_failure_reason_is_kept() {
             .state,
         failed
     );
+}
+
+#[test]
+fn the_smtp_envelope_is_kept_across_state_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    outbox.set_state(&item.id, SendState::Sending).unwrap();
+    let meta = &Outbox::open(dir.path()).unwrap().items().unwrap()[0].meta;
+    assert_eq!(meta.from, "ada@example.org");
+    assert_eq!(meta.recipients, ["bob@example.org"]);
 }
 
 #[test]

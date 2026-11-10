@@ -5,6 +5,7 @@ use envio_store::{
 fn message(uid: u32, subject: &str, date: i64) -> NewMessage {
     NewMessage {
         uid,
+        size: 1_000,
         envelope: Envelope {
             message_id: Some(format!("<{uid}@example.org>")),
             subject: subject.into(),
