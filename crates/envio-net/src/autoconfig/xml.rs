@@ -18,6 +18,8 @@ enum Kind {
 
 #[derive(Default)]
 struct Server {
+    /// Set at the first `<hostname>`; later ones are ignored.
+    hostname_seen: bool,
     hostname: String,
     port: String,
     socket_type: String,
@@ -50,7 +52,15 @@ pub fn parse(xml: &str, email: &str) -> Option<Candidates> {
                     ("outgoingServer", Some("smtp")) => {
                         server = Some((Kind::Smtp, Server::default()))
                     }
-                    _ => field = Some(name),
+                    ("hostname", _) if server.as_ref().is_some_and(|(_, s)| s.hostname_seen) => {
+                        field = None;
+                    }
+                    _ => {
+                        if let (Some((_, s)), "hostname") = (server.as_mut(), name.as_str()) {
+                            s.hostname_seen = true;
+                        }
+                        field = Some(name);
+                    }
                 }
             }
             Event::Text(t) => push_text(&mut server, field.as_deref(), &t.xml10_content()),
@@ -106,9 +116,15 @@ fn setting(s: &Server, email: &str) -> Option<Setting> {
     if !is_hostname(&host) {
         return None;
     }
+    // No username (or an empty one) means the full address, which is
+    // what most providers use.
+    let username = match s.username.trim() {
+        "" => email.trim().to_owned(),
+        template => fill(template, email),
+    };
     Some(Setting {
         endpoint: Endpoint::new(&host, port, security),
-        username: fill(s.username.trim(), email),
+        username,
     })
 }
 
@@ -163,6 +179,32 @@ mod tests {
             Endpoint::new("smtp.example.org", 587, Security::StartTls)
         );
         assert_eq!(found.smtp[0].username, "jo@example.org");
+    }
+
+    #[test]
+    fn a_missing_or_empty_username_is_the_email_address() {
+        let server = |username: &str| {
+            format!(
+                "<clientConfig><incomingServer type=\"imap\"><hostname>imap.b.c</hostname>\
+                 <port>993</port><socketType>SSL</socketType>{username}</incomingServer></clientConfig>"
+            )
+        };
+        for username in ["", "<username></username>", "<username>  </username>"] {
+            let found = parse(&server(username), "jo@b.c").unwrap();
+            assert_eq!(found.imap[0].username, "jo@b.c", "{username:?}");
+        }
+    }
+
+    #[test]
+    fn the_first_of_several_hostnames_wins() {
+        let xml = r#"<clientConfig><incomingServer type="imap">
+          <hostname>imap.b.c</hostname><hostname>imap2.b.c</hostname>
+          <port>993</port><socketType>SSL</socketType></incomingServer></clientConfig>"#;
+        let found = parse(xml, "jo@b.c").unwrap();
+        assert_eq!(
+            found.imap[0].endpoint,
+            Endpoint::new("imap.b.c", 993, Security::Tls)
+        );
     }
 
     #[test]
