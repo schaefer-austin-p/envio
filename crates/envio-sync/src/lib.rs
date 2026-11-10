@@ -9,6 +9,7 @@ pub mod convert;
 pub mod error;
 pub mod plan;
 pub mod schedule;
+pub mod server;
 
 pub use error::{ErrorKind, Result, SyncError};
 pub use schedule::{Key, POLL_MS, Schedule, UNDO_MS};
