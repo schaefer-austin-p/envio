@@ -130,6 +130,24 @@ fn unflow(text: &str, delsp: bool) -> Vec<Line> {
     out
 }
 
+/// format=flowed text joined into whole lines for quoting: soft breaks are
+/// removed per [`unflow`], quote depth prefixes (`> `) are put back, every
+/// line ends in `\n`.
+pub(crate) fn unflow_text(text: &str, delsp: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in unflow(text, delsp) {
+        for _ in 0..line.depth {
+            out.push('>');
+        }
+        if line.depth > 0 && !line.text.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(&line.text);
+        out.push('\n');
+    }
+    out
+}
+
 /// Escapes `line` into `out`, turning addresses into links. The link text
 /// is the address exactly as written; `www.` links get `https://`.
 fn linkify(line: &str, out: &mut String) {
