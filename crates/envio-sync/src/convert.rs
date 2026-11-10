@@ -184,4 +184,27 @@ mod tests {
         assert_eq!(full.envelope, cached.envelope);
         assert_eq!(full.size, 3_456);
     }
+
+    #[test]
+    fn flags_round_trip_for_every_combination() {
+        let bits = [
+            Flags::SEEN,
+            Flags::ANSWERED,
+            Flags::FLAGGED,
+            Flags::DELETED,
+            Flags::DRAFT,
+        ];
+        for combo in 0u8..32 {
+            let flags = bits
+                .iter()
+                .enumerate()
+                .filter(|(n, _)| combo & (1 << n) != 0)
+                .fold(Flags::empty(), |all, (_, bit)| all.with(*bit));
+            assert_eq!(
+                store_flags(&MessageFlags::from_flags(net_flags(flags))),
+                flags,
+                "combination {combo:05b}"
+            );
+        }
+    }
 }

@@ -125,6 +125,11 @@ impl FakeServer {
         });
     }
 
+    /// Drops the failures that haven't fired yet.
+    pub fn clear_failures(&mut self) {
+        self.failures.clear();
+    }
+
     pub fn uids(&self, path: &str) -> Vec<u32> {
         self.folders[path].messages.keys().copied().collect()
     }
