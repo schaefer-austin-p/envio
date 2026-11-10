@@ -6,6 +6,7 @@
 mod connect;
 pub mod error;
 pub mod server;
+pub mod smtp;
 pub mod tls;
 pub mod trust;
 mod verifier;
