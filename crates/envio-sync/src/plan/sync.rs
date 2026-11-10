@@ -384,6 +384,62 @@ mod tests {
         assert_eq!((rows[0].uid, rows[0].flags), (1, Flags::SEEN));
     }
 
+    fn moved(uid: u32) -> Action {
+        let mut action = delete(uid);
+        action.kind = ActionKind::Move {
+            to: "Archive".into(),
+        };
+        action
+    }
+
+    #[test]
+    fn a_message_with_a_pending_move_is_not_fetched_or_cached() {
+        let actions = [moved(12)];
+        let pending = Pending::of(&actions, "1700", "INBOX", 7);
+        let plan = plan_folder(
+            &view(
+                server(7, 20, None),
+                &[10, 12, 13],
+                Some(state(7, 13, None)),
+                &[10],
+            ),
+            &pending,
+        );
+        assert_eq!(plan.fetch, [vec![13]]);
+        let summary = |uid| Summary {
+            uid,
+            flags: MessageFlags::from_flags([]),
+            size: 10,
+            internal_date: Some(1_800_000_000),
+            modseq: None,
+            header: b"Subject: x\r\n\r\n".to_vec(),
+        };
+        let kept = rows(&[summary(12), summary(13)], &pending);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].uid, 13);
+    }
+
+    #[test]
+    fn rows_carry_pending_flags_over_the_servers() {
+        let mut unread = delete(1);
+        unread.kind = ActionKind::SetFlags {
+            add: Flags::FLAGGED,
+            remove: Flags::SEEN,
+        };
+        let actions = [unread];
+        let pending = Pending::of(&actions, "1700", "INBOX", 7);
+        let summary = Summary {
+            uid: 1,
+            flags: MessageFlags::from_flags([Flag::Seen]),
+            size: 10,
+            internal_date: Some(1_800_000_000),
+            modseq: None,
+            header: b"Subject: x\r\n\r\n".to_vec(),
+        };
+        let kept = rows(&[summary], &pending);
+        assert_eq!(kept[0].flags, Flags::FLAGGED);
+    }
+
     #[test]
     fn the_window_starts_thirty_days_back() {
         assert_eq!(window_start(1_800_000_000_000), 1_800_000_000 - 2_592_000);
