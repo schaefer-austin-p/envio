@@ -61,10 +61,14 @@ pub fn request(url: &Url) -> String {
     )
 }
 
-/// Whether a redirect may point at `host`. Localhost and IP literals are
-/// refused, and so are the legacy IPv4 forms that the resolver reads as
-/// addresses (an all-digit or `0x` last label, e.g. `2130706433`, `127.1`,
-/// `0x7f.0x1`), so a redirect cannot aim the handshake at the machine or LAN.
+/// Whether a redirect may point at `host`. This is a check on the name
+/// only: it refuses `localhost`, IP literals and the legacy IPv4 spellings
+/// a resolver reads as addresses (an all-digit or `0x` last label, e.g.
+/// `2130706433`, `127.1`, `0x7f.0x1`). It does not stop a public name that
+/// resolves to a private or loopback address (DNS rebinding, or a record
+/// the owner pointed at their LAN), and it allows any port. Autoconfig
+/// hosts also need a certificate the system trusts, which limits what a
+/// redirect can reach but is not a network boundary.
 pub fn allowed_redirect_host(host: &str) -> bool {
     let host = host.strip_suffix('.').unwrap_or(host).to_ascii_lowercase();
     let local = host == "localhost" || host.ends_with(".localhost");
@@ -185,9 +189,31 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
     }
 }
 
+/// [`parse_reply`], for bytes read until the stream ended. `clean` is
+/// whether it ended with a close_notify (or the cap); if not, the reply
+/// stands only when it was already complete by its own framing. A body with
+/// no Content-Length would otherwise be accepted cut short.
+pub fn finish_reply(raw: &[u8], clean: bool) -> Reply {
+    if clean || reply_complete(raw) {
+        parse_reply(raw)
+    } else {
+        Reply::Nothing
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_unclean_end_refuses_a_reply_without_a_length() {
+        let cut = b"HTTP/1.0 200 OK\r\n\r\n<clientConf";
+        assert_eq!(finish_reply(cut, true), Reply::Body("<clientConf".into()));
+        assert_eq!(finish_reply(cut, false), Reply::Nothing);
+        // A body whole by its Content-Length doesn't depend on the close.
+        let whole = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi";
+        assert_eq!(finish_reply(whole, false), Reply::Body("hi".into()));
+    }
 
     #[test]
     fn only_https_urls_parse() {

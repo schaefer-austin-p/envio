@@ -56,28 +56,30 @@ async fn fetch_once(url: Url, roots: &Roots) -> Result<Reply> {
     // No pin: autoconfig hosts must have a certificate the system trusts.
     let endpoint = Endpoint::new(&url.host, url.port, Security::Tls);
     let mut stream = tls::connect(&endpoint, roots).await?;
-    let raw = connect::within(async {
+    let (raw, clean) = connect::within(async {
         stream.write_all(http::request(&url).as_bytes()).await?;
         Ok(read_reply(&mut stream).await?)
     })
     .await?;
-    Ok(http::parse_reply(&raw))
+    Ok(http::finish_reply(&raw, clean))
 }
 
 /// Reads until the reply is complete, the peer closes, or the reply is
-/// over the cap. A peer that drops TCP without close_notify also ends it.
-async fn read_reply<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<Vec<u8>> {
+/// over the cap. The flag is false when the peer dropped TCP without
+/// close_notify (rustls reports that as `UnexpectedEof`): what was read may
+/// be cut short.
+async fn read_reply<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<(Vec<u8>, bool)> {
     let mut raw = Vec::new();
     let mut chunk = [0u8; 8192];
     while !http::reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
         match stream.read(&mut chunk).await {
             Ok(0) => break,
             Ok(n) => raw.extend_from_slice(&chunk[..n]),
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok((raw, false)),
             Err(e) => return Err(e),
         }
     }
-    Ok(raw)
+    Ok((raw, true))
 }
 
 #[cfg(test)]

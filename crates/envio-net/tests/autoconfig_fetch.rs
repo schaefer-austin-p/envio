@@ -24,6 +24,8 @@ const CONFIG: &str = "<clientConfig version=\"1.1\"><emailProvider id=\"x\">\
 enum Action {
     /// Write the bytes, then close.
     Send(Vec<u8>),
+    /// Write the bytes, then drop the socket without close_notify.
+    Drop(Vec<u8>),
     /// Write the bytes, then keep the connection open until the client goes.
     Hold(Vec<u8>),
     /// Never answer; keep the connection open until the client goes.
@@ -80,6 +82,11 @@ fn serve(listener: TcpListener, ca: &Ca, handler: impl Fn(&str) -> Action + Send
                     Action::Send(bytes) => {
                         let _ = tls.write_all(&bytes).await;
                         let _ = tls.shutdown().await;
+                    }
+                    Action::Drop(bytes) => {
+                        let _ = tls.write_all(&bytes).await;
+                        let _ = tls.flush().await;
+                        drop(tls);
                     }
                     Action::Hold(bytes) => {
                         let _ = tls.write_all(&bytes).await;
@@ -250,4 +257,29 @@ async fn a_stalled_server_is_cut_off_by_the_fetch_limit() {
         None
     );
     assert!(started.elapsed() < Duration::from_secs(5));
+}
+
+#[tokio::test]
+async fn a_body_cut_off_without_close_notify_is_refused() {
+    // No Content-Length, so only a clean end of stream says the body is
+    // whole; the socket dropped mid-body is not one.
+    let ca = Ca::new();
+    let (listener, port) = bind().await;
+    serve(listener, &ca, |path| match path {
+        "/cut" => Action::Drop(format!("HTTP/1.0 200 OK\r\n\r\n{}", &CONFIG[..40]).into_bytes()),
+        "/whole" => Action::Send(format!("HTTP/1.0 200 OK\r\n\r\n{CONFIG}").into_bytes()),
+        _ => not_found(),
+    });
+    let trusted = Internet::with_fetch_limit(Roots::from_der([ca.der()]), Duration::from_secs(2));
+    assert_eq!(
+        trusted
+            .fetch(&format!("https://localhost:{port}/cut"))
+            .await,
+        None
+    );
+    // A clean close still delivers a length-less body.
+    let whole = trusted
+        .fetch(&format!("https://localhost:{port}/whole"))
+        .await;
+    assert_eq!(whole.as_deref(), Some(CONFIG));
 }
