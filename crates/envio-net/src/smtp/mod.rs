@@ -112,7 +112,10 @@ fn map_error(error: lettre::transport::smtp::Error, signing_in: bool) -> NetErro
     if error.is_timeout() {
         return NetError::Timeout;
     }
-    if error.is_client() || error.is_response() {
+    if error.is_client() {
+        return client_error(error.to_string());
+    }
+    if error.is_response() {
         return NetError::Protocol(error.to_string());
     }
     NetError::Io(std::io::Error::new(
@@ -121,9 +124,30 @@ fn map_error(error: lettre::transport::smtp::Error, signing_in: bool) -> NetErro
     ))
 }
 
+/// lettre has no kind for "the server offers none of our AUTH
+/// mechanisms" (it is a plain client error with this text), but for the
+/// user it is a sign-in problem, not a broken protocol.
+fn client_error(text: String) -> NetError {
+    if text.contains("No compatible authentication mechanism") {
+        NetError::SignIn(text)
+    } else {
+        NetError::Protocol(text)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_common_auth_mechanism_is_a_sign_in_problem() {
+        let text = "internal client error: No compatible authentication mechanism was found";
+        assert!(matches!(client_error(text.into()), NetError::SignIn(_)));
+        assert!(matches!(
+            client_error("internal client error: response too long".into()),
+            NetError::Protocol(_)
+        ));
+    }
 
     #[test]
     fn an_envelope_needs_real_addresses() {
