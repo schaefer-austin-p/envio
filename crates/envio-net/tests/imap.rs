@@ -228,3 +228,23 @@ async fn a_move_without_move_or_uidplus_expunges_nothing() {
         "{commands:?}"
     );
 }
+
+#[tokio::test]
+async fn untagged_warnings_during_append_do_not_end_it() {
+    for warning in ["* NO [ALERT] mailbox nearly full\r\n", "* BAD odd line\r\n"] {
+        let cert = Cert::self_signed("localhost");
+        let script = Script {
+            implicit: true,
+            before_append_ok: warning,
+            ..Script::default()
+        };
+        let (session, _, _) = open(&cert, script).await;
+        let mut session = session.unwrap();
+        // The server stored the message: its tagged OK follows the warning.
+        session
+            .append("Sent", &[], b"Subject: hi\r\n\r\nbody\r\n")
+            .await
+            .unwrap_or_else(|e| panic!("{warning:?}: {e:?}"));
+        session.logout().await.unwrap();
+    }
+}

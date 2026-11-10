@@ -1,8 +1,8 @@
 //! A scripted IMAP server, in process, that records what the client says.
 //! Just enough for the connect path: greeting, STARTTLS, LOGIN,
-//! CAPABILITY, NOOP, LOGOUT.
+//! CAPABILITY, NOOP, APPEND, LOGOUT.
 
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
 use super::certs::Cert;
@@ -22,6 +22,9 @@ pub struct Script {
     pub login: &'static str,
     /// The CAPABILITY words after IMAP4rev1, e.g. "IDLE UIDPLUS".
     pub capabilities: &'static str,
+    /// Untagged lines (each ending in CRLF) sent after an APPEND's
+    /// literal, before its tagged OK.
+    pub before_append_ok: &'static str,
 }
 
 impl Default for Script {
@@ -33,6 +36,7 @@ impl Default for Script {
             inject: "",
             login: "OK signed in",
             capabilities: "IDLE UIDPLUS",
+            before_append_ok: "",
         }
     }
 }
@@ -102,6 +106,23 @@ async fn line<S: AsyncRead + Unpin>(
     }
 }
 
+/// Asks for an APPEND's `{n}` literal and reads it with its CRLF.
+async fn literal<S: AsyncRead + AsyncWrite + Unpin>(io: &mut BufReader<S>, command: &str) -> bool {
+    let size = command
+        .rsplit('{')
+        .next()
+        .and_then(|rest| rest.strip_suffix('}'))
+        .and_then(|n| n.parse::<usize>().ok());
+    let Some(size) = size else {
+        return false;
+    };
+    if io.write_all(b"+ go\r\n").await.is_err() {
+        return false;
+    }
+    let mut body = vec![0; size + 2];
+    io.read_exact(&mut body).await.is_ok()
+}
+
 async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     io: &mut BufReader<S>,
     script: Script,
@@ -118,6 +139,12 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                 script.capabilities
             ),
             "NOOP" => format!("{tag} OK done\r\n"),
+            "APPEND" => {
+                if !literal(io, &command).await {
+                    return;
+                }
+                format!("{}{tag} OK stored\r\n", script.before_append_ok)
+            }
             // Accepted and recorded; the tests read the transcript.
             "EXPUNGE" => format!("{tag} OK done\r\n"),
             "UID" if matches!(sub_verb.as_str(), "COPY" | "STORE" | "EXPUNGE") => {
