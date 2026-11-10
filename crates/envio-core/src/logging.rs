@@ -71,7 +71,13 @@ impl log::Log for FileLog {
         if !self.enabled(r.metadata()) {
             return;
         }
-        let line = format!("{} {} {}: {}\n", now_ms(), r.level(), r.target(), r.args());
+        // A message must not be able to start a line of its own.
+        let message = r
+            .args()
+            .to_string()
+            .replace('\r', "\\r")
+            .replace('\n', "\\n");
+        let line = format!("{} {} {}: {message}\n", now_ms(), r.level(), r.target());
         if let Ok(mut sink) = self.out.lock() {
             let _ = sink.write_line(line.as_bytes());
         }

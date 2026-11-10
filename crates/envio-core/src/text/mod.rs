@@ -41,6 +41,17 @@ mod tests {
     // xgettext's C scanner reads a single quote as a character literal and
     // loses the rest of the file, so text files use none (and no lifetimes).
     #[test]
+    fn the_scanner_flags_code_quotes_but_not_quotes_in_text() {
+        let q = SINGLE_QUOTE;
+        let lifetime = format!("fn f(x: &{q}a str) {{}}");
+        let char_literal = format!("let c = {q}x{q};");
+        let in_string = format!("tr(\"don{q}t\") // it{q}s fine");
+        assert!(code_only(&lifetime).contains(q));
+        assert!(code_only(&char_literal).contains(q));
+        assert!(!code_only(&in_string).contains(q));
+    }
+
+    #[test]
     fn text_files_have_no_char_literals_or_lifetimes() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/text");
         for entry in std::fs::read_dir(dir).unwrap() {

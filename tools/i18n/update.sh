@@ -20,7 +20,7 @@ ls crates/envio-core/src/text/*.rs | LC_ALL=C sort | xgettext --files-from=- --o
 
 # Older xgettext (the CI image) leaves charset=CHARSET after a join; newer
 # ones write UTF-8. Pin it so every version produces the same file.
-sed -i 's/charset=CHARSET/charset=UTF-8/' "$new"
+sed -i '/^"Content-Type:/s/charset=CHARSET/charset=UTF-8/' "$new"
 
 # The creation date changes every run; compare without it.
 strip() { grep -v '^"POT-Creation-Date:' "$1" || true; }

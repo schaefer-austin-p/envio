@@ -90,3 +90,18 @@ fn the_log_file_rotates_at_one_mib() {
     logging::rotate_if_needed_for_test(&path);
     assert!(path.exists());
 }
+
+#[test]
+fn newlines_in_a_message_cannot_forge_log_lines() {
+    captured();
+    log::info!(target: "envio_core::x", "first\nforged-marker-5 INFO fake\r\nsecond");
+    let out = captured();
+    assert!(
+        !out.lines().any(|l| l.starts_with("forged-marker-5")),
+        "{out}"
+    );
+    assert!(
+        out.contains(r"first\nforged-marker-5 INFO fake\r\nsecond"),
+        "{out}"
+    );
+}
