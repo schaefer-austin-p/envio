@@ -9,6 +9,7 @@ use envio_store::{
 fn message(uid: u32, date: i64) -> NewMessage {
     NewMessage {
         uid,
+        size: 1_000,
         envelope: Envelope {
             date,
             ..Envelope::default()

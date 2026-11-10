@@ -75,9 +75,10 @@ jobs:
           echo "args=$args" >>"$GITHUB_OUTPUT"
           echo "Testing: ${args:-no crates changed}"
 
-      - name: Start Stalwart (envio-net integration tests)
+      # Always: the cross-crate step below runs on every PR and needs it
+      # (one start serves envio-net's tests and envio-e2e's).
+      - name: Start Stalwart (envio-net integration tests, envio-e2e sync tests)
         id: stalwart
-        if: contains(steps.pick.outputs.args, 'envio-net') || startsWith(steps.pick.outputs.args, '--workspace')
         run: tools/ci/stalwart.sh
 
       - name: Unit and crate integration tests (changed crates)

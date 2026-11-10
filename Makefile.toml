@@ -59,7 +59,7 @@ docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
 '''
 
 [tasks.net-it]
-description = "envio-net's tests against a throwaway Stalwart in local Docker"
+description = "envio-net's tests (the same Stalwart serves envio-e2e's, see e2e-it) against a throwaway Stalwart in local Docker"
 script = '''
 set -eu
 # Removed on exit, whatever the tests did; a failed start fails the task.
@@ -67,6 +67,16 @@ trap 'docker rm -f "${STALWART_NAME:-envio-stalwart}" >/dev/null 2>&1 || true' E
 settings=$(crates/envio-net/tests/stalwart/up.sh)
 eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-net
+'''
+
+[tasks.e2e-it]
+description = "envio-e2e's tests (sync over net into store) against a throwaway Stalwart in local Docker"
+script = '''
+set -eu
+trap 'docker rm -f "${STALWART_NAME:-envio-stalwart}" >/dev/null 2>&1 || true' EXIT
+settings=$(crates/envio-net/tests/stalwart/up.sh)
+eval "$settings"
+ENVIO_REQUIRE_STALWART=1 cargo test -p envio-e2e
 '''
 
 [tasks.ci]

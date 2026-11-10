@@ -30,6 +30,12 @@ pub struct Script {
     pub signed_out_capabilities: &'static str,
     /// The decoded AUTHENTICATE PLAIN answer the server accepts.
     pub plain_accepts: &'static str,
+    /// IDLE is answered with `+ idling` and then `* OK Still here` every
+    /// 100 ms until DONE.
+    pub keepalive: bool,
+    /// Untagged lines (each ending in CRLF) sent after the client's DONE,
+    /// before IDLE's tagged OK.
+    pub before_idle_ok: &'static str,
 }
 
 impl Default for Script {
@@ -44,6 +50,8 @@ impl Default for Script {
             before_append_ok: "",
             signed_out_capabilities: "",
             plain_accepts: "\0alice\0pässwort",
+            keepalive: false,
+            before_idle_ok: "",
         }
     }
 }
@@ -169,17 +177,14 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
-            "NOOP" => format!("{tag} OK done\r\n"),
+            "IDLE" => idle_reply(io, log, &tag, &script).await,
+            // Accepted and recorded; the tests read the transcript.
+            _ if accepted(&verb, &sub_verb) => format!("{tag} OK done\r\n"),
             "APPEND" => {
                 if !literal(io, &command).await {
                     return;
                 }
                 format!("{}{tag} OK stored\r\n", script.before_append_ok)
-            }
-            // Accepted and recorded; the tests read the transcript.
-            "EXPUNGE" => format!("{tag} OK done\r\n"),
-            "UID" if matches!(sub_verb.as_str(), "COPY" | "STORE" | "EXPUNGE") => {
-                format!("{tag} OK done\r\n")
             }
             "LOGOUT" => {
                 let _ = io
@@ -193,6 +198,54 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
             return;
         }
     }
+}
+
+/// The commands that are accepted and recorded, nothing more.
+fn accepted(verb: &str, sub_verb: &str) -> bool {
+    matches!(verb, "NOOP" | "EXPUNGE")
+        || (verb == "UID" && matches!(sub_verb, "COPY" | "STORE" | "EXPUNGE"))
+}
+
+/// Answers IDLE, keeps it alive until DONE and returns the tagged reply;
+/// empty if the connection ended first (the caller's next read then ends
+/// the session).
+async fn idle_reply<S: AsyncRead + AsyncWrite + Unpin>(
+    io: &mut BufReader<S>,
+    log: &Transcript,
+    tag: &str,
+    script: &Script,
+) -> String {
+    if !script.keepalive {
+        return format!("{tag} BAD what\r\n");
+    }
+    if io.write_all(b"+ idling\r\n").await.is_ok() && keepalives_until_done(io, log).await {
+        format!("{}{tag} OK idle done\r\n", script.before_idle_ok)
+    } else {
+        String::new()
+    }
+}
+
+/// Sends `* OK Still here` every 100 ms until the client's DONE; false if
+/// the connection ended first.
+async fn keepalives_until_done<S: AsyncRead + AsyncWrite + Unpin>(
+    io: &mut BufReader<S>,
+    log: &Transcript,
+) -> bool {
+    loop {
+        // fill_buf is cancel safe, unlike read_line.
+        tokio::select! {
+            buffered = io.fill_buf() => match buffered {
+                Ok(b) if !b.is_empty() => break,
+                _ => return false,
+            },
+            () = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                if io.write_all(b"* OK Still here\r\n").await.is_err() {
+                    return false;
+                }
+            }
+        }
+    }
+    line(io, true, log).await.is_some()
 }
 
 /// Standard base64, enough to read one AUTHENTICATE answer.

@@ -19,6 +19,13 @@ pub struct Script {
     pub auth_reply: &'static str,
     /// Send the start of the greeting with no line end, then close.
     pub cut_greeting: bool,
+    /// The reply to MAIL; None closes the connection instead.
+    pub mail_reply: Option<&'static str>,
+    /// The reply to every RCPT.
+    pub rcpt_reply: &'static str,
+    /// The reply after the message's final dot; None closes the
+    /// connection instead (the message is in, its fate unknown).
+    pub data_reply: Option<&'static str>,
 }
 
 impl Default for Script {
@@ -29,6 +36,9 @@ impl Default for Script {
             inject: false,
             auth_reply: "235 2.7.0 ok",
             cut_greeting: false,
+            mail_reply: Some("250 ok"),
+            rcpt_reply: "250 ok",
+            data_reply: Some("250 queued"),
         }
     }
 }
@@ -129,7 +139,11 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
         let reply: String = match verb.as_str() {
             "EHLO" => "250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n".into(),
             "AUTH" => format!("{}\r\n", script.auth_reply),
-            "MAIL" | "RCPT" => "250 ok\r\n".into(),
+            "MAIL" => match script.mail_reply {
+                Some(reply) => format!("{reply}\r\n"),
+                None => return,
+            },
+            "RCPT" => format!("{}\r\n", script.rcpt_reply),
             "DATA" => {
                 io.write_all(b"354 go\r\n").await.unwrap();
                 while let Some(body) = line(io, true, log).await {
@@ -137,7 +151,10 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                         break;
                     }
                 }
-                "250 queued\r\n".into()
+                match script.data_reply {
+                    Some(reply) => format!("{reply}\r\n"),
+                    None => return,
+                }
             }
             "QUIT" => {
                 let _ = io.write_all(b"221 bye\r\n").await;

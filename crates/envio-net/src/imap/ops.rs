@@ -74,6 +74,8 @@ impl ImapSession {
         })
         .await?;
         self.exists = state.exists;
+        // What the old folder reported no longer matters.
+        let _ = self.take_changes();
         Ok(state)
     }
 
@@ -227,6 +229,16 @@ impl ImapSession {
         }
         connect::within(async { self.session.uid_copy(&set, target).await.map_err(map_error) })
             .await?;
+        self.delete(uids).await
+    }
+
+    /// Deletes `uids` in the selected folder for good: marks them
+    /// \Deleted, then UID EXPUNGE if the server has UIDPLUS. Without
+    /// UIDPLUS they stay marked, as in `move_to`.
+    pub async fn delete(&mut self, uids: &[u32]) -> Result<()> {
+        let Some(set) = query::uid_set(uids) else {
+            return Ok(());
+        };
         self.store_flags(uids, true, &[Flag::Deleted]).await?;
         if !self.caps.uidplus {
             return Ok(());
@@ -245,8 +257,8 @@ impl ImapSession {
         .await
     }
 
-    /// UIDs in the selected folder with this Message-ID (the Outbox's
-    /// "may have been sent" check). Some servers (Stalwart 1.0) never
+    /// UIDs of live (not \\Deleted) messages in the selected folder with
+    /// this Message-ID (the Outbox's "may have been sent" check). Some servers (Stalwart 1.0) never
     /// match HEADER Message-ID, so an empty answer is checked against the
     /// Message-ID headers of the newest [`SCAN`] messages.
     pub async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
@@ -261,7 +273,7 @@ impl ImapSession {
                 .session
                 .fetch(
                     format!("{first}:*"),
-                    "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])",
+                    "(UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])",
                 )
                 .await
                 .map_err(map_error)?
@@ -270,6 +282,7 @@ impl ImapSession {
                 .map_err(map_error)?;
             let mut uids: Vec<u32> = fetches
                 .iter()
+                .filter(|fetch| !flags_of(fetch).deleted)
                 .filter(|fetch| {
                     query::message_id_of(fetch.header().unwrap_or_default())
                         .is_some_and(|found| query::same_message_id(&found, message_id))
@@ -286,6 +299,12 @@ impl ImapSession {
     pub async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
         let key = query::search_text(text, self.caps.literals())?;
         self.search(&key).await
+    }
+
+    /// UIDs in the selected folder that arrived on or after the day of
+    /// `unix_secs`: the messages inside sync's retention window.
+    pub async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>> {
+        self.search(&query::search_since(unix_secs)).await
     }
 
     async fn search(&mut self, key: &str) -> Result<Vec<u32>> {

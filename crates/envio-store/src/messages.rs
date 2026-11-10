@@ -95,6 +95,8 @@ pub struct Envelope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewMessage {
     pub uid: u32,
+    /// RFC822.SIZE in bytes.
+    pub size: u32,
     pub envelope: Envelope,
     pub flags: Flags,
     pub preview: String,
@@ -111,6 +113,8 @@ pub struct Message {
     pub id: MessageRowId,
     pub folder: FolderId,
     pub uid: u32,
+    /// RFC822.SIZE in bytes; 0 if cached before migration 0002.
+    pub size: u32,
     pub envelope: Envelope,
     pub flags: Flags,
     pub preview: String,
@@ -125,7 +129,7 @@ pub struct Page {
 
 /// The columns `from_row` reads, from `messages` aliased as `m`.
 pub(crate) const COLUMNS: &str = "m.id, m.folder_id, m.uid, m.message_id, m.subject, \
-     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state";
+     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state, m.size";
 
 pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
     let refs: String = row.get(9)?;
@@ -134,6 +138,7 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
         id: MessageRowId(row.get(0)?),
         folder: FolderId(row.get(1)?),
         uid: row.get(2)?,
+        size: row.get(13)?,
         envelope: Envelope {
             message_id: row.get(3)?,
             subject: row.get(4)?,
@@ -159,13 +164,14 @@ impl Db {
         let envelope = &message.envelope;
         let id = self.conn().query_row(
             "INSERT INTO messages (folder_id, uid, message_id, subject, from_addr, to_addrs,
-                                   date, in_reply_to, refs, flags, preview)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                                   date, in_reply_to, refs, flags, preview, size)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
              ON CONFLICT (folder_id, uid) DO UPDATE SET
                  message_id = excluded.message_id, subject = excluded.subject,
                  from_addr = excluded.from_addr, to_addrs = excluded.to_addrs,
                  date = excluded.date, in_reply_to = excluded.in_reply_to,
-                 refs = excluded.refs, flags = excluded.flags, preview = excluded.preview
+                 refs = excluded.refs, flags = excluded.flags, preview = excluded.preview,
+                 size = excluded.size
              RETURNING id",
             params![
                 folder.0,
@@ -179,6 +185,7 @@ impl Db {
                 envelope.references.join(" "),
                 message.flags.bits(),
                 message.preview,
+                message.size,
             ],
             |row| row.get(0),
         )?;

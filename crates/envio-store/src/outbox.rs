@@ -38,6 +38,10 @@ pub struct OutboxMeta {
     pub message_id: String,
     pub queued_at_ms: i64,
     pub state: SendState,
+    /// The SMTP envelope: the sender and every recipient, Bcc included
+    /// (Bcc is not in the .eml).
+    pub from: String,
+    pub recipients: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,6 +49,8 @@ pub struct NewOutboxItem {
     pub account: String,
     pub message_id: String,
     pub queued_at_ms: i64,
+    pub from: String,
+    pub recipients: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +99,8 @@ impl Outbox {
             message_id: new.message_id,
             queued_at_ms: new.queued_at_ms,
             state: SendState::Queued,
+            from: new.from,
+            recipients: new.recipients,
         };
         self.write_meta(&id, &meta)?;
         Ok(OutboxItem { id, meta })

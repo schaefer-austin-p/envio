@@ -478,6 +478,11 @@ name = "envio-e2e"
 version = "0.1.0"
 dependencies = [
  "envio-core",
+ "envio-net",
+ "envio-store",
+ "envio-sync",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -520,6 +525,18 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "envio-sync"
+version = "0.1.0"
+dependencies = [
+ "envio-mime",
+ "envio-net",
+ "envio-store",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

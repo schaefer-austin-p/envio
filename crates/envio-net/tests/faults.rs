@@ -139,8 +139,10 @@ async fn smtp_cut_during_data_sends_nothing_and_the_resend_lands_once() {
     cut.login(&alice()).await.unwrap();
     proxy.cut_after(Direction::Up, 50_000);
     let err = cut.send(ALICE, &[BOB.to_owned()], &eml).await.unwrap_err();
+    // Writes may land in socket buffers past the cut, so whether the end
+    // of the message went out is unknown here; only the kind is sure.
     assert!(
-        err.is_temporary() && matches!(err, NetError::Io(_)),
+        err.error.is_temporary() && matches!(err.error, NetError::Io(_)),
         "{err:?}"
     );
 

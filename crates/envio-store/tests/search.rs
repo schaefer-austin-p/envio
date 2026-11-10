@@ -3,6 +3,7 @@ use envio_store::{Db, Envelope, Flags, FolderId, FolderRole, NewMessage};
 fn message(uid: u32, subject: &str, from: &str, date: i64) -> NewMessage {
     NewMessage {
         uid,
+        size: 1_000,
         envelope: Envelope {
             message_id: Some(format!("<{uid}@example.org>")),
             subject: subject.into(),

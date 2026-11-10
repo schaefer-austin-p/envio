@@ -4,6 +4,7 @@
 //! never carries the phone's host name.
 
 mod reply;
+mod send;
 mod starttls;
 mod stream;
 
@@ -20,6 +21,8 @@ use crate::error::{NetError, Result};
 use crate::server::{Credentials, Endpoint, Security};
 use crate::tls::{self, Roots};
 use stream::SmtpStream;
+
+pub use send::SendError;
 
 /// What envio says in EHLO: the same for every user.
 pub const EHLO_NAME: &str = "[127.0.0.1]";
@@ -61,23 +64,6 @@ impl SmtpSession {
                 .await
                 .map(drop)
                 .map_err(|e| map_error(e, true))
-        })
-        .await
-    }
-
-    /// Sends one message. `eml` is the finished RFC 5322 message (from
-    /// envio-mime); `from` and `to` are the envelope, which may differ
-    /// from its headers (Bcc).
-    pub async fn send(&mut self, from: &str, to: &[String], eml: &[u8]) -> Result<()> {
-        let envelope = envelope(from, to)?;
-        // The upload alone can outlast a command, so the limit grows with
-        // the message.
-        connect::within_for(connect::transfer_timeout(eml.len()), async {
-            self.conn
-                .send(&envelope, eml)
-                .await
-                .map(drop)
-                .map_err(|e| map_error(e, false))
         })
         .await
     }

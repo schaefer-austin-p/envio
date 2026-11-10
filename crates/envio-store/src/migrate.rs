@@ -7,7 +7,10 @@ use rusqlite::Connection;
 
 use crate::error::{Result, StoreError};
 
-pub(crate) const MIGRATIONS: &[&str] = &[include_str!("../migrations/0001_init.sql")];
+pub(crate) const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/0001_init.sql"),
+    include_str!("../migrations/0002_message_size.sql"),
+];
 
 /// The schema version of a fully migrated database.
 pub const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
@@ -72,6 +75,61 @@ mod tests {
             assert_eq!(version(&conn), SCHEMA_VERSION, "from version {start}");
             assert_eq!(schema(&conn), schema(&fresh), "from version {start}");
         }
+    }
+
+    #[test]
+    fn rows_cached_before_0002_survive_it_with_size_zero() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..1]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role, uidvalidity, uidnext)
+                 VALUES ('1700', 'INBOX', 'inbox', 7, 43);
+             INSERT INTO messages (folder_id, uid, message_id, subject, date, flags, preview)
+                 VALUES (1, 42, '<a@example.org>', 'Quarterly report', 1800000000, 5,
+                         'Numbers attached');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let row: (i64, u32, String, String, i64, i64) = conn
+            .query_row(
+                "SELECT folder_id, uid, message_id, subject, flags, size FROM messages",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            row,
+            (
+                1,
+                42,
+                "<a@example.org>".into(),
+                "Quarterly report".into(),
+                5,
+                0
+            )
+        );
+        let uidnext: u32 = conn
+            .query_row("SELECT uidnext FROM folders", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(uidnext, 43);
+        // The search index still finds the old row.
+        let hits: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM messages_fts WHERE messages_fts MATCH 'quarterly'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(hits, 1);
     }
 
     #[test]
