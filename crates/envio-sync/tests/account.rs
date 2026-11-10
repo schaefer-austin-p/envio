@@ -150,3 +150,33 @@ async fn removing_an_account_counts_then_drops_all_it_holds() {
         .collect();
     assert_eq!(left, [other], "another account's mail stays");
 }
+
+#[tokio::test]
+async fn a_refused_folder_does_not_block_the_ones_after_it() {
+    let mut server = FakeServer::new();
+    server.add_folder("Alpha", None);
+    server.add_folder("Beta", None);
+    server.deliver_id("Beta", "late");
+    let mut store = Store::new();
+    server.fail_on_detail("select", "Alpha", NetError::Refused("no".into()));
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, NOW_MS)
+        .await
+        .unwrap();
+    assert_eq!(run.refused, [store.folder("Alpha").id]);
+    assert_eq!(run.stopped, None);
+    assert_eq!(store.subjects("Beta"), ["About late"]);
+}
+
+#[tokio::test]
+async fn a_timeout_in_a_folder_ends_the_run_and_keeps_the_replay() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server).await;
+    take(&mut store, 1, read());
+    server.fail_on_detail("select", "Archive", NetError::Timeout);
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(run.stopped, Some(ErrorKind::Temporary));
+    assert_eq!(run.replayed.done, 1);
+    assert!(run.refused.is_empty());
+}

@@ -98,18 +98,24 @@ pub async fn file_sent(
         if !matches!(step, ItemStep::File | ItemStep::Resolve) {
             continue;
         }
+        let search = step == ItemStep::Resolve || !files_itself;
         let done = match &sent_folder {
-            Some(path) if step == ItemStep::Resolve || !files_itself => {
+            Some(path) if search => {
                 server.select(path).await?;
-                let found = !server
-                    .search_message_id(&item.meta.message_id)
-                    .await?
-                    .is_empty();
-                if !found && step == ItemStep::File {
-                    let eml = local.outbox.eml(&item.id)?;
-                    server.append(path, &[Flag::Seen], &eml).await?;
+                // Only an accepted item is appended; a May have been sent
+                // one is only looked for.
+                let eml = match step {
+                    ItemStep::File => Some(local.outbox.eml(&item.id)?),
+                    _ => None,
+                };
+                match settle(server, &item, eml.as_deref(), path).await {
+                    Ok(done) => done,
+                    // One item's refusal (quota, a Message-ID the server
+                    // won't take) leaves it in the Outbox, untouched, and
+                    // doesn't hold up the others.
+                    Err(error) if error.kind() == ErrorKind::Refused => continue,
+                    Err(error) => return Err(error),
                 }
-                found || step == ItemStep::File
             }
             // Gmail files it itself; with no Sent folder there's nowhere
             // to file it. Only an accepted item counts as done then.
@@ -125,6 +131,35 @@ pub async fn file_sent(
     Ok(filed)
 }
 
+/// Looks for the item in the selected Sent folder and appends an accepted
+/// one (`append` is its text) that isn't there. True when it is now in Sent.
+async fn settle(
+    server: &mut impl MailServer,
+    item: &OutboxItem,
+    append: Option<&[u8]>,
+    path: &str,
+) -> Result<bool> {
+    // Without a usable id there is nothing to look for: a substring search
+    // for "" would match any message.
+    let found = usable_message_id(&item.meta.message_id)
+        && !server
+            .search_message_id(&item.meta.message_id)
+            .await?
+            .is_empty();
+    if let (false, Some(eml)) = (found, append) {
+        server.append(path, &[Flag::Seen], eml).await?;
+    }
+    Ok(found || append.is_some())
+}
+
+/// `<x>` with something inside: the only shape searched for in Sent.
+fn usable_message_id(id: &str) -> bool {
+    id.trim()
+        .strip_prefix('<')
+        .and_then(|rest| rest.strip_suffix('>'))
+        .is_some_and(|inner| !inner.is_empty())
+}
+
 /// The account's readable Outbox items, oldest first.
 fn items(local: &Local<'_>, account: &str) -> Result<Vec<OutboxItem>> {
     let mut items: Vec<OutboxItem> = local
@@ -135,4 +170,18 @@ fn items(local: &Local<'_>, account: &str) -> Result<Vec<OutboxItem>> {
         .collect();
     items.sort_by_key(|item| item.meta.queued_at_ms);
     Ok(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::usable_message_id;
+
+    #[test]
+    fn only_an_angle_bracketed_id_is_searched_for() {
+        assert!(usable_message_id("<a@b>"));
+        assert!(usable_message_id(" <a@b> "));
+        for bad in ["", "  ", "<>", "a@b", "<a@b", "a@b>"] {
+            assert!(!usable_message_id(bad), "{bad:?}");
+        }
+    }
 }

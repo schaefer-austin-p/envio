@@ -44,6 +44,8 @@ pub struct FakeServer {
 
 struct Failure {
     op: &'static str,
+    /// Only calls whose detail (e.g. the folder path) is this.
+    only: Option<String>,
     skip: usize,
     error: NetError,
 }
@@ -105,7 +107,22 @@ impl FakeServer {
 
     /// The call of `op` after `skip` successful ones fails with `error`.
     pub fn fail_after(&mut self, op: &'static str, skip: usize, error: NetError) {
-        self.failures.push(Failure { op, skip, error });
+        self.failures.push(Failure {
+            op,
+            only: None,
+            skip,
+            error,
+        });
+    }
+
+    /// The next call of `op` with `detail` (e.g. a folder path) fails.
+    pub fn fail_on_detail(&mut self, op: &'static str, detail: &str, error: NetError) {
+        self.failures.push(Failure {
+            op,
+            only: Some(detail.to_owned()),
+            skip: 0,
+            error,
+        });
     }
 
     pub fn uids(&self, path: &str) -> Vec<u32> {
@@ -150,7 +167,9 @@ impl FakeServer {
     fn call(&mut self, op: &'static str, detail: &str) -> Result<()> {
         self.calls
             .push(format!("{op} {detail}").trim_end().to_owned());
-        let Some(at) = self.failures.iter().position(|failure| failure.op == op) else {
+        let Some(at) = self.failures.iter().position(|failure| {
+            failure.op == op && failure.only.as_deref().is_none_or(|only| only == detail)
+        }) else {
             return Ok(());
         };
         if self.failures[at].skip > 0 {

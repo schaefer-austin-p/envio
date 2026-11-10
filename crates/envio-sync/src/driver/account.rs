@@ -5,7 +5,7 @@ use envio_store::{Drafts, FolderId, SendState};
 use super::Local;
 use super::folders::{Synced, sync_folder, sync_folders};
 use super::replay::{Replayed, replay};
-use crate::error::Result;
+use crate::error::{ErrorKind, Result};
 use crate::plan::folders::sync_order;
 use crate::plan::outbox::{ItemStep, item_step};
 use crate::schedule::Key;
@@ -17,12 +17,19 @@ pub struct AccountSynced {
     pub replayed: Replayed,
     /// In the order they were synced.
     pub folders: Vec<(FolderId, Synced)>,
+    /// Folders the server refused (e.g. SELECT): skipped, the run went on.
+    pub refused: Vec<FolderId>,
+    /// A session-fatal error (network, sign-in, certificate) in a folder
+    /// ended the run; everything done so far is kept.
+    pub stopped: Option<ErrorKind>,
 }
 
 /// One sync run over IMAP: the folder list, then the user's due actions
 /// (so the server shows them before folders are compared), then each
 /// folder, Inbox first. A replay that stopped ends the run: the session is
-/// gone or the account is paused.
+/// gone or the account is paused. A folder the server refuses is recorded
+/// in `refused` and skipped; any other network error in a folder ends the
+/// run with `stopped` set (the session is unusable). Store errors are `Err`.
 pub async fn sync_account(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -32,14 +39,23 @@ pub async fn sync_account(
     let folders = sync_folders(server, local, account).await?;
     let mut synced = AccountSynced {
         replayed: replay(server, local, account, now_ms).await?,
-        folders: Vec::new(),
+        ..AccountSynced::default()
     };
     if synced.replayed.stopped.is_some() {
         return Ok(synced);
     }
     for id in sync_order(&folders) {
-        let one = sync_folder(server, local, id, now_ms).await?;
-        synced.folders.push((id, one));
+        match sync_folder(server, local, id, now_ms).await {
+            Ok(one) => synced.folders.push((id, one)),
+            Err(error) => match error.kind() {
+                ErrorKind::Refused => synced.refused.push(id),
+                ErrorKind::Local => return Err(error),
+                kind => {
+                    synced.stopped = Some(kind);
+                    return Ok(synced);
+                }
+            },
+        }
     }
     Ok(synced)
 }
@@ -89,7 +105,9 @@ pub fn unsent(local: &Local<'_>, drafts: &Drafts, account: &str) -> Result<Unsen
 
 /// Removes everything Envio holds for an account: its pending actions,
 /// Outbox items and drafts (core asks first, showing `unsent`), then its
-/// cache and bodies. The password and pins are core's to remove.
+/// cache and bodies. The password and pins are core's to remove. Core must
+/// first disable the account (no sync, no send) and re-run this on startup
+/// if it was cut: it isn't atomic.
 pub fn remove_account(local: &mut Local<'_>, drafts: &Drafts, account: &str) -> Result<()> {
     let actions: Vec<u64> = local
         .journal

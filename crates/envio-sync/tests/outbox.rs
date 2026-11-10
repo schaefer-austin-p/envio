@@ -177,3 +177,55 @@ async fn a_rejected_sign_in_pauses_and_keeps_the_message_queued() {
     assert_eq!(sender.attempts.len(), 1, "the second waits too");
     assert_eq!(state(&store, &first), Some(SendState::Queued));
 }
+
+#[tokio::test]
+async fn an_unusable_message_id_never_matches_anything_in_sent() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let item = NewOutboxItem {
+        account: ACCOUNT.into(),
+        message_id: String::new(),
+        queued_at_ms: NOW_MS,
+        from: "carol@example.org".into(),
+        recipients: vec!["dave@example.org".into()],
+    };
+    let id = store.outbox.enqueue(item, &eml("out")).unwrap().id;
+    store
+        .outbox
+        .set_state(&id, SendState::MayHaveBeenSent)
+        .unwrap();
+    server.deliver_id("Sent", "unrelated");
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(filed.ask, [id.as_str()]);
+    assert!(filed.removed.is_empty());
+    let searched = server
+        .calls
+        .iter()
+        .any(|c| c.starts_with("search_message_id"));
+    assert!(!searched, "a substring search would match anything");
+    assert_eq!(state(&store, &id), Some(SendState::MayHaveBeenSent));
+}
+
+#[tokio::test]
+async fn a_refused_item_does_not_block_filing_the_others() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let first = queue(&store, "one");
+    let second = queue(&store, "two");
+    for id in [&first, &second] {
+        store.outbox.set_state(id, SendState::Accepted).unwrap();
+    }
+    server.fail_on("append", NetError::Refused("over quota".into()));
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(server.ids("Sent").len(), 1);
+    assert_eq!(filed.removed.len(), 1);
+    assert!(filed.ask.is_empty());
+    let left = store.outbox.items().unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].meta.state, SendState::Accepted);
+    assert_ne!(left[0].id, filed.removed[0]);
+}
