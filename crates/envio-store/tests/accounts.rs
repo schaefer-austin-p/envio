@@ -1,6 +1,8 @@
 use std::fs;
 
-use envio_store::{AccountSettings, Accounts, Server, StoreError};
+use envio_store::{AccountSettings, Accounts, Security, Server, StoreError};
+
+const PIN: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 fn settings(email: &str) -> AccountSettings {
     AccountSettings {
@@ -10,12 +12,80 @@ fn settings(email: &str) -> AccountSettings {
         imap: Server {
             host: "imap.example.org".into(),
             port: 993,
+            security: Security::Tls,
+            pin: None,
         },
         smtp: Server {
             host: "smtp.example.org".into(),
             port: 465,
+            security: Security::Tls,
+            pin: None,
         },
     }
+}
+
+#[test]
+fn tls_mode_and_pins_survive_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut pinned = settings("ada@example.org");
+    pinned.imap.pin = Some(PIN.into());
+    pinned.smtp.security = Security::StartTls;
+    pinned.smtp.port = 587;
+    let key = accounts.add(pinned.clone(), 1_000).unwrap();
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&key).unwrap().settings, pinned);
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("\"starttls\""), "{text}");
+    assert!(text.contains("\"version\": 2"), "{text}");
+}
+
+#[test]
+fn a_version_1_file_reads_as_implicit_tls_without_pins() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let v1 = r#"{"version": 1, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org",
+      "username": "ada", "imap": {"host": "imap.example.org", "port": 993},
+      "smtp": {"host": "smtp.example.org", "port": 465}}}]}"#;
+    fs::write(&path, v1).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    let imap = &accounts.list()[0].settings.imap;
+    assert_eq!(imap.security, Security::Tls);
+    assert_eq!(imap.pin, None);
+}
+
+#[test]
+fn a_malformed_pin_in_the_file_is_a_bad_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut pinned = settings("ada@example.org");
+    pinned.imap.pin = Some(PIN.into());
+    accounts.add(pinned, 1_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace(PIN, "not-a-pin")).unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
+}
+
+#[test]
+fn a_malformed_pin_is_never_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut pinned = settings("ada@example.org");
+    // Uppercase is the display form, not the stored one.
+    pinned.smtp.pin = Some(PIN.to_uppercase());
+    assert!(matches!(
+        accounts.add(pinned, 1_000),
+        Err(StoreError::BadRecord { .. })
+    ));
+    assert!(accounts.list().is_empty());
+    assert!(!path.exists());
 }
 
 #[test]
@@ -83,7 +153,7 @@ fn a_damaged_file_is_an_error_and_left_alone() {
 fn a_file_from_a_newer_envio_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, br#"{"version": 2, "accounts": []}"#).unwrap();
+    fs::write(&path, br#"{"version": 3, "accounts": []}"#).unwrap();
     let error = Accounts::open(&path).err().unwrap();
     assert!(matches!(error, StoreError::BadRecord { .. }), "{error:?}");
 }
