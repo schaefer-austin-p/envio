@@ -10,7 +10,7 @@ on:
 # to master, tags) each get a group of their own, so they run side by side
 # instead of cancelling each other.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 env:
