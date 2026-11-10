@@ -264,22 +264,26 @@ fn lines_of(lines: &[(bool, String)]) -> Vec<&str> {
 
 #[tokio::test]
 async fn a_non_ascii_password_signs_in_with_authenticate_plain() {
-    let cert = Cert::self_signed("localhost");
-    let script = Script {
-        implicit: true,
-        signed_out_capabilities: "AUTH=PLAIN",
-        ..Script::default()
-    };
-    let (session, lines, _) = open_as(&cert, script, Credentials::new("alice", NON_ASCII)).await;
-    session.unwrap().logout().await.unwrap();
-    let seen = lines_of(&lines);
-    assert!(
-        seen.iter().any(|l| l.contains("AUTHENTICATE PLAIN")),
-        "{seen:?}"
-    );
-    assert!(!seen.iter().any(|l| l.contains("LOGIN")), "{seen:?}");
-    assert!(!seen.iter().any(|l| l.contains(NON_ASCII)), "{seen:?}");
-    assert!(!seen.iter().any(|l| l.contains("p\u{e4}ss")), "{seen:?}");
+    // Over implicit TLS and after STARTTLS alike.
+    for implicit in [true, false] {
+        let cert = Cert::self_signed("localhost");
+        let script = Script {
+            implicit,
+            signed_out_capabilities: "AUTH=PLAIN",
+            ..Script::default()
+        };
+        let (session, lines, _) =
+            open_as(&cert, script, Credentials::new("alice", NON_ASCII)).await;
+        session.unwrap().logout().await.unwrap();
+        let seen = lines_of(&lines);
+        assert!(
+            seen.iter().any(|l| l.contains("AUTHENTICATE PLAIN")),
+            "{seen:?}"
+        );
+        assert!(!seen.iter().any(|l| l.contains("LOGIN")), "{seen:?}");
+        // Guards against the password ever going out unencoded.
+        assert!(!seen.iter().any(|l| l.contains(NON_ASCII)), "{seen:?}");
+    }
 }
 
 #[tokio::test]

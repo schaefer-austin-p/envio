@@ -28,6 +28,8 @@ pub struct Script {
     /// The CAPABILITY words after IMAP4rev1 while still signed out, e.g.
     /// "AUTH=PLAIN".
     pub signed_out_capabilities: &'static str,
+    /// The decoded AUTHENTICATE PLAIN answer the server accepts.
+    pub plain_accepts: &'static str,
 }
 
 impl Default for Script {
@@ -41,6 +43,7 @@ impl Default for Script {
             capabilities: "IDLE UIDPLUS",
             before_append_ok: "",
             signed_out_capabilities: "",
+            plain_accepts: "\0alice\0pässwort",
         }
     }
 }
@@ -150,7 +153,8 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     return;
                 };
                 // RFC 4616: NUL, user name, NUL, password, in UTF-8.
-                signed_in = base64_decode(&answer) == Some("\0alice\0pässwort".as_bytes().to_vec());
+                signed_in =
+                    base64_decode(&answer) == Some(script.plain_accepts.as_bytes().to_vec());
                 if signed_in {
                     format!("{tag} OK signed in\r\n")
                 } else {

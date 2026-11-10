@@ -24,10 +24,11 @@ pub(crate) enum Method {
 /// The choice, from the credentials and what the server offers. The
 /// capability list is only needed (and only read) when `ascii` is false.
 pub(crate) fn choose(ascii: bool, has_nul: bool, auth_plain: bool) -> Method {
-    if ascii {
-        Method::Login
-    } else if has_nul {
+    // NUL fits neither a quoted string nor PLAIN's separators.
+    if has_nul {
         Method::Refuse("the user name or password contains a NUL character")
+    } else if ascii {
+        Method::Login
     } else if auth_plain {
         Method::Plain
     } else {
@@ -141,6 +142,12 @@ mod tests {
     fn non_ascii_credentials_without_plain_are_refused() {
         assert!(matches!(choose(false, false, false), Method::Refuse(_)));
         assert!(matches!(choose(false, true, true), Method::Refuse(_)));
+    }
+
+    #[test]
+    fn a_nul_is_refused_even_in_ascii_credentials() {
+        assert!(matches!(choose(true, true, false), Method::Refuse(_)));
+        assert!(matches!(choose(true, true, true), Method::Refuse(_)));
     }
 
     #[test]
