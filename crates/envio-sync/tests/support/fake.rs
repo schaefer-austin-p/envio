@@ -266,6 +266,7 @@ impl MailServer for FakeServer {
         Ok(state)
     }
 
+    /// Floors to a UTC day; real servers use server-local time.
     async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>> {
         self.call("search_since", "")?;
         let day = unix_secs - unix_secs.rem_euclid(86_400);
@@ -361,7 +362,20 @@ impl MailServer for FakeServer {
 
     async fn delete(&mut self, uids: &[u32]) -> Result<()> {
         self.call("delete", &format!("{uids:?}"))?;
-        self.expunge(uids)
+        if self.caps.uidplus {
+            return self.expunge(uids);
+        }
+        // Without UIDPLUS the real session can only flag \Deleted.
+        let folder = self.selected()?;
+        folder.modseq += 1;
+        let modseq = folder.modseq;
+        for uid in uids {
+            if let Some(message) = folder.messages.get_mut(uid) {
+                message.flags.deleted = true;
+                message.modseq = modseq;
+            }
+        }
+        Ok(())
     }
 
     async fn append(&mut self, path: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {

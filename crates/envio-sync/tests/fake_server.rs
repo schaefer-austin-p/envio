@@ -74,3 +74,42 @@ async fn scripted_search_and_fetch_failures_come_back_as_errors() {
     server.fail_on("fetch_body", NetError::Timeout);
     assert!(server.fetch_body(1, 10).await.is_err());
 }
+
+#[tokio::test]
+async fn without_uidplus_a_move_leaves_the_original_flagged_deleted() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::from_names(["CONDSTORE"]);
+    server.add_folder("Archive", Some(Role::Archive));
+    let uid = server.deliver_id("INBOX", "a");
+    server.select("INBOX").await.unwrap();
+    server.move_to(&[uid], "Archive").await.unwrap();
+    assert_eq!(server.ids("Archive"), ["a@example.org"]);
+    assert_eq!(server.uids("INBOX"), [uid]);
+    assert!(server.message("INBOX", uid).unwrap().flags.deleted);
+}
+
+#[tokio::test]
+async fn without_uidplus_a_plain_delete_only_flags_deleted() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::from_names(["CONDSTORE"]);
+    let uid = server.deliver_id("INBOX", "a");
+    let state = server.select("INBOX").await.unwrap();
+    server.delete(&[uid]).await.unwrap();
+    let message = server.message("INBOX", uid).unwrap();
+    assert!(message.flags.deleted);
+    assert!(message.modseq > state.highest_modseq.unwrap());
+}
+
+#[tokio::test]
+async fn a_cut_between_copy_and_delete_keeps_the_copy_and_the_original() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::from_names(["UIDPLUS"]);
+    server.add_folder("Archive", Some(Role::Archive));
+    let uid = server.deliver_id("INBOX", "a");
+    server.select("INBOX").await.unwrap();
+    server.fail_on("delete", NetError::Timeout);
+    assert!(server.move_to(&[uid], "Archive").await.is_err());
+    assert_eq!(server.ids("Archive"), ["a@example.org"]);
+    assert_eq!(server.uids("INBOX"), [uid]);
+    assert!(!server.message("INBOX", uid).unwrap().flags.deleted);
+}
