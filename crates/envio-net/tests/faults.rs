@@ -103,12 +103,12 @@ async fn an_upload_cut_after_the_server_stored_it_is_not_stored_twice() {
     let mut cut = ImapSession::open(&through(&server, &proxy), &Roots::empty(), &alice())
         .await
         .unwrap();
-    // The server's replies to this APPEND, in order: the "+" that asks for
-    // the literal (read 1, let through), then the tagged OK sent after the
-    // message is stored (read 2, cut). So the server has the whole message
-    // but the client never sees the OK. Cutting by bytes would not be
-    // exact: the proxy sees TLS records, not IMAP bytes.
-    proxy.cut_at_chunk(Direction::Down, 2);
+    // Once the whole message has gone up, the next thing the server sends
+    // is its tagged OK, sent after it stored the message. Cut that: the
+    // server has the message but the client never sees the OK. Anything
+    // the server sent earlier (the "+", a TLS session ticket) came while
+    // fewer bytes had gone up, so it passes and cannot shift the cut.
+    proxy.cut_down_after_up(eml.len());
     let err = cut.append("Drafts", &[], &eml).await.unwrap_err();
     assert!(
         err.is_temporary() && matches!(err, NetError::Io(_)),

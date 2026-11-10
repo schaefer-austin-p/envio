@@ -25,9 +25,10 @@ const CONNECT: Duration = Duration::from_secs(5);
 enum Trigger {
     /// Bytes still allowed; the chunk that spends the last of them is cut.
     Bytes(usize),
-    /// Chunks still allowed; the chunk that would be the last is cut,
+    /// Armed on the upload: once `needed` bytes have gone up (`seen` so
+    /// far, from every connection), the first chunk that comes down is cut,
     /// unforwarded.
-    Chunks(usize),
+    DownAfterUp { needed: usize, seen: usize },
 }
 
 #[derive(Default)]
@@ -75,19 +76,27 @@ impl Proxy {
     /// connections pass untouched.
     ///
     /// Bytes are what goes over the TCP socket, so under TLS they include
-    /// record overhead; a test that needs an exact point uses
-    /// [`Proxy::cut_at_chunk`].
+    /// record overhead; a test that needs the server's reply to something
+    /// it was sent uses [`Proxy::cut_down_after_up`].
     pub fn cut_after(&self, direction: Direction, bytes: usize) {
         self.budget.lock().unwrap().left = Some((direction, Trigger::Bytes(bytes)));
     }
 
-    /// From now on, the `chunk`-th read in `direction` (counted across all
-    /// connections, 1-based) is not forwarded: its connection is cut
-    /// instead. Each read is one chunk, so the earlier reads pass through
-    /// and the cut lands on a known message boundary. Spent once, like
-    /// [`Proxy::cut_after`].
-    pub fn cut_at_chunk(&self, direction: Direction, chunk: usize) {
-        self.budget.lock().unwrap().left = Some((direction, Trigger::Chunks(chunk)));
+    /// From now on, counts the bytes that go up (across all connections);
+    /// once `bytes` have, the first chunk the server sends down is not
+    /// forwarded: its connection is cut instead. Arm it with the size of an
+    /// upload to lose the server's reply to it: whatever the server sends
+    /// before the upload is complete (a "+", a TLS session ticket) arrives
+    /// while the count is short, so it passes, and the cut lands on the
+    /// first thing sent after. Spent once, like [`Proxy::cut_after`].
+    pub fn cut_down_after_up(&self, bytes: usize) {
+        self.budget.lock().unwrap().left = Some((
+            Direction::Down,
+            Trigger::DownAfterUp {
+                needed: bytes,
+                seen: 0,
+            },
+        ));
     }
 }
 
@@ -154,6 +163,25 @@ fn take(budget: &Mutex<Budget>, direction: Direction, n: usize) -> (usize, bool)
     let Some((cut, trigger)) = budget.left else {
         return (n, false);
     };
+    if let Trigger::DownAfterUp { needed, seen } = trigger {
+        return match direction {
+            Direction::Up => {
+                budget.left = Some((
+                    cut,
+                    Trigger::DownAfterUp {
+                        needed,
+                        seen: seen + n,
+                    },
+                ));
+                (n, false)
+            }
+            Direction::Down if seen >= needed => {
+                budget.left = None;
+                (0, true)
+            }
+            Direction::Down => (n, false),
+        };
+    }
     if cut != direction {
         return (n, false);
     }
@@ -166,13 +194,6 @@ fn take(budget: &Mutex<Budget>, direction: Direction, n: usize) -> (usize, bool)
             budget.left = None;
             (left.min(n), true)
         }
-        Trigger::Chunks(1) => {
-            budget.left = None;
-            (0, true)
-        }
-        Trigger::Chunks(k) => {
-            budget.left = Some((cut, Trigger::Chunks(k - 1)));
-            (n, false)
-        }
+        Trigger::DownAfterUp { .. } => unreachable!("handled above"),
     }
 }
