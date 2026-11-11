@@ -6,7 +6,8 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, Once};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const QUIET_TARGETS: [&str; 2] = ["async_imap", "imap_proto"];
@@ -117,19 +118,30 @@ fn install(sink: Sink, max: log::LevelFilter) -> Result<(), log::SetLoggerError>
     };
     log::set_boxed_logger(Box::new(logger))?;
     log::set_max_level(max);
+    OURS.store(true, Ordering::Relaxed);
     Ok(())
 }
 
+/// Set once the envio logger is the installed one.
+static OURS: AtomicBool = AtomicBool::new(false);
+static WARNED: Once = Once::new();
+
 /// Installs the file logger (`envio.log` in `logs_dir`) once per process.
 /// A second call, or a logger installed by `init_with_writer`, is `Ok` and
-/// keeps the first.
+/// keeps the first. A logger some other code installed first stays, and
+/// then the envio filter (the password-bearing targets capped at Warn) is
+/// not active: hosts must not install their own logger before `Core::start`.
 pub fn init(logs_dir: &Path, max: log::LevelFilter) -> io::Result<()> {
     fs::create_dir_all(logs_dir)?;
     let sink = Sink::File {
         path: logs_dir.join("envio.log"),
         file: None,
     };
-    let _ = install(sink, max);
+    if install(sink, max).is_err() && !OURS.load(Ordering::Relaxed) {
+        WARNED.call_once(|| {
+            log::warn!("another logger is installed; the envio log filter is not active");
+        });
+    }
     Ok(())
 }
 
