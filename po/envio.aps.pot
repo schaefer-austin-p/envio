@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:04+0100\n"
+"POT-Creation-Date: 2026-11-11 19:16+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,23 +18,44 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/TopBar.qml:31
-msgid "Leave selection"
-msgstr ""
-
-#: qml/components/TopBar.qml:31
-msgid "Back"
-msgstr ""
-
-#: qml/pages/InboxPage.qml:26
+#: qml/components/FolderLabel.qml:15 qml/pages/inbox/InboxPage.qml:21
+#: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:54
 msgid "Inbox"
 msgstr ""
 
-#: qml/pages/InboxPage.qml:38
-msgid "No accounts yet."
+#: qml/components/FolderLabel.qml:16
+msgid "Sent"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25
+#: qml/components/FolderLabel.qml:17
+msgid "Drafts"
+msgstr ""
+
+#: qml/components/FolderLabel.qml:18
+msgid "Trash"
+msgstr ""
+
+#: qml/components/FolderLabel.qml:19 qml/pages/inbox/SelectionBar.qml:28
+msgid "Archive"
+msgstr ""
+
+#: qml/components/FolderLabel.qml:20
+msgid "Junk"
+msgstr ""
+
+#: qml/components/TopBar.qml:32
+msgid "Leave selection"
+msgstr ""
+
+#: qml/components/TopBar.qml:32
+msgid "Back"
+msgstr ""
+
+#: qml/pages/ProblemPage.qml:43
+msgid "Try again"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:218
 msgid "Accounts"
 msgstr ""
 
@@ -71,7 +92,7 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/TrustDialog.qml:19
+#: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:57
 msgid "Cancel"
 msgstr ""
 
@@ -219,6 +240,111 @@ msgstr ""
 
 #: qml/pages/accounts/WizardPage.qml:92
 msgid "Account options"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:38
+msgid "All"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:64
+msgid "Mail"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:96
+msgid "All accounts"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:106
+msgid "Unified inbox"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:129 qml/pages/inbox/OutboxPage.qml:24
+msgid "Outbox"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:136
+msgid "waiting to send"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:225
+msgid "Settings"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:108
+msgid "Search"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:115
+msgid "Open menu"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:151 qml/pages/inbox/InboxPage.qml:152
+msgid "Offline."
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:189
+msgid "New message"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:235
+msgid "Undo"
+msgstr ""
+
+#: qml/pages/inbox/MoveSheet.qml:16 qml/pages/inbox/SelectionBar.qml:42
+msgid "Move to folder"
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:45
+msgid "Nothing waiting to send."
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:55
+msgid "Delete this message?"
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:56
+msgid "It has not been sent, and it cannot be brought back."
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:58 qml/pages/inbox/OutboxRow.qml:87
+#: qml/pages/inbox/SelectionBar.qml:35
+msgid "Delete"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:60
+msgid "Send again"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:67
+msgid "Move to Sent"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:74
+msgid "Retry"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:81
+msgid "Edit"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:50
+msgid "More actions"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:60
+msgid "Mark as read"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:61
+msgid "Mark as unread"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:62
+msgid "Flag"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:63
+msgid "Remove flag"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8

@@ -12,3 +12,5 @@ Sheet 1.0 Sheet.qml
 Toast 1.0 Toast.qml
 Toggle 1.0 Toggle.qml
 TopBar 1.0 TopBar.qml
+DateText 1.0 DateText.qml
+FolderLabel 1.0 FolderLabel.qml

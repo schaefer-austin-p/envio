@@ -16,7 +16,13 @@ Item {
     // What the page called, in order.
     property var calls: []
     property string note: "Only the part of your address after the @ is sent."
+    // The model roles are those of envio-ui's rows (crates/envio-ui/src/rows.rs).
+    // Tests fill them; the page gets them as properties, as Main hands over
+    // the RowsModels it attached.
     property ListModel accounts: ListModel {}
+    property ListModel folders: ListModel {}
+    property ListModel messages: ListModel {}
+    property ListModel outbox: ListModel {}
     // The models handed to attachModel.
     property var models: []
 

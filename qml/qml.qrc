@@ -1,7 +1,17 @@
 <RCC>
     <qresource prefix="/qml">
         <file>Main.qml</file>
-        <file>pages/InboxPage.qml</file>
+        <file>pages/AppShell.qml</file>
+        <file>pages/ProblemPage.qml</file>
+        <file>pages/inbox/InboxPage.qml</file>
+        <file>pages/inbox/AccountTabs.qml</file>
+        <file>pages/inbox/MessageList.qml</file>
+        <file>pages/inbox/MessageRow.qml</file>
+        <file>pages/inbox/FoldersDrawer.qml</file>
+        <file>pages/inbox/SelectionBar.qml</file>
+        <file>pages/inbox/MoveSheet.qml</file>
+        <file>pages/inbox/OutboxPage.qml</file>
+        <file>pages/inbox/OutboxRow.qml</file>
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>
         <file>pages/accounts/SignInStep.qml</file>
@@ -20,6 +30,8 @@
         <file>components/Banner.qml</file>
         <file>components/AppButton.qml</file>
         <file>components/Chip.qml</file>
+        <file>components/DateText.qml</file>
+        <file>components/FolderLabel.qml</file>
         <file>components/AppDialog.qml</file>
         <file>components/Field.qml</file>
         <file>components/Icon.qml</file>

@@ -25,6 +25,7 @@ Rectangle {
 
     IconButton {
         id: back
+        objectName: root.selecting ? "leaveSelection" : "backButton"
         visible: root.showBack
         theme: root.theme
         iconName: root.selecting ? "close" : "back"
@@ -37,6 +38,7 @@ Rectangle {
     Text {
         anchors.left: root.showBack ? back.right : parent.left
         anchors.leftMargin: root.showBack ? root.theme.gu(0.5) : root.theme.gu(2.5)
+        objectName: "title"
         anchors.right: actionRow.left
         anchors.verticalCenter: parent.verticalCenter
         text: root.title
