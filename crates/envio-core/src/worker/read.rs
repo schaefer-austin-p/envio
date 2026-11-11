@@ -18,6 +18,9 @@ use crate::text;
 
 pub(crate) const SEARCH_LIMIT: usize = 200;
 
+/// Most messages one `ListMessages` returns, whatever the app asks for.
+pub(crate) const PAGE_MAX: u32 = 500;
+
 /// Longest file name written, in bytes (file systems stop at 255).
 const MAX_NAME_BYTES: usize = 200;
 
@@ -55,11 +58,31 @@ pub(crate) fn render_view(raw: &[u8], images: bool, width_px: u32) -> MessageVie
     }
 }
 
+/// Unicode format characters (category Cf): invisible, and some reverse
+/// the text direction, which can disguise an extension.
+fn is_format(c: char) -> bool {
+    matches!(u32::from(c),
+        0xAD | 0x600..=0x605 | 0x61C | 0x6DD | 0x70F | 0x180E
+        | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x2064
+        | 0x2066..=0x206F | 0xFEFF | 0xFFF9..=0xFFFB
+        | 0xE0001 | 0xE0020..=0xE007F)
+}
+
+pub(crate) fn clamp_page(page: Page) -> Page {
+    Page {
+        limit: page.limit.min(PAGE_MAX),
+        ..page
+    }
+}
+
 /// A name from a sender, made fit to be a file in one directory: its last
 /// path segment, no control characters, no leading dots, never empty.
 pub(crate) fn safe_file_name(name: &str, index: usize) -> String {
     let last = name.rsplit(['/', '\\']).next().unwrap_or("");
-    let cleaned: String = last.chars().filter(|c| !c.is_control()).collect();
+    let cleaned: String = last
+        .chars()
+        .filter(|c| !c.is_control() && !is_format(*c))
+        .collect();
     let mut out = String::new();
     for c in cleaned.trim().trim_start_matches('.').trim().chars() {
         if out.len() + c.len_utf8() > MAX_NAME_BYTES {
@@ -92,7 +115,13 @@ fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
         let path = dir.join(numbered(name, n));
         match OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(mut file) => {
-                file.write_all(bytes)?;
+                if let Err(e) = file.write_all(bytes) {
+                    drop(file);
+                    if let Err(e) = std::fs::remove_file(&path) {
+                        log::warn!("removing a partial file: {e}");
+                    }
+                    return Err(e);
+                }
                 return Ok(path);
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
@@ -155,6 +184,7 @@ impl Worker<'_> {
     }
 
     pub(super) fn list_messages(&self, folder: FolderId, page: Page) {
+        let page = clamp_page(page);
         match self.store.db.messages(folder, page) {
             Ok(messages) => self.emit(Event::Messages {
                 folder,
@@ -297,10 +327,19 @@ mod tests {
         assert_eq!(safe_file_name("C:\\dir\\a.txt", 0), "a.txt");
         assert_eq!(safe_file_name("a\u{0}b\n.txt", 0), "ab.txt");
         assert_eq!(safe_file_name("..", 0), "attachment-1");
+        assert_eq!(safe_file_name("a\u{202E}txt.exe", 0), "atxt.exe");
+        assert_eq!(safe_file_name("\u{200B}\u{FEFF}", 0), "attachment-1");
         assert_eq!(safe_file_name(".hidden", 0), "hidden");
         assert_eq!(safe_file_name("", 2), "attachment-3");
         assert_eq!(safe_file_name("dir/", 1), "attachment-2");
         assert!(safe_file_name(&"x".repeat(1000), 0).len() <= MAX_NAME_BYTES);
+    }
+
+    #[test]
+    fn a_page_is_capped() {
+        let page = |offset, limit| Page { offset, limit };
+        assert_eq!(clamp_page(page(10, u32::MAX)), page(10, PAGE_MAX));
+        assert_eq!(clamp_page(page(0, 50)), page(0, 50));
     }
 
     #[test]

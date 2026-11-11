@@ -106,6 +106,8 @@ impl Worker<'_> {
             return;
         }
         let before = self.status_of(account);
+        // Before the rows go: waiting opens are answered, not leaked.
+        self.open_failed(Some(account));
         if let Some(live) = self.live.get_mut(account) {
             // Sessions and the idler go; its IDLE future ends on the
             // notify and its result is dropped with the account.
