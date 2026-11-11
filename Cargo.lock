@@ -493,6 +493,8 @@ dependencies = [
  "futures",
  "gettext-rs",
  "log",
+ "rcgen",
+ "rustls",
  "secrecy",
  "serde",
  "serde_json",

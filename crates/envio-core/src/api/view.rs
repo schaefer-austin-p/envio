@@ -18,3 +18,11 @@ pub struct AccountInfo {
     pub email: String,
     pub status: AccountStatus,
 }
+
+/// Work an account has that no server holds yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnsentCounts {
+    pub outbox: usize,
+    pub drafts: usize,
+    pub actions: usize,
+}

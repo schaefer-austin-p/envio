@@ -21,11 +21,12 @@ mod supervisor;
 mod text;
 mod worker;
 
-pub use api::command::Command;
+pub use api::command::{AccountSetup, Command, ConnectRequest};
 pub use api::event::Event;
-pub use api::view::{AccountInfo, CacheState};
+pub use api::view::{AccountInfo, CacheState, UnsentCounts};
 pub use core::{Config, Core, EventSink};
 pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId, Page};
 pub use health::AccountStatus;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
+pub use text::setup::ispdb_note;

@@ -23,6 +23,30 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.refresh(account.as_deref());
             Flow::Continue
         }
+        Command::Detect { email } => {
+            worker.detect(email).await;
+            Flow::Continue
+        }
+        Command::Connect(request) => {
+            worker.connect(*request).await;
+            Flow::Continue
+        }
+        Command::UpdatePassword { account, password } => {
+            worker.update_password(&account, password);
+            Flow::Continue
+        }
+        Command::AcceptCertificate {
+            account,
+            service,
+            fingerprint,
+        } => {
+            worker.accept_certificate(&account, service, &fingerprint);
+            Flow::Continue
+        }
+        Command::RemoveAccount { account, confirmed } => {
+            worker.remove_account(&account, confirmed);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

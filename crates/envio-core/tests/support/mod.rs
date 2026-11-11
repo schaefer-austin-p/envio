@@ -1,6 +1,8 @@
 //! Shared test harness: a Core over a temp dir with its events in a channel.
 #![allow(dead_code)]
 
+pub mod fake;
+
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Mutex};

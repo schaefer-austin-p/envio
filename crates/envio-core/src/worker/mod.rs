@@ -3,7 +3,9 @@
 mod conn;
 mod dispatch;
 mod plan;
+mod remove;
 mod run;
+mod setup;
 mod store;
 mod turn;
 
