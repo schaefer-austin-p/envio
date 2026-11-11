@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 ammonia = "4.2"
 getrandom = "0.4"
+# Already in the tree through ammonia and url.
+idna = "1"
 # The nesting guard (src/nesting*) models exactly this version's tree
 # builder. Any bump must run
 #   NESTFUZZ_CASES=500000 cargo test -p envio-mime --release -- --ignored nesting_fuzz
