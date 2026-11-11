@@ -124,7 +124,8 @@ fn read(path: &Path) -> Result<BTreeMap<String, SecretString>, SecretsError> {
         Ok(f) if f.version == VERSION => Ok(f.passwords),
         _ => {
             let mut aside = path.as_os_str().to_owned();
-            aside.push(".damaged");
+            // Unique, so a second damaged file never replaces the first.
+            aside.push(format!(".damaged-{}", crate::clock::now_ms()));
             fs::rename(path, aside)?;
             log::error!("passwords file is damaged; moved aside");
             Ok(BTreeMap::new())

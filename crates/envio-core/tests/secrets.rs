@@ -76,8 +76,38 @@ fn a_damaged_file_is_moved_aside_not_overwritten() {
     let secrets = Secrets::open(dir.path()).unwrap();
     assert!(secrets.accounts().is_empty());
     assert!(!path.exists());
-    let aside = dir.path().join(format!("{FILE_NAME}.damaged"));
-    assert_eq!(fs::read(aside).unwrap(), b"{ not json");
+    assert_eq!(asides(dir.path()), [b"{ not json".to_vec()]);
+}
+
+fn asides(dir: &Path) -> Vec<Vec<u8>> {
+    let mut found: Vec<_> = fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with(&format!("{FILE_NAME}.damaged"))
+        })
+        .map(|e| fs::read(e.path()).unwrap())
+        .collect();
+    found.sort();
+    found
+}
+
+#[test]
+fn a_second_damaged_file_does_not_replace_the_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(FILE_NAME);
+    for text in [&b"first damage"[..], b"second damage"] {
+        fs::write(&path, text).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        Secrets::open(dir.path()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(
+        asides(dir.path()),
+        [b"first damage".to_vec(), b"second damage".to_vec()]
+    );
 }
 
 #[test]
@@ -89,7 +119,7 @@ fn a_file_from_a_newer_envio_is_refused_and_left_alone() {
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
     assert!(Secrets::open(dir.path()).is_err());
     assert_eq!(fs::read(&path).unwrap(), text);
-    assert!(!dir.path().join(format!("{FILE_NAME}.damaged")).exists());
+    assert!(asides(dir.path()).is_empty());
 }
 
 #[test]
