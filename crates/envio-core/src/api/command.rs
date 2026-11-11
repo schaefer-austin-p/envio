@@ -46,6 +46,39 @@ pub enum UserAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UndoId(pub u64);
 
+/// One compose window, chosen by the app and unique among open ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComposeId(pub u64);
+
+/// What compose holds. Recipients are as typed, `Name <a@b>` or `a@b`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DraftInput {
+    pub account: String,
+    /// The stored draft this one was saved as, if it was.
+    pub draft_id: Option<String>,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bcc: Vec<String>,
+    pub subject: String,
+    pub body: String,
+    /// Without angle brackets.
+    pub in_reply_to: Option<String>,
+    pub references: Vec<String>,
+    /// Files to attach, read when the message is sent.
+    pub attachments: Vec<PathBuf>,
+}
+
+/// Where a compose window starts from. `Draft` and `Mailto` carry their
+/// data in `StartCompose`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartFrom {
+    New { account: String },
+    Reply { id: MessageRowId, all: bool },
+    Forward { id: MessageRowId },
+    Draft,
+    Mailto,
+}
+
 #[derive(Debug)]
 pub enum Command {
     /// Flush unsent work and stop the worker.
@@ -99,6 +132,28 @@ pub enum Command {
     },
     /// Take back an offered action while its window is open.
     Undo { undo: UndoId },
+    /// Open a compose window; the answer is `ComposeReady` or `ComposeRefused`.
+    StartCompose {
+        compose: ComposeId,
+        from: StartFrom,
+        /// For `StartFrom::Draft`.
+        draft_id: Option<String>,
+        /// For `StartFrom::Mailto`.
+        mailto: Option<String>,
+    },
+    /// The user changed the draft; it is saved within a second.
+    DraftChanged {
+        compose: ComposeId,
+        draft: DraftInput,
+    },
+    /// The window closed: keep the draft, or delete it.
+    CloseCompose { compose: ComposeId, discard: bool },
+    /// Queue the message in the Outbox; the answer is `Queued` or
+    /// `ComposeRefused`.
+    Send {
+        compose: ComposeId,
+        draft: DraftInput,
+    },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -123,6 +178,10 @@ impl Command {
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",
+            Self::StartCompose { .. } => "StartCompose",
+            Self::DraftChanged { .. } => "DraftChanged",
+            Self::CloseCompose { .. } => "CloseCompose",
+            Self::Send { .. } => "Send",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
         }

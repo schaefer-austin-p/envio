@@ -10,6 +10,7 @@ pub mod secrets;
 pub mod servers;
 
 mod clock;
+mod compose;
 mod fsutil;
 // The helpers below are still partly consumed (tr_n, mask, more text).
 #[allow(dead_code)]
@@ -22,7 +23,9 @@ mod text;
 mod undo;
 mod worker;
 
-pub use api::command::{AccountSetup, Command, ConnectRequest, UndoId, UserAction};
+pub use api::command::{
+    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, StartFrom, UndoId, UserAction,
+};
 pub use api::event::Event;
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts,

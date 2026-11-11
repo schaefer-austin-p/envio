@@ -215,7 +215,7 @@ impl Worker<'_> {
     }
 
     /// The account a cached message belongs to.
-    fn account_of(&self, id: MessageRowId) -> Option<String> {
+    pub(super) fn account_of(&self, id: MessageRowId) -> Option<String> {
         let message = self.store.db.message(id).ok()?;
         Some(self.store.db.folder(message.folder).ok()?.account)
     }
@@ -254,6 +254,7 @@ impl Worker<'_> {
     /// A body step ended: show the message that waited for it. `None` is a
     /// body gone from the server.
     pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
+        self.compose_body_fetched(id, raw);
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
@@ -269,6 +270,7 @@ impl Worker<'_> {
     /// A step failed: nobody waiting for a body of `account` (any account
     /// for `None`) will get it soon.
     pub(super) fn open_failed(&mut self, account: Option<&str>) {
+        self.compose_failed(account);
         let waiting: Vec<MessageRowId> = self
             .opening
             .keys()

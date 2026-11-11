@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 09:45+0100\n"
+"POT-Creation-Date: 2026-11-11 09:56+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -24,6 +24,58 @@ msgstr ""
 
 #: qml/pages/InboxPage.qml:38
 msgid "No accounts yet."
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:8
+msgid "Add at least one recipient"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:14
+msgid "{address} is not a valid email address"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:21
+msgid "Could not read the attachment {name}"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:29
+msgid "On {date}, {name} wrote:"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:36
+msgid "Forwarded message"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:37
+msgid "From"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:38
+msgid "Date"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:39
+msgid "Subject"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:40
+msgid "To"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:45
+msgid "Could not queue the message. It is still a draft"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:49
+msgid "There is no account to write from"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:53
+msgid "This draft can not be opened"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:57
+msgid "Could not save your draft"
 msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:7
@@ -247,54 +299,54 @@ msgid_plural "Marked {n} messages as read"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:13
+#: crates/envio-core/src/text/undo.rs:12
 msgid "Marked as unread"
 msgid_plural "Marked {n} messages as unread"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:15
+#: crates/envio-core/src/text/undo.rs:13
 msgid "Flagged"
 msgid_plural "Flagged {n} messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:17
+#: crates/envio-core/src/text/undo.rs:14
 msgid "Flag removed"
 msgid_plural "Removed the flag from {n} messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:19
+#: crates/envio-core/src/text/undo.rs:15
 msgid "Archived"
 msgid_plural "Archived {n} messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:20
+#: crates/envio-core/src/text/undo.rs:16
 msgid "Deleted"
 msgid_plural "Deleted {n} messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:21
+#: crates/envio-core/src/text/undo.rs:17
 msgid "Moved"
 msgid_plural "Moved {n} messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/undo.rs:27
+#: crates/envio-core/src/text/undo.rs:23
 msgid "Too late to undo: the change has already gone to the server"
 msgstr ""
 
-#: crates/envio-core/src/text/undo.rs:31
+#: crates/envio-core/src/text/undo.rs:27
 msgid "Done, but it can not be undone"
 msgstr ""
 
-#: crates/envio-core/src/text/undo.rs:35
+#: crates/envio-core/src/text/undo.rs:31
 msgid "This account has no Archive folder"
 msgstr ""
 
-#: crates/envio-core/src/text/undo.rs:40
+#: crates/envio-core/src/text/undo.rs:36
 msgid "Could not do that. Nothing was changed"
 msgstr ""

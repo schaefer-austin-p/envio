@@ -1,6 +1,7 @@
 //! User-facing core text. `tr`/`tr_n` are called only from this folder, so
 //! xgettext reads only these files (see tools/i18n/update.sh).
 
+pub mod compose;
 pub mod notice;
 pub mod read;
 pub mod setup;

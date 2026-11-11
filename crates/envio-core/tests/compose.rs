@@ -1,0 +1,242 @@
+//! Compose: drafts saved within a second, Send into the Outbox.
+
+mod support;
+
+use std::time::{Duration, Instant};
+
+use envio_core::{
+    Command, ComposeId, DraftInput, Event, FolderRole, MessageRowId, Page, StartFrom,
+};
+use envio_store::{Drafts, Outbox};
+use support::Harness;
+
+const ME: &str = "me@example.org";
+const C: ComposeId = ComposeId(1);
+
+const FLOWED: &[u8] = b"From: Ada <ada@example.org>\r\nTo: me@example.org\r\n\
+Subject: hi\r\nMessage-ID: <m1@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/plain; charset=utf-8; format=flowed\r\n\r\n\
+hello \r\nworld again\r\n";
+
+struct Seeded {
+    h: Harness,
+    key: String,
+}
+
+fn seeded() -> Seeded {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, FLOWED)]);
+    h.start_core();
+    Seeded { h, key }
+}
+
+impl Seeded {
+    fn draft(&self, to: &[&str]) -> DraftInput {
+        DraftInput {
+            account: self.key.clone(),
+            to: to.iter().map(|s| (*s).to_owned()).collect(),
+            subject: "Plans".into(),
+            body: "See you".into(),
+            ..DraftInput::default()
+        }
+    }
+
+    fn drafts(&self) -> Vec<(String, envio_store::Draft)> {
+        Drafts::open(&self.h.paths().drafts())
+            .unwrap()
+            .list()
+            .unwrap()
+    }
+
+    fn outbox(&self) -> Vec<envio_store::OutboxItem> {
+        Outbox::open(&self.h.paths().outbox())
+            .unwrap()
+            .items()
+            .unwrap()
+    }
+
+    fn saved(&self) -> String {
+        self.h.wait(|e| match e {
+            Event::DraftSaved { compose, draft_id } if *compose == C => Some(draft_id.clone()),
+            _ => None,
+        })
+    }
+
+    fn refused(&self) -> String {
+        self.h.wait(|e| match e {
+            Event::ComposeRefused { compose, text } if *compose == C => Some(text.clone()),
+            _ => None,
+        })
+    }
+
+    fn change(&self, draft: DraftInput) {
+        self.h.send(Command::DraftChanged { compose: C, draft });
+    }
+
+    fn send(&self, draft: DraftInput) {
+        self.h.send(Command::Send { compose: C, draft });
+    }
+
+    fn queued(&self) -> String {
+        self.h.wait(|e| match e {
+            Event::Queued { compose, item } if *compose == C => Some(item.clone()),
+            _ => None,
+        })
+    }
+
+    fn message_id(&self) -> MessageRowId {
+        self.h.send(Command::ListMessages {
+            folder: envio_core::FolderId(1),
+            page: Page {
+                offset: 0,
+                limit: 10,
+            },
+        });
+        self.h.wait(|e| match e {
+            Event::Messages { rows, .. } => rows.first().map(|r| r.id),
+            _ => None,
+        })
+    }
+}
+
+#[test]
+fn a_change_is_saved_within_a_second() {
+    let s = seeded();
+    let started = Instant::now();
+    s.change(s.draft(&["ada@example.org"]));
+    let id = s.saved();
+    assert!(started.elapsed() < Duration::from_millis(1_800));
+    let drafts = s.drafts();
+    assert_eq!(drafts.len(), 1);
+    assert_eq!(drafts[0].0, id);
+    assert_eq!(drafts[0].1.subject, "Plans");
+}
+
+#[test]
+fn send_with_no_recipients_is_refused_and_keeps_the_draft() {
+    let s = seeded();
+    s.change(s.draft(&[]));
+    s.saved();
+    s.send(s.draft(&[]));
+    assert!(!s.refused().is_empty());
+    assert!(s.outbox().is_empty());
+    assert_eq!(s.drafts().len(), 1);
+}
+
+#[test]
+fn send_queues_in_the_outbox_then_deletes_the_draft() {
+    let s = seeded();
+    let mut d = s.draft(&["ada@example.org"]);
+    d.bcc = vec!["hidden@example.org".into()];
+    s.change(d.clone());
+    let id = s.saved();
+    d.draft_id = Some(id);
+    s.send(d);
+    let item = s.queued();
+    let items = s.outbox();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].id, item);
+    assert_eq!(items[0].meta.from, ME);
+    assert!(
+        items[0]
+            .meta
+            .recipients
+            .contains(&"hidden@example.org".to_owned())
+    );
+    assert!(s.drafts().is_empty());
+}
+
+#[test]
+fn an_unreadable_attachment_is_refused() {
+    let s = seeded();
+    let mut d = s.draft(&["ada@example.org"]);
+    d.attachments = vec![s.h.data_dir().join("missing.bin")];
+    s.send(d);
+    assert!(s.refused().contains("missing.bin"));
+    assert!(s.outbox().is_empty());
+}
+
+#[test]
+fn reply_quotes_flowed_text_unflowed() {
+    let s = seeded();
+    let id = s.message_id();
+    s.h.send(Command::StartCompose {
+        compose: C,
+        from: StartFrom::Reply { id, all: false },
+        draft_id: None,
+        mailto: None,
+    });
+    let (draft, quoted) = s.h.wait(|e| match e {
+        Event::ComposeReady {
+            compose,
+            draft,
+            quoted,
+        } if *compose == C => Some((draft.clone(), quoted.clone())),
+        _ => None,
+    });
+    assert!(quoted.contains("> hello world again"), "{quoted}");
+    assert_eq!(draft.to, vec!["Ada <ada@example.org>".to_owned()]);
+    assert_eq!(draft.subject, "Re: hi");
+    assert_eq!(draft.in_reply_to.as_deref(), Some("<m1@example.org>"));
+}
+
+#[test]
+fn shutdown_saves_unsaved_drafts() {
+    let mut s = seeded();
+    s.change(s.draft(&["ada@example.org"]));
+    // Closed before the second is up.
+    s.h.send(Command::Shutdown);
+    s.h.restart();
+    assert_eq!(s.drafts().len(), 1);
+}
+
+#[test]
+fn discard_deletes_the_draft() {
+    let s = seeded();
+    s.change(s.draft(&["ada@example.org"]));
+    s.saved();
+    assert_eq!(s.drafts().len(), 1);
+    s.change(s.draft(&["bob@example.org"]));
+    s.h.send(Command::CloseCompose {
+        compose: C,
+        discard: true,
+    });
+    // Neither the stored draft nor the pending change survives.
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert!(s.drafts().is_empty());
+}
+
+#[test]
+fn a_queued_message_id_is_searchable() {
+    let s = seeded();
+    s.send(s.draft(&["ada@example.org"]));
+    s.queued();
+    let items = s.outbox();
+    assert!(envio_sync::plan::message_id::usable_message_id(
+        &items[0].meta.message_id
+    ));
+}
+
+#[test]
+fn a_reopened_draft_keeps_its_attachments() {
+    let s = seeded();
+    let mut d = s.draft(&["ada@example.org"]);
+    d.attachments = vec!["/tmp/keep-me.txt".into()];
+    s.change(d);
+    let id = s.saved();
+    s.h.send(Command::StartCompose {
+        compose: ComposeId(2),
+        from: StartFrom::Draft,
+        draft_id: Some(id),
+        mailto: None,
+    });
+    let draft = s.h.wait(|e| match e {
+        Event::ComposeReady { draft, .. } => Some(draft.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        draft.attachments,
+        vec![std::path::PathBuf::from("/tmp/keep-me.txt")]
+    );
+}

@@ -79,6 +79,27 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.undo_action(undo);
             Flow::Continue
         }
+        Command::StartCompose {
+            compose,
+            from,
+            draft_id,
+            mailto,
+        } => {
+            worker.start_compose(compose, from, (draft_id.as_deref(), mailto.as_deref()));
+            Flow::Continue
+        }
+        Command::DraftChanged { compose, draft } => {
+            worker.draft_changed(compose, draft);
+            Flow::Continue
+        }
+        Command::CloseCompose { compose, discard } => {
+            worker.close_compose(compose, discard);
+            Flow::Continue
+        }
+        Command::Send { compose, draft } => {
+            worker.send(compose, &draft);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

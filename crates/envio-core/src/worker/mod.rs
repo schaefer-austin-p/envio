@@ -1,6 +1,7 @@
 //! The worker: one thread, one current-thread runtime, one command loop.
 
 mod act;
+mod compose;
 mod conn;
 mod dispatch;
 mod plan;
@@ -21,10 +22,11 @@ use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::api::command::Command;
+use crate::api::command::{Command, ComposeId, StartFrom};
 use crate::api::event::Event;
 use crate::api::view::{AccountInfo, CacheState};
 use crate::clock::now_ms;
+use crate::compose::SaveThrottle;
 use crate::core::{Config, EventSink};
 use crate::health::AccountStatus;
 use crate::text;
@@ -62,6 +64,12 @@ pub(crate) struct Worker<'s> {
     opening: BTreeMap<MessageRowId, (bool, u32)>,
     /// Actions the user can still take back.
     undo: UndoBook,
+    /// Drafts changed and not yet saved.
+    throttle: SaveThrottle,
+    /// The stored draft of each compose window that has one.
+    drafts_of: BTreeMap<ComposeId, String>,
+    /// Replies and forwards waiting for a body.
+    composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -144,6 +152,9 @@ impl<'s> Worker<'s> {
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
             undo: UndoBook::default(),
+            throttle: SaveThrottle::default(),
+            drafts_of: BTreeMap::new(),
+            composing: BTreeMap::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
@@ -251,7 +262,4 @@ impl<'s> Worker<'s> {
         }
         Flow::Continue
     }
-
-    /// Saves open drafts; filled in with the draft commands (Task 12).
-    fn flush_drafts(&mut self) {}
 }

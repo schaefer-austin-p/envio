@@ -1,6 +1,6 @@
 //! What the core tells the app.
 
-use super::command::{AccountSetup, UndoId};
+use super::command::{AccountSetup, ComposeId, DraftInput, UndoId};
 use std::path::PathBuf;
 
 use super::view::{AccountInfo, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts};
@@ -116,5 +116,28 @@ pub enum Event {
     UndoClosed {
         undo: UndoId,
         undone: bool,
+    },
+    /// The answer to `StartCompose`: the fields to show. `quoted` is the
+    /// reply or forward text, kept apart so the app can fold it.
+    ComposeReady {
+        compose: ComposeId,
+        draft: DraftInput,
+        quoted: String,
+    },
+    /// The draft was stored for the first time as `draft_id`.
+    DraftSaved {
+        compose: ComposeId,
+        draft_id: String,
+    },
+    /// Compose can not go on (or `Send` did not queue); `text` says why.
+    /// The draft is kept.
+    ComposeRefused {
+        compose: ComposeId,
+        text: String,
+    },
+    /// The message is in the Outbox as `item`.
+    Queued {
+        compose: ComposeId,
+        item: String,
     },
 }
