@@ -276,6 +276,30 @@ Item {
             kbField.input.focus = false
         }
 
+        // The compose body is a TextArea: the cursor line, not the whole
+        // (taller than the screen) text, ends up above the keyboard, and the
+        // view is back within its bounds once the keyboard hides.
+        function test_text_area_cursor_scrolls_above_the_keyboard() {
+            kbFlick.contentY = 0
+            kbArea.text = new Array(31).join("a line of the body\n")
+            avoider.keyboard = Qt.rect(0, 100 + 300 - 150, 400, 150)
+            kbArea.forceActiveFocus()
+            tryVerify(function() { return kbArea.activeFocus })
+            kbArea.cursorPosition = kbArea.length
+            const cursor = kbArea.cursorRectangle
+            tryVerify(function() {
+                return kbArea.mapToItem(kbFlick, 0, cursor.y + cursor.height).y <= kbFlick.height - 150
+            }, 5000, "the cursor line is under the keyboard")
+            verify(kbArea.mapToItem(kbFlick, 0, cursor.y).y >= 0, "the cursor line is above the view")
+            verify(kbFlick.contentY > 0, "the view did not scroll")
+            avoider.keyboard = Qt.rect(0, 0, 0, 0)
+            compare(avoider.covered, 0)
+            const most = Math.max(0, kbFlick.contentHeight - kbFlick.height)
+            tryVerify(function() { return kbFlick.contentY >= 0 && kbFlick.contentY <= most })
+            kbArea.focus = false
+            kbArea.text = ""
+        }
+
         // #64: the icon keeps its own size, in grid units, centred in the button.
         function test_icon_button_icon_is_theme_icon_size() {
             const ib = createTemporaryObject(iconButtonComponent, root)
@@ -324,6 +348,7 @@ Item {
         contentHeight: 1200
         clip: true
         Field { id: kbField; theme: thm; y: 900; width: 280 }
+        TextArea { id: kbArea; y: 200; width: 280 }
         KeyboardAvoider { id: avoider; flickable: kbFlick }
     }
 
