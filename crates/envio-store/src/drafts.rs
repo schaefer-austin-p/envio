@@ -1,7 +1,8 @@
 //! Drafts: what compose holds, one JSON file per draft in the data folder,
 //! replaced atomically on every save. Core debounces saves to about 1 s.
 
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -117,12 +118,109 @@ impl Drafts {
     pub fn delete(&self, id: &str) -> Result<()> {
         check(id)?;
         fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io)?;
+        remove_dir_if_there(&self.files_dir(id))?;
         // Without this a power loss can bring a sent draft back.
         Ok(fs::File::open(&self.dir)?.sync_all()?)
     }
 
+    /// Copies `source` into `files/<draft id>/` and returns the path of the
+    /// copy, which is what the draft stores (the original may move or go
+    /// away). The name is made safe and a collision gets ` (2)`, ` (3)`.
+    pub fn keep_attachment(&self, draft_id: &str, source: &Path) -> Result<PathBuf> {
+        check(draft_id)?;
+        let mut input = fs::File::open(source).map_err(StoreError::missing_or_io)?;
+        let folder = self.files_dir(draft_id);
+        fs::create_dir_all(&folder)?;
+        let name = safe_name(source);
+        for n in 1_u32.. {
+            let target = folder.join(numbered(&name, n));
+            // `create_new` so two copies never share a name, even racing.
+            let mut output = match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&target)
+            {
+                Ok(output) => output,
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            };
+            let copied = io::copy(&mut input, &mut output).and_then(|_| output.sync_all());
+            if let Err(error) = copied {
+                drop(output);
+                let _ = fs::remove_file(&target);
+                return Err(error.into());
+            }
+            fs::File::open(&folder)?.sync_all()?;
+            return Ok(target);
+        }
+        unreachable!("the loop only ends by returning")
+    }
+
+    /// Deletes the copies of drafts that no longer exist (a crash between
+    /// deleting a draft and its files); returns how many folders went. A
+    /// damaged draft still has its file, so its copies stay.
+    pub fn sweep_files(&self) -> Result<usize> {
+        let entries = match fs::read_dir(self.dir.join(FILES)) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(error.into()),
+        };
+        let mut swept = 0;
+        for entry in entries {
+            let entry = entry?;
+            let id = entry.file_name();
+            let gone = id.to_str().is_none_or(|id| !self.path(id).exists());
+            if entry.file_type()?.is_dir() && gone {
+                fs::remove_dir_all(entry.path())?;
+                swept += 1;
+            }
+        }
+        Ok(swept)
+    }
+
+    fn files_dir(&self, id: &str) -> PathBuf {
+        self.dir.join(FILES).join(id)
+    }
+
     fn path(&self, id: &str) -> PathBuf {
         self.dir.join(format!("{id}.json"))
+    }
+}
+
+/// The folder of attachment copies inside the drafts folder.
+const FILES: &str = "files";
+
+fn remove_dir_if_there(dir: &Path) -> Result<()> {
+    match fs::remove_dir_all(dir) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.into()),
+        _ => Ok(()),
+    }
+}
+
+/// The last part of the path with no separators and no leading dots, so a
+/// copy can never leave its folder or hide.
+fn safe_name(source: &Path) -> String {
+    let name = source
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    let name = name.rsplit(['/', '\\']).next().unwrap_or_default();
+    let name = name.replace('\0', "");
+    let name = name.trim_start_matches('.').trim();
+    if name.is_empty() {
+        "attachment".to_owned()
+    } else {
+        name.to_owned()
+    }
+}
+
+/// `report.pdf` is `report (2).pdf` for n = 2.
+fn numbered(name: &str, n: u32) -> String {
+    if n == 1 {
+        return name.to_owned();
+    }
+    match name.rfind('.') {
+        Some(dot) if dot > 0 => format!("{} ({n}){}", &name[..dot], &name[dot..]),
+        _ => format!("{name} ({n})"),
     }
 }
 

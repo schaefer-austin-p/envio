@@ -321,6 +321,7 @@ mod tests {
                 imap: server(),
                 smtp: server(),
             },
+            broken: None,
         }
     }
 

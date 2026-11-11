@@ -28,7 +28,7 @@ pub fn open_or_rebuild(paths: &StorePaths) -> Result<(Db, Opened)> {
     let path = &paths.db();
     // A zero-byte file (a crash right after creation) is a new cache.
     let existed = fs::metadata(path).is_ok_and(|m| m.len() > 0);
-    let error = match Db::open(path).and_then(|db| db.check().map(|()| db)) {
+    let error = match open_checked(path) {
         Ok(db) => {
             let opened = if existed {
                 Opened::Existing
@@ -40,6 +40,10 @@ pub fn open_or_rebuild(paths: &StorePaths) -> Result<(Db, Opened)> {
         Err(error) if error.is_damage() => error,
         Err(error) => return Err(error),
     };
+    // The handle that found the damage is already closed (`open_checked`
+    // drops it), so if anything below fails nothing holds, or can write to,
+    // the moved-aside file (#50): the error goes to the caller, who opens
+    // nothing until it calls again.
     move_aside(path)?;
     match fs::remove_dir_all(paths.bodies()) {
         Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error.into()),
@@ -52,6 +56,19 @@ pub fn open_or_rebuild(paths: &StorePaths) -> Result<(Db, Opened)> {
             reason: error.to_string(),
         },
     ))
+}
+
+/// Opens and checks; a database that fails the check is closed before the
+/// error comes back.
+fn open_checked(path: &Path) -> Result<Db> {
+    let db = Db::open(path)?;
+    match db.check() {
+        Ok(()) => Ok(db),
+        Err(error) => {
+            drop(db);
+            Err(error)
+        }
+    }
 }
 
 fn with_suffix(path: &Path, suffix: &str) -> OsString {

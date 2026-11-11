@@ -104,3 +104,32 @@ fn a_zero_byte_cache_counts_as_created() {
     db.check().unwrap();
     assert!(!dir.path().join("envio.db.damaged").exists());
 }
+
+/// Names of the files this process has open, from `/proc/self/fd`.
+fn open_files() -> Vec<String> {
+    fs::read_dir("/proc/self/fd")
+        .unwrap()
+        .filter_map(|entry| fs::read_link(entry.ok()?.path()).ok())
+        .map(|target| target.display().to_string())
+        .collect()
+}
+
+#[test]
+fn a_failed_reopen_after_move_aside_leaves_no_handle_on_the_old_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = StorePaths::new(dir.path(), dir.path().join("data"));
+    fs::write(paths.db(), vec![0x5A_u8; 8192]).unwrap();
+    // A file where the bodies folder should be: clearing it fails after the
+    // damaged database has been moved aside.
+    fs::write(paths.bodies(), b"in the way").unwrap();
+    assert!(open_or_rebuild(&paths).is_err());
+    let damaged = dir.path().join("envio.db.damaged");
+    assert!(damaged.exists());
+    assert!(!paths.db().exists());
+    let tag = dir.path().display().to_string();
+    let held: Vec<_> = open_files()
+        .into_iter()
+        .filter(|f| f.starts_with(&tag))
+        .collect();
+    assert!(held.is_empty(), "{held:?}");
+}
