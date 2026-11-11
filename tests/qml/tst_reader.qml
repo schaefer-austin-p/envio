@@ -187,9 +187,20 @@ Item {
             wait(100)
             mouseClick(find("attachment-share"))
             compare(mock.called("saveAttachment").length, 1)
-            mock.attachmentFailed()
+            mock.attachmentFailed(5)
             mock.attachmentSaved("/tmp/other.pdf")
             compare(root.exported.length, 0)
+        }
+
+        function test_another_messages_failed_save_keeps_the_export() {
+            open(view(pdf(), 0))
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            mock.attachmentFailed(9)
+            mock.attachmentSaved("/tmp/mine.pdf")
+            compare(root.exported.length, 1)
         }
 
         function test_an_unrelated_notice_does_not_drop_the_export() {

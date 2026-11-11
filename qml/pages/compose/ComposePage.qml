@@ -22,8 +22,9 @@ Item {
     // exists on the phone).
     property var importFiles: function() { content.importFiles() }
 
-    // The message was queued: the Outbox has it.
-    signal sent()
+    // The message was queued: the Outbox has it. The text is core's, for a
+    // toast.
+    signal sent(string text)
     // Back or Discard: the page is done.
     signal closed()
 
@@ -98,9 +99,9 @@ Item {
         return JSON.stringify({
             account: account,
             draftId: draftId,
-            to: to.entries,
-            cc: cc.entries,
-            bcc: bcc.entries,
+            to: to.all(),
+            cc: cc.all(),
+            bcc: bcc.all(),
             subject: subject.text,
             body: body.text + tail,
             inReplyTo: inReplyTo,
@@ -199,6 +200,7 @@ Item {
                 suggestions: root.suggestions
                 label: qsTr("To")
                 onEdited: root.edited()
+                onAsked: { cc.asking = false; bcc.asking = false }
             }
             RecipientField {
                 id: cc
@@ -211,6 +213,7 @@ Item {
                 suggestions: root.suggestions
                 label: qsTr("Cc")
                 onEdited: root.edited()
+                onAsked: { to.asking = false; bcc.asking = false }
             }
             RecipientField {
                 id: bcc
@@ -223,6 +226,7 @@ Item {
                 suggestions: root.suggestions
                 label: qsTr("Bcc")
                 onEdited: root.edited()
+                onAsked: { to.asking = false; cc.asking = false }
             }
             AppButton {
                 objectName: "showCc"
@@ -283,32 +287,10 @@ Item {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.gu(2) }
     }
 
-    Sheet {
+    DiscardActions {
         id: more
         theme: root.theme
-        ListRow {
-            objectName: "discardRow"
-            theme: root.theme
-            width: more.width
-            onClicked: { more.close(); discardAsk.open() }
-            Text {
-                textFormat: Text.PlainText
-                text: qsTr("Discard draft")
-                color: root.theme.text
-                font.family: root.theme.fontUi
-                font.pixelSize: 16
-            }
-        }
-    }
-    AppDialog {
-        id: discardAsk
-        objectName: "discardAsk"
-        theme: root.theme
-        title: qsTr("Discard this message?")
-        message: qsTr("The draft is deleted and cannot be brought back.")
-        primaryText: qsTr("Keep editing")
-        secondaryText: qsTr("Discard")
-        onSecondaryActivated: {
+        onDiscarded: {
             root.core.closeCompose(root.compose, true)
             root.closed()
         }
@@ -331,8 +313,8 @@ Item {
             root.sending = false
             root.error = text
         }
-        function onQueued(compose) {
-            if (compose === root.compose) root.sent()
+        function onQueued(compose, text) {
+            if (compose === root.compose) root.sent(text)
         }
         function onAttached(compose, path, name, size) {
             if (compose !== root.compose) return

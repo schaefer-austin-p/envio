@@ -17,6 +17,8 @@ Item {
     property var entries: []
     readonly property alias input: field.input
     signal edited()
+    // This field started asking: the others stop showing suggestions.
+    signal asked()
 
     // Whether the suggestions belong to this field: the last one typed in.
     property bool asking: false
@@ -24,6 +26,11 @@ Item {
     implicitHeight: column.height
 
     function setEntries(list) { entries = list.slice() }
+    // The chips and what is typed and not yet a chip, for the draft.
+    function all() {
+        const typed = field.text.split(/[,;]/).map(function(s) { return s.trim() })
+        return entries.concat(typed.filter(function(s) { return s !== "" }))
+    }
     function add(entry) {
         const e = entry.trim()
         if (e === "") return
@@ -122,7 +129,9 @@ Item {
                     function onTextChanged() {
                         if (/[,;]/.test(field.text)) root.commit(false)
                         else if (field.text.trim() === "") { root.asking = false; asker.stop() }
-                        else { root.asking = true; asker.restart() }
+                        else { root.asking = true; root.asked(); asker.restart() }
+                        // Typed text is part of the draft too.
+                        root.edited()
                     }
                     function onActiveFocusChanged() {
                         if (!field.input.activeFocus) root.commit(true)
@@ -136,8 +145,8 @@ Item {
             theme: root.theme
             core: root.core
             model: root.suggestions
-            visible: root.asking && field.text.trim() !== "" && list.count > 0
-            height: visible ? implicitHeight : 0
+            query: field.text.trim()
+            visible: root.asking && field.text.trim() !== ""
             onChosen: function(entry) {
                 root.asking = false
                 asker.stop()

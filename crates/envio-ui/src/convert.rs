@@ -76,12 +76,13 @@ pub fn outbox_row(r: &OutboxRow) -> Row {
     })
 }
 
-pub fn suggestion_row(s: &Suggestion) -> Row {
+pub fn suggestion_row(s: &Suggestion, query: &str) -> Row {
     Row::Suggestion(SuggestionRow {
         name: s.name.clone(),
         address: s.address.clone(),
         from_contacts: s.from_contacts,
         last_seen: s.last_seen.unwrap_or(0),
+        query: query.to_owned(),
     })
 }
 
@@ -121,7 +122,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         },
         Event::MessageUnavailable { id, text } => Signal::MessageUnavailable { id: id.0, text },
         Event::AttachmentSaved { path, .. } => Signal::AttachmentSaved { path },
-        Event::AttachmentFailed { .. } => Signal::AttachmentFailed,
+        Event::AttachmentFailed { id, .. } => Signal::AttachmentFailed { id: id.0 },
         Event::UndoOffer { undo, text, .. } => Signal::UndoOffer { undo, text },
         Event::UndoClosed { .. } => Signal::UndoClosed,
         Event::ComposeReady {
@@ -135,7 +136,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         },
         Event::DraftSaved { compose, .. } => Signal::DraftSaved { compose },
         Event::ComposeRefused { compose, text } => Signal::ComposeRefused { compose, text },
-        Event::Queued { compose, .. } => Signal::Queued { compose },
+        Event::Queued { compose, text, .. } => Signal::Queued { compose, text },
         Event::Attached {
             compose,
             path,

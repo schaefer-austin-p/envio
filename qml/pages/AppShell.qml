@@ -47,6 +47,7 @@ Item {
         else {
             rootKind = "inbox"
             stack.replace(null, inboxPage)
+            startPendingMailto()
         }
     }
 
@@ -73,6 +74,10 @@ Item {
         }
     }
 
+    // For tests: the page on top and how many there are.
+    readonly property Item currentPage: stack.currentItem
+    readonly property int depth: stack.depth
+
     // Compose pages: the core made the compose, the page follows it.
     function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
     function newMessage() {
@@ -88,7 +93,8 @@ Item {
         startPendingMailto()
     }
     function startPendingMailto() {
-        if (pendingMailto === "" || !core.ready || accountCount === 0) return
+        // Not over the wizard: its Options step comes after the account exists.
+        if (pendingMailto === "" || !core.ready || accountCount === 0 || rootKind !== "inbox") return
         const link = pendingMailto
         pendingMailto = ""
         const id = core.startCompose("mailto", 0, "", link)
@@ -175,14 +181,25 @@ Item {
     Component {
         id: composePage
         ComposePage {
+            id: page
+            // Set when the message was queued while another page was on top.
+            property bool done: false
+            StackView.onStatusChanged: {
+                // Later: the pop that showed this page is still completing.
+                if (done && StackView.status === StackView.Active)
+                    Qt.callLater(function() { if (stack.currentItem === page) stack.pop() })
+            }
             theme: root.theme
             core: root.core
             accounts: root.accounts
             suggestions: root.suggestions
             onClosed: stack.pop()
-            onSent: {
-                stack.pop()
-                sentToast.show(qsTr("Sent to the Outbox"))
+            // Queued arrives late: close this page, not whatever is on top
+            // by now. A page below the top closes when it is shown again.
+            onSent: function(text) {
+                if (stack.currentItem === page) stack.pop()
+                else page.done = true
+                sentToast.show(text)
             }
         }
     }

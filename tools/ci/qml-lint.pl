@@ -91,8 +91,9 @@ for my $file (@ARGV) {
     # styled text, which fetches <img src>. Every Text states its format;
     # AutoText is never one, StyledText only with a "styled-ok" comment on
     # its line or the line above.
-    # Label (Controls 2) and a namespaced X.Text are Texts too.
-    while ($code =~ /(?<![\w.])(?:[A-Za-z_]\w*\.)*(Text|Label)\s*\{/g) {
+    # Label (Controls 2) and a namespaced X.Text are Texts too, and so are
+    # TextArea and TextEdit (a body typed or filled from a mailto: link).
+    while ($code =~ /(?<![\w.])(?:[A-Za-z_]\w*\.)*(Text|Label|TextArea|TextEdit)\s*\{/g) {
         my ($type, $open) = ($1, pos($code));
         my ($depth, $j, $len, $found) = (1, $open, length $code, 0);
         while ($j < $len && $depth > 0) {
@@ -103,7 +104,8 @@ for my $file (@ARGV) {
             $j++;
         }
         next if $found;
-        print "$file:" . line_of($code, $open) . ": $type without textFormat (use Text.PlainText)\n";
+        my $plain = $type =~ /^Text(Area|Edit)$/ ? 'TextEdit.PlainText' : 'Text.PlainText';
+        print "$file:" . line_of($code, $open) . ": $type without textFormat (use $plain)\n";
         $bad = 1;
     }
     my @lines = split /\n/, $src, -1;

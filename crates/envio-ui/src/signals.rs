@@ -52,7 +52,9 @@ pub enum Signal {
     AttachmentSaved {
         path: PathBuf,
     },
-    AttachmentFailed,
+    AttachmentFailed {
+        id: i64,
+    },
     UndoOffer {
         undo: UndoId,
         text: String,
@@ -72,6 +74,7 @@ pub enum Signal {
     },
     Queued {
         compose: ComposeId,
+        text: String,
     },
     Attached {
         compose: ComposeId,

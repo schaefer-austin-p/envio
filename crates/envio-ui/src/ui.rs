@@ -129,8 +129,11 @@ impl Ui {
                 let rows = items.iter().map(convert::outbox_row).collect();
                 vec![change(Model::Outbox, Op::Reset(rows))]
             }
-            Event::Suggestions { items, .. } => {
-                let rows = items.iter().map(convert::suggestion_row).collect();
+            Event::Suggestions { query, items } => {
+                let rows = items
+                    .iter()
+                    .map(|s| convert::suggestion_row(s, &query))
+                    .collect();
                 vec![change(Model::Suggestions, Op::Reset(rows))]
             }
             _ => Vec::new(),

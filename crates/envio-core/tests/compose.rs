@@ -127,7 +127,7 @@ impl Seeded {
 
     fn queued(&self) -> String {
         self.h.wait(|e| match e {
-            Event::Queued { compose, item } if *compose == C => Some(item.clone()),
+            Event::Queued { compose, item, .. } if *compose == C => Some(item.clone()),
             _ => None,
         })
     }

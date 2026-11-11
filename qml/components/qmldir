@@ -16,3 +16,4 @@ TopBar 1.0 TopBar.qml
 DateText 1.0 DateText.qml
 FolderLabel 1.0 FolderLabel.qml
 EditMenu 1.0 EditMenu.qml
+HoldSelection 1.0 HoldSelection.qml

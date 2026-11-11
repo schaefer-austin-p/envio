@@ -69,6 +69,11 @@ fn rows_follow_every_change() {
         },
     );
     assert_eq!(ui.rows(Model::Suggestions).len(), 1);
+    // Each row says which query it answers.
+    assert_eq!(
+        ui.rows(Model::Suggestions)[0].value("query"),
+        Some(envio_ui::RowValue::Str("x".into()))
+    );
     assert!(ui.rows(Model::Outbox).is_empty());
 }
 

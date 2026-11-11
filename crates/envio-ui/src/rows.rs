@@ -62,6 +62,8 @@ pub struct SuggestionRow {
     pub from_contacts: bool,
     /// Unix seconds, 0 when never seen.
     pub last_seen: i64,
+    /// What was asked for; an answer to an earlier query is not this one's.
+    pub query: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,7 +100,7 @@ const MESSAGE: &[&str] = &[
     "selected",
 ];
 const OUTBOX: &[&str] = &["id", "account", "subject", "to", "status", "text"];
-const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen"];
+const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
 fn s(v: &str) -> RowValue {
     RowValue::Str(v.to_owned())
@@ -154,6 +156,7 @@ impl Row {
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),
             (Self::Suggestion(r), "lastSeen") => Int(r.last_seen),
+            (Self::Suggestion(r), "query") => s(&r.query),
             _ => return None,
         })
     }

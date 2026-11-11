@@ -25,7 +25,7 @@ Sheet {
     }
 
     // The clipboard has no QML API of its own; a hidden TextEdit copies.
-    TextEdit { id: clip; visible: false }
+    TextEdit { id: clip; visible: false; textFormat: TextEdit.PlainText }
 
     Column {
         x: root.theme.gu(2.5)

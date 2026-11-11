@@ -9,6 +9,9 @@ Item {
     // What delivers the links that arrive while the app runs; empty where
     // there is none (the tests, which load no Lomiri module).
     property string sourceFile: "ut/UriSource.qml"
+    // The command line; a link that started the app is one of these. A
+    // property so the tests can hand in their own.
+    property var arguments: Qt.application.arguments
     signal mailto(string uri)
 
     function offer(uri) {
@@ -18,7 +21,7 @@ Item {
     Component.onCompleted: {
         // Later, so the handler that listens has been set up.
         Qt.callLater(function() {
-            for (const arg of Qt.application.arguments) root.offer(arg)
+            for (const arg of root.arguments) root.offer(arg)
         })
         if (root.sourceFile === "") return
         source.setSource(root.sourceFile, {})

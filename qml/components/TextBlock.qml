@@ -26,6 +26,7 @@ Rectangle {
         leftPadding: root.theme.gu(2)
         rightPadding: root.theme.gu(2)
         wrapMode: TextEdit.Wrap
+        textFormat: TextEdit.PlainText
         selectByMouse: true
         persistentSelection: true
         color: root.theme.text
@@ -34,26 +35,6 @@ Rectangle {
         font.family: root.theme.fontUi
         font.pixelSize: 16
 
-        property int heldStart: 0
-        property int heldEnd: 0
-        property bool held: false
-        function remember() {
-            if (selectionStart !== selectionEnd) {
-                heldStart = selectionStart
-                heldEnd = selectionEnd
-            }
-        }
-        onSelectionStartChanged: remember()
-        onSelectionEndChanged: remember()
-        onTextChanged: heldStart = heldEnd = 0
-        onPressed: held = false
-        onReleased: { if (!held) heldStart = heldEnd = 0 }
-        onPressAndHold: function (event) {
-            held = true
-            if (selectedText === "" && heldStart !== heldEnd)
-                select(heldStart, heldEnd)
-            menu.popup(input, event.x, event.y)
-        }
         Text {
             id: hint
             textFormat: Text.PlainText
@@ -69,4 +50,5 @@ Rectangle {
         theme: root.theme
         field: input
     }
+    HoldSelection { field: input; menu: menu }
 }

@@ -130,7 +130,11 @@ impl Worker<'_> {
         }
         match self.try_send(compose, draft) {
             Ok(item) => {
-                self.emit(Event::Queued { compose, item });
+                self.emit(Event::Queued {
+                    compose,
+                    item,
+                    text: text::compose::queued(),
+                });
                 self.emit(Event::OutboxChanged);
                 self.emit_outbox();
             }

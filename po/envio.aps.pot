@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 20:38+0100\n"
+"POT-Creation-Date: 2026-11-11 20:50+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -86,10 +86,6 @@ msgstr ""
 #. TRANSLATORS: %1 is a file size in gigabytes, like 2.0.
 #: qml/components/fileSize.js:29
 msgid "%1 GB"
-msgstr ""
-
-#: qml/pages/AppShell.qml:185
-msgid "Sent to the Outbox"
 msgstr ""
 
 #: qml/pages/ProblemPage.qml:47
@@ -292,71 +288,71 @@ msgstr ""
 msgid "Remove attachment"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:137
+#: qml/pages/compose/ComposePage.qml:138
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:143
+#: qml/pages/compose/ComposePage.qml:144
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:151 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:152 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:117
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:158
+#: qml/pages/compose/ComposePage.qml:159
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:200 qml/pages/reader/HeaderBlock.qml:16
-#: crates/envio-core/src/text/compose.rs:40
+#: qml/pages/compose/ComposePage.qml:201 qml/pages/reader/HeaderBlock.qml:16
+#: crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:212 qml/pages/reader/HeaderBlock.qml:17
+#: qml/pages/compose/ComposePage.qml:214 qml/pages/reader/HeaderBlock.qml:17
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:224
+#: qml/pages/compose/ComposePage.qml:227
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:232
+#: qml/pages/compose/ComposePage.qml:236
 msgid "Cc and Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:242
-#: crates/envio-core/src/text/compose.rs:39
+#: qml/pages/compose/ComposePage.qml:246
+#: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:261
+#: qml/pages/compose/ComposePage.qml:265
 msgid "Write your message"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:296
+#: qml/pages/compose/DiscardActions.qml:25
 msgid "Discard draft"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:307
+#: qml/pages/compose/DiscardActions.qml:36
 msgid "Discard this message?"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:308
+#: qml/pages/compose/DiscardActions.qml:37
 msgid "The draft is deleted and cannot be brought back."
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:309
+#: qml/pages/compose/DiscardActions.qml:38
 msgid "Keep editing"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:310
+#: qml/pages/compose/DiscardActions.qml:39
 msgid "Discard"
 msgstr ""
 
 #: qml/pages/compose/FromRow.qml:50 qml/pages/reader/HeaderBlock.qml:15
-#: crates/envio-core/src/text/compose.rs:37
+#: crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
@@ -376,15 +372,15 @@ msgstr ""
 msgid "Remove quoted text"
 msgstr ""
 
-#: qml/pages/compose/RecipientField.qml:84
+#: qml/pages/compose/RecipientField.qml:91
 msgid "Remove %1"
 msgstr ""
 
-#: qml/pages/compose/Suggestions.qml:63
+#: qml/pages/compose/Suggestions.qml:67
 msgid "from Contacts"
 msgstr ""
 
-#: qml/pages/compose/Suggestions.qml:64
+#: qml/pages/compose/Suggestions.qml:68
 msgid "written to %1"
 msgstr ""
 
@@ -524,7 +520,7 @@ msgstr ""
 msgid "Send it with another app"
 msgstr ""
 
-#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:38
+#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:42
 msgid "Date"
 msgstr ""
 
@@ -571,38 +567,42 @@ msgid "Forward"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8
+msgid "Sent to the Outbox"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:12
 msgid "Add at least one recipient"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:14
+#: crates/envio-core/src/text/compose.rs:18
 msgid "{address} is not a valid email address"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:21
+#: crates/envio-core/src/text/compose.rs:25
 msgid "Could not read the attachment {name}"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:29
+#: crates/envio-core/src/text/compose.rs:33
 msgid "On {date}, {name} wrote:"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:36
+#: crates/envio-core/src/text/compose.rs:40
 msgid "Forwarded message"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:45
+#: crates/envio-core/src/text/compose.rs:49
 msgid "Could not queue the message. It is still a draft"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:49
+#: crates/envio-core/src/text/compose.rs:53
 msgid "There is no account to write from"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:53
+#: crates/envio-core/src/text/compose.rs:57
 msgid "This draft can not be opened"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:57
+#: crates/envio-core/src/text/compose.rs:61
 msgid "Could not save your draft"
 msgstr ""
 

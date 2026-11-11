@@ -275,7 +275,10 @@ Item {
         // A failed save says so with attachmentFailed (and a notice): forget
         // the pending export, or the next save would be exported in its
         // mode. Other notices are not the save's business.
-        function onAttachmentFailed() { root.pendingMode = "" }
+        function onAttachmentFailed(id) {
+            // A late failure from an earlier page's save is not ours.
+            if (id === root.messageId) root.pendingMode = ""
+        }
         function onMessageOpened(view) {
             if (view.id !== root.messageId) return
             root.unavailable = ""

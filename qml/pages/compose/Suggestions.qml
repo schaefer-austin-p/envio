@@ -11,7 +11,9 @@ Column {
     required property Theme theme
     required property var core
     required property var model
-    readonly property int count: rows.count
+    // What the rows must answer: a row for another query is an earlier,
+    // slower answer and stays hidden.
+    property string query: ""
     signal chosen(string entry)
 
     // "Name <address>", the name quoted when it holds a separator.
@@ -29,8 +31,10 @@ Column {
             required property var model
             required property int index
             objectName: "suggestion-" + index
+            visible: model.query === root.query
             theme: root.theme
             width: root.width
+            height: visible ? implicitHeight : 0
             focusPolicy: Qt.NoFocus
             onClicked: root.chosen(root.entry(model.name, model.address))
             Column {

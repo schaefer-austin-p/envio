@@ -192,5 +192,7 @@ pub enum Event {
     Queued {
         compose: ComposeId,
         item: String,
+        /// For the toast that tells the user ("Sent to the Outbox").
+        text: String,
     },
 }

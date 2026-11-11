@@ -52,29 +52,6 @@ Column {
             persistentSelection: true
             leftPadding: root.theme.gu(1.75)
             rightPadding: root.theme.gu(1.75)
-            // The press that starts a hold moves the cursor and drops the
-            // selection; keep it, so Copy and Cut have something to act on.
-            property int heldStart: 0
-            property int heldEnd: 0
-            property bool held: false
-            function remember() {
-                if (selectionStart !== selectionEnd) {
-                    heldStart = selectionStart
-                    heldEnd = selectionEnd
-                }
-            }
-            onSelectionStartChanged: remember()
-            onSelectionEndChanged: remember()
-            onTextChanged: heldStart = heldEnd = 0
-            onPressed: held = false
-            // A plain tap deselects for good; only a hold brings it back.
-            onReleased: { if (!held) heldStart = heldEnd = 0 }
-            onPressAndHold: function (event) {
-                held = true
-                if (selectedText === "" && heldStart !== heldEnd)
-                    select(heldStart, heldEnd)
-                menu.popup(input, event.x, event.y)
-            }
             anchors.fill: parent
             verticalAlignment: TextInput.AlignVCenter
             clip: true
@@ -105,5 +82,6 @@ Column {
             field: input
             password: root.password
         }
+        HoldSelection { field: input; menu: menu }
     }
 }

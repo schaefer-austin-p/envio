@@ -26,6 +26,7 @@
         <file>pages/compose/QuoteFold.qml</file>
         <file>pages/compose/AttachmentChips.qml</file>
         <file>pages/compose/FromRow.qml</file>
+        <file>pages/compose/DiscardActions.qml</file>
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>
         <file>pages/accounts/SignInStep.qml</file>
@@ -54,6 +55,7 @@
         <file>components/AppDialog.qml</file>
         <file>components/EditMenu.qml</file>
         <file>components/Field.qml</file>
+        <file>components/HoldSelection.qml</file>
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>
         <file>components/IconButton.qml</file>

@@ -141,8 +141,8 @@ Item {
         function test_choosing_a_suggestion_adds_a_chip() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
                                    inReplyTo: "", references: [], attachments: [] }, "")
-            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0 })
-            mock.suggestions.append({ name: "Bo", address: "bo@example.org", fromContacts: false, lastSeen: 100 })
+            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
+            mock.suggestions.append({ name: "Bo", address: "bo@example.org", fromContacts: false, lastSeen: 100, query: "bo" })
             find("to").input.text = "bo"
             tryVerify(function() { return shown("suggestion-1") }, 2000)
             compare(find("suggestionAddress-0").text, "bob@example.org")
@@ -154,6 +154,44 @@ Item {
             compare(find("to").input.text, "")
             compare(lastDraft().to, ["Bob <bob@example.org>"])
             verify(!shown("suggestion-0"), "the list closes")
+        }
+
+        function test_an_answer_to_an_earlier_query_is_not_shown() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            // The answer to "ada" is still in the model when "b" is typed.
+            mock.suggestions.append({ name: "Ada", address: "ada@example.org", fromContacts: true, lastSeen: 0, query: "ada" })
+            find("to").input.text = "b"
+            waitForRendering(page)
+            wait(50)
+            verify(!shown("suggestion-0"), "Ada does not answer b")
+            // The answer to "b" arrives and replaces it.
+            mock.suggestions.clear()
+            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "b" })
+            tryVerify(function() { return shown("suggestion-0") }, 2000)
+            compare(find("suggestionAddress-0").text, "bob@example.org")
+        }
+
+        function test_only_the_field_that_asked_shows_suggestions() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            find("showCc").clicked()
+            waitForRendering(page)
+            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
+            find("to").input.text = "bo"
+            tryVerify(function() { return shown("suggestion-0") }, 2000)
+            // Cc starts asking: the list is not To's any more.
+            find("ccField").input.text = "c"
+            waitForRendering(page)
+            verify(!find("to").asking, "To stopped asking")
+            verify(find("ccField").asking)
+            verify(!shown("suggestion-0"), "Cc's text is not what the rows answer")
+        }
+
+        function test_typed_text_is_in_the_draft() {
+            mock.composeReady(1, reply, "")
+            find("to").input.text = "dave@exa"
+            compare(lastDraft().to, ["Bob <bob@example.org>", "dave@exa"])
         }
 
         function test_refused_send_keeps_the_page() {
@@ -173,10 +211,11 @@ Item {
 
         function test_queued_closes_the_page() {
             mock.composeReady(1, reply, "")
-            mock.queued(2)
+            mock.queued(2, "Sent")
             compare(sent.count, 0, "another compose's queue is not ours")
-            mock.queued(1)
+            mock.queued(1, "Sent")
             compare(sent.count, 1)
+            compare(sent.signalArguments[0][0], "Sent")
         }
 
         function test_send_appends_the_quote_unless_removed() {

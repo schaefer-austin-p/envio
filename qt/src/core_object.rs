@@ -85,7 +85,7 @@ pub mod qobject {
         fn attachment_saved(self: Pin<&mut EnvioCore>, path: &QString);
         #[qsignal]
         #[cxx_name = "attachmentFailed"]
-        fn attachment_failed(self: Pin<&mut EnvioCore>);
+        fn attachment_failed(self: Pin<&mut EnvioCore>, id: i64);
         #[qsignal]
         #[cxx_name = "undoOffer"]
         fn undo_offer(self: Pin<&mut EnvioCore>, undo: i64, text: &QString);
@@ -107,7 +107,7 @@ pub mod qobject {
         #[cxx_name = "composeRefused"]
         fn compose_refused(self: Pin<&mut EnvioCore>, compose: i64, text: &QString);
         #[qsignal]
-        fn queued(self: Pin<&mut EnvioCore>, compose: i64);
+        fn queued(self: Pin<&mut EnvioCore>, compose: i64, text: &QString);
         #[qsignal]
         fn attached(
             self: Pin<&mut EnvioCore>,

@@ -1,0 +1,124 @@
+import QtQuick 2.15
+import QtTest 1.2
+import "../../qml/platform"
+import "../../qml/pages"
+
+// The app shell's compose wiring (which page opens, which one a late
+// Queued closes, when a mailto: link starts) and platform/Uri.qml.
+Item {
+    id: root
+    width: 400
+    height: 700
+
+    Theme { id: thm }
+    Component { id: coreComponent; MockCore {} }
+    Component {
+        id: shellComponent
+        AppShell {
+            width: 400
+            height: 700
+            uriSource: ""
+        }
+    }
+    Component { id: uriComponent; Uri { sourceFile: "" } }
+
+    SignalSpy { id: links; signalName: "mailto" }
+
+    TestCase {
+        name: "Shell"
+        when: windowShown
+
+        readonly property var ann: ({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0 })
+
+        // A shell on its own core, with an account unless told otherwise.
+        function boot(withAccount) {
+            const c = coreComponent.createObject(root)
+            if (withAccount !== false) c.accounts.append(ann)
+            const s = shellComponent.createObject(root, {
+                theme: thm, core: c, accounts: c.accounts, folders: c.folders,
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions
+            })
+            c.ready = true
+            return { core: c, shell: s }
+        }
+
+        function test_new_message_pushes_compose() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.newMessage()
+            compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.compose, 1)
+            b.shell.destroy()
+        }
+
+        function test_queued_closes_its_own_page_with_the_cores_text() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            compare(b.shell.depth, 2)
+            b.core.queued(1, "Sent to the Outbox")
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.destroy()
+        }
+
+        function test_a_late_queued_does_not_close_another_compose() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            b.shell.composeOpened(2)
+            compare(b.shell.depth, 3)
+            // Compose 1 was sent; its Queued arrives after 2 was opened.
+            b.core.queued(1, "Sent")
+            wait(100)
+            compare(b.shell.depth, 3)
+            compare(b.shell.currentPage.compose, 2)
+            // Back on compose 1 later: it is done and goes by itself.
+            b.core.queued(2, "Sent")
+            tryVerify(function() { return b.shell.depth === 1 }, 3000)
+            b.shell.destroy()
+        }
+
+        function test_mailto_waits_for_the_inbox_not_the_wizard() {
+            const b = boot(false)
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.openMailto("mailto:bob@example.org")
+            b.core.accounts.append(ann)
+            tryVerify(function() { return b.shell.accountCount === 1 })
+            wait(50)
+            compare(b.core.called("startCompose").length, 0, "the wizard's Options step comes first")
+            b.shell.wizardClosed()
+            compare(b.core.called("startCompose").length, 1)
+            compare(b.core.called("startCompose")[0].args, ["mailto", 0, "", "mailto:bob@example.org"])
+            b.shell.destroy()
+        }
+
+        function test_uri_offers_only_mailto_links() {
+            const u = uriComponent.createObject(root, { arguments: [] })
+            links.target = u
+            links.clear()
+            u.offer("mailto:bob@example.org")
+            u.offer("MAILTO:ann@example.org")
+            u.offer("https://example.org/")
+            u.offer("file:///etc/passwd")
+            u.offer("xmailto:bob@example.org")
+            compare(links.count, 2)
+            compare(links.signalArguments[0][0], "mailto:bob@example.org")
+            compare(links.signalArguments[1][0], "MAILTO:ann@example.org")
+            u.destroy()
+        }
+
+        function test_uri_scans_the_command_line() {
+            links.clear()
+            const u = uriComponent.createObject(root, {
+                arguments: ["envio", "--flag", "mailto:cmd@example.org", "/tmp/x", "http://example.org"]
+            })
+            links.target = u
+            links.clear()
+            // The scan runs later, so a handler set up after creation hears it.
+            tryVerify(function() { return links.count === 1 })
+            compare(links.signalArguments[0][0], "mailto:cmd@example.org")
+            u.destroy()
+        }
+    }
+}

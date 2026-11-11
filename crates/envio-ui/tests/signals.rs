@@ -99,6 +99,7 @@ fn one_shot_events_become_signals() {
         Event::Queued {
             compose: c,
             item: "x".into(),
+            text: "Sent".into(),
         },
         Event::Settings(Settings::default()),
     ];
@@ -117,7 +118,9 @@ fn one_shot_events_become_signals() {
             ..
         }
     ));
-    assert!(matches!(got[4], Signal::Queued { compose } if compose == c));
+    assert!(
+        matches!(got[4], Signal::Queued { compose, ref text } if compose == c && text == "Sent")
+    );
     assert!(matches!(got[5], Signal::Settings(_)));
 }
 
