@@ -26,7 +26,9 @@ Item {
 
     signal messageRequested(var message)
     signal composeRequested()
-    signal searchRequested()
+    // The folder the list shows, -1 for a unified or not yet opened one.
+    property int folderId: -1
+    signal searchRequested(int folder)
     signal accountsRequested()
     signal settingsRequested()
     signal outboxRequested()
@@ -39,6 +41,7 @@ Item {
         tab = ""
         title = qsTr("Inbox")
         unified = true
+        folderId = -1
         pendingInbox = ""
         core.openList("inboxes", 0)
     }
@@ -46,6 +49,7 @@ Item {
         tab = "folder"
         title = name
         unified = false
+        folderId = id
         pendingInbox = ""
         core.openList("folder", id)
     }
@@ -55,6 +59,7 @@ Item {
         tab = key
         title = qsTr("Inbox")
         unified = false
+        folderId = -1
         pendingInbox = key
         core.listFolders(key)
     }
@@ -75,6 +80,7 @@ Item {
             if (root.pendingInbox === "") return
             if (item.model.role !== "inbox" || item.model.account !== root.pendingInbox) return
             root.pendingInbox = ""
+            root.folderId = item.model.id
             root.core.openList("folder", item.model.id)
         }
     }
@@ -117,7 +123,7 @@ Item {
             theme: root.theme
             iconName: "search"
             text: qsTr("Search")
-            onClicked: root.searchRequested()
+            onClicked: root.searchRequested(root.folderId)
         }
         IconButton {
             objectName: "menuButton"

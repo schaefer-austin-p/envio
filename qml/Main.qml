@@ -18,6 +18,7 @@ ApplicationWindow {
     RowsModel { id: messagesModel; kind: "messages" }
     RowsModel { id: outboxModel; kind: "outbox" }
     RowsModel { id: suggestionsModel; kind: "suggestions" }
+    RowsModel { id: searchModel; kind: "search" }
 
     // The settings, once they arrive, pick the look; until then the
     // defaults.
@@ -36,13 +37,14 @@ ApplicationWindow {
         messages: messagesModel
         outbox: outboxModel
         suggestions: suggestionsModel
+        searchResults: searchModel
     }
 
     Component.onCompleted: {
         console.info("envio " + BuildInfo.version + " (" + BuildInfo.commit + ")")
         // Models first: attachModel brings each up to date from what the
         // core already sent.
-        for (const model of [accountsModel, foldersModel, messagesModel, outboxModel, suggestionsModel]) core.attachModel(model)
+        for (const model of [accountsModel, foldersModel, messagesModel, outboxModel, suggestionsModel, searchModel]) core.attachModel(model)
         core.start()
     }
 }

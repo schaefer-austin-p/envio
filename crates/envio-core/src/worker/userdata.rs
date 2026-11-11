@@ -154,6 +154,12 @@ impl Worker<'_> {
         self.save_settings(settings);
     }
 
+    pub(super) fn disallow_images_from(&mut self, address: &str) {
+        let mut settings = self.store.settings.clone();
+        settings.images_from.remove(&address.trim().to_lowercase());
+        self.save_settings(settings);
+    }
+
     /// Sending teaches autocomplete the people written to.
     pub(super) fn remember_recipients(&self, draft: &DraftInput) {
         let found: Vec<(String, String)> = draft

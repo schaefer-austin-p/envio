@@ -33,6 +33,7 @@ Item {
         messages: shellCore.messages
         outbox: shellCore.outbox
         suggestions: shellCore.suggestions
+        searchResults: shellCore.searchResults
         uriSource: ""
         anchors.fill: parent
         visible: false

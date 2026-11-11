@@ -14,6 +14,9 @@ pub mod qobject {
         include!("cxx-qt-lib/qstring.h");
         type QString = cxx_qt_lib::QString;
 
+        include!("cxx-qt-lib/qstringlist.h");
+        type QStringList = cxx_qt_lib::QStringList;
+
         include!("cxx-qt-lib/qmap.h");
         type QMap_QString_QVariant = cxx_qt_lib::QMap<cxx_qt_lib::QMapPair_QString_QVariant>;
     }
@@ -31,6 +34,7 @@ pub mod qobject {
         #[qproperty(QString, dark_mode, cxx_name = "darkMode")]
         #[qproperty(bool, images_always, cxx_name = "imagesAlways")]
         #[qproperty(QString, default_account, cxx_name = "defaultAccount")]
+        #[qproperty(QStringList, allowed_senders, cxx_name = "allowedSenders")]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -123,6 +127,9 @@ pub mod qobject {
         #[cxx_name = "searchFailed"]
         fn search_failed(self: Pin<&mut EnvioCore>, text: &QString);
         #[qsignal]
+        #[cxx_name = "searchDone"]
+        fn search_done(self: Pin<&mut EnvioCore>);
+        #[qsignal]
         #[cxx_name = "statusText"]
         fn status_text(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);
         /// `Core::start` failed; `text` is translated.
@@ -194,6 +201,9 @@ pub mod qobject {
         #[cxx_name = "allowImagesFrom"]
         fn allow_images_from(self: Pin<&mut EnvioCore>, address: &QString);
         #[qinvokable]
+        #[cxx_name = "disallowImagesFrom"]
+        fn disallow_images_from(self: Pin<&mut EnvioCore>, address: &QString);
+        #[qinvokable]
         #[cxx_name = "saveAttachment"]
         fn save_attachment(self: Pin<&mut EnvioCore>, id: i64, index: i32, dir: &QString);
         #[qinvokable]
@@ -264,7 +274,7 @@ pub mod qobject {
 use std::collections::HashMap;
 
 use cxx_qt::CxxQtThread;
-use cxx_qt_lib::QString;
+use cxx_qt_lib::{QString, QStringList};
 use envio_core::{Core, Settings};
 use envio_ui::{Model, Ui};
 
@@ -277,6 +287,7 @@ pub struct EnvioCoreRust {
     pub(crate) dark_mode: QString,
     pub(crate) images_always: bool,
     pub(crate) default_account: QString,
+    pub(crate) allowed_senders: QStringList,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,

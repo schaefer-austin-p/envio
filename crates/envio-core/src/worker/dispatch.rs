@@ -132,6 +132,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.allow_images_from(&address);
             Flow::Continue
         }
+        Command::DisallowImagesFrom { address } => {
+            worker.disallow_images_from(&address);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
         #[cfg(feature = "test-hooks")]

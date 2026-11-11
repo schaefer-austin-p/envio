@@ -12,6 +12,8 @@ Item {
     property string darkMode: "system"
     property bool imagesAlways: false
     property string defaultAccount: ""
+    // The addresses whose images always load.
+    property var allowedSenders: []
 
     // What the page called, in order.
     property var calls: []
@@ -24,6 +26,7 @@ Item {
     property ListModel messages: ListModel {}
     property ListModel outbox: ListModel {}
     property ListModel suggestions: ListModel {}
+    property ListModel searchResults: ListModel {}
     // The models handed to attachModel.
     property var models: []
 
@@ -52,6 +55,7 @@ Item {
     signal attached(real compose, string path, string name, real size)
     signal attachFailed(real compose, string text)
     signal searchFailed(string text)
+    signal searchDone()
     signal statusText(string account, string text)
     signal startFailed(string text)
 
@@ -77,6 +81,7 @@ Item {
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
+    function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }
     function saveAttachment(id, index, dir) { record("saveAttachment", [id, index, dir]) }
     function startCompose(kind, id, account, mailto) { record("startCompose", [kind, id, account, mailto]); return 1 }
     function draftChanged(compose, draftJson) { record("draftChanged", [compose, draftJson]) }

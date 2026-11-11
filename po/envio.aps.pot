@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 21:12+0100\n"
+"POT-Creation-Date: 2026-11-11 21:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,7 +35,7 @@ msgid "Select all"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:56
+#: qml/pages/inbox/InboxPage.qml:42 qml/pages/inbox/InboxPage.qml:60
 msgid "Inbox"
 msgstr ""
 
@@ -97,6 +97,7 @@ msgid "Try again"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:224
+#: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
 
@@ -104,21 +105,25 @@ msgstr ""
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:108
+#: qml/pages/accounts/AccountsPage.qml:95
+msgid "Check certificate"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:128
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:127
-#: qml/pages/accounts/AccountsPage.qml:142
+#: qml/pages/accounts/AccountsPage.qml:147
+#: qml/pages/accounts/AccountsPage.qml:162 qml/pages/settings/ImagesPage.qml:99
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:140
+#: qml/pages/accounts/AccountsPage.qml:160
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:141
+#: qml/pages/accounts/AccountsPage.qml:161
 msgid "Keep account"
 msgstr ""
 
@@ -135,6 +140,7 @@ msgstr ""
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
+#: qml/pages/search/SearchPage.qml:194
 msgid "Cancel"
 msgstr ""
 
@@ -178,11 +184,12 @@ msgstr ""
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:66
+#: qml/pages/accounts/OptionsStep.qml:66 qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/settings/SyncPage.qml:20
 msgid "Sync"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:71
+#: qml/pages/accounts/OptionsStep.qml:71 qml/pages/settings/SyncPage.qml:53
 msgid "While Envio is open"
 msgstr ""
 
@@ -194,7 +201,7 @@ msgstr ""
 msgid "Keep mail for"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:86
+#: qml/pages/accounts/OptionsStep.qml:86 qml/pages/settings/SyncPage.qml:72
 msgid "Last 30 days"
 msgstr ""
 
@@ -392,7 +399,7 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:98
+#: qml/pages/inbox/FoldersDrawer.qml:98 qml/pages/search/SearchPage.qml:87
 msgid "All accounts"
 msgstr ""
 
@@ -408,33 +415,33 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:231
+#: qml/pages/inbox/FoldersDrawer.qml:231 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:119
+#: qml/pages/inbox/InboxPage.qml:125
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:126
+#: qml/pages/inbox/InboxPage.qml:132
 msgid "Open menu"
 msgstr ""
 
 #. TRANSLATORS: %1 is how many messages are waiting to be sent,
 #. e.g. "2 messages waiting"; it is left out when none are.
-#: qml/pages/inbox/InboxPage.qml:164
+#: qml/pages/inbox/InboxPage.qml:170
 msgid "Offline. %1"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:165
+#: qml/pages/inbox/InboxPage.qml:171
 msgid "Offline."
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:202
+#: qml/pages/inbox/InboxPage.qml:208
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:248
+#: qml/pages/inbox/InboxPage.qml:254
 msgid "Undo"
 msgstr ""
 
@@ -564,6 +571,98 @@ msgstr ""
 
 #: qml/pages/reader/ReplyBar.qml:35
 msgid "Forward"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:70
+msgid "Search mail"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:106
+msgid "This folder"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:182
+msgid "Searching the servers…"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:203
+msgid "Search the servers too"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:211
+msgid "Finds mail older than the 30 days kept here"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:18 qml/pages/settings/SettingsPage.qml:35
+msgid "About"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:25
+#: qml/pages/settings/SettingsPage.qml:31
+msgid "Appearance"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:39
+msgid "Carbon"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:40
+msgid "Airmail"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:100
+msgid "Colour scheme"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:109
+msgid "Light"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:110
+msgid "Dark"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:111
+msgid "System"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:33
+msgid "Load remote images"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:38
+msgid "Ask each time"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:39
+msgid "Mail shows without pictures until you load them."
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:47
+msgid "Always"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:48
+msgid ""
+"Pictures in every message load at once. The sender can tell you opened it."
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:57
+msgid "Always load from"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:72
+msgid "No senders yet. Choose \"Always load from this sender\" in a message."
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:54
+msgid ""
+"New mail arrives while the app is open. When it is closed, Envio does not "
+"check."
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:63
+msgid "Keep mail on this phone for"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8

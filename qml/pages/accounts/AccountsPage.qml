@@ -84,6 +84,26 @@ Item {
                     font.family: root.theme.fontUi
                     font.pixelSize: 13
                 }
+                // A certificate the server presented that does not match:
+                // look at it, then trust it or not (the dialog's primary
+                // button is Cancel).
+                AppButton {
+                    objectName: "checkCertificate"
+                    visible: row.model.state === "pin"
+                    height: visible ? implicitHeight : 0
+                    theme: root.theme
+                    text: qsTr("Check certificate")
+                    onClicked: {
+                        root.current = row.model.key
+                        trust.account = row.model.key
+                        trust.host = row.model.email
+                        trust.service = row.model.pinService
+                        trust.fingerprint = row.model.pinFingerprint
+                        trust.hex = row.model.pinHex
+                        trust.body = row.model.pinText
+                        trust.open()
+                    }
+                }
             }
         }
     }
@@ -141,6 +161,13 @@ Item {
         primaryText: qsTr("Keep account")
         secondaryText: qsTr("Remove")
         onSecondaryActivated: root.core.removeAccount(removeAsk.account, true)
+    }
+    TrustDialog {
+        id: trust
+        objectName: "trustDialog"
+        theme: root.theme
+        property string account: ""
+        onTrusted: root.core.acceptCertificate(trust.account, trust.service, trust.hex)
     }
     Connections {
         target: root.core

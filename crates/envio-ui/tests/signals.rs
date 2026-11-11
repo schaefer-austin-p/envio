@@ -157,3 +157,70 @@ fn switching_lists_or_searching_clears_the_marks() {
     assert!(matches!(ops[..], [Op::Update { .. }]) && !selected(ops[0]));
     assert!(ui.act_on_selection(UserAction::Delete).is_none());
 }
+
+fn two_accounts(ui: &mut Ui) {
+    feed(
+        ui,
+        Event::Started {
+            accounts: vec![info("a"), info("b")],
+            cache: envio_core::CacheState::Existing,
+        },
+    );
+}
+
+fn server_results(query: &str) -> Event {
+    Event::SearchResults {
+        scope: envio_core::SearchScope::All,
+        query: query.into(),
+        server: true,
+        rows: vec![msg(1, 10)],
+    }
+}
+
+#[test]
+fn a_server_search_is_done_with_its_results_or_when_every_account_failed() {
+    let mut ui = Ui::new();
+    two_accounts(&mut ui);
+    let failed = |text: &str| Event::SearchFailed {
+        scope: envio_core::SearchScope::All,
+        query: "q".into(),
+        text: text.into(),
+    };
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), true);
+    let outs = feed(&mut ui, server_results("q"));
+    assert_eq!(signals(&outs), [&Signal::SearchDone]);
+
+    // One account failing is not the end: the other still answers.
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), true);
+    let outs = feed(&mut ui, failed("a down"));
+    assert_eq!(signals(&outs), [&Signal::SearchFailed("a down".into())]);
+    let outs = feed(&mut ui, failed("b down"));
+    assert_eq!(
+        signals(&outs),
+        [&Signal::SearchFailed("b down".into()), &Signal::SearchDone]
+    );
+
+    // A local search is never "done" in this sense.
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), false);
+    let outs = feed(
+        &mut ui,
+        Event::SearchResults {
+            scope: envio_core::SearchScope::All,
+            query: "q".into(),
+            server: false,
+            rows: Vec::new(),
+        },
+    );
+    assert!(signals(&outs).is_empty());
+}
+
+#[test]
+fn a_cancelled_server_search_drops_late_results() {
+    let mut ui = Ui::new();
+    two_accounts(&mut ui);
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), true);
+    // Cancel: the page asks the same question locally.
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), false);
+    let outs = feed(&mut ui, server_results("q"));
+    assert!(outs.is_empty());
+}

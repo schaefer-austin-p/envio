@@ -6,7 +6,7 @@ use std::path::Path;
 use std::pin::Pin;
 
 use cxx_qt::{CxxQtType, Threading};
-use cxx_qt_lib::QString;
+use cxx_qt_lib::{QString, QStringList};
 use envio_core::{Command, ComposeId, Event, Settings};
 use envio_ui::{ModelChange, Output, Signal};
 
@@ -156,6 +156,7 @@ impl qobject::EnvioCore {
             }
             Signal::Settings(settings) => self.as_mut().settings_arrived(settings),
             Signal::SearchFailed(t) => self.search_failed(&q(&t)),
+            Signal::SearchDone => self.search_done(),
             Signal::Status { account, text } => self.status_text(&q(&account), &q(&text)),
         }
     }
@@ -170,6 +171,11 @@ impl qobject::EnvioCore {
         self.as_mut().set_default_account(QString::from(
             settings.default_account.as_deref().unwrap_or(""),
         ));
+        let mut senders = QStringList::default();
+        for address in &settings.images_from {
+            senders.append(QString::from(address.as_str()));
+        }
+        self.as_mut().set_allowed_senders(senders);
         self.as_mut().rust_mut().settings = settings;
     }
 }

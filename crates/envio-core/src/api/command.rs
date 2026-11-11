@@ -222,6 +222,8 @@ pub enum Command {
     /// Always load remote images from this sender. Open the message again
     /// to see them.
     AllowImagesFrom { address: String },
+    /// Take a sender off the allowed list ("Remove" in the image settings).
+    DisallowImagesFrom { address: String },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -262,6 +264,7 @@ impl Command {
             Self::AddContact { .. } => "AddContact",
             Self::SaveSettings(_) => "SaveSettings",
             Self::AllowImagesFrom { .. } => "AllowImagesFrom",
+            Self::DisallowImagesFrom { .. } => "DisallowImagesFrom",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
             #[cfg(feature = "test-hooks")]

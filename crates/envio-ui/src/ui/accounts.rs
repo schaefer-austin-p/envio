@@ -71,6 +71,7 @@ impl Ui {
             row.status.clone_from(&text);
             if row.state != "broken" {
                 convert::state_word(status).clone_into(&mut row.state);
+                convert::set_pin(row, status, &text);
             }
             let row = Row::Account(row.clone());
             outs.push(change(Model::Accounts, Op::Update { at, row }));

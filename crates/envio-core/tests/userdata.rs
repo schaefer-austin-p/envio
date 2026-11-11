@@ -5,7 +5,7 @@ mod support;
 use envio_core::{
     Command, ComposeId, Contact, DarkMode, DraftInput, Event, FolderRole, Settings, Suggestion,
 };
-use envio_store::{Db, load_settings, save_contacts};
+use envio_store::{Db, load_settings, save_contacts, save_settings};
 use support::Harness;
 
 const ME: &str = "me@example.org";
@@ -176,4 +176,25 @@ fn allow_images_from_is_saved() {
     assert!(settings.images_from.contains("ada@example.org"));
     let on_disk = load_settings(&h.paths().settings()).unwrap();
     assert!(on_disk.images_from.contains("ada@example.org"));
+}
+
+#[test]
+fn disallow_images_from_is_saved() {
+    let (h, _) = started(|h| {
+        let settings = Settings {
+            images_from: ["ada@example.org".to_owned(), "eve@example.org".to_owned()].into(),
+            ..Settings::default()
+        };
+        save_settings(&h.paths().settings(), &settings).unwrap();
+    });
+    settings_event(&h);
+    h.send(Command::DisallowImagesFrom {
+        address: " Ada@Example.org ".into(),
+    });
+    let settings = settings_event(&h);
+    assert!(!settings.images_from.contains("ada@example.org"));
+    assert!(settings.images_from.contains("eve@example.org"));
+    let on_disk = load_settings(&h.paths().settings()).unwrap();
+    assert!(!on_disk.images_from.contains("ada@example.org"));
+    assert!(on_disk.images_from.contains("eve@example.org"));
 }

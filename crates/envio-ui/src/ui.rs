@@ -43,6 +43,8 @@ pub struct Ui {
     current: Option<Current>,
     search: Option<SearchState>,
     found: ShownList,
+    /// Accounts that could not answer the current server search.
+    server_failed: usize,
     selection: BTreeSet<i64>,
     mirror: Mirror,
     /// Certificates accepted for the account being set up; the next

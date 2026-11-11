@@ -56,7 +56,8 @@ Item {
             tryVerify(function() { return !sheet.visible })
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 0 })
+                                   status: "Up to date", state: "ok", unread: 0,
+                                   pinService: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
             updateClosed.clear()
         }
@@ -148,6 +149,45 @@ Item {
             compare(field.text, "")
             compare(updateClosed.count, 1)
             update.visible = false
+        }
+
+        function pinRow() {
+            core.accounts.clear()
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+                                   status: "Certificate changed", state: "pin", unread: 0,
+                                   pinService: "smtp", pinFingerprint: "AB:CD", pinHex: "abcd",
+                                   pinText: "The server's certificate is not the one you trusted." })
+            function buttons() {
+                return everything(page, []).filter(function(o) { return o.objectName === "checkCertificate" && o.visible })
+            }
+            tryVerify(function() { return buttons().length > 0 })
+            // Rows of the cleared model can linger a moment; the newest is last.
+            wait(100)
+            return buttons().pop()
+        }
+        function test_pin_row_opens_trust_dialog() {
+            const b = pinRow()
+            verify(b.height >= 44)
+            mouseClick(b)
+            const dlg = find("trustDialog", page)
+            tryVerify(function() { return dlg.visible })
+            compare(find("fingerprint", dlg.contentItem).text, "AB:CD")
+            dlg.close()
+        }
+        function test_trust_sends_accept_certificate() {
+            mouseClick(pinRow())
+            const dlg = find("trustDialog", page)
+            tryVerify(function() { return dlg.visible })
+            mouseClick(laidOut(dlg, "secondaryAction"))
+            compare(core.called("acceptCertificate").length, 1)
+            compare(core.called("acceptCertificate")[0].args, ["ann", "smtp", "abcd"])
+        }
+        function test_cancel_sends_nothing() {
+            mouseClick(pinRow())
+            const dlg = find("trustDialog", page)
+            tryVerify(function() { return dlg.visible })
+            mouseClick(laidOut(dlg, "primaryAction"))
+            compare(core.called("acceptCertificate").length, 0)
         }
     }
 }

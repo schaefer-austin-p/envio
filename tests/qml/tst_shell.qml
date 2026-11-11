@@ -36,7 +36,8 @@ Item {
             if (withAccount !== false) c.accounts.append(ann)
             const s = shellComponent.createObject(root, {
                 theme: thm, core: c, accounts: c.accounts, folders: c.folders,
-                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
+                searchResults: c.searchResults
             })
             c.ready = true
             return { core: c, shell: s }
@@ -119,6 +120,26 @@ Item {
             tryVerify(function() { return links.count === 1 })
             compare(links.signalArguments[0][0], "mailto:cmd@example.org")
             u.destroy()
+        }
+
+        function test_search_and_settings_push_their_pages() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.currentPage.searchRequested(7)
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.objectName, "searchPage")
+            compare(b.shell.currentPage.folderId, 7)
+            b.shell.currentPage.backRequested()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.currentPage.settingsRequested()
+            compare(b.shell.currentPage.objectName, "settingsPage")
+            b.shell.currentPage.appearanceRequested()
+            compare(b.shell.currentPage.objectName, "appearancePage")
+            b.shell.currentPage.backRequested()
+            tryVerify(function() { return b.shell.currentPage.objectName === "settingsPage" })
+            b.shell.currentPage.accountsRequested()
+            compare(b.shell.depth, 3)
+            b.shell.destroy()
         }
     }
 }

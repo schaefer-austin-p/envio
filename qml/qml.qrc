@@ -36,6 +36,12 @@
         <file>pages/accounts/TrustDialog.qml</file>
         <file>pages/accounts/AccountsPage.qml</file>
         <file>pages/accounts/UpdatePasswordPage.qml</file>
+        <file>pages/search/SearchPage.qml</file>
+        <file>pages/settings/SettingsPage.qml</file>
+        <file>pages/settings/AppearancePage.qml</file>
+        <file>pages/settings/ImagesPage.qml</file>
+        <file>pages/settings/SyncPage.qml</file>
+        <file>pages/settings/AboutPage.qml</file>
         <file>platform/qmldir</file>
         <file>platform/Theme.qml</file>
         <file>platform/ut/SystemColours.qml</file>

@@ -191,6 +191,12 @@ impl qobject::EnvioCore {
         });
     }
 
+    pub fn disallow_images_from(self: Pin<&mut Self>, address: &QString) {
+        self.send_command(Command::DisallowImagesFrom {
+            address: s(address),
+        });
+    }
+
     pub fn save_attachment(self: Pin<&mut Self>, id: i64, index: i32, dir: &QString) {
         self.send_command(Command::SaveAttachment {
             id: MessageRowId(id),

@@ -7,6 +7,8 @@ import "accounts"
 import "compose"
 import "inbox"
 import "reader"
+import "search"
+import "settings"
 
 // The app below the window: which page shows (the wizard while there are no
 // accounts, else the inbox), the pages the inbox leads to, compose (from the
@@ -22,6 +24,8 @@ Item {
     required property var messages
     required property var outbox
     required property var suggestions
+    // The search model (message rows for the search page).
+    required property var searchResults
     // A start or store problem in words, shown full-page until "Try again".
     property string problem: ""
     property bool retrying: false
@@ -124,8 +128,49 @@ Item {
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
             onComposeRequested: root.newMessage()
-            // Search and settings arrive with their pages.
+            onSearchRequested: function(folder) { stack.push(searchPage, { folderId: folder }) }
+            onSettingsRequested: stack.push(settingsPage)
         }
+    }
+    Component {
+        id: searchPage
+        SearchPage {
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            results: root.searchResults
+            onBackRequested: stack.pop()
+            onMessageRequested: function(message) { stack.push(readerPage, { messageId: message }) }
+        }
+    }
+    Component {
+        id: settingsPage
+        SettingsPage {
+            theme: root.theme
+            core: root.core
+            onBackRequested: stack.pop()
+            onAppearanceRequested: stack.push(appearancePage)
+            onSyncRequested: stack.push(syncPage)
+            onImagesRequested: stack.push(imagesPage)
+            onAccountsRequested: stack.push(accountsPage)
+            onAboutRequested: stack.push(aboutPage)
+        }
+    }
+    Component {
+        id: appearancePage
+        AppearancePage { theme: root.theme; core: root.core; onBackRequested: stack.pop() }
+    }
+    Component {
+        id: syncPage
+        SyncPage { theme: root.theme; accounts: root.accounts; onBackRequested: stack.pop() }
+    }
+    Component {
+        id: imagesPage
+        ImagesPage { theme: root.theme; core: root.core; onBackRequested: stack.pop() }
+    }
+    Component {
+        id: aboutPage
+        AboutPage { theme: root.theme; onBackRequested: stack.pop() }
     }
     Component {
         id: readerPage

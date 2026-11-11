@@ -34,6 +34,7 @@ Item {
         messages: shellCore.messages
         outbox: shellCore.outbox
         suggestions: shellCore.suggestions
+        searchResults: shellCore.searchResults
         uriSource: ""
         width: 400
         height: 700

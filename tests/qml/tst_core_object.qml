@@ -99,6 +99,15 @@ TestCase {
         compare(lateRows.itemAt(0).address, "nia@example.org")
     }
 
+    // The allowed senders follow allow and disallow, through the saved settings.
+    function test_allowed_senders_follow_allow_and_disallow() {
+        tryVerify(function () { return core.ready }, 20000)
+        core.allowImagesFrom("Ada@Example.org")
+        tryCompare(core, "allowedSenders", ["ada@example.org"], 20000)
+        core.disallowImagesFrom("ada@example.org")
+        tryCompare(core, "allowedSenders", [], 20000)
+    }
+
     function test_count_text_is_plural_aware() {
         verify(core.countText("selected", 1) !== core.countText("selected", 2))
         compare(core.countText("results", 1), "1 result")

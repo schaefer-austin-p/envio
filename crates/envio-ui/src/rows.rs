@@ -13,6 +13,15 @@ pub struct AccountRow {
     /// "ok", "offline", "auth", "pin", "broken" or "diskfull".
     pub state: String,
     pub unread: u32,
+    /// "imap" or "smtp" while the status is a certificate problem with
+    /// details, else empty; so are the next three.
+    pub pin_service: String,
+    /// The presented fingerprint as the trust dialog shows it.
+    pub pin_fingerprint: String,
+    /// The presented fingerprint in the form `AcceptCertificate` takes.
+    pub pin_hex: String,
+    /// The core's words about the certificate.
+    pub pin_text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -83,7 +92,18 @@ pub enum RowValue {
     Bool(bool),
 }
 
-const ACCOUNT: &[&str] = &["key", "name", "email", "status", "state", "unread"];
+const ACCOUNT: &[&str] = &[
+    "key",
+    "name",
+    "email",
+    "status",
+    "state",
+    "unread",
+    "pinService",
+    "pinFingerprint",
+    "pinHex",
+    "pinText",
+];
 const FOLDER: &[&str] = &["id", "account", "name", "role", "unread", "depth"];
 const MESSAGE: &[&str] = &[
     "id",
@@ -128,6 +148,10 @@ impl Row {
             (Self::Account(r), "status") => s(&r.status),
             (Self::Account(r), "state") => s(&r.state),
             (Self::Account(r), "unread") => Int(r.unread.into()),
+            (Self::Account(r), "pinService") => s(&r.pin_service),
+            (Self::Account(r), "pinFingerprint") => s(&r.pin_fingerprint),
+            (Self::Account(r), "pinHex") => s(&r.pin_hex),
+            (Self::Account(r), "pinText") => s(&r.pin_text),
             (Self::Folder(r), "id") => Int(r.id),
             (Self::Folder(r), "account") => s(&r.account),
             (Self::Folder(r), "name") => s(&r.name),

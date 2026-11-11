@@ -1,6 +1,7 @@
 mod support;
 
-use envio_core::{AccountStatus, Event};
+use envio_core::{AccountStatus, CertDetails, Event, Service};
+use envio_net::Fingerprint;
 use envio_ui::{Model, Op, Row, Signal, Ui};
 use support::*;
 
@@ -115,4 +116,64 @@ fn an_account_already_listed_is_not_added_twice() {
     );
     let ops = changes(&outs, Model::Accounts);
     assert!(matches!(ops[..], [Op::Insert { at: 2, .. }]), "{ops:?}");
+}
+
+fn account_row_of(outs: &[envio_ui::Output]) -> envio_ui::AccountRow {
+    let ops = changes(outs, Model::Accounts);
+    let [
+        Op::Update {
+            row: Row::Account(row),
+            ..
+        },
+    ] = ops[..]
+    else {
+        panic!("{ops:?}")
+    };
+    row.clone()
+}
+
+#[test]
+fn a_pin_status_fills_the_row_and_clears_after() {
+    let mut ui = Ui::new();
+    start(&mut ui);
+    let presented = Fingerprint::from_bytes([0xab; 32]);
+    let details = CertDetails {
+        service: Service::Smtp,
+        pinned: Some(Fingerprint::from_bytes([0x01; 32])),
+        presented,
+        reason: None,
+    };
+    let outs = feed(
+        &mut ui,
+        Event::AccountStatus {
+            account: "b".into(),
+            status: AccountStatus::Certificate(Some(details)),
+            text: "The certificate changed".into(),
+        },
+    );
+    let row = account_row_of(&outs);
+    assert_eq!(row.state, "pin");
+    assert_eq!(row.pin_service, "smtp");
+    assert_eq!(row.pin_fingerprint, presented.display());
+    assert_eq!(row.pin_hex, presented.to_hex());
+    assert_eq!(row.pin_text, "The certificate changed");
+
+    let outs = feed(
+        &mut ui,
+        Event::AccountStatus {
+            account: "b".into(),
+            status: AccountStatus::Ready,
+            text: "Up to date".into(),
+        },
+    );
+    let row = account_row_of(&outs);
+    assert_eq!(row.state, "ok");
+    for field in [
+        &row.pin_service,
+        &row.pin_fingerprint,
+        &row.pin_hex,
+        &row.pin_text,
+    ] {
+        assert!(field.is_empty());
+    }
 }

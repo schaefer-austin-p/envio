@@ -88,6 +88,9 @@ pub enum Signal {
     },
     Settings(Settings),
     SearchFailed(String),
+    /// The server search is over: its results came, or every account
+    /// asked failed.
+    SearchDone,
     /// An account's status line changed.
     Status {
         account: String,
