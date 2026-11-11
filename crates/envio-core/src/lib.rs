@@ -9,6 +9,10 @@ pub mod problem;
 pub mod secrets;
 pub mod servers;
 
+#[cfg(feature = "test-hooks")]
+#[doc(hidden)]
+pub mod hooks;
+
 mod clock;
 mod compose;
 mod fsutil;

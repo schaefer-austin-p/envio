@@ -65,6 +65,10 @@ pub(super) async fn body(
         .message(id)
         .map_err(|e| store_error(&e))?
         .folder;
+    #[cfg(feature = "test-hooks")]
+    if let Some(account) = worker.account_of(id) {
+        crate::hooks::reached(crate::hooks::Point::BodyFetch, &account);
+    }
     let eml = driver::fetch_body(session, &mut worker.store.local(), id)
         .await
         .map_err(|e| imap_error(&e))?;

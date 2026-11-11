@@ -7,9 +7,9 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use envio_net::Roots;
-use envio_net::imap::{IDLE_MAX, ImapSession, Woke};
+use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
-use envio_store::{Account, FolderRole};
+use envio_store::{Account, FolderRole, SyncState};
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
 
@@ -102,8 +102,22 @@ fn login(
 pub(crate) async fn prepare_idle(
     session: &mut ImapSession,
     inbox_path: &str,
-) -> envio_net::Result<()> {
-    session.select(inbox_path).await.map(drop)
+) -> envio_net::Result<FolderState> {
+    session.select(inbox_path).await
+}
+
+/// Whether the Inbox changed since its last sync, as the SELECT for IDLE
+/// shows: IDLE only reports what happens after the SELECT, so mail that
+/// came in between (while another folder was synced, say) would wait for
+/// the next poll. Flag changes count only when both sides know CONDSTORE's
+/// modseq.
+pub(crate) fn changed_since_sync(synced: Option<SyncState>, now: &FolderState) -> bool {
+    let Some(synced) = synced else {
+        return true;
+    };
+    synced.uidvalidity != now.uid_validity
+        || synced.uidnext != now.uid_next
+        || matches!((synced.highestmodseq, now.highest_modseq), (Some(a), Some(b)) if a != b)
 }
 
 pub(crate) fn start_idle(
@@ -157,14 +171,17 @@ impl Worker<'_> {
             return Ok(());
         };
         let mut session = self.imap(account).await?;
-        prepare_idle(&mut session, &inbox.path)
+        #[cfg(feature = "test-hooks")]
+        crate::hooks::reached(crate::hooks::Point::IdleSelect, account);
+        let state = prepare_idle(&mut session, &inbox.path)
             .await
             .map_err(|e| problem::from_net(&e, Service::Imap))?;
+        let behind = changed_since_sync(inbox.sync, &state);
         if let Some(live) = self.live.get_mut(account)
-            && live.health.failures > 0
+            && (live.health.failures > 0 || behind)
         {
-            // Back after a failure: mail may have arrived meanwhile, so
-            // sync the Inbox first; IDLE starts on the next turn.
+            // Back after a failure, or the Inbox changed after its sync:
+            // sync it first; IDLE starts on the next turn.
             live.health.ok();
             live.wants.folders.insert(inbox.id);
             live.conn = Conn::Ready(session);
@@ -288,6 +305,47 @@ mod tests {
                 smtp: server(None),
             },
         }
+    }
+
+    fn synced(uidnext: u32, modseq: Option<u64>) -> Option<SyncState> {
+        Some(SyncState {
+            uidvalidity: 7,
+            uidnext,
+            highestmodseq: modseq,
+        })
+    }
+
+    fn selected(uid_next: u32, modseq: Option<u64>) -> FolderState {
+        FolderState {
+            uid_validity: 7,
+            uid_next,
+            exists: 0,
+            highest_modseq: modseq,
+        }
+    }
+
+    #[test]
+    fn the_inbox_is_behind_when_the_select_shows_more_than_the_sync() {
+        assert!(!changed_since_sync(
+            synced(5, Some(9)),
+            &selected(5, Some(9))
+        ));
+        assert!(!changed_since_sync(synced(5, None), &selected(5, Some(9))));
+        assert!(!changed_since_sync(synced(5, Some(9)), &selected(5, None)));
+        assert!(changed_since_sync(
+            synced(5, Some(9)),
+            &selected(6, Some(9))
+        ));
+        assert!(changed_since_sync(
+            synced(5, Some(9)),
+            &selected(5, Some(10))
+        ));
+        assert!(changed_since_sync(None, &selected(5, None)));
+        let other = FolderState {
+            uid_validity: 8,
+            ..selected(5, None)
+        };
+        assert!(changed_since_sync(synced(5, None), &other));
     }
 
     #[tokio::test]
