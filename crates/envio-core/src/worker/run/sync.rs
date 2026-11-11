@@ -172,6 +172,35 @@ mod tests {
     use envio_store::{ActionKind, MessageRef};
 
     #[test]
+    fn a_sync_that_changes_flags_tells_the_app_the_count_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let worker = open(&config, &sink);
+        let counts = |sink: &Sink| -> Vec<u32> {
+            sink.events()
+                .iter()
+                .filter_map(|e| match e {
+                    Event::AccountUnread { unread, .. } => Some(*unread),
+                    _ => None,
+                })
+                .collect()
+        };
+        // What a folder sync does: write the server's flags, then tell.
+        worker
+            .store
+            .db
+            .set_flags(seeded.folder, 1, envio_store::Flags::SEEN)
+            .unwrap();
+        let changed = || Event::MessagesChanged {
+            folders: vec![seeded.folder],
+        };
+        worker.emit(changed());
+        worker.emit(changed());
+        assert_eq!(counts(&sink), [0]);
+    }
+
+    #[test]
     fn a_reverted_move_has_its_folder_synced() {
         let dir = tempfile::tempdir().unwrap();
         let (config, seeded) = seed(dir.path());

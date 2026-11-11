@@ -124,6 +124,7 @@ impl Worker<'_> {
         match remove(&mut self.store, account) {
             Ok(()) => {
                 self.live.remove(account);
+                self.unread_sent.borrow_mut().remove(account);
                 self.emit(Event::AccountRemoved {
                     account: account.to_owned(),
                 });

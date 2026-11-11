@@ -209,6 +209,7 @@ fn rebuild(worker: &mut Worker<'_>) {
                     account: key.clone(),
                 });
             }
+            worker.refresh_unread();
         }
         Err(error) => {
             log::error!("rebuilding the cache: {error}");

@@ -180,3 +180,32 @@ fn a_pin_status_fills_the_row_and_clears_after() {
         assert!(field.is_empty());
     }
 }
+
+#[test]
+fn unread_updates_one_row_in_place() {
+    let mut ui = Ui::new();
+    start(&mut ui);
+    let outs = feed(
+        &mut ui,
+        Event::AccountUnread {
+            account: "b".into(),
+            unread: 7,
+        },
+    );
+    let ops = changes(&outs, Model::Accounts);
+    assert_eq!(ops.len(), 1);
+    let Op::Update { at, row } = ops[0] else {
+        panic!("{:?}", ops[0])
+    };
+    let Row::Account(b) = row else { panic!() };
+    assert_eq!((*at, b.key.as_str(), b.unread), (1, "b", 7));
+    // An account the app does not list changes nothing.
+    let outs = feed(
+        &mut ui,
+        Event::AccountUnread {
+            account: "zz".into(),
+            unread: 1,
+        },
+    );
+    assert!(changes(&outs, Model::Accounts).is_empty());
+}

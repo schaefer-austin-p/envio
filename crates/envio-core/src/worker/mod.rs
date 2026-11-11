@@ -19,6 +19,7 @@ mod trust;
 mod turn;
 mod userdata;
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
@@ -83,6 +84,8 @@ pub(crate) struct Worker<'s> {
     probing: BTreeMap<String, u64>,
     /// The "Search on server" the user waits for (the newest one).
     server_search: Option<search::ServerSearch>,
+    /// The Inbox unread count each account's tab last showed.
+    unread_sent: RefCell<BTreeMap<String, u32>>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -197,6 +200,7 @@ impl<'s> Worker<'s> {
             detecting: BTreeMap::new(),
             probing: BTreeMap::new(),
             server_search: None,
+            unread_sent: RefCell::new(BTreeMap::new()),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
@@ -226,7 +230,7 @@ impl<'s> Worker<'s> {
             .list()
             .iter()
             .map(|a| AccountInfo {
-                unread: self.inbox_unread(&a.key),
+                unread: self.seed_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
                 email: a.settings.email.clone(),
@@ -282,7 +286,14 @@ impl<'s> Worker<'s> {
     }
 
     pub(crate) fn emit(&self, event: Event) {
+        let may_count = matches!(
+            event,
+            Event::MessagesChanged { .. } | Event::FoldersChanged { .. }
+        );
         self.sink.emit(event);
+        if may_count {
+            self.refresh_unread();
+        }
     }
 
     pub(crate) fn status_of(&self, account: &str) -> AccountStatus {

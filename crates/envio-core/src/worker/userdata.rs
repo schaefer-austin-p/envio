@@ -64,6 +64,33 @@ impl Worker<'_> {
         }
     }
 
+    /// The Inbox count, remembered as what the app was told.
+    pub(super) fn seed_unread(&self, account: &str) -> u32 {
+        let unread = self.inbox_unread(account);
+        self.unread_sent
+            .borrow_mut()
+            .insert(account.to_owned(), unread);
+        unread
+    }
+
+    /// Tells the app each account's Inbox count that changed since it was
+    /// last told (an account the app has not heard of counts as 0).
+    pub(super) fn refresh_unread(&self) {
+        for account in self.store.accounts.list() {
+            let unread = self.inbox_unread(&account.key);
+            let known = self
+                .unread_sent
+                .borrow_mut()
+                .insert(account.key.clone(), unread);
+            if known.unwrap_or(0) != unread {
+                self.sink.emit(Event::AccountUnread {
+                    account: account.key.clone(),
+                    unread,
+                });
+            }
+        }
+    }
+
     pub(super) fn autocomplete(&self, query: String) {
         let typed = query.trim().to_lowercase();
         let mut items: Vec<Suggestion> = Vec::new();

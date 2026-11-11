@@ -108,6 +108,7 @@ impl Ui {
                 text,
             } => self.account_status(account, &status, text),
             Event::AccountRemoved { account } => self.account_removed(&account),
+            Event::AccountUnread { account, unread } => self.account_unread(&account, unread),
             Event::FoldersChanged { account } if self.folders_of.as_ref() == Some(&account) => {
                 vec![Output::Send(Command::ListFolders { account })]
             }

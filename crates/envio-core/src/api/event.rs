@@ -37,6 +37,11 @@ pub enum Event {
         status: AccountStatus,
         text: String,
     },
+    /// The account's Inbox unread count changed (sent only when it did).
+    AccountUnread {
+        account: String,
+        unread: u32,
+    },
     /// The account's folder list changed.
     FoldersChanged {
         account: String,

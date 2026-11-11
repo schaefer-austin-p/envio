@@ -80,6 +80,16 @@ impl Ui {
         outs
     }
 
+    /// The account's Inbox count changed: its row updates in place.
+    pub(super) fn account_unread(&mut self, key: &str, unread: u32) -> Vec<Output> {
+        let Some(at) = self.accounts.iter().position(|a| a.key == key) else {
+            return Vec::new();
+        };
+        self.accounts[at].unread = unread;
+        let row = Row::Account(self.accounts[at].clone());
+        vec![change(Model::Accounts, Op::Update { at, row })]
+    }
+
     pub(super) fn account_removed(&mut self, key: &str) -> Vec<Output> {
         let mut outs = Vec::new();
         if let Some(at) = self.accounts.iter().position(|a| a.key == key) {
