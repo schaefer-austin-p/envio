@@ -115,8 +115,12 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
         return None;
     }
     // Browsers percent-decode the host before IDNA, so show that one.
+    let raw_literal = host.starts_with('[');
     let host = percent_decode(host)?;
-    if host.is_empty() || host.chars().any(bad_host_char) {
+    // WHATWG forbidden host code points; an IPv6 literal keeps its brackets
+    // and colons (checked on the raw text).
+    let forbidden = |c: char| bad_host_char(c) || (!raw_literal && "/@:[]\\?#%<>^|".contains(c));
+    if host.is_empty() || host.chars().any(forbidden) {
         return None;
     }
     let (host, punycode) = host_forms(&host)?;
@@ -175,6 +179,18 @@ fn split_port(hostport: &str) -> (&str, Option<&str>) {
         Some((h, p)) => (h, Some(p).filter(|p| !p.is_empty())),
         None => (hostport, None),
     }
+}
+
+/// Removes the Bidi_Control characters (U+061C, U+200E, U+200F,
+/// U+202A-U+202E, U+2066-U+2069), which reorder what is shown around them.
+/// Other format characters stay: ZWNJ and ZWJ are part of real names.
+pub fn strip_bidi_controls(text: &str) -> String {
+    text.chars()
+        .filter(|c| {
+            !matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}'
+                | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        })
+        .collect()
 }
 
 /// (Unicode form, punycode form when different).

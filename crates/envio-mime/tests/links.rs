@@ -163,6 +163,40 @@ fn percent_encoded_hosts_show_the_host_that_opens() {
 }
 
 #[test]
+fn names_lose_bidi_controls_but_keep_joiners() {
+    use envio_mime::{Address, strip_bidi_controls};
+    let persian = "\u{0645}\u{0647}\u{062F}\u{06CC}\u{200C}\u{0632}\u{0627}\u{062F}\u{0647}";
+    let emoji = "\u{1F469}\u{200D}\u{1F4BB} Ana";
+    let name = |n| Address::new(Some(n), "a@x.example").name;
+    assert_eq!(name(persian).as_deref(), Some(persian));
+    assert_eq!(name(emoji).as_deref(), Some(emoji));
+    assert_eq!(name("J\u{202E}ane\u{2066}").as_deref(), Some("Jane"));
+    assert_eq!(
+        strip_bidi_controls("a\u{061C}\u{200E}\u{200F}\u{202A}\u{2069}b\u{200B}"),
+        "ab\u{200B}"
+    );
+    assert_eq!(Address::parse("a@x\u{200D}.example"), None);
+}
+
+#[test]
+fn decoded_hosts_with_forbidden_code_points_are_refused() {
+    for url in [
+        "https://bank.example%40evil.example/",
+        "https://evil.example%2Fbank.example/",
+        "https://%5B::1%5D/",
+        "https://a%3Ab.example/",
+        "https://a%5Cb.example/",
+        "https://a%3Fb.example/",
+        "https://a%23b.example/",
+        "https://a%25b.example/",
+        "https://a%20b.example/",
+        "https://a%3Cb.example/",
+    ] {
+        assert_eq!(link_parts(url), None, "{url}");
+    }
+}
+
+#[test]
 fn the_format_character_set_is_complete() {
     for c in ["\u{0890}", "\u{110CD}", "\u{13430}", "\u{1BCA1}"] {
         let out = clean(&format!("<a href=\"https://a.example/x{c}y\">x</a>"));
