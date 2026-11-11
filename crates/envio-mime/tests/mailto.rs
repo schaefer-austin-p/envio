@@ -59,3 +59,31 @@ fn mailto_drops_control_characters() {
     assert_eq!(draft.body, "a\nbc\td");
     assert_eq!(draft.in_reply_to, None);
 }
+
+#[test]
+fn mailto_quoted_display_name_keeps_its_comma() {
+    let draft = parse_mailto(
+        "mailto:?to=%22Doe%2C%20Jane%22%20%3Cj%40x.example%3E%2C%20b%40y.example\
+         &cc=%22Smith%2C%20A%22%20%3Ca%40z.example%3E",
+    )
+    .unwrap();
+    assert_eq!(
+        draft.to,
+        [
+            Address::new(Some("Doe, Jane"), "j@x.example"),
+            addr("b@y.example")
+        ]
+    );
+    assert_eq!(draft.cc.len(), 1);
+    assert_eq!(draft.cc[0].email, "a@z.example");
+}
+
+#[test]
+fn mailto_plain_addr_specs_still_split_at_commas() {
+    let draft = parse_mailto("mailto:a@x.example,b@y.example?to=c@z.example,d@w.example").unwrap();
+    let emails: Vec<_> = draft.to.iter().map(|a| a.email.as_str()).collect();
+    assert_eq!(
+        emails,
+        ["a@x.example", "b@y.example", "c@z.example", "d@w.example"]
+    );
+}
