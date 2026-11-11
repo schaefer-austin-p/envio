@@ -35,7 +35,7 @@ Rectangle {
             picker.peer.selectionType = ContentTransfer.Single
             const transfer = picker.peer.request()
             if (transfer.state === ContentTransfer.InProgress) {
-                transfer.items = [itemComponent.createObject(root, { url: "file://" + root.path })]
+                transfer.items = [itemComponent.createObject(root, { url: "file://" + root.path.split("/").map(encodeURIComponent).join("/") })]
                 transfer.state = ContentTransfer.Charged
             }
             root.done()

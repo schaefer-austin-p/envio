@@ -86,6 +86,34 @@ for my $file (@ARGV) {
         }
     }
 
+    # Text formats: a Text without textFormat is AutoText, and AutoText
+    # turns text that looks like markup (a subject, a sender's name) into
+    # styled text, which fetches <img src>. Every Text states its format;
+    # AutoText is never one, StyledText only with a "styled-ok" comment on
+    # its line or the line above.
+    while ($code =~ /(?<![\w.])Text\s*\{/g) {
+        my $open = pos($code);
+        my ($depth, $j, $len, $found) = (1, $open, length $code, 0);
+        while ($j < $len && $depth > 0) {
+            my $d = substr($code, $j, 1);
+            if ($d eq '{') { $depth++ }
+            elsif ($d eq '}') { $depth-- }
+            elsif ($depth == 1 && substr($code, $j) =~ /^textFormat\s*:/ && substr($code, $j - 1, 1) !~ /[\w.]/) { $found = 1 }
+            $j++;
+        }
+        next if $found;
+        print "$file:" . line_of($code, $open) . ": Text without textFormat (use Text.PlainText)\n";
+        $bad = 1;
+    }
+    my @lines = split /\n/, $src, -1;
+    while ($code =~ /\bText\.(AutoText|StyledText)\b/g) {
+        my ($kind, $ln) = ($1, line_of($code, $-[0]));
+        next if $kind eq 'StyledText'
+            && (($lines[$ln - 1] =~ /styled-ok/) || ($ln > 1 && $lines[$ln - 2] =~ /styled-ok/));
+        print "$file:$ln: Text.$kind (use Text.PlainText, or Text.RichText for a sanitised body)\n";
+        $bad = 1;
+    }
+
     # Swipe rows: no SwipeDelegate, leadingActions or trailingActions.
     while ($code =~ /\b(SwipeDelegate|leadingActions|trailingActions)\b/g) {
         print "$file:" . line_of($code, $-[0]) . ": $1 (no swipe actions on rows)\n";

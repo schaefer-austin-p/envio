@@ -16,6 +16,7 @@ Rectangle {
     color: theme.airmail ? (blue ? theme.tintB : theme.tintA) : theme.tintB
 
     Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         text: root.initials
         color: root.theme.airmail ? (root.blue ? root.theme.heading : root.theme.accent) : root.theme.text

@@ -38,6 +38,7 @@ QC.Popup {
     contentItem: Column {
         spacing: root.theme.gu(1.75)
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.title !== ""
             text: root.title
@@ -48,6 +49,7 @@ QC.Popup {
             font.weight: Font.DemiBold
         }
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             visible: root.message !== ""
             text: root.message

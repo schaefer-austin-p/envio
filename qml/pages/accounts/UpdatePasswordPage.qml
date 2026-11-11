@@ -32,6 +32,7 @@ Item {
         spacing: root.theme.gu(2)
 
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.accountName
             elide: Text.ElideRight

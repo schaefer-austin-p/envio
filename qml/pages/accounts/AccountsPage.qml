@@ -56,6 +56,7 @@ Item {
                 width: parent.width - root.theme.gu(5)
                 spacing: 2
                 Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: row.model.name
                     elide: Text.ElideRight
@@ -65,6 +66,7 @@ Item {
                     font.weight: Font.Medium
                 }
                 Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: row.model.email
                     elide: Text.ElideRight
@@ -73,6 +75,7 @@ Item {
                     font.pixelSize: 14
                 }
                 Text {
+                    textFormat: Text.PlainText
                     objectName: "status"
                     width: parent.width
                     text: row.model.status
@@ -99,6 +102,7 @@ Item {
                 root.updatePasswordRequested(root.current, root.currentName)
             }
             Text {
+                textFormat: Text.PlainText
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
                 text: qsTr("Update password")
@@ -117,6 +121,7 @@ Item {
                 root.core.removeAccount(root.current, false)
             }
             Text {
+                textFormat: Text.PlainText
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
                 text: qsTr("Remove")

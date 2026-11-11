@@ -33,6 +33,7 @@ Flickable {
             border.width: 1
             border.color: root.theme.hairline
             Text {
+                textFormat: Text.PlainText
                 id: found
                 objectName: "foundText"
                 anchors.fill: parent
@@ -46,6 +47,7 @@ Flickable {
             }
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "appPasswordHint"
             width: parent.width
             visible: root.appPassword
@@ -76,6 +78,7 @@ Flickable {
             onClicked: root.continued()
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "stepError"
             width: parent.width
             visible: root.error !== ""

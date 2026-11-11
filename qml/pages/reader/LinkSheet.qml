@@ -9,6 +9,12 @@ Sheet {
     id: root
     objectName: "linkSheet"
     property string address: ""
+    // What is shown: the same address with invisible and direction-changing
+    // characters (RLO and the like, which can reorder what is displayed)
+    // written out as [U+XXXX]. Display only; Open and Copy use `address`.
+    readonly property string shownAddress: address.replace(
+        /[\u00AD\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF]/g,
+        function(c) { return "[U+" + c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0") + "]" })
     signal openRequested(string url)
 
     title: qsTr("Open this link?")
@@ -28,7 +34,7 @@ Sheet {
         Text {
             objectName: "linkAddress"
             width: parent.width
-            text: root.address
+            text: root.shownAddress
             textFormat: Text.PlainText
             wrapMode: Text.WrapAnywhere
             color: root.theme.text

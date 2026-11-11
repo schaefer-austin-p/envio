@@ -26,6 +26,7 @@ AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 text: root.text
                 elide: Text.ElideRight
@@ -35,6 +36,7 @@ AbstractButton {
                 font.weight: Font.Medium
             }
             Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 visible: root.caption !== ""
                 text: root.caption

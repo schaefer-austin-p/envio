@@ -94,6 +94,24 @@ Item {
             root.page = null
         }
 
+        // Text from a sender is plain text: markup in it, an <img> above
+        // all, must not be rendered, or its image is fetched.
+        function test_hostile_header_and_attachment_names_fetch_nothing() {
+            const evil = 'Hi <img src="http://example.invalid/x.png">'
+            netRequests.reset()
+            const v = view([{ index: 0, name: evil, mime: "application/pdf", size: 10 }], 0)
+            v.subject = evil
+            v.from = evil
+            v.to = [evil]
+            v.cc = [evil]
+            open(v)
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(500)
+            compare(netRequests.count(), 0)
+            compare(find("headerSubject").text, evil)
+        }
+
         function test_opens_the_message_on_show() {
             const calls = mock.called("open")
             compare(calls.length, 1)
@@ -145,6 +163,31 @@ Item {
             compare(find("linkAddress").text, url)
             mouseClick(find("linkOpen"))
             compare(root.openedUrls, [url])
+        }
+
+        function test_direction_overrides_in_a_link_are_shown_not_applied() {
+            open(view([], 0))
+            const url = "https://good.example/\u202Eformat.exe"
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            const shown = find("linkAddress").text
+            compare(shown, "https://good.example/[U+202E]format.exe")
+            verify(shown.indexOf("\u202E") < 0)
+            mouseClick(find("linkOpen"))
+            // Display only: what opens is the address as it was.
+            compare(root.openedUrls, [url])
+        }
+
+        function test_a_failed_save_is_not_exported_by_the_next_one() {
+            open(view(pdf(), 0))
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            compare(mock.called("saveAttachment").length, 1)
+            mock.notice("Could not save the attachment")
+            mock.attachmentSaved("/tmp/other.pdf")
+            compare(root.exported.length, 0)
         }
 
         function test_link_sheet_cancel_opens_nothing() {

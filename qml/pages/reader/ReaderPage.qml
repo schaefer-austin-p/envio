@@ -15,7 +15,7 @@ Item {
     required property var core
     required property var accounts
     required property var folders
-    property int messageId: -1
+    property real messageId: -1
 
     // Set by messageOpened; null until then.
     property var view: null
@@ -192,6 +192,7 @@ Item {
     }
 
     Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: root.view === null && root.unavailable === ""
         text: qsTr("Loading…")
@@ -205,6 +206,7 @@ Item {
         visible: root.unavailable !== ""
         spacing: root.theme.gu(2)
         Text {
+            textFormat: Text.PlainText
             objectName: "unavailableText"
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
@@ -277,6 +279,9 @@ Item {
 
     Connections {
         target: root.core
+        // A failed save says so with a notice, not attachmentSaved: forget
+        // the pending export, or the next save would be exported in its mode.
+        function onNotice(text) { root.pendingMode = "" }
         function onMessageOpened(view) {
             if (view.id !== root.messageId) return
             root.unavailable = ""

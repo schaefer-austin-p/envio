@@ -27,6 +27,7 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "problemText"
             width: parent.width
             horizontalAlignment: Text.AlignHCenter

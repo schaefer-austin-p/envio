@@ -34,10 +34,10 @@ endif()
 # tests/qml/run.sh runs the QML tests with this: qmltestrunner cannot load
 # the Rust `Envio` module, which is a static plugin.
 if(ENVIO_QMLTEST)
-  find_package(Qt5 5.15 REQUIRED COMPONENTS QuickTest)
+  find_package(Qt5 5.15 REQUIRED COMPONENTS QuickTest Network)
   add_executable(envio-qmltest tests/qml/main.cpp)
   target_link_libraries(envio-qmltest PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
-    Qt5::QuickTest)
+    Qt5::QuickTest Qt5::Network)
 endif()
 
 # po/*.po -> share/locale/<lang>/LC_MESSAGES/envio.aps.mo

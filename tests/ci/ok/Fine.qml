@@ -10,4 +10,5 @@ Item {
     property string c: qsTr("Total: %1").arg(n)
     property string d: "SwipeDelegate and %n are only words here"
     property string e: qsTr("Hello (world), \"quoted\", more")
+    Text { textFormat: Text.PlainText; text: root.a }
 }

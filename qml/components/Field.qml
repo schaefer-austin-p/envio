@@ -24,6 +24,7 @@ Column {
     opacity: enabled ? 1 : 0.45
 
     Text {
+        textFormat: Text.PlainText
         visible: root.label !== ""
         text: root.label
         color: root.theme.secondary
@@ -63,6 +64,7 @@ Column {
                 : root.inputMethodHints
             onAccepted: root.accepted()
             Text {
+                textFormat: Text.PlainText
                 id: hint
                 visible: input.text === "" && !input.activeFocus
                 anchors.fill: parent

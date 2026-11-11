@@ -47,6 +47,7 @@ ListRow {
             width: parent.width
             height: sender.implicitHeight
             Text {
+                textFormat: Text.PlainText
                 id: sender
                 anchors { left: parent.left; right: tail.left; rightMargin: root.theme.gu(1) }
                 text: root.model.from
@@ -87,6 +88,7 @@ ListRow {
             }
         }
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.model.subject
             elide: Text.ElideRight
@@ -96,6 +98,7 @@ ListRow {
             font.weight: root.model.unread ? Font.DemiBold : Font.Normal
         }
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.model.preview
             elide: Text.ElideRight
@@ -104,6 +107,7 @@ ListRow {
             font.pixelSize: 14
         }
         Text {
+            textFormat: Text.PlainText
             visible: root.showAccount
             width: parent.width
             topPadding: 3

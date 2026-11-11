@@ -19,6 +19,11 @@ Item {
         }
     }
 
+    Component {
+        id: imageComponent
+        Image { width: 10; height: 10 }
+    }
+
     TestCase {
         name: "RichText"
         when: windowShown
@@ -49,7 +54,29 @@ Item {
             }
         }
 
-        function test_no_remote_resource_is_fetched() {
+        // The positive controls: if the counter did not see these, the zero
+        // assertions below would prove nothing.
+        function test_the_counter_sees_an_image() {
+            netRequests.reset()
+            createTemporaryObject(imageComponent, root, { source: "http://example.invalid/x.png" })
+            tryVerify(function() { return netRequests.count() > 0 })
+        }
+
+        function test_the_counter_sees_rich_text_fetching() {
+            netRequests.reset()
+            height('<p>Hi <img src="http://example.invalid/x.png"></p>')
+            tryVerify(function() { return netRequests.count() > 0 })
+        }
+
+        function test_the_corpus_fetches_nothing() {
+            netRequests.reset()
+            for (const name of names()) height(read(name))
+            wait(500)
+            compare(netRequests.count(), 0)
+        }
+
+        // The sanitiser's own output, checked again where it is cheap.
+        function test_no_remote_image_in_the_rendered_html() {
             const remote = /<img\b[^>]*\bsrc\s*=\s*["']?\s*(https?:|\/\/)/i
             for (const name of names()) {
                 const html = read(name)

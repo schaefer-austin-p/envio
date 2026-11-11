@@ -5,6 +5,7 @@ import "../platform"
 // a role, never its raw path ("INBOX", "[Gmail]/Sent Mail"); the server's
 // name for a folder without one.
 Text {
+    textFormat: Text.PlainText
     id: root
     required property Theme theme
     property string role: ""

@@ -73,6 +73,7 @@ TopBar {
                     root.core.act(item.modelData.action, 0)
                 }
                 Text {
+                    textFormat: Text.PlainText
                     x: root.theme.gu(2.5)
                     y: root.theme.gu(1.75)
                     text: item.modelData.label

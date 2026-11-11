@@ -22,6 +22,7 @@ Sheet {
     }
 
     Text {
+        textFormat: Text.PlainText
         x: root.theme.gu(2.5)
         width: parent.width - root.theme.gu(5)
         text: root.attachment.mime + " · " + FileSize.fileSize(root.attachment.size)
@@ -50,6 +51,7 @@ Sheet {
                 width: parent.width - root.theme.gu(5)
                 spacing: 2
                 Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: row.modelData.label
                     color: root.theme.text
@@ -58,6 +60,7 @@ Sheet {
                     font.weight: Font.Medium
                 }
                 Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: row.modelData.caption
                     wrapMode: Text.WordWrap

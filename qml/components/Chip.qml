@@ -15,6 +15,7 @@ AbstractButton {
     Accessible.checked: selected
 
     contentItem: Text {
+        textFormat: Text.PlainText
         id: label
         text: root.text
         horizontalAlignment: Text.AlignHCenter

@@ -74,6 +74,7 @@ Rectangle {
             width: parent.width
 
             component Section: Text {
+                textFormat: Text.PlainText
                 leftPadding: root.theme.gu(2.5)
                 topPadding: root.theme.gu(1.5)
                 bottomPadding: root.theme.gu(0.75)
@@ -84,6 +85,7 @@ Rectangle {
                 font.capitalization: Font.AllUppercase
             }
             component CountText: Text {
+                textFormat: Text.PlainText
                 property int n: 0
                 visible: n > 0
                 text: n
@@ -101,6 +103,7 @@ Rectangle {
                 separator: false
                 onClicked: root.unifiedRequested()
                 Text {
+                    textFormat: Text.PlainText
                     x: root.theme.gu(2.5)
                     y: root.theme.gu(1.75)
                     text: qsTr("Unified inbox")
@@ -126,12 +129,14 @@ Rectangle {
                     y: root.theme.gu(1.75)
                     spacing: root.theme.gu(0.75)
                     Text {
+                        textFormat: Text.PlainText
                         text: qsTr("Outbox")
                         color: root.theme.text
                         font.family: root.theme.fontUi
                         font.pixelSize: 16
                     }
                     Text {
+                        textFormat: Text.PlainText
                         visible: root.outboxCount > 0
                         text: qsTr("waiting to send")
                         color: root.theme.secondary
@@ -162,6 +167,7 @@ Rectangle {
                         separator: false
                         onClicked: root.expand(acct.model.key)
                         Text {
+                            textFormat: Text.PlainText
                             x: root.theme.gu(2.5)
                             y: root.theme.gu(1.75)
                             width: parent.width - x - root.theme.gu(2.5)

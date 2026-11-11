@@ -21,6 +21,7 @@ AppDialog {
     onSecondaryActivated: trusted()
 
     Text {
+        textFormat: Text.PlainText
         width: parent.width
         text: qsTr("SHA-256")
         color: root.theme.secondary
@@ -28,6 +29,7 @@ AppDialog {
         font.pixelSize: 13
     }
     Text {
+        textFormat: Text.PlainText
         objectName: "fingerprint"
         width: parent.width
         text: root.fingerprint

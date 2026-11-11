@@ -39,6 +39,7 @@ Rectangle {
     }
 
     Text {
+        textFormat: Text.PlainText
         anchors.left: parent.left
         anchors.leftMargin: root.theme.gu(2)
         anchors.right: action.visible ? action.left : parent.right
@@ -60,6 +61,7 @@ Rectangle {
         implicitHeight: root.theme.touch
         onClicked: { timer.stop(); root.visible = false; root.actionTriggered() }
         contentItem: Text {
+            textFormat: Text.PlainText
             id: label
             text: action.text
             horizontalAlignment: Text.AlignHCenter

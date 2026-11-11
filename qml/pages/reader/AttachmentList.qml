@@ -16,6 +16,7 @@ Column {
     spacing: theme.gu(1)
 
     Text {
+        textFormat: Text.PlainText
         text: qsTr("Attachments")
         color: root.theme.secondary
         font.family: root.theme.fontMono
@@ -45,6 +46,7 @@ Column {
                 y: root.theme.gu(1.25)
                 width: parent.width - x - root.theme.gu(1.5)
                 Text {
+                    textFormat: Text.PlainText
                     width: parent.width
                     text: file.modelData.name
                     elide: Text.ElideMiddle
@@ -54,6 +56,7 @@ Column {
                     font.weight: Font.Medium
                 }
                 Text {
+                    textFormat: Text.PlainText
                     text: FileSize.fileSize(file.modelData.size)
                     color: root.theme.secondary
                     font.family: root.theme.fontMono

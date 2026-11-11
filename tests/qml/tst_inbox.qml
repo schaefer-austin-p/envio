@@ -109,6 +109,20 @@ Item {
             tryVerify(function() { return core.called("more").length > 0 })
         }
 
+        function test_hostile_sender_and_subject_fetch_nothing() {
+            const evil = 'Hi <img src="http://example.invalid/x.png">'
+            netRequests.reset()
+            const m = message(12)
+            m.from = evil
+            m.subject = evil
+            m.preview = evil
+            m.accountName = evil
+            core.messages.append(m)
+            waitForRendering(page)
+            wait(500)
+            compare(netRequests.count(), 0)
+        }
+
         function test_tap_opens_the_message() {
             core.messages.append(message(11))
             waitForRendering(page)

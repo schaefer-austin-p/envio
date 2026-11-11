@@ -15,6 +15,7 @@ Flickable {
     clip: true
 
     component Caption: Text {
+        textFormat: Text.PlainText
         width: parent.width
         wrapMode: Text.WordWrap
         color: root.theme.secondary
@@ -23,6 +24,7 @@ Flickable {
         lineHeight: 1.3
     }
     component Heading: Text {
+        textFormat: Text.PlainText
         width: parent.width
         color: root.theme.text
         font.family: root.theme.fontUi
@@ -63,6 +65,7 @@ Flickable {
             spacing: 2
             Heading { text: qsTr("Sync") }
             Text {
+                textFormat: Text.PlainText
                 objectName: "syncText"
                 width: parent.width
                 text: qsTr("While Envio is open")
@@ -77,6 +80,7 @@ Flickable {
             spacing: 2
             Heading { text: qsTr("Keep mail for") }
             Text {
+                textFormat: Text.PlainText
                 objectName: "keepText"
                 width: parent.width
                 text: qsTr("Last 30 days")

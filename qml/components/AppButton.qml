@@ -33,6 +33,7 @@ AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
+            textFormat: Text.PlainText
             id: label
             objectName: "buttonLabel"
             text: root.text

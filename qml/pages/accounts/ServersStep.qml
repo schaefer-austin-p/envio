@@ -55,6 +55,7 @@ Flickable {
             width: parent.width
             spacing: root.theme.gu(1)
             Text {
+                textFormat: Text.PlainText
                 width: parent.width - imapStarttls.width - root.theme.gu(1)
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Upgrade with STARTTLS (otherwise TLS from the start)")
@@ -76,6 +77,7 @@ Flickable {
             width: parent.width
             spacing: root.theme.gu(1)
             Text {
+                textFormat: Text.PlainText
                 width: parent.width - smtpStarttls.width - root.theme.gu(1)
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Upgrade with STARTTLS (otherwise TLS from the start)")
@@ -100,6 +102,7 @@ Flickable {
             onClicked: root.continued()
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "stepError"
             width: parent.width
             visible: root.error !== ""

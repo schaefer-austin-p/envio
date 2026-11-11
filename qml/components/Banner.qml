@@ -30,6 +30,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
     }
     Text {
+        textFormat: Text.PlainText
         id: label
         anchors.left: icon.right
         anchors.leftMargin: root.theme.gu(1.25)

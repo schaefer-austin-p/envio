@@ -24,6 +24,7 @@ ListRow {
         width: parent.width - root.theme.gu(5)
         spacing: root.theme.gu(0.5)
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.model.subject
             elide: Text.ElideRight
@@ -33,6 +34,7 @@ ListRow {
             font.weight: Font.Medium
         }
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: root.model.to
             elide: Text.ElideRight
@@ -41,6 +43,7 @@ ListRow {
             font.pixelSize: 14
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "status-" + root.model.id
             width: parent.width
             text: root.model.text

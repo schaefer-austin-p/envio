@@ -44,6 +44,7 @@ QC.Popup {
             color: root.theme.field
         }
         Text {
+            textFormat: Text.PlainText
             visible: root.title !== ""
             x: root.theme.gu(2.5)
             width: parent.width - root.theme.gu(5)

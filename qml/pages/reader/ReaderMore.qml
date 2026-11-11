@@ -38,6 +38,7 @@ Sheet {
                 }
             }
             Text {
+                textFormat: Text.PlainText
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
                 width: parent.width - root.theme.gu(5)

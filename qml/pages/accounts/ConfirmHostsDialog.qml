@@ -22,6 +22,7 @@ AppDialog {
     onSecondaryActivated: confirmed()
 
     Text {
+        textFormat: Text.PlainText
         objectName: "imapLine"
         width: parent.width
         text: qsTr("IMAP: %1, port %2").arg(root.imapHost).arg(root.imapPort)
@@ -31,6 +32,7 @@ AppDialog {
         wrapMode: Text.WrapAnywhere
     }
     Text {
+        textFormat: Text.PlainText
         objectName: "smtpLine"
         width: parent.width
         text: qsTr("SMTP: %1, port %2").arg(root.smtpHost).arg(root.smtpPort)

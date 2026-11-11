@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:58+0100\n"
+"POT-Creation-Date: 2026-11-11 20:04+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,45 +18,45 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/EditMenu.qml:47
+#: qml/components/EditMenu.qml:48
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:54 qml/pages/reader/LinkSheet.qml:50
+#: qml/components/EditMenu.qml:55 qml/pages/reader/LinkSheet.qml:56
 msgid "Copy"
 msgstr ""
 
-#: qml/components/EditMenu.qml:61
+#: qml/components/EditMenu.qml:62
 msgid "Paste"
 msgstr ""
 
-#: qml/components/EditMenu.qml:67
+#: qml/components/EditMenu.qml:68
 msgid "Select all"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:15 qml/pages/inbox/InboxPage.qml:21
+#: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
 #: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:56
 msgid "Inbox"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:16
+#: qml/components/FolderLabel.qml:17
 msgid "Sent"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:17
+#: qml/components/FolderLabel.qml:18
 msgid "Drafts"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:18
+#: qml/components/FolderLabel.qml:19
 msgid "Trash"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:19 qml/pages/inbox/SelectionBar.qml:28
+#: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
 #: qml/pages/reader/ReaderPage.qml:103
 msgid "Archive"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:20
+#: qml/components/FolderLabel.qml:21
 msgid "Junk"
 msgstr ""
 
@@ -68,15 +68,35 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:46
+#. TRANSLATORS: %1 is a file size in bytes, like 812.
+#: qml/components/fileSize.js:12
+msgid "%1 B"
+msgstr ""
+
+#. TRANSLATORS: %1 is a file size in kilobytes, like 4.2 or 84.
+#: qml/components/fileSize.js:15
+msgid "%1 kB"
+msgstr ""
+
+#. TRANSLATORS: %1 is a file size in megabytes, like 1.5 or 106.
+#: qml/components/fileSize.js:18
+msgid "%1 MB"
+msgstr ""
+
+#. TRANSLATORS: %1 is a file size in gigabytes, like 2.0.
+#: qml/components/fileSize.js:20
+msgid "%1 GB"
+msgstr ""
+
+#: qml/pages/ProblemPage.qml:47
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:46 qml/pages/reader/ReaderPage.qml:221
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:223
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:218
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:224
 msgid "Accounts"
 msgstr ""
 
@@ -84,21 +104,21 @@ msgstr ""
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:104
+#: qml/pages/accounts/AccountsPage.qml:108
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:122
-#: qml/pages/accounts/AccountsPage.qml:137
+#: qml/pages/accounts/AccountsPage.qml:127
+#: qml/pages/accounts/AccountsPage.qml:142
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:135
+#: qml/pages/accounts/AccountsPage.qml:140
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:136
+#: qml/pages/accounts/AccountsPage.qml:141
 msgid "Keep account"
 msgstr ""
 
@@ -113,9 +133,9 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:57
-#: qml/pages/reader/AttachmentsSheet.qml:76
-#: qml/pages/reader/ForwardPrompt.qml:43 qml/pages/reader/LinkSheet.qml:62
+#: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
+#: qml/pages/reader/AttachmentsSheet.qml:79
+#: qml/pages/reader/ForwardPrompt.qml:43 qml/pages/reader/LinkSheet.qml:68
 msgid "Cancel"
 msgstr ""
 
@@ -123,64 +143,64 @@ msgstr ""
 msgid "Use these servers"
 msgstr ""
 
-#: qml/pages/accounts/ConfirmHostsDialog.qml:27
+#: qml/pages/accounts/ConfirmHostsDialog.qml:28
 msgid "IMAP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/ConfirmHostsDialog.qml:36
+#: qml/pages/accounts/ConfirmHostsDialog.qml:38
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:29
+#: qml/pages/accounts/EmailStep.qml:30
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:40
+#: qml/pages/accounts/EmailStep.qml:41
 msgid "Email address"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:60 qml/pages/accounts/SignInStep.qml:74
+#: qml/pages/accounts/EmailStep.qml:62 qml/pages/accounts/SignInStep.qml:76
 #: qml/pages/reader/ForwardPrompt.qml:51
 msgid "Continue"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:78
+#: qml/pages/accounts/EmailStep.qml:81
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:46
+#: qml/pages/accounts/OptionsStep.qml:48
 msgid "Account name"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:56 qml/pages/accounts/OptionsStep.qml:59
+#: qml/pages/accounts/OptionsStep.qml:58 qml/pages/accounts/OptionsStep.qml:61
 msgid "Use as default sender"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:57
+#: qml/pages/accounts/OptionsStep.qml:59
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:64
+#: qml/pages/accounts/OptionsStep.qml:66
 msgid "Sync"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:68
+#: qml/pages/accounts/OptionsStep.qml:71
 msgid "While Envio is open"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:73
+#: qml/pages/accounts/OptionsStep.qml:76
 msgid "Envio checks for new mail while it is open. Push is not available yet."
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:78
+#: qml/pages/accounts/OptionsStep.qml:81
 msgid "Keep mail for"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:82
+#: qml/pages/accounts/OptionsStep.qml:86
 msgid "Last 30 days"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:93
+#: qml/pages/accounts/OptionsStep.qml:97
 msgid "Done"
 msgstr ""
 
@@ -192,45 +212,45 @@ msgstr ""
 msgid "IMAP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:60 qml/pages/accounts/ServersStep.qml:81
+#: qml/pages/accounts/ServersStep.qml:61 qml/pages/accounts/ServersStep.qml:83
 msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:66
+#: qml/pages/accounts/ServersStep.qml:67
 msgid "IMAP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:69
+#: qml/pages/accounts/ServersStep.qml:70
 msgid "SMTP server"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:71
+#: qml/pages/accounts/ServersStep.qml:72
 msgid "SMTP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:87
+#: qml/pages/accounts/ServersStep.qml:89
 msgid "SMTP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:90
+#: qml/pages/accounts/ServersStep.qml:92
 msgid "User name"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:92 qml/pages/accounts/SignInStep.qml:65
+#: qml/pages/accounts/ServersStep.qml:94 qml/pages/accounts/SignInStep.qml:67
 msgid "Password"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:98
+#: qml/pages/accounts/ServersStep.qml:100
 msgid "Connect"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:52
+#: qml/pages/accounts/SignInStep.qml:54
 msgid ""
 "This provider needs an app password for Envio, not your usual one. Create "
 "one in your account settings."
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:65
+#: qml/pages/accounts/SignInStep.qml:67
 msgid "App password"
 msgstr ""
 
@@ -242,15 +262,15 @@ msgstr ""
 msgid "Trust this certificate"
 msgstr ""
 
-#: qml/pages/accounts/TrustDialog.qml:25
+#: qml/pages/accounts/TrustDialog.qml:26
 msgid "SHA-256"
 msgstr ""
 
-#: qml/pages/accounts/UpdatePasswordPage.qml:49
+#: qml/pages/accounts/UpdatePasswordPage.qml:50
 msgid "New password"
 msgstr ""
 
-#: qml/pages/accounts/UpdatePasswordPage.qml:58
+#: qml/pages/accounts/UpdatePasswordPage.qml:59
 msgid "Save password"
 msgstr ""
 
@@ -274,23 +294,23 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:96
+#: qml/pages/inbox/FoldersDrawer.qml:98
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:106
+#: qml/pages/inbox/FoldersDrawer.qml:109
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:129 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:133 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:136
+#: qml/pages/inbox/FoldersDrawer.qml:141
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:225
+#: qml/pages/inbox/FoldersDrawer.qml:231
 msgid "Settings"
 msgstr ""
 
@@ -302,6 +322,8 @@ msgstr ""
 msgid "Open menu"
 msgstr ""
 
+#. TRANSLATORS: %1 is how many messages are waiting to be sent,
+#. e.g. "2 messages waiting"; it is left out when none are.
 #: qml/pages/inbox/InboxPage.qml:164
 msgid "Offline. %1"
 msgstr ""
@@ -323,36 +345,36 @@ msgstr ""
 msgid "Move to folder"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:45
+#: qml/pages/inbox/OutboxPage.qml:46
 msgid "Nothing waiting to send."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:55
+#: qml/pages/inbox/OutboxPage.qml:56
 msgid "Delete this message?"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:56
+#: qml/pages/inbox/OutboxPage.qml:57
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:58 qml/pages/inbox/OutboxRow.qml:87
+#: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:90
 #: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:111
 msgid "Delete"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:60
+#: qml/pages/inbox/OutboxRow.qml:63
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:67
+#: qml/pages/inbox/OutboxRow.qml:70
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:74
+#: qml/pages/inbox/OutboxRow.qml:77
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:81
+#: qml/pages/inbox/OutboxRow.qml:84
 msgid "Edit"
 msgstr ""
 
@@ -376,31 +398,31 @@ msgstr ""
 msgid "Remove flag"
 msgstr ""
 
-#: qml/pages/reader/AttachmentList.qml:19
+#: qml/pages/reader/AttachmentList.qml:20
 msgid "Attachments"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:36 qml/pages/reader/LinkSheet.qml:43
+#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:49
 msgid "Open"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:36
+#: qml/pages/reader/AttachmentsSheet.qml:37
 msgid "Pick an app, like Document Viewer"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:37
+#: qml/pages/reader/AttachmentsSheet.qml:38
 msgid "Save"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:37
+#: qml/pages/reader/AttachmentsSheet.qml:38
 msgid "Into Files or another app"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:38
+#: qml/pages/reader/AttachmentsSheet.qml:39
 msgid "Share"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:38
+#: qml/pages/reader/AttachmentsSheet.qml:39
 msgid "Send it with another app"
 msgstr ""
 
@@ -458,7 +480,7 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/LinkSheet.qml:14
+#: qml/pages/reader/LinkSheet.qml:20
 msgid "Open this link?"
 msgstr ""
 
@@ -470,7 +492,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:197
+#: qml/pages/reader/ReaderPage.qml:198
 msgid "Loading…"
 msgstr ""
 

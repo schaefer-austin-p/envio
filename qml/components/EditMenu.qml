@@ -33,6 +33,7 @@ Menu {
             color: row.down || row.highlighted ? root.theme.selected : "transparent"
         }
         contentItem: Text {
+            textFormat: Text.PlainText
             text: row.text
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight

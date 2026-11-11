@@ -24,6 +24,7 @@ Column {
     spacing: theme.gu(1.5)
 
     Text {
+        textFormat: Text.PlainText
         objectName: "headerSubject"
         width: parent.width
         text: root.view.subject
@@ -49,6 +50,7 @@ Column {
                     width: parent.width
                     spacing: root.theme.gu(1.5)
                     Text {
+                        textFormat: Text.PlainText
                         id: label
                         width: root.theme.gu(8)
                         text: line.modelData.label
@@ -57,6 +59,7 @@ Column {
                         font.pixelSize: 13
                     }
                     Text {
+                        textFormat: Text.PlainText
                         objectName: "header-" + line.modelData.label
                         width: parent.width - label.width - parent.spacing
                         text: line.modelData.value

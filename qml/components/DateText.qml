@@ -5,6 +5,7 @@ import "../platform"
 // "time", "weekday", "daymonth", "full" or "none"); this formats it with the
 // user's locale. `date` is Unix seconds.
 Text {
+    textFormat: Text.PlainText
     id: root
     required property Theme theme
     property string bucket: "none"

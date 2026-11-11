@@ -40,6 +40,7 @@ Item {
         }
     }
     Text {
+        textFormat: Text.PlainText
         anchors.centerIn: parent
         visible: list.count === 0
         text: qsTr("Nothing waiting to send.")

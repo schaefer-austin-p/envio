@@ -25,6 +25,7 @@ Flickable {
         spacing: theme.gu(2)
 
         Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: qsTr("Enter your email address. Envio finds the mail servers for it.")
             wrapMode: Text.WordWrap
@@ -42,6 +43,7 @@ Flickable {
             onAccepted: if (continueButton.enabled) root.continued()
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "ispdbNote"
             width: parent.width
             text: root.core.ispdbNote()
@@ -62,6 +64,7 @@ Flickable {
             onClicked: root.continued()
         }
         Text {
+            textFormat: Text.PlainText
             objectName: "stepError"
             width: parent.width
             visible: root.error !== ""
