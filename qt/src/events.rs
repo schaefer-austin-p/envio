@@ -120,11 +120,16 @@ impl qobject::EnvioCore {
                 let map = map_of(&json::message_view_value(id, &view));
                 self.message_opened(&map);
             }
-            Signal::MessageUnavailable { id, text } => self.message_unavailable(id, &q(&text)),
+            Signal::MessageUnavailable { id, text } => {
+                self.message_unavailable(crate::variant::js_num(id), &q(&text));
+            }
             Signal::AttachmentSaved { path } => self.attachment_saved(&q(&lossy(&path))),
-            Signal::AttachmentFailed { id } => self.attachment_failed(id),
+            Signal::AttachmentFailed { id } => self.attachment_failed(crate::variant::js_num(id)),
             Signal::UndoOffer { undo, text } => {
-                self.undo_offer(i64::try_from(undo.0).unwrap_or(0), &q(&text));
+                self.undo_offer(
+                    crate::variant::js_num(i64::try_from(undo.0).unwrap_or(0)),
+                    &q(&text),
+                );
             }
             Signal::UndoClosed => self.undo_closed(),
             Signal::ComposeReady {
@@ -149,7 +154,7 @@ impl qobject::EnvioCore {
                 compose_num(compose),
                 &q(&lossy(&path)),
                 &q(&name),
-                i64::try_from(size).unwrap_or(i64::MAX),
+                crate::variant::js_num(i64::try_from(size).unwrap_or(i64::MAX)),
             ),
             Signal::AttachFailed { compose, text } => {
                 self.attach_failed(compose_num(compose), &q(&text));
@@ -184,6 +189,6 @@ fn lossy(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn compose_num(id: ComposeId) -> i64 {
-    i64::try_from(id.0).unwrap_or(0)
+fn compose_num(id: ComposeId) -> f64 {
+    crate::variant::js_num(i64::try_from(id.0).unwrap_or(0))
 }

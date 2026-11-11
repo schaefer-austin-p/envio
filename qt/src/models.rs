@@ -164,7 +164,7 @@ impl qobject::RowsModel {
             .and_then(|(r, n)| r.value(n));
         match value {
             Some(RowValue::Str(s)) => QVariant::from(&QString::from(s)),
-            Some(RowValue::Int(i)) => QVariant::from(&i),
+            Some(RowValue::Int(i)) => QVariant::from(&crate::variant::js_num(i)),
             Some(RowValue::Bool(b)) => QVariant::from(&b),
             None => QVariant::default(),
         }

@@ -83,16 +83,16 @@ pub mod qobject {
         fn message_opened(self: Pin<&mut EnvioCore>, view: &QMap_QString_QVariant);
         #[qsignal]
         #[cxx_name = "messageUnavailable"]
-        fn message_unavailable(self: Pin<&mut EnvioCore>, id: i64, text: &QString);
+        fn message_unavailable(self: Pin<&mut EnvioCore>, id: f64, text: &QString);
         #[qsignal]
         #[cxx_name = "attachmentSaved"]
         fn attachment_saved(self: Pin<&mut EnvioCore>, path: &QString);
         #[qsignal]
         #[cxx_name = "attachmentFailed"]
-        fn attachment_failed(self: Pin<&mut EnvioCore>, id: i64);
+        fn attachment_failed(self: Pin<&mut EnvioCore>, id: f64);
         #[qsignal]
         #[cxx_name = "undoOffer"]
-        fn undo_offer(self: Pin<&mut EnvioCore>, undo: i64, text: &QString);
+        fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString);
         #[qsignal]
         #[cxx_name = "undoClosed"]
         fn undo_closed(self: Pin<&mut EnvioCore>);
@@ -100,29 +100,29 @@ pub mod qobject {
         #[cxx_name = "composeReady"]
         fn compose_ready(
             self: Pin<&mut EnvioCore>,
-            compose: i64,
+            compose: f64,
             draft: &QMap_QString_QVariant,
             quoted: &QString,
         );
         #[qsignal]
         #[cxx_name = "draftSaved"]
-        fn draft_saved(self: Pin<&mut EnvioCore>, compose: i64);
+        fn draft_saved(self: Pin<&mut EnvioCore>, compose: f64);
         #[qsignal]
         #[cxx_name = "composeRefused"]
-        fn compose_refused(self: Pin<&mut EnvioCore>, compose: i64, text: &QString);
+        fn compose_refused(self: Pin<&mut EnvioCore>, compose: f64, text: &QString);
         #[qsignal]
-        fn queued(self: Pin<&mut EnvioCore>, compose: i64, text: &QString);
+        fn queued(self: Pin<&mut EnvioCore>, compose: f64, text: &QString);
         #[qsignal]
         fn attached(
             self: Pin<&mut EnvioCore>,
-            compose: i64,
+            compose: f64,
             path: &QString,
             name: &QString,
-            size: i64,
+            size: f64,
         );
         #[qsignal]
         #[cxx_name = "attachFailed"]
-        fn attach_failed(self: Pin<&mut EnvioCore>, compose: i64, text: &QString);
+        fn attach_failed(self: Pin<&mut EnvioCore>, compose: f64, text: &QString);
         #[qsignal]
         #[cxx_name = "searchFailed"]
         fn search_failed(self: Pin<&mut EnvioCore>, text: &QString);
@@ -214,7 +214,7 @@ pub mod qobject {
             id: i64,
             account: &QString,
             mailto: &QString,
-        ) -> i64;
+        ) -> f64;
         #[qinvokable]
         #[cxx_name = "draftChanged"]
         fn draft_changed(self: Pin<&mut EnvioCore>, compose: i64, draft_json: &QString);
@@ -233,7 +233,7 @@ pub mod qobject {
         fn decide_outbox(self: Pin<&mut EnvioCore>, item: &QString, decision: &QString);
         #[qinvokable]
         #[cxx_name = "editOutbox"]
-        fn edit_outbox(self: Pin<&mut EnvioCore>, item: &QString) -> i64;
+        fn edit_outbox(self: Pin<&mut EnvioCore>, item: &QString) -> f64;
         #[qinvokable]
         fn search(self: Pin<&mut EnvioCore>, scope: &QString, query: &QString, server: bool);
         #[qinvokable]

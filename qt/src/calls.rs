@@ -214,10 +214,10 @@ impl qobject::EnvioCore {
         id: i64,
         account: &QString,
         mailto: &QString,
-    ) -> i64 {
+    ) -> f64 {
         let Some((from, draft_id, mailto)) = cv::start_from(&s(kind), id, &s(account), &s(mailto))
         else {
-            return 0;
+            return 0.0;
         };
         let compose = {
             let mut state = self.as_mut().rust_mut();
@@ -230,7 +230,7 @@ impl qobject::EnvioCore {
             draft_id,
             mailto,
         });
-        compose
+        crate::variant::js_num(compose)
     }
 
     pub fn draft_changed(self: Pin<&mut Self>, compose: i64, draft_json: &QString) {
@@ -281,7 +281,7 @@ impl qobject::EnvioCore {
     }
 
     /// Returns the compose id the refused message opens in.
-    pub fn edit_outbox(mut self: Pin<&mut Self>, item: &QString) -> i64 {
+    pub fn edit_outbox(mut self: Pin<&mut Self>, item: &QString) -> f64 {
         let compose = {
             let mut state = self.as_mut().rust_mut();
             state.next_compose += 1;
@@ -291,7 +291,7 @@ impl qobject::EnvioCore {
             item: s(item),
             compose: cv::compose_id(compose),
         });
-        compose
+        crate::variant::js_num(compose)
     }
 
     /// `scope` is "all", "account:<key>" or "folder:<id>".

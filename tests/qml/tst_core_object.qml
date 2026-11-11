@@ -32,6 +32,8 @@ TestCase {
             property string who: model.name
             property string address: model.address
             property bool known: model.fromContacts
+            // Raw, to check the role reaches QML as a JS number.
+            property var lastSeen: model.lastSeen
         }
     }
 
@@ -135,5 +137,20 @@ TestCase {
         compare(v.openable, true)
         verify(v.warning.indexOf("evil.example") >= 0)
         compare(core.linkView("https://exa mple.org/").openable, false)
+    }
+
+    // 64-bit values must reach QML as numbers. A QVariant, signal argument or
+    // return value of `std::int64_t` is a `long` on LP64 Linux, which Qt 5's
+    // QML engine leaves as an opaque object: dates read 0, `===` on ids fails.
+    function test_number_roles_reach_qml_as_numbers() {
+        tryVerify(function () { return core.ready }, 20000)
+        core.addContact("Nia Test", "nia@example.org")
+        core.autocomplete("nia")
+        tryCompare(suggestionRows, "count", 1, 20000)
+        compare(typeof suggestionRows.itemAt(0).lastSeen, "number")
+    }
+
+    function test_compose_id_is_a_number() {
+        compare(typeof core.startCompose("nonsense", 0, "", ""), "number")
     }
 }

@@ -9,10 +9,9 @@ pub fn variant_of(value: &Value) -> QVariant {
     match value {
         Value::Null => QVariant::default(),
         Value::Bool(b) => QVariant::from(b),
-        Value::Number(n) => n.as_i64().map_or_else(
-            || QVariant::from(&n.as_f64().unwrap_or(0.0)),
-            |i| QVariant::from(&i),
-        ),
+        // A double: QML has no conversion for a QVariant of `long`, which
+        // is what `std::int64_t` is on LP64 Linux.
+        Value::Number(n) => QVariant::from(&n.as_f64().unwrap_or(0.0)),
         Value::String(s) => QVariant::from(&QString::from(s)),
         Value::Array(items) => {
             let mut list = QList::<QVariant>::default();
@@ -23,6 +22,15 @@ pub fn variant_of(value: &Value) -> QVariant {
         }
         Value::Object(_) => QVariant::from(&map_of(value)),
     }
+}
+
+/// An i64 as the number QML gets. Qt 5's QML engine converts a `long`
+/// (`std::int64_t` on LP64) neither in a QVariant nor as a signal argument or
+/// return value; it arrives as an opaque object. Ids and Unix seconds stay
+/// far below 2^53, so the double is exact.
+#[allow(clippy::cast_precision_loss)]
+pub fn js_num(i: i64) -> f64 {
+    i as f64
 }
 
 /// An object as a QVariantMap (anything else gives an empty map).
