@@ -23,6 +23,8 @@ use crate::{text, worker};
 const RESTART_MAX_MS: i64 = 5_000;
 /// Panics this far apart are not counted together.
 const FORGIVE_AFTER: Duration = Duration::from_secs(600);
+/// Crash logs kept; older ones are deleted when a new one is written.
+const CRASH_LOGS_KEPT: usize = 10;
 
 thread_local! {
     static LAST_PANIC: RefCell<Option<String>> = const { RefCell::new(None) };
@@ -84,5 +86,55 @@ pub(crate) fn write_crash_log(dir: &Path, message: &str) -> io::Result<PathBuf> 
     fs::create_dir_all(dir)?;
     let path = dir.join(format!("crash-{}.txt", now_ms()));
     crate::fsutil::write_atomic(&path, message.as_bytes(), 0o600)?;
+    prune_crash_logs(dir);
     Ok(path)
+}
+
+/// Keeps the newest `CRASH_LOGS_KEPT` crash logs (the name holds the time).
+fn prune_crash_logs(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let mut logs: Vec<(i64, PathBuf)> = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let name = entry.file_name().into_string().ok()?;
+            let ms = name.strip_prefix("crash-")?.strip_suffix(".txt")?;
+            Some((ms.parse().ok()?, entry.path()))
+        })
+        .collect();
+    logs.sort();
+    let excess = logs.len().saturating_sub(CRASH_LOGS_KEPT);
+    for (_, path) in logs.into_iter().take(excess) {
+        if let Err(e) = fs::remove_file(&path) {
+            log::warn!("removing an old crash log: {e}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_newest_ten_crash_logs_are_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        for ms in 1..=12 {
+            fs::write(dir.path().join(format!("crash-{ms}.txt")), "old").unwrap();
+        }
+        fs::write(dir.path().join("envio.log"), "keep").unwrap();
+        let newest = write_crash_log(dir.path(), "new").unwrap();
+        let mut names: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .filter(|n| n.starts_with("crash-"))
+            .collect();
+        names.sort();
+        assert_eq!(names.len(), CRASH_LOGS_KEPT);
+        assert!(newest.exists());
+        assert!(!dir.path().join("crash-1.txt").exists());
+        assert!(!dir.path().join("crash-3.txt").exists());
+        assert!(dir.path().join("crash-4.txt").exists());
+        assert!(dir.path().join("envio.log").exists());
+    }
 }
