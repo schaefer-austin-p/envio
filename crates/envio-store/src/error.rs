@@ -34,7 +34,9 @@ impl StoreError {
     /// The disk is full: the caller stops downloads and keeps going.
     pub fn is_disk_full(&self) -> bool {
         match self {
-            Self::Io(error) => error.kind() == io::ErrorKind::StorageFull,
+            Self::Io(error) | Self::MayStillApply(error) => {
+                error.kind() == io::ErrorKind::StorageFull
+            }
             Self::Sqlite(error) => error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull),
             _ => false,
         }

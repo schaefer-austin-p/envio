@@ -56,6 +56,7 @@ impl Replay {
             }
             Record::Done { seq } => {
                 self.pending.remove(&seq);
+                self.skipped.retain(|skipped| skipped.seq != Some(seq));
             }
             Record::Next { seq } => self.next_seq = self.next_seq.max(seq),
         }
@@ -94,6 +95,21 @@ pub(crate) fn replay(path: &Path, bytes: &[u8]) -> Result<Replay> {
             reason,
         };
         let value: Value = serde_json::from_slice(line).map_err(|error| bad(error.to_string()))?;
+        // Format invariant: a done line means "this seq is finished" in every
+        // version, and a next line only raises the counter, so both apply
+        // whatever their version. Only add lines can be skipped.
+        let seq = value.get("seq").and_then(Value::as_u64);
+        match (value.get("op").and_then(Value::as_str), seq) {
+            (Some("done"), Some(seq)) => {
+                replay.apply(Record::Done { seq });
+                continue;
+            }
+            (Some("next"), Some(seq)) => {
+                replay.apply(Record::Next { seq });
+                continue;
+            }
+            _ => {}
+        }
         if let Some(reason) = skip_reason(&value) {
             let seq = value.pointer("/action/seq").and_then(Value::as_u64);
             if let Some(seq) = seq {

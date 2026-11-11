@@ -138,11 +138,9 @@ impl Journal {
         if !self.pending.contains_key(&seq) {
             return Err(StoreError::NotFound);
         }
-        self.append(&Record::Done { seq })
-            .map_err(|error| match error {
-                StoreError::MayStillApply(io) => StoreError::Io(io),
-                other => other,
-            })?;
+        // On MayStillApply the done line may replay (Undo says "may still be
+        // undone"); the action stays pending in memory.
+        self.append(&Record::Done { seq })?;
         self.pending.remove(&seq);
         Ok(())
     }
@@ -167,14 +165,25 @@ impl Journal {
     /// Rewrites the file with only the pending actions (e.g. at startup).
     pub fn compact(&mut self) -> Result<()> {
         let mut bytes = encode(&Record::Next { seq: self.next_seq });
-        for skipped in &self.skipped {
-            bytes.extend(&skipped.raw);
-            bytes.push(b'\n');
-        }
-        for action in self.pending.values() {
-            bytes.extend(encode(&Record::Add {
-                action: action.clone(),
-            }));
+        // Skipped lines and pending adds in sequence order, as they were.
+        let mut lines: Vec<(u64, Vec<u8>)> = self
+            .skipped
+            .iter()
+            .map(|skipped| {
+                let mut raw = skipped.raw.clone();
+                raw.push(b'\n');
+                (skipped.seq.unwrap_or(0), raw)
+            })
+            .chain(self.pending.values().map(|action| {
+                let record = Record::Add {
+                    action: action.clone(),
+                };
+                (action.seq, encode(&record))
+            }))
+            .collect();
+        lines.sort_by_key(|(seq, _)| *seq);
+        for (_, line) in lines {
+            bytes.extend(line);
         }
         // Stays set until the new file is open: if the rename lands but a later
         // step fails, `self.file` is the old unlinked inode and must not be used.

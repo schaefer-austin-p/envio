@@ -239,3 +239,63 @@ fn other_errors_do_not_claim_the_action_may_apply() {
     assert!(!StoreError::NotFound.may_still_apply());
     assert!(!StoreError::Io(std::io::Error::other("x")).may_still_apply());
 }
+
+#[test]
+fn a_done_of_any_version_finishes_its_action() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let text = format!(
+        "{OLD_ADD}\n{}\n",
+        r#"{"v":2,"op":"done","seq":1,"why":"undo"}"#
+    );
+    fs::write(&path, text).unwrap();
+    let journal = Journal::open(&path).unwrap();
+    assert!(seqs(&journal).is_empty());
+    assert!(journal.skipped().is_empty());
+}
+
+#[test]
+fn a_done_drops_the_skipped_add_it_finishes() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let done = r#"{"v":1,"op":"done","seq":2}"#;
+    fs::write(&path, format!("{OLD_ADD}\n{NEWER_KIND}\n{done}\n")).unwrap();
+    let mut journal = Journal::open(&path).unwrap();
+    assert!(journal.skipped().is_empty());
+    journal.compact().unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("snooze"));
+    drop(journal);
+    let journal = Journal::open(&path).unwrap();
+    assert_eq!(seqs(&journal), [1]);
+    assert!(journal.skipped().is_empty());
+}
+
+#[test]
+fn compact_keeps_skipped_lines_in_sequence_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    fs::write(&path, format!("{OLD_ADD}\n{NEWER_KIND}\n{LAST_ADD}\n")).unwrap();
+    let mut journal = Journal::open(&path).unwrap();
+    journal.compact().unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    let at = |needle: &str| text.find(needle).unwrap();
+    assert!(at(r#""seq":1,"#) < at("snooze") && at("snooze") < at(r#""seq":4,"#));
+}
+
+#[test]
+fn a_failed_sync_on_done_may_still_apply() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let mut journal = Journal::open(&path).unwrap();
+    journal.push(1, target(1), ActionKind::Delete).unwrap();
+    journal.fail_next_sync();
+    let error = journal.done(1).unwrap_err();
+    assert!(error.may_still_apply(), "{error:?}");
+    assert!(seqs(&Journal::open(&path).unwrap()).is_empty());
+}
+
+#[test]
+fn a_sync_that_runs_out_of_space_is_disk_full() {
+    let error = StoreError::MayStillApply(std::io::Error::from(std::io::ErrorKind::StorageFull));
+    assert!(error.is_disk_full());
+}
