@@ -527,6 +527,7 @@ dependencies = [
  "ammonia",
  "getrandom 0.4.3",
  "html5ever",
+ "idna",
  "insta",
  "mail-builder",
  "mail-parser",

@@ -614,6 +614,7 @@ dependencies = [
  "ammonia",
  "getrandom 0.4.3",
  "html5ever",
+ "idna",
  "mail-builder",
  "mail-parser",
 ]

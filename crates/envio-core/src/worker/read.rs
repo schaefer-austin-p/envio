@@ -40,7 +40,7 @@ fn stored_header(stored: &envio_store::Envelope, account: &str) -> MessageHeader
     let from = Address::parse(&stored.from);
     MessageHeader {
         from: from.as_ref().map_or_else(
-            || stored.from.clone(),
+            || envio_mime::strip_bidi_controls(&stored.from),
             |a| a.name.clone().unwrap_or_else(|| a.email.clone()),
         ),
         from_address: from.map(|a| a.email).unwrap_or_default(),
@@ -438,6 +438,17 @@ mod tests {
         assert_eq!(safe_file_name("", 2), "attachment-3");
         assert_eq!(safe_file_name("dir/", 1), "attachment-2");
         assert!(safe_file_name(&"x".repeat(1000), 0).len() <= MAX_NAME_BYTES);
+    }
+
+    #[test]
+    fn the_stored_from_fallback_has_no_bidi_controls() {
+        let stored = envio_store::Envelope {
+            from: "\"PayPal\" <service@\u{202E}lapyap.evil>".into(),
+            ..Default::default()
+        };
+        let header = stored_header(&stored, "me");
+        assert!(!header.from.contains('\u{202E}'), "{}", header.from);
+        assert_eq!(header.from_address, "");
     }
 
     #[test]

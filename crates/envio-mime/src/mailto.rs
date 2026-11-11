@@ -52,11 +52,41 @@ pub fn parse_mailto(uri: &str) -> Option<MailtoDraft> {
 }
 
 /// Comma-separated addresses; entries that fail `Address::parse` (no `@`, address specials,
-/// control characters) are skipped. RFC 6068 allows only addr-specs here,
-/// so a plain split is enough; a quoted display name with a comma
-/// (`"Doe, John" <j@x>`) breaks apart, which is rare and left as is.
+/// control characters) are skipped. A comma inside a quoted display name
+/// (`"Doe, Jane" <j@x>`) does not split; plain addr-specs (RFC 6068) split
+/// at every comma as before.
 fn addresses(list: &str) -> Vec<Address> {
-    list.split(',').filter_map(Address::parse).collect()
+    split_outside_quotes(list)
+        .into_iter()
+        .filter_map(Address::parse)
+        .collect()
+}
+
+/// Splits at commas that are not inside a double-quoted string (a backslash
+/// escapes the next character there). A quote opens a string only as the
+/// first character of an entry; one stray inside an address, or left
+/// unclosed, falls back to a plain comma split so later recipients survive.
+fn split_outside_quotes(list: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let (mut start, mut quoted, mut escaped) = (0, false, false);
+    for (i, c) in list.char_indices() {
+        match c {
+            _ if escaped => escaped = false,
+            '\\' if quoted => escaped = true,
+            '"' if quoted => quoted = false,
+            '"' if list[start..i].trim().is_empty() => quoted = true,
+            ',' if !quoted => {
+                parts.push(&list[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    if quoted {
+        return list.split(',').collect();
+    }
+    parts.push(&list[start..]);
+    parts
 }
 
 /// Percent-decoding as RFC 3986 (`+` stays `+`), lossy UTF-8. A `%` not
