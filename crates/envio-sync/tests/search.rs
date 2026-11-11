@@ -103,3 +103,26 @@ async fn a_folder_whose_uidvalidity_changed_is_refused() {
     assert!(result.is_err());
     assert!(fetches(&server).is_empty());
 }
+
+#[tokio::test]
+async fn server_search_keeps_the_newest_200() {
+    let mut server = FakeServer::new();
+    let mut store = Store::new();
+    let folder = synced_inbox(&mut server, &mut store).await;
+    let uids: Vec<u32> = (0..450)
+        .map(|n| server.deliver("INBOX", &eml(&format!("alpha{n}")), OLD))
+        .collect();
+    server.calls.clear();
+    let ids = search_server(&mut server, &mut store.local(), folder, "alpha")
+        .await
+        .unwrap();
+    assert_eq!(ids.len(), 200);
+    assert!(fetches(&server).len() <= 4);
+    let newest = &uids[250..];
+    let mut want = store.db.ids_of(folder, newest).unwrap();
+    want.sort();
+    let mut got = ids.clone();
+    got.sort();
+    assert_eq!(got, want);
+    assert!(store.uids("INBOX").iter().all(|u| *u >= newest[0]));
+}

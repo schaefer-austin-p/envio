@@ -12,6 +12,10 @@ use crate::plan::pending::Pending;
 use crate::plan::sync::BATCH;
 use crate::server::MailServer;
 
+/// The most matches a server search keeps (the newest by UID): at most
+/// four batches of [`BATCH`] are fetched.
+pub const SERVER_SEARCH_LIMIT: usize = 200;
+
 /// Asks the server which messages of the folder contain `text`, fetches the
 /// envelopes of those not cached (in batches of [`BATCH`]) and caches them
 /// like synced rows, and returns the row ids of every match, cached or
@@ -34,7 +38,12 @@ pub async fn search_server(
     {
         return Err(SyncError::Net(NetError::Refused(String::new())));
     }
-    let found = server.search_text(text).await?;
+    let mut found = server.search_text(text).await?;
+    // Only the newest matches (highest UIDs) are kept: one step must not
+    // run for hundreds of round trips.
+    found.sort_unstable();
+    let skip = found.len().saturating_sub(SERVER_SEARCH_LIMIT);
+    found.drain(..skip);
     let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
     let missing: Vec<u32> = found
         .iter()
