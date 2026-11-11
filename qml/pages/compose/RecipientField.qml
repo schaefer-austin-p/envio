@@ -77,8 +77,10 @@ Item {
                 font.pixelSize: 14
             }
             Flow {
+                id: flow
                 width: parent.width - root.theme.gu(6.5) - root.theme.gu(1)
                 Repeater {
+                    id: chips
                     model: root.entries
                     delegate: AbstractButton {
                         id: chip
@@ -120,7 +122,13 @@ Item {
                     id: field
                     theme: root.theme
                     framed: false
-                    width: Math.max(root.theme.gu(14), parent.width - root.theme.gu(1))
+                    // Fill what is left of the last line, so an empty field
+                    // beside a chip does not open a second, empty line.
+                    width: {
+                        const last = chips.count > 0 ? chips.itemAt(chips.count - 1) : null
+                        const left = flow.width - (last ? last.x + last.width : 0) - root.theme.gu(1)
+                        return left >= root.theme.gu(14) ? left : flow.width - root.theme.gu(1)
+                    }
                     inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
                     onAccepted: root.commit(true)
                 }

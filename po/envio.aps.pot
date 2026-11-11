@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 22:45+0100\n"
+"POT-Creation-Date: 2026-11-11 22:47+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -358,12 +358,12 @@ msgstr ""
 msgid "Discard"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:50 qml/pages/reader/HeaderBlock.qml:15
+#: qml/pages/compose/FromRow.qml:54 qml/pages/reader/HeaderBlock.qml:15
 #: crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:73
+#: qml/pages/compose/FromRow.qml:77
 msgid "Send from"
 msgstr ""
 
@@ -379,15 +379,15 @@ msgstr ""
 msgid "Remove quoted text"
 msgstr ""
 
-#: qml/pages/compose/RecipientField.qml:91
+#: qml/pages/compose/RecipientField.qml:93
 msgid "Remove %1"
 msgstr ""
 
-#: qml/pages/compose/Suggestions.qml:67
+#: qml/pages/compose/Suggestions.qml:70
 msgid "from Contacts"
 msgstr ""
 
-#: qml/pages/compose/Suggestions.qml:68
+#: qml/pages/compose/Suggestions.qml:71
 msgid "written to %1"
 msgstr ""
 

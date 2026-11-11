@@ -41,9 +41,13 @@ Item {
         enabled: rows.count > 1
         onClicked: sheet.open()
         Row {
+            objectName: "fromContent"
+            x: root.theme.gu(2)
+            y: root.theme.gu(1.75)
             height: root.theme.touch - root.theme.gu(3.5)
             Text {
                 textFormat: Text.PlainText
+                objectName: "fromLabel"
                 width: root.theme.gu(6.5) - root.theme.gu(2)
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
@@ -55,7 +59,7 @@ Item {
             Text {
                 textFormat: Text.PlainText
                 objectName: "fromValue"
-                width: root.width - root.theme.gu(6.5) - root.theme.gu(4)
+                width: root.width - root.theme.gu(6.5) - root.theme.gu(2)
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
                 text: root.email

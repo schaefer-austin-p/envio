@@ -344,6 +344,33 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        // Phone shots: the From label and the suggestion text sat at x=0, and the
+        // To row kept a second, empty line below a chip.
+        function test_from_and_suggestions_keep_the_page_margin() {
+            mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const margin = find("subjectField").mapToItem(page, 0, 0).x
+            verify(margin > 0)
+            compare(find("fromLabel").mapToItem(page, 0, 0).x, margin)
+            mock.suggestions.append({ name: "Cy", address: "cy@example.org", fromContacts: false, lastSeen: 100, query: "cy" })
+            find("to").input.text = "cy"
+            tryVerify(function() { return shown("suggestion-0") }, 2000)
+            waitForRendering(page)
+            compare(find("suggestionAddress-0").mapToItem(page, 0, 0).x, margin)
+            compare(find("suggestionNote-0").mapToItem(page, 0, 0).x, margin)
+        }
+
+        function test_recipient_row_is_one_line_beside_a_chip() {
+            mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            const one = find("fromRow").height
+            // One touch row plus the hairline, not two rows.
+            verify(to.height <= one + 2, "to row is " + to.height + " high, a line is " + one)
+        }
+
         function test_mailto_waits_for_the_core_and_an_account() {
             shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0 })
             shell.visible = true

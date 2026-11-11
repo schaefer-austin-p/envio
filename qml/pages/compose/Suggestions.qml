@@ -38,7 +38,10 @@ Column {
             focusPolicy: Qt.NoFocus
             onClicked: root.chosen(root.entry(model.name, model.address))
             Column {
-                width: parent.width
+                objectName: "suggestionContent-" + row.index
+                x: root.theme.gu(2)
+                y: root.theme.gu(1.75)
+                width: parent.width - root.theme.gu(4)
                 Text {
                     textFormat: Text.PlainText
                     width: parent.width
