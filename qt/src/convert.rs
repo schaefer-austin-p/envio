@@ -69,7 +69,7 @@ pub fn search_scope(text: &str) -> Option<SearchScope> {
     None
 }
 
-/// "new" (account), "reply", "replyall", "forward" (message id), "draft"
+/// "new" (account), "reply", "replyall", "forward" and "forwardattach" (with its attachments; message id), "draft"
 /// (the stored draft id in `extra`) or "mailto" (the URL in `extra`).
 /// Returns the start and the command's `draft_id` and `mailto`.
 pub fn start_from(
@@ -90,8 +90,9 @@ pub fn start_from(
             id: MessageRowId(id),
             all: true,
         },
-        "forward" => StartFrom::Forward {
+        "forward" | "forwardattach" => StartFrom::Forward {
             id: MessageRowId(id),
+            attachments: kind == "forwardattach",
         },
         "draft" => return Some((StartFrom::Draft, Some(extra.to_owned()), None)),
         "mailto" => return Some((StartFrom::Mailto, None, Some(extra.to_owned()))),

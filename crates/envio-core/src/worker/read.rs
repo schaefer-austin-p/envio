@@ -374,7 +374,12 @@ impl Worker<'_> {
         }
     }
 
-    fn write_attachment(&self, id: MessageRowId, index: usize, dir: &Path) -> io::Result<PathBuf> {
+    pub(super) fn write_attachment(
+        &self,
+        id: MessageRowId,
+        index: usize,
+        dir: &Path,
+    ) -> io::Result<PathBuf> {
         let message = self.store.db.message(id).map_err(io::Error::other)?;
         let raw = self
             .store

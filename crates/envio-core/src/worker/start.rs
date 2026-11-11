@@ -6,6 +6,7 @@ use envio_store::{BodyState, MessageRowId};
 
 use super::Worker;
 use crate::api::command::{ComposeId, DraftInput, StartFrom};
+use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::compose;
 use crate::text;
@@ -118,6 +119,52 @@ impl Worker<'_> {
             }
         };
         self.compose_ready(compose, draft, quoted);
+        if matches!(
+            from,
+            StartFrom::Forward {
+                attachments: true,
+                ..
+            }
+        ) {
+            self.attach_originals(compose, id, raw);
+        }
+    }
+
+    /// Forward with attachments: each non-inline attachment of the original
+    /// goes through the same path as a picked file (a copy under a safe name
+    /// in the draft's folder, `Attached` or `AttachFailed`).
+    fn attach_originals(&mut self, compose: ComposeId, id: MessageRowId, raw: &[u8]) {
+        let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(raw) else {
+            return;
+        };
+        let stage = self
+            .store
+            .paths
+            .bodies()
+            .with_file_name(format!("forward-{}", compose.0));
+        for info in attachments.iter().filter(|a| !a.inline) {
+            let staged = std::fs::create_dir_all(&stage)
+                .and_then(|()| self.write_attachment(id, info.index, &stage));
+            let events = match staged {
+                Ok(path) => {
+                    let events = self.book.attach(compose, &path);
+                    let _ = std::fs::remove_file(&path);
+                    events
+                }
+                Err(e) => {
+                    log::warn!("reading an attachment to forward: {e}");
+                    let name = info.filename.clone().unwrap_or_default();
+                    vec![Event::AttachFailed {
+                        compose,
+                        text: text::compose::attachment_unreadable(&name),
+                    }]
+                }
+            };
+            for event in events {
+                self.emit(event);
+            }
+        }
+        let _ = std::fs::remove_dir(&stage);
     }
 
     /// A body step ended: start the replies and forwards that waited for it.

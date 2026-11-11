@@ -101,9 +101,18 @@ pub enum OutboxDecision {
 /// data in `StartCompose`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StartFrom {
-    New { account: String },
-    Reply { id: MessageRowId, all: bool },
-    Forward { id: MessageRowId },
+    New {
+        account: String,
+    },
+    Reply {
+        id: MessageRowId,
+        all: bool,
+    },
+    /// `attachments`: the original's attachments are attached too.
+    Forward {
+        id: MessageRowId,
+        attachments: bool,
+    },
     Draft,
     Mailto,
 }

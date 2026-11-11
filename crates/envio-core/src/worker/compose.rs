@@ -57,7 +57,7 @@ impl Worker<'_> {
             }
             StartFrom::Draft => self.start_from_draft(compose, draft_id),
             StartFrom::Mailto => self.start_from_mailto(compose, mailto),
-            StartFrom::Reply { id, .. } | StartFrom::Forward { id } => {
+            StartFrom::Reply { id, .. } | StartFrom::Forward { id, .. } => {
                 self.start_from_message(compose, id, from);
             }
         }

@@ -11,6 +11,15 @@ use support::Harness;
 const ME: &str = "me@example.org";
 const C: ComposeId = ComposeId(1);
 
+/// A message with one attachment whose name tries to leave its folder.
+const WITH_FILE: &[u8] = b"From: Ada <ada@example.org>\r\nTo: me@example.org\r\n\
+Subject: report\r\nMessage-ID: <m2@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/plain\r\n\r\nsee file\r\n\
+--XX\r\nContent-Type: application/pdf; name=\"../evil.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"../evil.pdf\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
 const FLOWED: &[u8] = b"From: Ada <ada@example.org>\r\nTo: me@example.org\r\n\
 Subject: hi\r\nMessage-ID: <m1@example.org>\r\nMIME-Version: 1.0\r\n\
 Content-Type: text/plain; charset=utf-8; format=flowed\r\n\r\n\
@@ -28,10 +37,14 @@ fn seeded() -> Seeded {
 /// `missing`: the message's body is not in the cache (and the server is
 /// unreachable), so a Reply has to wait for a download that fails.
 fn seeded_with(missing: bool) -> Seeded {
+    seeded_raw(missing, FLOWED)
+}
+
+fn seeded_raw(missing: bool, raw: &[u8]) -> Seeded {
     let mut h = Harness::unstarted();
     h.foreground = missing;
     let key = h.seed_account(ME, Some("pw"));
-    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, FLOWED)]);
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, raw)]);
     if missing {
         let db = envio_store::Db::open(&h.paths().db()).unwrap();
         let rows = db
@@ -217,6 +230,54 @@ fn reply_quotes_flowed_text_unflowed() {
     assert_eq!(draft.to, vec!["Ada <ada@example.org>".to_owned()]);
     assert_eq!(draft.subject, "Re: hi");
     assert_eq!(draft.in_reply_to.as_deref(), Some("<m1@example.org>"));
+}
+
+#[test]
+fn forward_with_attachments_attaches_them_with_safe_names() {
+    let s = seeded_raw(false, WITH_FILE);
+    let id = s.message_id();
+    s.h.send(Command::StartCompose {
+        compose: C,
+        from: StartFrom::Forward {
+            id,
+            attachments: true,
+        },
+        draft_id: None,
+        mailto: None,
+    });
+    let (name, path, size) = s.h.wait(|e| match e {
+        Event::Attached {
+            compose,
+            name,
+            path,
+            size,
+        } if *compose == C => Some((name.clone(), path.clone(), *size)),
+        _ => None,
+    });
+    assert_eq!(name, "evil.pdf");
+    assert_eq!(size, 5);
+    assert_eq!(std::fs::read(&path).unwrap(), b"hello");
+    assert!(path.starts_with(s.h.paths().draft_files()), "{path:?}");
+}
+
+#[test]
+fn forward_without_attachments_attaches_nothing() {
+    let s = seeded_raw(false, WITH_FILE);
+    let id = s.message_id();
+    s.h.send(Command::StartCompose {
+        compose: C,
+        from: StartFrom::Forward {
+            id,
+            attachments: false,
+        },
+        draft_id: None,
+        mailto: None,
+    });
+    s.h.wait(|e| matches!(e, Event::ComposeReady { compose, .. } if *compose == C).then_some(()));
+    s.settle();
+    // Nothing was copied into the drafts' files.
+    let files = s.h.paths().draft_files();
+    assert!(!files.exists() || std::fs::read_dir(files).unwrap().next().is_none());
 }
 
 #[test]
