@@ -102,6 +102,7 @@ pub(super) async fn replay(
         }
     }
     if !changed.is_empty() {
+        changed.sort();
         changed.dedup();
         worker.emit(Event::MessagesChanged { folders: changed });
     }

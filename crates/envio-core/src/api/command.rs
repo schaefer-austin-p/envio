@@ -32,6 +32,20 @@ pub struct ConnectRequest {
     pub accepted: Vec<(Service, String)>,
 }
 
+/// What the user did to messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserAction {
+    MarkRead(bool),
+    Flag(bool),
+    Archive,
+    Delete,
+    Move { to: FolderId },
+}
+
+/// One offer to take an action back, from `Event::UndoOffer`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UndoId(pub u64);
+
 #[derive(Debug)]
 pub enum Command {
     /// Flush unsent work and stop the worker.
@@ -78,6 +92,13 @@ pub enum Command {
         index: usize,
         dir: PathBuf,
     },
+    /// Do `action` to the messages; the answer is an `UndoOffer`.
+    Act {
+        ids: Vec<MessageRowId>,
+        action: UserAction,
+    },
+    /// Take back an offered action while its window is open.
+    Undo { undo: UndoId },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -100,6 +121,8 @@ impl Command {
             Self::Search { .. } => "Search",
             Self::OpenMessage { .. } => "OpenMessage",
             Self::SaveAttachment { .. } => "SaveAttachment",
+            Self::Act { .. } => "Act",
+            Self::Undo { .. } => "Undo",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
         }

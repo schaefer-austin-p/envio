@@ -5,6 +5,7 @@ pub mod notice;
 pub mod read;
 pub mod setup;
 pub mod status;
+pub mod undo;
 
 #[cfg(test)]
 mod tests {

@@ -19,9 +19,10 @@ mod mask;
 mod supervisor;
 #[allow(dead_code)]
 mod text;
+mod undo;
 mod worker;
 
-pub use api::command::{AccountSetup, Command, ConnectRequest};
+pub use api::command::{AccountSetup, Command, ConnectRequest, UndoId, UserAction};
 pub use api::event::Event;
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts,

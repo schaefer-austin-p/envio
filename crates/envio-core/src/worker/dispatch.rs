@@ -71,6 +71,14 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.save_attachment(id, index, &dir);
             Flow::Continue
         }
+        Command::Act { ids, action } => {
+            worker.act(&ids, action);
+            Flow::Continue
+        }
+        Command::Undo { undo } => {
+            worker.undo_action(undo);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

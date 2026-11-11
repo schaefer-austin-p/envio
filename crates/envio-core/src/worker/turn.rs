@@ -11,10 +11,12 @@ use super::conn::Conn;
 use super::plan::{Next, POLL_MS, Step, Timing, Wants, next, steps};
 
 impl Worker<'_> {
-    /// Timers that are not accounts' own: a retry in the schedule is due.
+    /// Timers that are not accounts' own: an Undo window ended, or a retry in
+    /// the schedule is due.
     pub(super) fn on_timers(&mut self, now: i64) {
-        // Undo expiry and draft saves join this with the commands that
-        // create them (Tasks 9 and 12).
+        // Draft saves join this with their commands (Task 12). Undo expiry
+        // has its own clock: it must not share the retry watermark.
+        self.expire_undos(now);
         if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {
             self.handled_due_ms = due;
             for live in self.live.values_mut() {
@@ -114,7 +116,11 @@ impl Worker<'_> {
 
     /// When to look again with nothing to do: the earliest timer.
     pub(super) fn wake_at(&self, now: i64) -> Option<i64> {
-        let mut wake = self.store.schedule.next_due_after(self.handled_due_ms);
+        let retry = self.store.schedule.next_due_after(self.handled_due_ms);
+        let mut wake = match (retry, self.undo.next_expiry()) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
         for live in self.live.values() {
             let at = account_wake(
                 needs_timer(self.foreground, &live.conn),

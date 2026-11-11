@@ -1,6 +1,6 @@
 //! What the core tells the app.
 
-use super::command::AccountSetup;
+use super::command::{AccountSetup, UndoId};
 use std::path::PathBuf;
 
 use super::view::{AccountInfo, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts};
@@ -104,5 +104,17 @@ pub enum Event {
         id: MessageRowId,
         index: usize,
         path: PathBuf,
+    },
+    /// An action was done; it can be taken back until `expires_at_ms`
+    /// (unix milliseconds).
+    UndoOffer {
+        undo: UndoId,
+        text: String,
+        expires_at_ms: i64,
+    },
+    /// The offer is over: taken back (`undone`) or gone for good.
+    UndoClosed {
+        undo: UndoId,
+        undone: bool,
     },
 }

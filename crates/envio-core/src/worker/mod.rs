@@ -1,5 +1,6 @@
 //! The worker: one thread, one current-thread runtime, one command loop.
 
+mod act;
 mod conn;
 mod dispatch;
 mod plan;
@@ -25,6 +26,7 @@ use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
 use crate::health::AccountStatus;
 use crate::text;
+use crate::undo::UndoBook;
 use conn::{IdleFuture, Live};
 use dispatch::{Flow, handle};
 use envio_net::Roots;
@@ -56,6 +58,8 @@ pub(crate) struct Worker<'s> {
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.
     opening: BTreeMap<MessageRowId, (bool, u32)>,
+    /// Actions the user can still take back.
+    undo: UndoBook,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -137,6 +141,7 @@ impl<'s> Worker<'s> {
             last_ran: None,
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
+            undo: UndoBook::default(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

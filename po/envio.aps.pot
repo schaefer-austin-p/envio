@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 09:37+0100\n"
+"POT-Creation-Date: 2026-11-11 09:45+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,6 +16,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: qml/pages/InboxPage.qml:26
 msgid "Inbox"
@@ -238,4 +239,62 @@ msgstr ""
 
 #: crates/envio-core/src/text/status.rs:61
 msgid "not valid"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:11
+msgid "Marked as read"
+msgid_plural "Marked {n} messages as read"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:13
+msgid "Marked as unread"
+msgid_plural "Marked {n} messages as unread"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:15
+msgid "Flagged"
+msgid_plural "Flagged {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:17
+msgid "Flag removed"
+msgid_plural "Removed the flag from {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:19
+msgid "Archived"
+msgid_plural "Archived {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:20
+msgid "Deleted"
+msgid_plural "Deleted {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:21
+msgid "Moved"
+msgid_plural "Moved {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:27
+msgid "Too late to undo: the change has already gone to the server"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:31
+msgid "Done, but it can not be undone"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:35
+msgid "This account has no Archive folder"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:40
+msgid "Could not do that. Nothing was changed"
 msgstr ""
