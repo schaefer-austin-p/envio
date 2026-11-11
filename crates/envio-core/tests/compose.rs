@@ -233,15 +233,12 @@ fn reply_quotes_flowed_text_unflowed() {
 }
 
 #[test]
-fn forward_with_attachments_attaches_them_with_safe_names() {
+fn forward_attaches_the_originals_attachments_with_safe_names() {
     let s = seeded_raw(false, WITH_FILE);
     let id = s.message_id();
     s.h.send(Command::StartCompose {
         compose: C,
-        from: StartFrom::Forward {
-            id,
-            attachments: true,
-        },
+        from: StartFrom::Forward { id },
         draft_id: None,
         mailto: None,
     });
@@ -258,26 +255,6 @@ fn forward_with_attachments_attaches_them_with_safe_names() {
     assert_eq!(size, 5);
     assert_eq!(std::fs::read(&path).unwrap(), b"hello");
     assert!(path.starts_with(s.h.paths().draft_files()), "{path:?}");
-}
-
-#[test]
-fn forward_without_attachments_attaches_nothing() {
-    let s = seeded_raw(false, WITH_FILE);
-    let id = s.message_id();
-    s.h.send(Command::StartCompose {
-        compose: C,
-        from: StartFrom::Forward {
-            id,
-            attachments: false,
-        },
-        draft_id: None,
-        mailto: None,
-    });
-    s.h.wait(|e| matches!(e, Event::ComposeReady { compose, .. } if *compose == C).then_some(()));
-    s.settle();
-    // Nothing was copied into the drafts' files.
-    let files = s.h.paths().draft_files();
-    assert!(!files.exists() || std::fs::read_dir(files).unwrap().next().is_none());
 }
 
 #[test]

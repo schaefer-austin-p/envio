@@ -108,10 +108,9 @@ pub enum StartFrom {
         id: MessageRowId,
         all: bool,
     },
-    /// `attachments`: the original's attachments are attached too.
+    /// Quotes the message and attaches its attachments.
     Forward {
         id: MessageRowId,
-        attachments: bool,
     },
     Draft,
     Mailto,

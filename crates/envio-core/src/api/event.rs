@@ -139,6 +139,12 @@ pub enum Event {
         index: usize,
         path: PathBuf,
     },
+    /// `SaveAttachment` for this attachment did not write the file (a
+    /// `Notice` says so too).
+    AttachmentFailed {
+        id: MessageRowId,
+        index: usize,
+    },
     /// An action was done; it can be taken back until `expires_at_ms`
     /// (unix milliseconds).
     UndoOffer {

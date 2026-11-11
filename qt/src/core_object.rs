@@ -84,6 +84,9 @@ pub mod qobject {
         #[cxx_name = "attachmentSaved"]
         fn attachment_saved(self: Pin<&mut EnvioCore>, path: &QString);
         #[qsignal]
+        #[cxx_name = "attachmentFailed"]
+        fn attachment_failed(self: Pin<&mut EnvioCore>);
+        #[qsignal]
         #[cxx_name = "undoOffer"]
         fn undo_offer(self: Pin<&mut EnvioCore>, undo: i64, text: &QString);
         #[qsignal]

@@ -197,6 +197,26 @@ fn save_attachment_creates_a_missing_folder() {
 }
 
 #[test]
+fn a_failed_save_says_which_attachment_failed() {
+    let s = seeded(&[(1, WITH_ATTACHMENT)]);
+    let id = s.id_of("message 1");
+    let out = tempfile::tempdir().unwrap();
+    // A file where the folder should be: the save cannot start.
+    let blocked = out.path().join("file");
+    std::fs::write(&blocked, b"x").unwrap();
+    s.h.send(Command::SaveAttachment {
+        id,
+        index: 0,
+        dir: blocked.join("sub"),
+    });
+    let failed = s.h.wait(|e| match e {
+        Event::AttachmentFailed { id, index } => Some((*id, *index)),
+        _ => None,
+    });
+    assert_eq!(failed, (id, 0));
+}
+
+#[test]
 fn opening_without_a_body_offline_is_unavailable() {
     let mut h = Harness::unstarted();
     h.foreground = true;

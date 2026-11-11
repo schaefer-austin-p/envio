@@ -52,6 +52,7 @@ pub enum Signal {
     AttachmentSaved {
         path: PathBuf,
     },
+    AttachmentFailed,
     UndoOffer {
         undo: UndoId,
         text: String,

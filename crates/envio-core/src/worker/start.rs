@@ -119,13 +119,7 @@ impl Worker<'_> {
             }
         };
         self.compose_ready(compose, draft, quoted);
-        if matches!(
-            from,
-            StartFrom::Forward {
-                attachments: true,
-                ..
-            }
-        ) {
+        if matches!(from, StartFrom::Forward { .. }) {
             self.attach_originals(compose, id, raw);
         }
     }

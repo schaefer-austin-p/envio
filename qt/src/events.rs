@@ -122,6 +122,7 @@ impl qobject::EnvioCore {
             }
             Signal::MessageUnavailable { id, text } => self.message_unavailable(id, &q(&text)),
             Signal::AttachmentSaved { path } => self.attachment_saved(&q(&lossy(&path))),
+            Signal::AttachmentFailed => self.attachment_failed(),
             Signal::UndoOffer { undo, text } => {
                 self.undo_offer(i64::try_from(undo.0).unwrap_or(0), &q(&text));
             }

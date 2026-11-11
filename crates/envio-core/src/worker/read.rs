@@ -367,6 +367,7 @@ impl Worker<'_> {
             Ok(path) => self.emit(Event::AttachmentSaved { id, index, path }),
             Err(e) => {
                 log::warn!("saving an attachment: {e}");
+                self.emit(Event::AttachmentFailed { id, index });
                 self.emit(Event::Notice {
                     text: text::read::attachment_not_saved(),
                 });
