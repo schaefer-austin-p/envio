@@ -4,6 +4,7 @@
 
 pub mod core_run;
 pub mod proxy;
+pub mod ui_help;
 
 #[path = "../../../envio-net/tests/support/stalwart.rs"]
 pub mod stalwart;
