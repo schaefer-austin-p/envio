@@ -12,6 +12,8 @@ pub enum Point {
     IdleSelect,
     /// A message body is about to be fetched for the reader.
     BodyFetch,
+    /// The server accepted IDLE: mail that arrives now is reported.
+    IdleEntered,
 }
 
 static HOOKS: Mutex<Vec<(Point, String, Hook)>> = Mutex::new(Vec::new());

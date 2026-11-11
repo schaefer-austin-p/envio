@@ -37,6 +37,9 @@ pub(crate) struct Live {
     pub next_full_ms: i64,
     pub conn: Conn,
     pub idle_capable: bool,
+    /// The Inbox was queued for a sync before this IDLE attempt: it is not
+    /// queued again, so a sync that cannot finish never makes a loop.
+    pub idle_synced_first: bool,
     /// The folder list was fetched during the current run.
     pub listed: bool,
 }
@@ -49,6 +52,7 @@ impl Live {
             next_full_ms: 0,
             conn: Conn::Closed,
             idle_capable: false,
+            idle_synced_first: false,
             listed: false,
         }
     }
@@ -120,6 +124,12 @@ pub(crate) fn changed_since_sync(synced: Option<SyncState>, now: &FolderState) -
         || matches!((synced.highestmodseq, now.highest_modseq), (Some(a), Some(b)) if a != b)
 }
 
+/// Whether the Inbox is synced before IDLE begins: only once per attempt,
+/// whatever the sync did, then the poll is the backstop.
+pub(crate) fn sync_first(failed: bool, behind: bool, already: bool) -> bool {
+    (failed || behind) && !already
+}
+
 pub(crate) fn start_idle(
     account: String,
     session: ImapSession,
@@ -130,9 +140,15 @@ pub(crate) fn start_idle(
     let max = i64::try_from(IDLE_MAX.as_millis()).unwrap_or(i64::MAX);
     let wait = u64::try_from((until_ms - now_ms).clamp(1_000, max)).unwrap_or(1_000);
     let ended = Rc::clone(&stop);
+    #[cfg(feature = "test-hooks")]
+    let name = account.clone();
     let future = async move {
+        let entered = || {
+            #[cfg(feature = "test-hooks")]
+            crate::hooks::reached(crate::hooks::Point::IdleEntered, &name);
+        };
         let result = session
-            .idle(Duration::from_millis(wait), ended.notified())
+            .idle_with(Duration::from_millis(wait), ended.notified(), entered)
             .await;
         (account, result)
     };
@@ -177,15 +193,21 @@ impl Worker<'_> {
             .await
             .map_err(|e| problem::from_net(&e, Service::Imap))?;
         let behind = changed_since_sync(inbox.sync, &state);
-        if let Some(live) = self.live.get_mut(account)
-            && (live.health.failures > 0 || behind)
-        {
-            // Back after a failure, or the Inbox changed after its sync:
-            // sync it first; IDLE starts on the next turn.
-            live.health.ok();
-            live.wants.folders.insert(inbox.id);
-            live.conn = Conn::Ready(session);
-            return Ok(());
+        let disk_full = self.disk_full(now_ms());
+        if let Some(live) = self.live.get_mut(account) {
+            let failed = live.health.failures > 0;
+            if sync_first(failed, behind && !disk_full, live.idle_synced_first) {
+                // Back after a failure, or the Inbox changed after its sync:
+                // sync it first; IDLE starts on the next turn.
+                if failed {
+                    live.health.ok();
+                }
+                live.idle_synced_first = true;
+                live.wants.folders.insert(inbox.id);
+                live.conn = Conn::Ready(session);
+                return Ok(());
+            }
+            live.idle_synced_first = false;
         }
         let (future, notify) = start_idle(account.to_owned(), session, until_ms, now_ms());
         self.idles.push(future);
@@ -259,6 +281,7 @@ impl Worker<'_> {
         self.idles = FuturesUnordered::new();
         for live in self.live.values_mut() {
             live.conn = Conn::Closed;
+            live.idle_synced_first = false;
         }
         self.refresh(None);
     }
@@ -322,6 +345,16 @@ mod tests {
             exists: 0,
             highest_modseq: modseq,
         }
+    }
+
+    #[test]
+    fn the_inbox_is_synced_first_once_per_idle_attempt() {
+        assert!(sync_first(true, false, false));
+        assert!(sync_first(false, true, false));
+        assert!(!sync_first(false, false, false));
+        // The sync did not fix it (disk full, refused step): IDLE, no loop.
+        assert!(!sync_first(true, true, true));
+        assert!(!sync_first(false, true, true));
     }
 
     #[test]
