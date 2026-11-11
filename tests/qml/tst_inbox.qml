@@ -81,6 +81,7 @@ Item {
             core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
                                    status: "Up to date", state: "ok", unread: 0 })
             opened.clear()
+            page.pendingInbox = ""
             find("undoToast", page).hide()
             find("noticeToast", page).hide()
             waitForRendering(page)
@@ -194,6 +195,41 @@ Item {
             compare(toast.actionText, "")
         }
 
+        function test_leaving_a_tab_drops_its_pending_inbox() {
+            mouseClick(find("tab-ann", page))
+            compare(page.pendingInbox, "ann")
+            mouseClick(find("tab-all", page))
+            compare(page.pendingInbox, "")
+            core.reset()
+            // The Folders reply for the abandoned tab arrives late.
+            core.folders.append({ id: 7, account: "ann", name: "INBOX", role: "inbox", unread: 2, depth: 0 })
+            wait(50)
+            compare(core.called("openList").length, 0)
+            compare(page.unified, true)
+            core.folders.clear()
+        }
+
+        function test_reply_without_an_inbox_stops_waiting() {
+            mouseClick(find("tab-bob", page))
+            core.reset()
+            core.folders.append({ id: 9, account: "bob", name: "Archive", role: "archive", unread: 0, depth: 0 })
+            tryCompare(page, "pendingInbox", "")
+            // A later listFolders (the drawer's, the move sheet's) must not switch the list.
+            core.folders.append({ id: 8, account: "bob", name: "INBOX", role: "inbox", unread: 0, depth: 0 })
+            wait(50)
+            compare(core.called("openList").length, 0)
+            core.folders.clear()
+        }
+
+        function test_offline_banner_with_a_count_is_one_string() {
+            core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+            core.accounts.setProperty(1, "state", "offline")
+            tryVerify(function() { return find("offlineBanner", page).visible })
+            compare(find("offlineBanner", page).text, "Offline. waiting 1")
+            core.accounts.setProperty(1, "state", "ok")
+            core.outbox.clear()
+        }
+
         function test_offline_banner_shows() {
             verify(!find("offlineBanner", page).visible)
             core.accounts.setProperty(1, "state", "offline")
@@ -245,9 +281,19 @@ Item {
         function init() {
             shell.visible = true
             shell.problem = ""
+            shell.retrying = false
+            shell.rootKind = ""
             shellCore.reset()
             shellCore.ready = false
             shellCore.accounts.clear()
+            shellCore.outbox.clear()
+        }
+        function has(name) {
+            return everything(shell, []).some(function(o) { return o.objectName === name })
+        }
+        function addAccount() {
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+                                        status: "Up to date", state: "ok", unread: 0 })
         }
 
         // The shell covers the page above while it is shown.
@@ -272,7 +318,71 @@ Item {
             compare(find("problemText").text, "The mail cache cannot be opened.")
             mouseClick(find("tryAgain"))
             compare(shellCore.called("start").length, 1)
+            // The page stays, busy, until the core is ready.
+            verify(problem.visible)
+            verify(problem.busy)
+            verify(!find("tryAgain").enabled)
+            shellCore.ready = true
             tryVerify(function() { return !problem.visible })
+        }
+
+        function test_store_recovering_by_itself_clears_the_problem() {
+            addAccount()
+            shellCore.storeProblem("The mail cache cannot be opened.")
+            const problem = find("problemPage")
+            tryVerify(function() { return problem.visible })
+            shellCore.ready = true
+            tryVerify(function() { return !problem.visible })
+            tryVerify(function() { return find("inboxPage").visible })
+        }
+
+        function test_a_retry_that_keeps_failing_keeps_the_page() {
+            shellCore.storeProblem("The mail cache cannot be opened.")
+            const problem = find("problemPage")
+            tryVerify(function() { return problem.visible })
+            mouseClick(find("tryAgain"))
+            verify(problem.busy)
+            shellCore.storeProblem("Still cannot open it.")
+            verify(problem.visible)
+            verify(!problem.busy)
+            compare(find("problemText").text, "Still cannot open it.")
+            verify(find("tryAgain").enabled)
+        }
+
+        function test_trust_prompt_outside_the_wizard_is_ignored() {
+            addAccount()
+            shellCore.ready = true
+            tryVerify(function() { return find("inboxPage").visible })
+            tryVerify(function() { return !has("trustDialog") })
+            shellCore.trustPrompt("ann@example.org", "imap", "imap.example.org", "SHA-256 AB", "ab", "The server changed.")
+            wait(50)
+            verify(!has("trustDialog"))
+            compare(shellCore.called("acceptCertificate").length, 0)
+            compare(shellCore.called("acceptSetupCertificate").length, 0)
+        }
+
+        function test_a_later_ready_keeps_the_open_outbox() {
+            addAccount()
+            shellCore.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+            shellCore.ready = true
+            tryVerify(function() { return find("inboxPage").visible })
+            tryVerify(function() { return find("outboxBanner").visible })
+            waitForRendering(shell)
+            mouseClick(find("outboxBanner"))
+            tryVerify(function() { return has("outboxPage") && find("outboxPage").visible })
+            // The worker restarts.
+            shellCore.ready = false
+            shellCore.ready = true
+            wait(50)
+            verify(find("outboxPage").visible)
+        }
+
+        function test_the_root_changes_when_the_accounts_do() {
+            addAccount()
+            shellCore.ready = true
+            tryVerify(function() { return find("inboxPage").visible })
+            shellCore.accounts.clear()
+            tryVerify(function() { return find("wizardPage").visible })
         }
 
         function test_start_failed_shows_the_problem() {

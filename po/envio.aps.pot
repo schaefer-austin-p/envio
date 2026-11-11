@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:16+0100\n"
+"POT-Creation-Date: 2026-11-11 19:23+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: qml/components/FolderLabel.qml:15 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:54
+#: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:56
 msgid "Inbox"
 msgstr ""
 
@@ -51,7 +51,11 @@ msgstr ""
 msgid "Back"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:43
+#: qml/pages/ProblemPage.qml:46
+msgid "Trying again…"
+msgstr ""
+
+#: qml/pages/ProblemPage.qml:46
 msgid "Try again"
 msgstr ""
 
@@ -270,23 +274,27 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:108
+#: qml/pages/inbox/InboxPage.qml:119
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:115
+#: qml/pages/inbox/InboxPage.qml:126
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:151 qml/pages/inbox/InboxPage.qml:152
+#: qml/pages/inbox/InboxPage.qml:164
+msgid "Offline. %1"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:165
 msgid "Offline."
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:189
+#: qml/pages/inbox/InboxPage.qml:202
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:235
+#: qml/pages/inbox/InboxPage.qml:248
 msgid "Undo"
 msgstr ""
 

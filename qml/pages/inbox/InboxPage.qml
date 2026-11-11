@@ -39,12 +39,14 @@ Item {
         tab = ""
         title = qsTr("Inbox")
         unified = true
+        pendingInbox = ""
         core.openList("inboxes", 0)
     }
     function showFolder(id, name) {
         tab = "folder"
         title = name
         unified = false
+        pendingInbox = ""
         core.openList("folder", id)
     }
     // The Inbox's id is among the account's folders: ask, then open it
@@ -76,6 +78,15 @@ Item {
             root.core.openList("folder", item.model.id)
         }
     }
+    // A Folders reply that has no Inbox row for the account the tab waits on:
+    // stop waiting, so a later listFolders (the drawer's, the move sheet's)
+    // never switches the list.
+    Connections {
+        target: root.folders
+        function onModelReset() { Qt.callLater(root.stopWaiting) }
+        function onRowsInserted() { Qt.callLater(root.stopWaiting) }
+    }
+    function stopWaiting() { pendingInbox = "" }
     Repeater {
         id: offlineProbe
         property int offline: 0
@@ -148,7 +159,9 @@ Item {
             kind: "warning"
             visible: root.offlineCount > 0
             height: visible ? implicitHeight : 0
-            text: root.outboxCount > 0 ? qsTr("Offline.") + " " + root.core.countText("waiting", root.outboxCount)
+            // TRANSLATORS: %1 is how many messages are waiting to be sent,
+            // e.g. "2 messages waiting"; it is left out when none are.
+            text: root.outboxCount > 0 ? qsTr("Offline. %1").arg(root.core.countText("waiting", root.outboxCount))
                                        : qsTr("Offline.")
         }
         Banner {

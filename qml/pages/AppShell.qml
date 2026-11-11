@@ -5,8 +5,8 @@ import "accounts"
 import "inbox"
 
 // The app below the window: which page shows (the wizard while there are no
-// accounts, else the inbox), the pages the inbox leads to, the trust prompt
-// for an account already set up, and the full-page problem screen. Main
+// accounts, else the inbox), the pages the inbox leads to and the full-page
+// problem screen. Main
 // creates EnvioCore and its models and hands them in, so tests can hand in a
 // MockCore.
 Item {
@@ -19,27 +19,30 @@ Item {
     required property var outbox
     // A start or store problem in words, shown full-page until "Try again".
     property string problem: ""
+    property bool retrying: false
 
     readonly property int accountCount: accountRows.count
-    readonly property bool wizardOpen: stack.currentItem !== null && stack.currentItem.objectName === "wizardPage"
 
+    // What the bottom of the stack is: "wizard", "inbox" or "" (nothing yet).
+    property string rootKind: ""
     // The first page once the core is ready: the wizard without accounts.
+    // The stack is replaced only when its root has to change, so a page the
+    // user opened (the Outbox) survives a worker restart.
     function route() {
-        stack.replace(null, accountCount === 0 ? wizardPage : inboxPage)
-    }
-    function keyOf(email) {
-        for (let i = 0; i < accountRows.count; i++) {
-            const row = accountRows.itemAt(i)
-            if (row !== null && row.email.toLowerCase() === String(email).toLowerCase()) return row.key
-        }
-        return ""
+        const want = accountCount === 0 ? "wizard" : "inbox"
+        if (rootKind === want && stack.depth > 0) return
+        rootKind = want
+        stack.replace(null, want === "wizard" ? wizardPage : inboxPage)
     }
     // Back from the wizard: where it came from, or the inbox once the first
     // account exists. With none, there is nowhere else to go.
     function wizardClosed() {
         if (accountCount === 0) return
         if (stack.depth > 1) stack.pop()
-        else stack.replace(null, inboxPage)
+        else {
+            rootKind = "inbox"
+            stack.replace(null, inboxPage)
+        }
     }
 
     Repeater {
@@ -47,9 +50,6 @@ Item {
         model: root.accounts
         delegate: Item {
             visible: false
-            required property var model
-            readonly property string key: model.key
-            readonly property string email: model.email
         }
     }
 
@@ -104,21 +104,12 @@ Item {
     Component {
         id: outboxPage
         OutboxPage {
+            objectName: "outboxPage"
             theme: root.theme
             core: root.core
             outbox: root.outbox
             onBackRequested: stack.pop()
         }
-    }
-
-    // An existing account's certificate pin changed or is unknown. (Setup
-    // asks through the wizard, which answers its own prompts.)
-    TrustDialog {
-        id: trust
-        objectName: "trustDialog"
-        theme: root.theme
-        property string account: ""
-        onTrusted: root.core.acceptCertificate(trust.account, trust.service, trust.hex)
     }
 
     ProblemPage {
@@ -127,8 +118,10 @@ Item {
         visible: root.problem !== ""
         theme: root.theme
         text: root.problem
+        busy: root.retrying
+        // The page stays up, busy, until the core is ready or reports again.
         onRetry: {
-            root.problem = ""
+            root.retrying = true
             root.core.start()
             root.core.refresh("")
         }
@@ -136,24 +129,20 @@ Item {
 
     Connections {
         target: root.core
-        function onReadyChanged() { if (root.core.ready) root.route() }
-        function onStoreProblem(text) { root.problem = text }
-        function onStartFailed(text) { root.problem = text }
-        function onTrustPrompt(email, service, host, fingerprint, hex, text) {
-            if (root.wizardOpen) return
-            const key = root.keyOf(email)
-            if (key === "") return
-            trust.account = key
-            trust.service = service
-            trust.host = host
-            trust.fingerprint = fingerprint
-            trust.hex = hex
-            trust.body = text
-            trust.open()
+        function onReadyChanged() {
+            if (!root.core.ready) return
+            // The core came up (maybe by itself, after a store problem).
+            root.problem = ""
+            root.retrying = false
+            root.route()
         }
+        function onStoreProblem(text) { root.retrying = false; root.problem = text }
+        function onStartFailed(text) { root.retrying = false; root.problem = text }
+        // A trust prompt is the setup wizard's; it answers its own. Nothing
+        // outside the wizard accepts a certificate.
     }
     // The last account was removed: back to the wizard.
-    onAccountCountChanged: if (core.ready && accountCount === 0 && !wizardOpen) route()
+    onAccountCountChanged: if (core.ready && accountCount === 0) route()
 
     Connections {
         target: Qt.application

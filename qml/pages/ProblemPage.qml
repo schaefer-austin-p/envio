@@ -10,6 +10,8 @@ Rectangle {
     objectName: "problemPage"
     required property Theme theme
     property string text: ""
+    // "Try again" was tapped and nothing has answered yet.
+    property bool busy: false
     signal retry()
 
     color: theme.ground
@@ -40,7 +42,8 @@ Rectangle {
             width: parent.width
             theme: root.theme
             primary: true
-            text: qsTr("Try again")
+            enabled: !root.busy
+            text: root.busy ? qsTr("Trying again…") : qsTr("Try again")
             onClicked: root.retry()
         }
     }
