@@ -79,8 +79,13 @@ eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-e2e
 '''
 
+# QML never formats a count (#3); the script also checks itself on a fixture.
+[tasks.no-qml-plurals]
+command = "tools/ci/no-qml-plurals.sh"
+args = ["--self-test"]
+
 [tasks.ci]
-dependencies = ["format-check", "lint", "coverage-report", "audit"]
+dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals"]
 
 [tasks.default]
 alias = "ci"

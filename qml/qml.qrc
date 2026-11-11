@@ -5,5 +5,32 @@
         <file>platform/qmldir</file>
         <file>platform/Theme.qml</file>
         <file>platform/ut/SystemColours.qml</file>
+        <file>platform/ut/GridUnit.qml</file>
+        <file>components/qmldir</file>
+        <file>components/Avatar.qml</file>
+        <file>components/Banner.qml</file>
+        <file>components/Button.qml</file>
+        <file>components/Chip.qml</file>
+        <file>components/Dialog.qml</file>
+        <file>components/Field.qml</file>
+        <file>components/Icon.qml</file>
+        <file>components/IconButton.qml</file>
+        <file>components/ListRow.qml</file>
+        <file>components/RadioRow.qml</file>
+        <file>components/Sheet.qml</file>
+        <file>components/Toast.qml</file>
+        <file>components/Toggle.qml</file>
+        <file>components/TopBar.qml</file>
+    </qresource>
+    <!-- Theme.qml loads these as ../../assets/fonts/..., on disk and here. -->
+    <qresource prefix="/assets">
+        <file alias="fonts/Inter/Inter-Regular.ttf">../assets/fonts/Inter/Inter-Regular.ttf</file>
+        <file alias="fonts/Inter/Inter-Medium.ttf">../assets/fonts/Inter/Inter-Medium.ttf</file>
+        <file alias="fonts/Inter/Inter-SemiBold.ttf">../assets/fonts/Inter/Inter-SemiBold.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-Regular.ttf">../assets/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-Medium.ttf">../assets/fonts/IBMPlexMono/IBMPlexMono-Medium.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf">../assets/fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf</file>
+        <file alias="fonts/Lora/Lora-Regular.ttf">../assets/fonts/Lora/Lora-Regular.ttf</file>
+        <file alias="fonts/Lora/Lora-SemiBold.ttf">../assets/fonts/Lora/Lora-SemiBold.ttf</file>
     </qresource>
 </RCC>

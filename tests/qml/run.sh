@@ -18,4 +18,5 @@ trap 'rm -rf "$home"' EXIT
 mkdir -m 700 "$home/run"
 export HOME="$home" XDG_CACHE_HOME="$home/cache" XDG_DATA_HOME="$home/data" \
   XDG_RUNTIME_DIR="$home/run"
-QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen} "$build/envio-qmltest" -input "$root/tests/qml" "$@"
+# Software rendering: tests that show a window have no GL in the image.
+QT_QUICK_BACKEND=${QT_QUICK_BACKEND:-software} QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen} "$build/envio-qmltest" -input "$root/tests/qml" "$@"

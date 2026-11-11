@@ -38,7 +38,8 @@ repeats these values, since the core is Qt-free.
 | tint A | `#F4E3E1` | `#3A2526` | offline and warning banners |
 | tint B | `#E3E6EA` | `#26303B` | info banners |
 | selected | `#ECE9E1` | `#232932` | selected rows |
-| scrim | `rgba(30,42,56,.45)` | `rgba(0,0,0,.55)` | behind sheets |
+| scrim | `rgba(30,42,56,.45)` | `rgba(0,0,0,.55)` | behind sheets and dialogs |
+| chevron | `#5A5D62` | `#A2A5AA` | disclosure chevrons (same as secondary) |
 
 ### Airmail
 
@@ -53,14 +54,18 @@ repeats these values, since the core is Qt-free.
 | field border | `#CFC6B1` | `#3A475A` | text fields, outlined buttons |
 | accent | `#B23A33` | `#E58C84` | unread, links, destructive |
 | primary | `#1F3A5F` on `#FBF8F1` | `#A9C1E3` on `#141C27` | primary buttons, selected tab |
-| chevron red / blue | `#B23A33` / `#1F3A5F` | `#C4473F` / `#5B7FB3` | the airmail border |
+| chevron (red) / chevron blue | `#B23A33` / `#1F3A5F` | `#C4473F` / `#5B7FB3` | the airmail border |
 | tint A | `#F3E2DF` | `#3A2427` | offline and warning banners |
 | tint B | `#E0E7F0` | `#1F2D42` | info banners |
 | selected | `#F1EADB` | `#1F2A38` | selected rows |
+| scrim | `rgba(34,48,63,.45)` | `rgba(0,0,0,.55)` | behind sheets and dialogs |
 
-Contrast of text, secondary and accent on ground is checked against WCAG AA
-(4.5:1) when `Theme.qml` is written; a value that fails is adjusted here
-first.
+Contrast is checked against WCAG AA by `tests/qml/tst_theme.qml`: text,
+heading, secondary and accent on ground, and primary text on primary, reach
+4.5:1; the chevron roles on ground reach 3:1 (graphics). A value that fails is
+adjusted here first. `Theme.qml` has the roles plus `name` ("carbon" or
+"airmail"), `darkMode` ("system", "light" or "dark"), the injectable
+`systemDark`, and the fonts `fontUi`, `fontMono` and `fontTitle`.
 
 ## Type
 

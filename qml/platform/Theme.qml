@@ -10,34 +10,54 @@ Control {
     id: root
     visible: false
 
-    // Settings: the alternative theme.
-    property bool airmail: false
-    // null follows the system; true or false forces it (tests, screenshots).
-    property var darkOverride: null
+    // Settings, bound from EnvioCore in Main.qml: "carbon" or "airmail",
+    // and "system", "light" or "dark".
+    property string name: "carbon"
+    property string darkMode: "system"
+    readonly property bool airmail: name === "airmail"
 
     readonly property color systemWindow: loader.item ? loader.item.windowColour : palette.window
-    readonly property bool dark: darkOverride !== null ? darkOverride : systemWindow.hslLightness < 0.5
+    // The system's switch; writable so tests can inject it.
+    property bool systemDark: systemWindow.hslLightness < 0.5
+    readonly property bool dark: darkMode === "system" ? systemDark : darkMode === "dark"
+
+    // Fonts ship in the click (assets/fonts, all OFL); Ubuntu is the
+    // fallback while one is missing.
+    readonly property string fontUi: ui.name !== "" ? ui.name : "Ubuntu"
+    readonly property string fontMono: mono.name !== "" ? mono.name : "Ubuntu Mono"
+    // Titles: Lora in Airmail, IBM Plex Mono in Carbon.
+    readonly property string fontTitle: airmail ? (lora.name !== "" ? lora.name : "Ubuntu") : fontMono
+
+    // Grid unit in px: Suru's on Ubuntu Touch, 8 elsewhere.
+    readonly property real gridUnit: grid.item ? grid.item.px : 8
+    function gu(n) { return Math.round(n * gridUnit) }
+    // The least height of anything tappable (at least 44 px).
+    readonly property real touch: Math.max(44, gu(6))
 
     readonly property var roles: ({
         "carbon": {
             "light": { "ground": "#F8F6F1", "surface": "#FFFFFF", "text": "#1E2A38", "heading": "#1E2A38",
                        "secondary": "#5A5D62", "hairline": "#DAD7CE", "field": "#C9C6BD", "accent": "#B8342C",
                        "primary": "#1E2A38", "primaryText": "#F8F6F1", "tintA": "#F4E3E1", "tintB": "#E3E6EA",
-                       "selected": "#ECE9E1" },
+                       "selected": "#ECE9E1", "scrim": Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.45),
+                       "chevron": "#5A5D62", "chevronBlue": "#5A5D62" },
             "dark":  { "ground": "#15181D", "surface": "#1F242B", "text": "#E8E5DE", "heading": "#E8E5DE",
                        "secondary": "#A2A5AA", "hairline": "#2E343C", "field": "#3A4049", "accent": "#E36A60",
                        "primary": "#E8E5DE", "primaryText": "#15181D", "tintA": "#3A2526", "tintB": "#26303B",
-                       "selected": "#232932" }
+                       "selected": "#232932", "scrim": Qt.rgba(0, 0, 0, 0.55),
+                       "chevron": "#A2A5AA", "chevronBlue": "#A2A5AA" }
         },
         "airmail": {
             "light": { "ground": "#FBF8F1", "surface": "#FFFFFF", "text": "#22303F", "heading": "#1F3A5F",
                        "secondary": "#5D6A78", "hairline": "#DDD5C4", "field": "#CFC6B1", "accent": "#B23A33",
                        "primary": "#1F3A5F", "primaryText": "#FBF8F1", "tintA": "#F3E2DF", "tintB": "#E0E7F0",
-                       "selected": "#F1EADB" },
+                       "selected": "#F1EADB", "scrim": Qt.rgba(34 / 255, 48 / 255, 63 / 255, 0.45),
+                       "chevron": "#B23A33", "chevronBlue": "#1F3A5F" },
             "dark":  { "ground": "#141C27", "surface": "#1C2633", "text": "#ECE5D6", "heading": "#A9C1E3",
                        "secondary": "#A3AEBB", "hairline": "#2C3747", "field": "#3A475A", "accent": "#E58C84",
                        "primary": "#A9C1E3", "primaryText": "#141C27", "tintA": "#3A2427", "tintB": "#1F2D42",
-                       "selected": "#1F2A38" }
+                       "selected": "#1F2A38", "scrim": Qt.rgba(0, 0, 0, 0.55),
+                       "chevron": "#C4473F", "chevronBlue": "#5B7FB3" }
         }
     })
     readonly property var current: roles[airmail ? "airmail" : "carbon"][dark ? "dark" : "light"]
@@ -55,9 +75,23 @@ Control {
     readonly property color tintA: current.tintA
     readonly property color tintB: current.tintB
     readonly property color selected: current.selected
+    readonly property color scrim: current.scrim
+    // Airmail's red and blue border; in Carbon the disclosure chevron.
+    readonly property color chevron: current.chevron
+    readonly property color chevronBlue: current.chevronBlue
+
+    FontLoader { id: ui; source: "../../assets/fonts/Inter/Inter-Regular.ttf" }
+    FontLoader { source: "../../assets/fonts/Inter/Inter-Medium.ttf" }
+    FontLoader { source: "../../assets/fonts/Inter/Inter-SemiBold.ttf" }
+    FontLoader { id: mono; source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf" }
+    FontLoader { source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-Medium.ttf" }
+    FontLoader { source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf" }
+    FontLoader { id: lora; source: "../../assets/fonts/Lora/Lora-Regular.ttf" }
+    FontLoader { source: "../../assets/fonts/Lora/Lora-SemiBold.ttf" }
 
     Loader {
         id: loader
         source: "ut/SystemColours.qml"
     }
+    Loader { id: grid; source: "ut/GridUnit.qml" }
 }

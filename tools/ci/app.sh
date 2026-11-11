@@ -21,6 +21,9 @@ section "lint: QML"
 qmllint=$(command -v qmllint || echo /usr/lib/qt5/bin/qmllint)
 find "$root/qml" -name '*.qml' -exec "$qmllint" {} +
 
+section "lint: QML formats no counts (#3)"
+"$root/tools/ci/no-qml-plurals.sh" --self-test
+
 section "lint: qt/ Rust"
 cargo clippy --manifest-path "$root/qt/Cargo.toml" --all-targets --locked -- -D warnings
 

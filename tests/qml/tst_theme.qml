@@ -8,12 +8,12 @@ TestCase {
     Theme { id: theme }
 
     function init() {
-        theme.airmail = false
-        theme.darkOverride = null
+        theme.name = "carbon"
+        theme.darkMode = "system"
     }
 
     function test_carbon_light() {
-        theme.darkOverride = false
+        theme.darkMode = "light"
         compare(theme.dark, false)
         compare(String(theme.ground), "#f8f6f1")
         compare(String(theme.text), "#1e2a38")
@@ -21,7 +21,7 @@ TestCase {
     }
 
     function test_carbon_dark() {
-        theme.darkOverride = true
+        theme.darkMode = "dark"
         compare(theme.dark, true)
         compare(String(theme.ground), "#15181d")
         compare(String(theme.accent), "#e36a60")
@@ -29,21 +29,36 @@ TestCase {
     }
 
     function test_airmail_light_has_its_own_heading() {
-        theme.airmail = true
-        theme.darkOverride = false
+        theme.name = "airmail"
+        theme.darkMode = "light"
         compare(String(theme.ground), "#fbf8f1")
         compare(String(theme.heading), "#1f3a5f")
     }
 
     function test_airmail_dark() {
-        theme.airmail = true
-        theme.darkOverride = true
+        theme.name = "airmail"
+        theme.darkMode = "dark"
         compare(String(theme.ground), "#141c27")
         compare(String(theme.heading), "#a9c1e3")
     }
 
-    function test_follows_system_when_not_forced() {
-        compare(theme.dark, theme.systemWindow.hslLightness < 0.5)
+    function test_system_dark_flips_roles() {
+        theme.darkMode = "system"
+        theme.systemDark = false
+        compare(String(theme.ground), "#f8f6f1")
+        theme.systemDark = true
+        compare(theme.dark, true)
+        compare(String(theme.ground), "#15181d")
+        compare(String(theme.text), "#e8e5de")
+    }
+
+    function test_forced_modes_ignore_system() {
+        theme.systemDark = true
+        theme.darkMode = "light"
+        compare(String(theme.ground), "#f8f6f1")
+        theme.systemDark = false
+        theme.darkMode = "dark"
+        compare(String(theme.ground), "#15181d")
     }
 
     // WCAG relative luminance and contrast ratio.
@@ -68,11 +83,57 @@ TestCase {
     // docs/10-design.md: text, secondary and accent on ground reach 4.5:1.
     // A failing value is changed in the doc first, then here and in Theme.qml.
     function test_text_roles_meet_aa(data) {
-        theme.airmail = data.airmail
-        theme.darkOverride = data.dark
+        theme.name = data.airmail ? "airmail" : "carbon"
+        theme.darkMode = data.dark ? "dark" : "light"
         for (const role of ["text", "heading", "secondary", "accent"]) {
             const ratio = contrast(theme[role], theme.ground)
             verify(ratio >= 4.5, role + " on ground is " + ratio.toFixed(2) + ":1")
         }
+    }
+
+    function test_scrim_and_chevron_exist_everywhere(data) {
+        theme.name = data.airmail ? "airmail" : "carbon"
+        theme.darkMode = data.dark ? "dark" : "light"
+        verify(theme.scrim.a > 0.4 && theme.scrim.a < 0.6, "scrim alpha " + theme.scrim.a)
+        verify(theme.chevron.a === 1 && theme.chevronBlue.a === 1)
+    }
+    function test_scrim_and_chevron_exist_everywhere_data() { return test_text_roles_meet_aa_data() }
+
+    function test_carbon_light_scrim_is_the_designed_one() {
+        theme.darkMode = "light"
+        compare(Math.round(theme.scrim.r * 255), 30)
+        compare(Math.round(theme.scrim.g * 255), 42)
+        compare(Math.round(theme.scrim.b * 255), 56)
+        fuzzyCompare(theme.scrim.a, 0.45, 0.005)
+    }
+
+    // #5: the label of a primary button, on the button.
+    function test_primary_text_on_primary_contrast(data) {
+        theme.name = data.airmail ? "airmail" : "carbon"
+        theme.darkMode = data.dark ? "dark" : "light"
+        const ratio = contrast(theme.primaryText, theme.primary)
+        verify(ratio >= 4.5, "primaryText on primary is " + ratio.toFixed(2) + ":1")
+    }
+    function test_primary_text_on_primary_contrast_data() { return test_text_roles_meet_aa_data() }
+
+    function test_chevron_contrast(data) {
+        theme.name = data.airmail ? "airmail" : "carbon"
+        theme.darkMode = data.dark ? "dark" : "light"
+        for (const role of ["chevron", "chevronBlue"]) {
+            const ratio = contrast(theme[role], theme.ground)
+            verify(ratio >= 3, role + " on ground is " + ratio.toFixed(2) + ":1")
+        }
+    }
+    function test_chevron_contrast_data() { return test_text_roles_meet_aa_data() }
+
+    function test_fonts_and_grid() {
+        compare(theme.fontUi, "Inter")
+        compare(theme.fontMono, "IBM Plex Mono")
+        theme.name = "carbon"
+        compare(theme.fontTitle, theme.fontMono)
+        theme.name = "airmail"
+        compare(theme.fontTitle, "Lora")
+        compare(theme.gu(2), theme.gridUnit * 2)
+        verify(theme.touch >= 44)
     }
 }
