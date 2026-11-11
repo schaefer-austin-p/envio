@@ -14,11 +14,17 @@ AbstractButton {
     Accessible.role: Accessible.Button
     Accessible.name: text
 
-    contentItem: Icon {
-        theme: root.theme
-        name: root.iconName
-        color: root.theme.text
-        anchors.centerIn: parent
+    // The Control stretches its content to the button; the icon keeps its
+    // own size, centred.
+    contentItem: Item {
+        Icon {
+            objectName: "icon"
+            theme: root.theme
+            name: root.iconName
+            color: root.theme.text
+            size: root.theme.iconSize
+            anchors.centerIn: parent
+        }
     }
     background: Rectangle {
         radius: width / 2

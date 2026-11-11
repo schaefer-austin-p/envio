@@ -10,7 +10,7 @@ Canvas {
     required property Theme theme
     property string name: ""
     property color color: theme.text
-    property real size: 24
+    property real size: theme.iconSize
 
     implicitWidth: size
     implicitHeight: size

@@ -34,6 +34,10 @@ Control {
     function gu(n) { return Math.round(n * gridUnit) }
     // The least height of anything tappable (at least 44 px).
     readonly property real touch: Math.max(44, gu(6))
+    // Icon sizes: the regular one (buttons, bars) and the small one (inside
+    // a row, a chip or a banner).
+    readonly property real iconSize: gu(3)
+    readonly property real iconSmall: gu(2)
 
     readonly property var roles: ({
         "carbon": {

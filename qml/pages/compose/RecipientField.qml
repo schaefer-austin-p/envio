@@ -108,7 +108,7 @@ Item {
                                 id: closeIcon
                                 theme: root.theme
                                 name: "close"
-                                size: 16
+                                size: root.theme.iconSmall
                                 color: root.theme.secondary
                                 anchors { right: parent.right; rightMargin: root.theme.gu(1); verticalCenter: parent.verticalCenter }
                             }

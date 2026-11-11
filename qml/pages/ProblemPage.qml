@@ -22,7 +22,7 @@ Rectangle {
         Icon {
             theme: root.theme
             name: "alert"
-            size: 32
+            size: root.theme.gu(4)
             color: root.theme.accent
             anchors.horizontalCenter: parent.horizontalCenter
         }

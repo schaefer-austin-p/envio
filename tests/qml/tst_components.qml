@@ -258,6 +258,18 @@ Item {
             kbField.input.focus = false
         }
 
+        // #64: the icon keeps its own size, in grid units, centred in the button.
+        function test_icon_button_icon_is_theme_icon_size() {
+            const ib = createTemporaryObject(iconButtonComponent, root)
+            const icon = ib.contentItem.children[0]
+            compare(icon.width, thm.iconSize)
+            compare(icon.height, thm.iconSize)
+            verify(icon.width < ib.width)
+            compare(thm.iconSize, thm.gu(3))
+            compare(thm.iconSmall, thm.gu(2))
+            compare(icon.x + icon.width / 2, ib.width / 2)
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)

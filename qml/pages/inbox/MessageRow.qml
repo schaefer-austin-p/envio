@@ -32,7 +32,7 @@ ListRow {
             visible: root.selecting && root.model.selected
             theme: root.theme
             name: "check"
-            size: 16
+            size: root.theme.iconSmall
             color: root.theme.primaryText
             anchors.centerIn: parent
         }
@@ -66,7 +66,7 @@ ListRow {
                     objectName: "flagIcon"
                     theme: root.theme
                     name: "flag"
-                    size: 16
+                    size: root.theme.iconSmall
                     color: root.theme.accent
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -75,7 +75,7 @@ ListRow {
                     objectName: "clipIcon"
                     theme: root.theme
                     name: "clip"
-                    size: 16
+                    size: root.theme.iconSmall
                     color: root.theme.secondary
                     anchors.verticalCenter: parent.verticalCenter
                 }
