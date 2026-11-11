@@ -23,6 +23,7 @@ Item {
     property ListModel folders: ListModel {}
     property ListModel messages: ListModel {}
     property ListModel outbox: ListModel {}
+    property ListModel suggestions: ListModel {}
     // The models handed to attachModel.
     property var models: []
 
@@ -41,6 +42,7 @@ Item {
     signal messageOpened(var view)
     signal messageUnavailable(real id, string text)
     signal attachmentSaved(string path)
+    signal attachmentFailed()
     signal undoOffer(real undo, string text)
     signal undoClosed()
     signal composeReady(real compose, var draft, string quoted)

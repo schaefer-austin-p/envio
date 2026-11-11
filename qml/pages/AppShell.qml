@@ -1,15 +1,18 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQml 2.15
 import "../platform"
+import "../components"
 import "accounts"
+import "compose"
 import "inbox"
 import "reader"
 
 // The app below the window: which page shows (the wizard while there are no
-// accounts, else the inbox), the pages the inbox leads to and the full-page
-// problem screen. Main
-// creates EnvioCore and its models and hands them in, so tests can hand in a
-// MockCore.
+// accounts, else the inbox), the pages the inbox leads to, compose (from the
+// inbox, the reader, the Outbox or a mailto: link) and the full-page problem
+// screen. Main creates EnvioCore and its models and hands them in, so tests
+// can hand in a MockCore.
 Item {
     id: root
     required property Theme theme
@@ -18,6 +21,7 @@ Item {
     required property var folders
     required property var messages
     required property var outbox
+    required property var suggestions
     // A start or store problem in words, shown full-page until "Try again".
     property string problem: ""
     property bool retrying: false
@@ -46,12 +50,54 @@ Item {
         }
     }
 
+    // The account a new message starts from: the default one, else the
+    // first.
+    property string firstAccount: ""
+    readonly property string composeAccount: core.defaultAccount !== "" ? core.defaultAccount : firstAccount
+
     Repeater {
         id: accountRows
         model: root.accounts
         delegate: Item {
+            id: accountRow
+            required property var model
+            required property int index
             visible: false
+            Binding {
+                target: root
+                property: "firstAccount"
+                value: accountRow.model.key
+                restoreMode: Binding.RestoreNone
+                when: accountRow.index === 0
+            }
         }
+    }
+
+    // Compose pages: the core made the compose, the page follows it.
+    function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
+    function newMessage() {
+        const id = core.startCompose("new", 0, composeAccount, "")
+        if (id > 0) composeOpened(id)
+    }
+    // A mailto: link waits until the core is up and there is an account to
+    // write from; then the core fills the compose from it.
+    property alias uriSource: links.sourceFile
+    property string pendingMailto: ""
+    function openMailto(link) {
+        pendingMailto = link
+        startPendingMailto()
+    }
+    function startPendingMailto() {
+        if (pendingMailto === "" || !core.ready || accountCount === 0) return
+        const link = pendingMailto
+        pendingMailto = ""
+        const id = core.startCompose("mailto", 0, "", link)
+        if (id > 0) composeOpened(id)
+    }
+
+    Uri {
+        id: links
+        onMailto: function(uri) { root.openMailto(uri) }
     }
 
     StackView {
@@ -71,7 +117,8 @@ Item {
             onMessageRequested: stack.push(readerPage, { messageId: message })
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
-            // Compose, search and settings arrive with their pages.
+            onComposeRequested: root.newMessage()
+            // Search and settings arrive with their pages.
         }
     }
     Component {
@@ -82,8 +129,7 @@ Item {
             accounts: root.accounts
             folders: root.folders
             onBackRequested: stack.pop()
-            // Compose arrives with its page (Task 14); until then the
-            // compose id it returns is not followed.
+            onComposeOpened: function(compose) { root.composeOpened(compose) }
         }
     }
     Component {
@@ -123,7 +169,30 @@ Item {
             core: root.core
             outbox: root.outbox
             onBackRequested: stack.pop()
+            onComposeOpened: function(compose) { root.composeOpened(compose) }
         }
+    }
+    Component {
+        id: composePage
+        ComposePage {
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            suggestions: root.suggestions
+            onClosed: stack.pop()
+            onSent: {
+                stack.pop()
+                sentToast.show(qsTr("Sent to the Outbox"))
+            }
+        }
+    }
+
+    Toast {
+        id: sentToast
+        objectName: "sentToast"
+        theme: root.theme
+        z: 5
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.gu(2) }
     }
 
     ProblemPage {
@@ -149,6 +218,7 @@ Item {
             root.problem = ""
             root.retrying = false
             root.route()
+            root.startPendingMailto()
         }
         function onStoreProblem(text) { root.retrying = false; root.problem = text }
         function onStartFailed(text) { root.retrying = false; root.problem = text }
@@ -156,7 +226,10 @@ Item {
         // outside the wizard accepts a certificate.
     }
     // The last account was removed: back to the wizard.
-    onAccountCountChanged: if (core.ready && accountCount === 0) route()
+    onAccountCountChanged: {
+        if (core.ready && accountCount === 0) route()
+        startPendingMailto()
+    }
 
     Connections {
         target: Qt.application

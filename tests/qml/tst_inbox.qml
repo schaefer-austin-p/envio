@@ -32,6 +32,8 @@ Item {
         folders: shellCore.folders
         messages: shellCore.messages
         outbox: shellCore.outbox
+        suggestions: shellCore.suggestions
+        uriSource: ""
         anchors.fill: parent
         visible: false
     }

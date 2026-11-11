@@ -40,6 +40,8 @@ Item {
         folders: shellCore.folders
         messages: shellCore.messages
         outbox: shellCore.outbox
+        suggestions: shellCore.suggestions
+        uriSource: ""
         anchors.fill: parent
         visible: false
     }
@@ -185,9 +187,20 @@ Item {
             wait(100)
             mouseClick(find("attachment-share"))
             compare(mock.called("saveAttachment").length, 1)
-            mock.notice("Could not save the attachment")
+            mock.attachmentFailed()
             mock.attachmentSaved("/tmp/other.pdf")
             compare(root.exported.length, 0)
+        }
+
+        function test_an_unrelated_notice_does_not_drop_the_export() {
+            open(view(pdf(), 0))
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            mock.notice("Sync finished")
+            mock.attachmentSaved("/tmp/invoice.pdf")
+            compare(root.exported, [{ path: "/tmp/invoice.pdf", mode: "share" }])
         }
 
         function test_link_sheet_cancel_opens_nothing() {
@@ -198,28 +211,15 @@ Item {
             compare(root.openedUrls.length, 0)
         }
 
-        function test_forward_asks_about_attachments() {
+        function test_forward_goes_straight_to_compose_attachments_and_all() {
             open(view(pdf(), 0))
             mock.reset()
             mouseClick(find("forward"))
-            compare(mock.called("startCompose").length, 0)
-            const prompt = find("forwardPrompt")
-            tryVerify(function() { return prompt.opened })
-            mouseClick(find("forwardWithout"))
-            mouseClick(find("forwardContinue"))
             const calls = mock.called("startCompose")
             compare(calls.length, 1)
             compare(calls[0].args.slice(0, 2), ["forward", 5])
             compare(composing.count, 1)
-            compare(composing.signalArguments[0][1], false)
-        }
-
-        function test_forward_without_attachments_does_not_ask() {
-            open(view([], 0))
-            mock.reset()
-            mouseClick(find("forward"))
-            compare(mock.called("startCompose").length, 1)
-            verify(!find("forwardPrompt").opened)
+            compare(composing.signalArguments[0].length, 1)
         }
 
         function test_reply_starts_a_reply() {

@@ -37,8 +37,7 @@ Item {
     // Leaving the page: Back, or a message that is no longer in this list.
     signal backRequested()
     // The compose id `startCompose` returned; the compose page follows it.
-    // `withAttachments`: a Forward that should carry the message's files.
-    signal composeOpened(var compose, bool withAttachments)
+    signal composeOpened(var compose)
 
     function load(images) {
         unavailable = ""
@@ -61,14 +60,13 @@ Item {
         core.act(action, 0)
         if (leave) backRequested()
     }
-    function compose(kind, withAttachments) {
+    function compose(kind) {
         const id = core.startCompose(kind, messageId, view.account, "")
-        if (id > 0) composeOpened(id, withAttachments)
+        if (id > 0) composeOpened(id)
     }
-    function forward() {
-        if (view.attachments.length > 0) forwardPrompt.open()
-        else compose("forward", false)
-    }
+    // A forward carries the message's attachments; the compose page shows
+    // them as chips the user can remove.
+    function forward() { compose("forward") }
     function save(mode) {
         pendingMode = mode
         core.saveAttachment(messageId, attachmentSheet.attachment.index, content.attachmentsDir)
@@ -230,14 +228,14 @@ Item {
         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
         theme: root.theme
         visible: root.view !== null
-        onReplyRequested: root.compose("reply", false)
+        onReplyRequested: root.compose("reply")
         onForwardRequested: root.forward()
     }
 
     ReaderMore {
         id: more
         theme: root.theme
-        onReplyAllRequested: root.compose("replyall", false)
+        onReplyAllRequested: root.compose("replyall")
         onMoveRequested: {
             root.moved = false
             root.core.select(root.messageId, true)
@@ -266,11 +264,6 @@ Item {
         theme: root.theme
         onChosen: root.save(mode)
     }
-    ForwardPrompt {
-        id: forwardPrompt
-        theme: root.theme
-        onContinued: root.compose("forward", withAttachments)
-    }
     Content {
         id: content
         anchors.fill: parent
@@ -279,9 +272,10 @@ Item {
 
     Connections {
         target: root.core
-        // A failed save says so with a notice, not attachmentSaved: forget
-        // the pending export, or the next save would be exported in its mode.
-        function onNotice(text) { root.pendingMode = "" }
+        // A failed save says so with attachmentFailed (and a notice): forget
+        // the pending export, or the next save would be exported in its
+        // mode. Other notices are not the save's business.
+        function onAttachmentFailed() { root.pendingMode = "" }
         function onMessageOpened(view) {
             if (view.id !== root.messageId) return
             root.unavailable = ""

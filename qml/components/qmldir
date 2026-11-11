@@ -9,6 +9,7 @@ IconButton 1.0 IconButton.qml
 ListRow 1.0 ListRow.qml
 RadioRow 1.0 RadioRow.qml
 Sheet 1.0 Sheet.qml
+TextBlock 1.0 TextBlock.qml
 Toast 1.0 Toast.qml
 Toggle 1.0 Toggle.qml
 TopBar 1.0 TopBar.qml

@@ -6,7 +6,8 @@
     "hooks": {
         "envio": {
             "apparmor": "envio.apparmor",
-            "desktop":  "envio.desktop"
+            "desktop":  "envio.desktop",
+            "urls":     "envio.url-dispatcher"
         }
     },
     "version": "0.1.0",

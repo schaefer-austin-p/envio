@@ -16,11 +16,16 @@
         <file>pages/reader/HeaderBlock.qml</file>
         <file>pages/reader/ImagesBanner.qml</file>
         <file>pages/reader/LinkSheet.qml</file>
-        <file>pages/reader/ForwardPrompt.qml</file>
         <file>pages/reader/AttachmentsSheet.qml</file>
         <file>pages/reader/AttachmentList.qml</file>
         <file>pages/reader/ReaderMore.qml</file>
         <file>pages/reader/ReplyBar.qml</file>
+        <file>pages/compose/ComposePage.qml</file>
+        <file>pages/compose/RecipientField.qml</file>
+        <file>pages/compose/Suggestions.qml</file>
+        <file>pages/compose/QuoteFold.qml</file>
+        <file>pages/compose/AttachmentChips.qml</file>
+        <file>pages/compose/FromRow.qml</file>
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>
         <file>pages/accounts/SignInStep.qml</file>
@@ -36,6 +41,9 @@
         <file>platform/ut/GridUnit.qml</file>
         <file>platform/Content.qml</file>
         <file>platform/ut/ContentExport.qml</file>
+        <file>platform/ut/ContentImport.qml</file>
+        <file>platform/ut/UriSource.qml</file>
+        <file>platform/Uri.qml</file>
         <file>components/qmldir</file>
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
@@ -52,6 +60,7 @@
         <file>components/ListRow.qml</file>
         <file>components/RadioRow.qml</file>
         <file>components/Sheet.qml</file>
+        <file>components/TextBlock.qml</file>
         <file>components/Toast.qml</file>
         <file>components/Toggle.qml</file>
         <file>components/TopBar.qml</file>

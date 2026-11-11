@@ -3,6 +3,7 @@ import QtTest 1.2
 import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/components"
+import "../../qml/components/fileSize.js" as FileSize
 
 Item {
     id: root
@@ -225,6 +226,17 @@ Item {
                        "label centre " + centre.x + " of " + b.width)
                 verify(Math.abs(centre.y - b.height / 2) <= 1)
             }
+        }
+
+        function test_file_size_picks_the_unit_after_rounding() {
+            compare(FileSize.fileSize(812), "812 B")
+            compare(FileSize.fileSize(4200), "4.2 kB")
+            compare(FileSize.fileSize(9999), "10 kB")
+            compare(FileSize.fileSize(84000), "84 kB")
+            compare(FileSize.fileSize(999499), "999 kB")
+            compare(FileSize.fileSize(999999), "1.0 MB")
+            compare(FileSize.fileSize(999999999), "1.0 GB")
+            compare(FileSize.fileSize(2000000000), "2.0 GB")
         }
 
         function test_touch_targets_are_44() {

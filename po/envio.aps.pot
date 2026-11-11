@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 20:15+0100\n"
+"POT-Creation-Date: 2026-11-11 20:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:103
+#: qml/pages/reader/ReaderPage.qml:101
 msgid "Archive"
 msgstr ""
 
@@ -69,30 +69,34 @@ msgid "Back"
 msgstr ""
 
 #. TRANSLATORS: %1 is a file size in bytes, like 812.
-#: qml/components/fileSize.js:12
+#: qml/components/fileSize.js:11
 msgid "%1 B"
 msgstr ""
 
 #. TRANSLATORS: %1 is a file size in kilobytes, like 4.2 or 84.
-#: qml/components/fileSize.js:15
+#: qml/components/fileSize.js:24
 msgid "%1 kB"
 msgstr ""
 
 #. TRANSLATORS: %1 is a file size in megabytes, like 1.5 or 106.
-#: qml/components/fileSize.js:18
+#: qml/components/fileSize.js:27
 msgid "%1 MB"
 msgstr ""
 
 #. TRANSLATORS: %1 is a file size in gigabytes, like 2.0.
-#: qml/components/fileSize.js:20
+#: qml/components/fileSize.js:29
 msgid "%1 GB"
+msgstr ""
+
+#: qml/pages/AppShell.qml:185
+msgid "Sent to the Outbox"
 msgstr ""
 
 #: qml/pages/ProblemPage.qml:47
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:223
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:221
 msgid "Try again"
 msgstr ""
 
@@ -134,8 +138,7 @@ msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
-#: qml/pages/reader/AttachmentsSheet.qml:79
-#: qml/pages/reader/ForwardPrompt.qml:43 qml/pages/reader/LinkSheet.qml:68
+#: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:68
 msgid "Cancel"
 msgstr ""
 
@@ -160,7 +163,6 @@ msgid "Email address"
 msgstr ""
 
 #: qml/pages/accounts/EmailStep.qml:62 qml/pages/accounts/SignInStep.qml:76
-#: qml/pages/reader/ForwardPrompt.qml:51
 msgid "Continue"
 msgstr ""
 
@@ -286,6 +288,106 @@ msgstr ""
 msgid "Account options"
 msgstr ""
 
+#: qml/pages/compose/AttachmentChips.qml:60
+msgid "Remove attachment"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:137
+msgid "Write"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:143
+msgid "Attach a file"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:151 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/reader/ReaderPage.qml:117
+msgid "More actions"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:158
+msgid "Send"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:200 qml/pages/reader/HeaderBlock.qml:16
+#: crates/envio-core/src/text/compose.rs:40
+msgid "To"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:212 qml/pages/reader/HeaderBlock.qml:17
+msgid "Cc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:224
+msgid "Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:232
+msgid "Cc and Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:242
+#: crates/envio-core/src/text/compose.rs:39
+msgid "Subject"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:261
+msgid "Write your message"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:296
+msgid "Discard draft"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:307
+msgid "Discard this message?"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:308
+msgid "The draft is deleted and cannot be brought back."
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:309
+msgid "Keep editing"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:310
+msgid "Discard"
+msgstr ""
+
+#: qml/pages/compose/FromRow.qml:50 qml/pages/reader/HeaderBlock.qml:15
+#: crates/envio-core/src/text/compose.rs:37
+msgid "From"
+msgstr ""
+
+#: qml/pages/compose/FromRow.qml:73
+msgid "Send from"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:24
+msgid "Show quoted text"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:44
+msgid "Hide"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:50
+msgid "Remove quoted text"
+msgstr ""
+
+#: qml/pages/compose/RecipientField.qml:84
+msgid "Remove %1"
+msgstr ""
+
+#: qml/pages/compose/Suggestions.qml:63
+msgid "from Contacts"
+msgstr ""
+
+#: qml/pages/compose/Suggestions.qml:64
+msgid "written to %1"
+msgstr ""
+
 #: qml/pages/inbox/AccountTabs.qml:38
 msgid "All"
 msgstr ""
@@ -358,7 +460,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:90
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:111
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:109
 msgid "Delete"
 msgstr ""
 
@@ -376,10 +478,6 @@ msgstr ""
 
 #: qml/pages/inbox/OutboxRow.qml:84
 msgid "Edit"
-msgstr ""
-
-#: qml/pages/inbox/SelectionBar.qml:50 qml/pages/reader/ReaderPage.qml:119
-msgid "More actions"
 msgstr ""
 
 #: qml/pages/inbox/SelectionBar.qml:60
@@ -426,38 +524,6 @@ msgstr ""
 msgid "Send it with another app"
 msgstr ""
 
-#: qml/pages/reader/ForwardPrompt.qml:13
-msgid "Forward message"
-msgstr ""
-
-#: qml/pages/reader/ForwardPrompt.qml:20
-msgid "With attachments"
-msgstr ""
-
-#: qml/pages/reader/ForwardPrompt.qml:21
-msgid "The files go along with the text"
-msgstr ""
-
-#: qml/pages/reader/ForwardPrompt.qml:29
-msgid "Without attachments"
-msgstr ""
-
-#: qml/pages/reader/ForwardPrompt.qml:30
-msgid "Only the text of the message"
-msgstr ""
-
-#: qml/pages/reader/HeaderBlock.qml:15 crates/envio-core/src/text/compose.rs:37
-msgid "From"
-msgstr ""
-
-#: qml/pages/reader/HeaderBlock.qml:16 crates/envio-core/src/text/compose.rs:40
-msgid "To"
-msgstr ""
-
-#: qml/pages/reader/HeaderBlock.qml:17
-msgid "Cc"
-msgstr ""
-
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:38
 msgid "Date"
 msgstr ""
@@ -492,7 +558,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:198
+#: qml/pages/reader/ReaderPage.qml:196
 msgid "Loading…"
 msgstr ""
 
@@ -522,10 +588,6 @@ msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:36
 msgid "Forwarded message"
-msgstr ""
-
-#: crates/envio-core/src/text/compose.rs:39
-msgid "Subject"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:45

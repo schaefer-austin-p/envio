@@ -2,9 +2,10 @@ import QtQuick 2.15
 import Qt.labs.platform 1.1 as Labs
 
 // Attachments and the Content Hub. Pages use this and never import Lomiri
-// themselves: the hub's picker is `ut/ContentExport.qml`, loaded only when
-// something is exported. Where it does not exist (desktop, tests) exporting
-// does nothing but log that. Fill the page, so the picker can cover it.
+// themselves: the hub's pickers are `ut/ContentExport.qml` and
+// `ut/ContentImport.qml`, loaded only when something is exported or
+// imported. Where they do not exist (desktop, tests) nothing happens but a
+// log line. Fill the page, so the picker can cover it.
 Item {
     id: root
     required property Theme theme
@@ -14,6 +15,20 @@ Item {
     readonly property string attachmentsDir: {
         const base = decodeURIComponent(Labs.StandardPaths.writableLocation(Labs.StandardPaths.GenericCacheLocation).toString())
         return base.replace(/^file:\/\//, "") + "/" + Qt.application.name + "/attachments"
+    }
+
+    // The paths of the files the user picked to attach.
+    signal filesImported(var paths)
+
+    // Asks the user for files; `filesImported` follows.
+    function importFiles() {
+        picker.setSource("ut/ContentImport.qml", { theme: root.theme })
+        if (picker.status !== Loader.Ready) {
+            console.info("Content Hub is not available here; nothing was imported")
+            picker.source = ""
+            return
+        }
+        picker.item.start()
     }
 
     // `mode` is "open", "save" or "share". (Not `export`: that is a
@@ -32,6 +47,17 @@ Item {
         id: hub
         anchors.fill: parent
         z: 20
+    }
+    Loader {
+        id: picker
+        anchors.fill: parent
+        z: 20
+    }
+    Connections {
+        target: picker.item
+        ignoreUnknownSignals: true
+        function onImported(paths) { root.filesImported(paths) }
+        function onDone() { picker.source = "" }
     }
     Connections {
         target: hub.item

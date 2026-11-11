@@ -11,6 +11,8 @@ Column {
     property alias text: input.text
     property alias placeholder: hint.text
     property bool password: false
+    // False: no box, for a field that sits inside a row of its own.
+    property bool framed: true
     readonly property int effectiveHints: input.inputMethodHints
     // Extra hints; a password field always keeps no-prediction and sensitive.
     property int inputMethodHints: Qt.ImhNone
@@ -36,8 +38,8 @@ Column {
         width: root.width
         height: root.theme.touch
         radius: root.theme.gu(1)
-        color: root.theme.surface
-        border.width: input.activeFocus ? 2 : 1
+        color: root.framed ? root.theme.surface : "transparent"
+        border.width: !root.framed ? 0 : input.activeFocus ? 2 : 1
         border.color: input.activeFocus ? root.theme.primary : root.theme.field
 
         TextField {

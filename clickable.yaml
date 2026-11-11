@@ -12,4 +12,5 @@ install_root_data:
 - manifest.json
 - envio.apparmor
 - envio.desktop
+- envio.url-dispatcher
 - assets
