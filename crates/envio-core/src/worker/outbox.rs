@@ -1,0 +1,393 @@
+//! The Outbox for the app: the list, the user's decisions, and Edit.
+//! Sending states are written by envio-sync; only `decide_outbox` below
+//! changes an existing item, and only as `outbox::decide` allows.
+
+use envio_store::{OutboxItem, SendState};
+use envio_sync::schedule::Key;
+
+use super::Worker;
+use crate::api::command::{ComposeId, OutboxDecision};
+use crate::api::event::Event;
+use crate::api::view::{OutboxRow, OutboxStatus};
+use crate::clock::now_ms;
+use crate::outbox::{self, Decided};
+use crate::text;
+
+impl Worker<'_> {
+    fn notice(&self, text: String) {
+        self.emit(Event::Notice { text });
+    }
+
+    /// Every item, oldest first, then the ones that can not be read.
+    fn outbox_rows(&self) -> Vec<OutboxRow> {
+        let mut rows = Vec::new();
+        match self.store.outbox.items() {
+            Ok(items) => rows.extend(items.iter().map(|item| self.row(item))),
+            Err(e) => log::warn!("listing the Outbox: {e}"),
+        }
+        match self.store.outbox.damaged() {
+            Ok(ids) => rows.extend(ids.into_iter().map(damaged_row)),
+            Err(e) => log::warn!("listing damaged Outbox items: {e}"),
+        }
+        rows
+    }
+
+    fn row(&self, item: &OutboxItem) -> OutboxRow {
+        let asked = self.asked.contains(&item.id);
+        let read = self
+            .store
+            .outbox
+            .eml(&item.id)
+            .ok()
+            .and_then(|eml| envio_mime::envelope(&eml));
+        let Some(envelope) = read else {
+            return damaged_row(item.id.clone());
+        };
+        let status = outbox::status(&item.meta.state, asked);
+        OutboxRow {
+            id: item.id.clone(),
+            account: item.meta.account.clone(),
+            subject: envelope.subject,
+            recipients: item.meta.recipients.clone(),
+            queued_at_ms: item.meta.queued_at_ms,
+            text: text::outbox::status(&status),
+            status,
+        }
+    }
+
+    pub(super) fn emit_outbox(&self) {
+        self.emit(Event::Outbox {
+            items: self.outbox_rows(),
+        });
+    }
+
+    fn find_item(&self, id: &str) -> Option<OutboxItem> {
+        match self.store.outbox.items() {
+            Ok(items) => items.into_iter().find(|i| i.id == id),
+            Err(e) => {
+                log::warn!("reading the Outbox: {e}");
+                None
+            }
+        }
+    }
+
+    /// The item changed or is gone: forget what the session knew of it.
+    fn forget_item(&mut self, id: &str) {
+        self.asked.remove(id);
+        self.unfiled.remove(id);
+        self.store.schedule.succeeded(&Key::Outbox(id.to_owned()));
+    }
+
+    /// An account is going: its items go with it.
+    pub(super) fn drop_outbox_of(&mut self, account: &str) {
+        let ids: Vec<String> = self
+            .store
+            .outbox
+            .items()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|i| i.meta.account == account)
+            .map(|i| i.id)
+            .collect();
+        for id in ids {
+            self.forget_item(&id);
+        }
+    }
+
+    pub(super) fn decide_outbox(&mut self, id: &str, decision: OutboxDecision) {
+        let item = self.find_item(id).filter(|i| self.readable(&i.id));
+        let Some(item) = item else {
+            return self.decide_unreadable(id, decision);
+        };
+        let asked = self.asked.contains(id);
+        match outbox::decide(&item.meta.state, decision, asked) {
+            Err(outbox::NotNow) => return self.notice(text::outbox::not_now()),
+            Ok(Decided::Remove) => self.remove_item(id),
+            Ok(Decided::SetState(state)) => {
+                if let Err(e) = self.store.outbox.set_state(id, state.clone()) {
+                    log::warn!("changing an Outbox item: {e}");
+                    return self.notice(text::outbox::change_failed());
+                }
+                self.forget_item(id);
+                if let Some(live) = self.live.get_mut(&item.meta.account) {
+                    // Accepted is only filed in Sent; the rest is sent.
+                    if state == SendState::Accepted {
+                        live.wants.file = true;
+                    } else {
+                        live.wants.send = true;
+                    }
+                }
+            }
+        }
+        self.emit_outbox();
+    }
+
+    /// The item's message can be read (an unreadable one shows as damaged).
+    fn readable(&self, id: &str) -> bool {
+        self.store
+            .outbox
+            .eml(id)
+            .ok()
+            .is_some_and(|eml| envio_mime::envelope(&eml).is_some())
+    }
+
+    /// An item that can not be read (files damaged, or the message does not
+    /// parse): only Delete is possible.
+    fn decide_unreadable(&mut self, id: &str, decision: OutboxDecision) {
+        let damaged = self.find_item(id).is_some()
+            || self
+                .store
+                .outbox
+                .damaged()
+                .is_ok_and(|ids| ids.iter().any(|d| d == id));
+        if damaged && decision == OutboxDecision::Delete {
+            self.remove_item(id);
+            self.emit_outbox();
+        } else {
+            self.notice(text::outbox::not_now());
+        }
+    }
+
+    fn remove_item(&mut self, id: &str) {
+        match self.store.outbox.remove(id) {
+            Ok(()) => self.forget_item(id),
+            Err(e) => {
+                log::warn!("removing an Outbox item: {e}");
+                self.notice(text::outbox::change_failed());
+            }
+        }
+    }
+
+    /// Edit: a refused message becomes a draft in `compose`. The item goes
+    /// only after the draft is stored, so a crash leaves both, never none.
+    pub(super) fn edit_outbox(&mut self, id: &str, compose: ComposeId) {
+        let Some(item) = self.find_item(id) else {
+            return self.notice(text::outbox::not_now());
+        };
+        let editable = matches!(item.meta.state, SendState::Failed { .. });
+        let account_known = self.store.accounts.get(&item.meta.account).is_some();
+        let free = !self.sent.contains(&compose) && !self.drafts_of.contains_key(&compose);
+        let eml = (editable && free && account_known)
+            .then(|| self.store.outbox.eml(id).ok())
+            .flatten();
+        let Some(eml) = eml else {
+            return self.notice(text::outbox::not_now());
+        };
+        if outbox::has_attachments(&eml) {
+            return self.notice(text::outbox::edit_has_attachments());
+        }
+        let draft = outbox::draft_from_eml(&item.meta.account, &eml, &item.meta.recipients);
+        let Some(mut draft) = draft else {
+            return self.notice(text::outbox::not_now());
+        };
+        let stored = crate::compose::to_store(&draft, now_ms());
+        let draft_id = match self.store.drafts.create(&stored) {
+            Ok(draft_id) => draft_id,
+            Err(e) => {
+                log::warn!("saving a draft from the Outbox: {e}");
+                return self.notice(text::compose::draft_not_saved());
+            }
+        };
+        self.drafts_of.insert(compose, draft_id.clone());
+        draft.draft_id = Some(draft_id.clone());
+        self.compose_ready(compose, draft, String::new());
+        self.emit(Event::DraftSaved { compose, draft_id });
+        self.remove_item(id);
+        self.emit_outbox();
+    }
+}
+
+fn damaged_row(id: String) -> OutboxRow {
+    OutboxRow {
+        id,
+        account: String::new(),
+        subject: String::new(),
+        recipients: Vec::new(),
+        queued_at_ms: 0,
+        text: text::outbox::status(&OutboxStatus::Damaged),
+        status: OutboxStatus::Damaged,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use envio_store::{NewOutboxItem, Outbox};
+
+    use super::super::testing::{Sink, open, seed};
+    use super::*;
+
+    const EML: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\nSubject: s\r\n\r\nx\r\n";
+    const WITH_FILE: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\nSubject: s\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\n\
+Content-Type: text/plain\r\n\r\nhi\r\n--b\r\nContent-Type: application/pdf; name=a.pdf\r\n\
+Content-Disposition: attachment; filename=a.pdf\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
+    const C: ComposeId = ComposeId(3);
+
+    struct T {
+        dir: tempfile::TempDir,
+        sink: &'static Sink,
+        account: String,
+        config: crate::core::Config,
+    }
+
+    fn setup() -> T {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        T {
+            dir,
+            sink: Box::leak(Box::default()),
+            account: seeded.account,
+            config,
+        }
+    }
+
+    /// Queues `eml` in `state`. (Seeding only: the state is set through a
+    /// path, so the grep test's single call stays the only call.)
+    fn item(w: &Worker<'_>, t: &T, eml: &[u8], state: SendState) -> String {
+        let new = NewOutboxItem {
+            account: t.account.clone(),
+            message_id: "<a@example.org>".into(),
+            queued_at_ms: 1,
+            from: "me@example.org".into(),
+            recipients: vec!["ada@example.org".into()],
+        };
+        let id = w.store.outbox.enqueue(new, eml).unwrap().id;
+        let seed_state = Outbox::set_state;
+        seed_state(&w.store.outbox, &id, state).unwrap();
+        id
+    }
+
+    fn state(w: &Worker<'_>, id: &str) -> Option<SendState> {
+        w.find_item(id).map(|i| i.meta.state)
+    }
+
+    fn failed() -> SendState {
+        SendState::Failed { reason: "r".into() }
+    }
+
+    fn notices(t: &T) -> usize {
+        let events = t.sink.events();
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::Notice { .. }))
+            .count()
+    }
+
+    #[test]
+    fn an_asked_item_can_be_sent_again_and_stops_being_asked() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        w.asked.insert(id.clone());
+        w.decide_outbox(&id, OutboxDecision::SendAgain);
+        assert_eq!(state(&w, &id), Some(SendState::Queued));
+        assert!(w.live[&t.account].wants.send);
+        assert!(!w.live[&t.account].wants.file);
+        assert!(!w.asked.contains(&id));
+    }
+
+    #[test]
+    fn move_to_sent_files_and_never_sends() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        w.asked.insert(id.clone());
+        w.decide_outbox(&id, OutboxDecision::MoveToSent);
+        assert_eq!(state(&w, &id), Some(SendState::Accepted));
+        assert!(w.live[&t.account].wants.file);
+        assert!(!w.live[&t.account].wants.send);
+        assert!(w.asked.is_empty());
+    }
+
+    #[test]
+    fn an_asked_item_can_be_deleted_and_is_forgotten() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        w.asked.insert(id.clone());
+        w.unfiled.insert(id.clone());
+        w.decide_outbox(&id, OutboxDecision::Delete);
+        assert_eq!(state(&w, &id), None);
+        assert!(w.asked.is_empty() && w.unfiled.is_empty());
+    }
+
+    #[test]
+    fn forgetting_an_item_clears_its_backoff() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, failed());
+        let key = Key::Outbox(id.clone());
+        w.store.schedule.failed(key.clone(), 0);
+        w.decide_outbox(&id, OutboxDecision::Retry);
+        assert_eq!(w.store.schedule.failures(&key), 0);
+    }
+
+    #[test]
+    fn removing_an_account_forgets_its_asked_items() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        w.asked.insert(id);
+        w.drop_outbox_of("someone-else");
+        assert_eq!(w.asked.len(), 1);
+        w.drop_outbox_of(&t.account);
+        assert!(w.asked.is_empty());
+    }
+
+    #[test]
+    fn an_unparseable_item_accepts_only_delete() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, b"", failed());
+        assert!(!w.readable(&id));
+        w.decide_outbox(&id, OutboxDecision::Retry);
+        assert_eq!(state(&w, &id), Some(failed()));
+        assert_eq!(notices(&t), 1);
+        w.decide_outbox(&id, OutboxDecision::Delete);
+        assert_eq!(state(&w, &id), None);
+    }
+
+    #[test]
+    fn edit_stores_the_draft_before_it_removes_the_item() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, failed());
+        // Storing the draft fails: the item must still be there.
+        let drafts = t.dir.path().join("data").join("drafts");
+        std::fs::remove_dir_all(&drafts).unwrap();
+        std::fs::write(&drafts, b"in the way").unwrap();
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), Some(failed()));
+        assert!(!w.drafts_of.contains_key(&C));
+        assert_eq!(notices(&t), 1);
+    }
+
+    #[test]
+    fn edit_keeps_an_item_it_cannot_turn_into_a_draft() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let raw = item(&w, &t, b"", failed());
+        let files = item(&w, &t, WITH_FILE, failed());
+        let queued = item(&w, &t, EML, SendState::Queued);
+        for id in [&raw, &files, &queued] {
+            w.edit_outbox(id, C);
+            assert!(state(&w, id).is_some());
+        }
+        assert_eq!(notices(&t), 3);
+        assert!(w.drafts_of.is_empty());
+        assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn edit_does_not_replace_a_compose_that_has_a_draft() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, failed());
+        w.drafts_of.insert(C, "existing".into());
+        w.edit_outbox(&id, C);
+        assert!(state(&w, &id).is_some());
+        assert_eq!(w.drafts_of[&C], "existing");
+        assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+}

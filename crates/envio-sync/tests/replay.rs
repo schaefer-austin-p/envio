@@ -280,3 +280,68 @@ async fn a_failed_revert_keeps_the_run_result() {
     assert_eq!(replayed.stopped, Some(ErrorKind::Temporary));
     assert_eq!(store.journal.pending().count(), 0);
 }
+
+/// Runs replay once with one queued failure of `store_flags`, after the
+/// action's backoff has passed.
+async fn failing_run(
+    server: &mut FakeServer,
+    store: &mut Store,
+    now: &mut i64,
+    error: NetError,
+) -> envio_sync::driver::Replayed {
+    if let Some(due) = store.schedule.next_due() {
+        *now = (*now).max(due);
+    }
+    server.fail_on("store_flags", error);
+    replay(server, &mut store.local(), ACCOUNT, *now)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_protocol_failure_is_given_up_after_the_ceiling() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    take(&mut store, 1, read());
+    let mut now = LATER;
+    for run in 1..=9 {
+        let error = NetError::Protocol("?".into());
+        let kept = failing_run(&mut server, &mut store, &mut now, error).await;
+        assert!(kept.given_up.is_empty(), "run {run}");
+        assert_eq!(kept.stopped, Some(ErrorKind::Protocol));
+        assert_eq!(store.journal.pending().count(), 1, "run {run}");
+    }
+    let error = NetError::Protocol("?".into());
+    let last = failing_run(&mut server, &mut store, &mut now, error).await;
+    assert_eq!(last.given_up.len(), 1);
+    assert_eq!(last.stopped, Some(ErrorKind::Protocol));
+    assert_eq!(last.done, 0);
+    assert_eq!(store.journal.pending().count(), 0);
+    assert_eq!(store.schedule.next_due(), None, "the entry is cleared");
+}
+
+#[tokio::test]
+async fn temporary_failures_never_give_up() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    take(&mut store, 1, read());
+    let mut now = LATER;
+    for run in 1..=20 {
+        let kept = failing_run(&mut server, &mut store, &mut now, NetError::Timeout).await;
+        assert!(kept.given_up.is_empty(), "run {run}");
+        assert_eq!(store.journal.pending().count(), 1, "run {run}");
+    }
+}
+
+#[tokio::test]
+async fn stopped_reports_protocol_not_temporary() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    take(&mut store, 1, read());
+    let mut now = LATER;
+    let error = NetError::Protocol("?".into());
+    let protocol = failing_run(&mut server, &mut store, &mut now, error).await;
+    assert_eq!(protocol.stopped, Some(ErrorKind::Protocol));
+    let timeout = failing_run(&mut server, &mut store, &mut now, NetError::Timeout).await;
+    assert_eq!(timeout.stopped, Some(ErrorKind::Temporary));
+}

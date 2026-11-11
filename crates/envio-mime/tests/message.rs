@@ -182,10 +182,10 @@ fn quote_text_picks_the_plain_text() {
         (
             "apple-flowed.eml",
             &[
-                "the space at  \nthe end says it goes on.",
-                "> Did you keep the  \n",
+                "the space at the end says it goes on.",
+                "> Did you keep the receipts?\n",
             ],
-            &["=20"],
+            &["=20", "at  \n"],
         ),
         ("garbage.eml", &["PK this is not mail", "<<<<<<< HEAD"], &[]),
         ("broken-boundary.eml", &["--some-other-boundary"], &[]),
@@ -199,4 +199,41 @@ fn quote_text_picks_the_plain_text() {
             assert!(!text.contains(unwanted), "{name}: {unwanted:?} in {text:?}");
         }
     }
+}
+
+fn plain_mail(params: &str, body: &str) -> Vec<u8> {
+    format!(
+        "From: a@example.com\r\nSubject: t\r\nContent-Type: text/plain; charset=utf-8{params}\r\n\r\n{body}"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn quote_text_unflows_format_flowed() {
+    let raw = plain_mail("; Format=Flowed", "one two \r\nthree\r\n four\r\n");
+    assert_eq!(quote_text(&raw), "one two three\nfour\n");
+}
+
+#[test]
+fn quote_text_drops_the_delsp_space() {
+    let raw = plain_mail("; format=flowed; delsp=yes", "exam \r\nple text\r\n");
+    assert_eq!(quote_text(&raw), "example text\n");
+}
+
+#[test]
+fn quote_text_keeps_fixed_text_as_sent() {
+    let raw = plain_mail("", "one two \r\nthree\r\n");
+    assert_eq!(quote_text(&raw), "one two \r\nthree\r\n");
+}
+
+#[test]
+fn quote_text_unflows_inside_quotes_by_depth() {
+    let raw = plain_mail(
+        "; format=flowed",
+        "> quoted one \r\n> quoted two\r\n>> deeper \r\n>> still\r\nreply\r\n",
+    );
+    assert_eq!(
+        quote_text(&raw),
+        "> quoted one quoted two\n>> deeper still\nreply\n"
+    );
 }

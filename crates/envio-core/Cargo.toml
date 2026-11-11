@@ -10,5 +10,27 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+test-hooks = []
+
 [dependencies]
+envio-sync = { path = "../envio-sync" }
+envio-net = { path = "../envio-net" }
+envio-store = { path = "../envio-store" }
+envio-mime = { path = "../envio-mime" }
+tokio = { version = "1.54", features = ["rt", "time", "sync", "macros"] }
+futures = "0.3"
+secrecy = { version = "0.10", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+log = { version = "0.4", features = ["std"] }
+# RUSTSEC-2026-0244 (unsound) is a cargo-audit warning: core calls only dgettext/dngettext, never setlocale or TextDomain::init.
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+thiserror = "2"
+zeroize = "1"
+
+[dev-dependencies]
+tempfile = "3"
+rcgen = "0.14"
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+envio-core = { path = ".", features = ["test-hooks"] }

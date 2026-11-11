@@ -33,6 +33,9 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
   domain `envio.aps`. Run `cargo make pot` after changing strings.
 - Single-crate integration tests go in `crates/<crate>/tests/`; anything
   that needs two crates goes in `envio-e2e`.
+- Plans (from Plan 6): signatures, invariants and test cases; full code
+  only for tricky parts. Code sketches stay in the git-ignored
+  `.superpowers/sdd/<plan>/`.
 
 ## Commands
 

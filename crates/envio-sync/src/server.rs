@@ -9,6 +9,10 @@ use envio_net::smtp::{SendError, SmtpSession};
 
 /// An IMAP session. Every call but `caps` may fail; after a failure the
 /// driver drops the session.
+///
+/// The futures are deliberately not `Send` (`async_fn_in_trait`): core runs
+/// them on one current-thread runtime with `block_on` and never moves them
+/// between threads.
 #[allow(async_fn_in_trait)]
 pub trait MailServer {
     fn caps(&self) -> Caps;
@@ -30,6 +34,8 @@ pub trait MailServer {
 }
 
 /// An SMTP session.
+/// Like `MailServer`, its futures are deliberately not `Send`: one
+/// current-thread runtime, `block_on`.
 #[allow(async_fn_in_trait)]
 pub trait MailSender {
     async fn send(

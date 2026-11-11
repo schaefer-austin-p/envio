@@ -22,6 +22,8 @@ pub struct Draft {
     pub body: String,
     pub in_reply_to: Option<String>,
     pub references: Vec<String>,
+    /// Paths of files to attach.
+    pub attachments: Vec<PathBuf>,
     pub updated_at_ms: i64,
 }
 
@@ -59,7 +61,12 @@ impl Drafts {
     /// brings a sent or discarded draft back.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
-        let bytes = serde_json::to_vec_pretty(draft).expect("drafts always serialize");
+        // An attachment path that is not UTF-8 cannot be written as JSON:
+        // the save fails and the draft stays pending, it never panics.
+        let bytes = serde_json::to_vec_pretty(draft).map_err(|error| StoreError::BadRecord {
+            file: self.path(id).display().to_string(),
+            reason: error.to_string(),
+        })?;
         Ok(write_atomic(&self.path(id), &bytes)?)
     }
 

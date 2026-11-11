@@ -93,3 +93,14 @@ fn a_healthy_open_keeps_the_bodies() {
     open_or_rebuild(&paths).unwrap();
     assert!(paths.bodies().join("3").join("120.eml").exists());
 }
+
+#[test]
+fn a_zero_byte_cache_counts_as_created() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = StorePaths::new(dir.path(), dir.path().join("data"));
+    fs::write(paths.db(), b"").unwrap();
+    let (db, opened) = open_or_rebuild(&paths).unwrap();
+    assert_eq!(opened, Opened::Created);
+    db.check().unwrap();
+    assert!(!dir.path().join("envio.db.damaged").exists());
+}

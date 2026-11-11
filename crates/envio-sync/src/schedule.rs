@@ -72,6 +72,17 @@ impl Schedule {
     pub fn next_due(&self) -> Option<i64> {
         self.waits.values().map(|wait| wait.due_ms).min()
     }
+
+    /// The earliest retry time after `after_ms`: a caller that has acted on
+    /// everything due up to a time asks for what comes next, so an entry
+    /// that is never retried does not hide the later ones.
+    pub fn next_due_after(&self, after_ms: i64) -> Option<i64> {
+        self.waits
+            .values()
+            .map(|wait| wait.due_ms)
+            .filter(|due| *due > after_ms)
+            .min()
+    }
 }
 
 fn seed_of(key: &Key) -> u64 {
@@ -94,6 +105,18 @@ fn splitmix(seed: u64) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn next_due_after_skips_what_was_already_handled() {
+        let mut schedule = Schedule::default();
+        let first = schedule.failed(Key::Action(1), 0);
+        let second = schedule.failed(Key::Action(2), 5_000);
+        assert_eq!(schedule.next_due_after(i64::MIN), Some(first));
+        assert_eq!(schedule.next_due_after(first), Some(second));
+        assert_eq!(schedule.next_due_after(second), None);
+        // The entry at the watermark itself counts as handled.
+        assert_eq!(schedule.next_due(), Some(first));
+    }
 
     #[test]
     fn backoff_doubles_from_one_second_to_five_minutes_with_jitter() {

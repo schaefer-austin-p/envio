@@ -67,6 +67,17 @@ impl ImapSession {
         wait: Duration,
         stop: impl Future<Output = ()>,
     ) -> Result<(Self, Woke)> {
+        self.idle_with(wait, stop, || {}).await
+    }
+
+    /// [`idle`](Self::idle), calling `entered` once the server has accepted
+    /// IDLE: changes from then on are reported.
+    pub async fn idle_with(
+        self,
+        wait: Duration,
+        stop: impl Future<Output = ()>,
+        entered: impl FnOnce(),
+    ) -> Result<(Self, Woke)> {
         let Self {
             session,
             caps,
@@ -74,6 +85,7 @@ impl ImapSession {
         } = self;
         let mut handle = session.idle();
         connect::within(async { handle.init().await.map_err(map_error) }).await?;
+        entered();
         let deadline = Instant::now() + wait.min(IDLE_MAX);
         let mut stop = pin!(stop);
         // async-imap restarts its own timer on every response, keepalives

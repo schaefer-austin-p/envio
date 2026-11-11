@@ -8,7 +8,7 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 
 use super::Local;
 use crate::error::{ErrorKind, Result};
-use crate::plan::message_id::usable_message_id;
+use crate::plan::message_id::search_id;
 use crate::plan::outbox::{ItemStep, after_send, item_step};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
@@ -80,6 +80,9 @@ pub struct Filed {
     /// refused something (the Sent folder, the APPEND). Core shows these as
     /// "sent, not yet in Sent".
     pub unfiled: Vec<String>,
+    /// Sent (or an item's filing) was refused: the cached folder list may be
+    /// stale, so the next run should fetch it again.
+    pub relist: bool,
 }
 
 /// Files accepted items in Sent (APPEND, unless the server does it itself
@@ -88,7 +91,8 @@ pub struct Filed {
 /// files a message twice. With no folders cached at all (the folder list
 /// hasn't been fetched yet) nothing is filed: items stay in the Outbox, in
 /// no list, until a run that knows the account's folders. A refusal leaves
-/// the item in the Outbox; an accepted one is reported in `unfiled`.
+/// the item in the Outbox; an accepted one is reported in `unfiled`. Only a
+/// search that finds nothing asks the user (`ask`).
 pub async fn file_sent(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -121,13 +125,11 @@ pub async fn file_sent(
                     }
                 }
                 // Sent can't be selected: this item and every later one
-                // that needs Sent stay, and the accepted ones are
-                // reported. Items settled before, or needing no Sent,
-                // still count.
+                // that needs Sent stay. The accepted ones are reported;
+                // a May have been sent one is asked about. Items settled
+                // before, or needing no Sent, still count.
                 if sent_refused {
-                    if step == ItemStep::File {
-                        filed.unfiled.push(item.id);
-                    }
+                    refused(&mut filed, step, item.id);
                     continue;
                 }
                 // Only an accepted item is appended; a May have been sent
@@ -142,9 +144,7 @@ pub async fn file_sent(
                     // won't take) leaves it in the Outbox, untouched, and
                     // doesn't hold up the others.
                     Err(error) if error.kind() == ErrorKind::Refused => {
-                        if step == ItemStep::File {
-                            filed.unfiled.push(item.id);
-                        }
+                        refused(&mut filed, step, item.id);
                         continue;
                     }
                     Err(error) => return Err(error),
@@ -164,6 +164,17 @@ pub async fn file_sent(
     Ok(filed)
 }
 
+/// Sent refused something for this item: an accepted one is reported as
+/// unfiled. A May have been sent one stays where it is, unasked: Sent was
+/// not searched, so "not found" is not known, and asking would invite a
+/// resend of mail that may be there. The check is retried next time.
+fn refused(filed: &mut Filed, step: ItemStep, id: String) {
+    filed.relist = true;
+    if step == ItemStep::File {
+        filed.unfiled.push(id);
+    }
+}
+
 /// Looks for the item in the selected Sent folder and appends an accepted
 /// one (`append` is its text) that isn't there. True when it is now in Sent.
 async fn settle(
@@ -174,11 +185,10 @@ async fn settle(
 ) -> Result<bool> {
     // Without a usable id there is nothing to look for: a substring search
     // for "" would match any message.
-    let found = usable_message_id(&item.meta.message_id)
-        && !server
-            .search_message_id(&item.meta.message_id)
-            .await?
-            .is_empty();
+    let found = match search_id(&item.meta.message_id) {
+        Some(id) => !server.search_message_id(id).await?.is_empty(),
+        None => false,
+    };
     if let (false, Some(eml)) = (found, append) {
         server.append(path, &[Flag::Seen], eml).await?;
     }

@@ -5,6 +5,7 @@ use mail_parser::{MessagePart, MimeHeaders, PartType};
 use crate::attachments::{AttachmentInfo, list};
 use crate::envelope::{Envelope, from_parsed};
 use crate::mail::{Parsed, is_broken_multipart, parse_mail};
+use crate::plain::unflow_text;
 
 /// A parsed message, or the spec's "Strange message": raw text to show as is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,15 +52,26 @@ pub fn parse(raw: &[u8]) -> Message {
 /// [`crate::reply`] as [`crate::Quote::text`] and to [`crate::forward`] as
 /// `original_text`. In order: the text/plain alternative, the HTML body
 /// turned into text, the plain body; for mail [`parse`] shows as
-/// [`Message::Raw`], the raw text. format=flowed text comes back as sent.
+/// [`Message::Raw`], the raw text. format=flowed text comes back unflowed
+/// (soft line breaks joined, quote prefixes kept).
 /// Takes the raw bytes because [`Message`] keeps only the HTML when there
 /// is an alternative.
 pub fn quote_text(raw: &[u8]) -> String {
     let Some(message) = parse_mail(raw).filter(|m| !is_broken_multipart(m)) else {
         return String::from_utf8_lossy(raw).into_owned();
     };
-    if let Some(PartType::Text(text)) = message.text_part(0).map(|p| &p.body) {
-        return text.to_string();
+    if let Some(part) = message.text_part(0) {
+        if let Body::Text {
+            text,
+            flowed: true,
+            delsp,
+        } = text_body(part)
+        {
+            return unflow_text(&text, delsp);
+        }
+        if let PartType::Text(text) = &part.body {
+            return text.to_string();
+        }
     }
     if let Some(PartType::Html(html)) = message.html_part(0).map(|p| &p.body) {
         return mail_parser::decoders::html::html_to_text(html);

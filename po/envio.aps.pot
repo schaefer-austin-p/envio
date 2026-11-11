@@ -8,14 +8,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-07 20:48+0100\n"
+"POT-Creation-Date: 2026-11-11 10:19+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: qml/pages/InboxPage.qml:26
 msgid "Inbox"
@@ -23,4 +24,370 @@ msgstr ""
 
 #: qml/pages/InboxPage.qml:38
 msgid "No accounts yet."
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:8
+msgid "Add at least one recipient"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:14
+msgid "{address} is not a valid email address"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:21
+msgid "Could not read the attachment {name}"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:29
+msgid "On {date}, {name} wrote:"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:36
+msgid "Forwarded message"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:37
+msgid "From"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:38
+msgid "Date"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:39
+msgid "Subject"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:40
+msgid "To"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:45
+msgid "Could not queue the message. It is still a draft"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:49
+msgid "There is no account to write from"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:53
+msgid "This draft can not be opened"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:57
+msgid "Could not save your draft"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:7
+msgid "The server refused: {reason}"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:11
+msgid "The mail cache was damaged and is being rebuilt from the server"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:15
+msgid "Storage is full. Free some space to keep mail up to date"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:19
+msgid ""
+"Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:25
+msgid "Couldn't update the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:26
+msgid "Couldn't move the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:27
+msgid "Couldn't delete the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:34
+msgid "Gave up updating the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:35
+msgid "Gave up moving the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:36
+msgid "Gave up deleting the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:8
+msgid "Waiting to be sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:9
+msgid "Sending"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:11
+msgid "May have been sent: looking for it in Sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:14
+msgid "May have been sent: not found in Sent. Send again, or move to Sent?"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:16
+msgid "Sent, not yet in Sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:18
+msgid "Couldn't be sent: {reason}"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:20
+msgid "This message can't be read"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:26
+msgid "Not possible right now"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:30
+msgid "Could not change the message in the Outbox"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:34
+msgid ""
+"This message has attachments and can't be edited. Retry it, or delete it."
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:7
+msgid "Image not loaded"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:11
+msgid ""
+"This message is not available right now. Check your connection and try again"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:15
+msgid "Could not save the attachment"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:19
+msgid "Could not read your mail from this phone"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:12
+msgid ""
+"To find your mail servers, Envio asks the Thunderbird configuration database "
+"and your mail provider. Only the part of your address after the @ is sent"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:18
+msgid "Settings found in the Thunderbird configuration database"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:19
+msgid "Settings found at your mail provider"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:20
+msgid "Settings found on your mail domain"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:21
+msgid "Settings found in your domain DNS records"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:22
+msgid "No settings found. These are a guess, please check them"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:29
+msgid ""
+"Your domain DNS records point to these servers:\n"
+"Incoming: {imap}\n"
+"Outgoing: {smtp}\n"
+"Your password is sent to them. Only continue if you trust them"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:38
+msgid ""
+"The certificate of {host} is not trusted: {reason}. Check the fingerprint "
+"before you accept it"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:45
+msgid "Confirm the servers before signing in"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:49
+msgid "This account is already added"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:53
+msgid "Sign-in failed. Check the address, username and password"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:57
+msgid "That certificate fingerprint is not valid"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:61
+msgid "That does not look like an email address"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:65
+msgid "Could not reach the server. Check the settings and your connection"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:69
+msgid "Could not save the account settings. Check the free storage"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:73
+msgid "There is no certificate waiting to be accepted for this account"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:77
+msgid "Could not remove the account. Restart Envio, which finishes the removal"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:85
+msgid "This account still has work that is not on the server:"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:104
+msgid ""
+"Removing the account loses all of it, and the Sent copies of messages that "
+"were sent but not yet filed in Sent."
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:11
+msgid "Ready"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:12
+msgid "Syncing"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:13
+msgid "Offline, retrying"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:14
+msgid "Sign-in failed, update password"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:16
+msgid "The server certificate needs your attention"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:17
+msgid "Storage is full, downloads stopped"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:18
+msgid "Removing account"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:24
+msgid "incoming mail"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:25
+msgid "outgoing mail"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:31
+msgid ""
+"The certificate of the {service} server changed.\n"
+"Old fingerprint: {old}\n"
+"New fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:41
+msgid ""
+"The certificate of the {service} server is not trusted: {reason}.\n"
+"Fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:50
+msgid ""
+"The certificate of the {service} server is not trusted.\n"
+"Fingerprint: {new}"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:58
+msgid "self-signed or from an unknown authority"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:59
+msgid "expired"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:60
+msgid "issued for another server name"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:61
+msgid "not valid"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:11
+msgid "Marked as read"
+msgid_plural "Marked {n} messages as read"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:12
+msgid "Marked as unread"
+msgid_plural "Marked {n} messages as unread"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:13
+msgid "Flagged"
+msgid_plural "Flagged {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:14
+msgid "Flag removed"
+msgid_plural "Removed the flag from {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:15
+msgid "Archived"
+msgid_plural "Archived {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:16
+msgid "Deleted"
+msgid_plural "Deleted {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:17
+msgid "Moved"
+msgid_plural "Moved {n} messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/undo.rs:23
+msgid "Too late to undo: the change has already gone to the server"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:27
+msgid "Done, but it can not be undone"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:31
+msgid "This account has no Archive folder"
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:36
+msgid "Could not do that. Nothing was changed"
 msgstr ""
