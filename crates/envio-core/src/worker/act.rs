@@ -135,8 +135,8 @@ impl Worker<'_> {
         done.folders.insert(folder.id);
     }
 
-    pub(super) fn undo_action(&mut self, undo: UndoId) {
-        let now = now_ms();
+    /// `now` is when the user pressed Undo, not when the worker got to it.
+    pub(super) fn undo_action(&mut self, undo: UndoId, now: i64) {
         let just_closed = self.expire_undos(now);
         let Some(offer) = self.undo.take(undo, now) else {
             // An offer that ended a moment ago has been closed just now.
@@ -305,9 +305,72 @@ mod worker_tests {
         let mut worker = open(&config, &sink);
         worker.act(&[seeded.message], UserAction::Flag(true));
         assert!(worker.live[&seeded.account].wants.folders.is_empty());
-        worker.undo_action(offered(&sink));
+        worker.undo_action(offered(&sink), now_ms());
         let wants = &worker.live[&seeded.account].wants;
         assert!(wants.folders.contains(&seeded.folder));
+    }
+
+    #[test]
+    fn an_undo_pressed_inside_the_window_wins_though_the_worker_is_late() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let kind = ActionKind::SetFlags {
+            add: Flags::SEEN,
+            remove: Flags::empty(),
+        };
+        let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
+        // The window ended by the worker's clock, not by the user's.
+        let id = worker.undo.offer(Offer {
+            undos: vec![undo],
+            accounts: BTreeSet::from([seeded.account.clone()]),
+            folders: BTreeSet::from([seeded.folder]),
+            expires_at_ms: now_ms() - 1,
+        });
+        worker.undo_action(id, now_ms() - 100);
+        assert!(
+            sink.events()
+                .iter()
+                .any(|e| matches!(e, Event::UndoClosed { undo, undone: true } if *undo == id))
+        );
+    }
+
+    #[test]
+    fn a_turn_handles_queued_commands_before_closing_undo_offers() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let kind = ActionKind::SetFlags {
+            add: Flags::SEEN,
+            remove: Flags::empty(),
+        };
+        let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
+        let id = worker.undo.offer(Offer {
+            undos: vec![undo],
+            accounts: BTreeSet::from([seeded.account.clone()]),
+            folders: BTreeSet::from([seeded.folder]),
+            expires_at_ms: now_ms() - 1,
+        });
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        tx.send((
+            crate::api::command::Command::Undo { undo: id },
+            now_ms() - 100,
+        ))
+        .unwrap();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        tx.send((crate::api::command::Command::Shutdown, now_ms()))
+            .unwrap();
+        runtime.block_on(worker.turn(&mut rx));
+        assert!(
+            sink.events()
+                .iter()
+                .any(|e| matches!(e, Event::UndoClosed { undo, undone: true } if *undo == id))
+        );
     }
 
     #[test]
@@ -327,7 +390,7 @@ mod worker_tests {
             folders: BTreeSet::from([seeded.folder]),
             expires_at_ms: now_ms() - 1,
         });
-        worker.undo_action(id);
+        worker.undo_action(id, now_ms());
         let closes = sink
             .events()
             .iter()

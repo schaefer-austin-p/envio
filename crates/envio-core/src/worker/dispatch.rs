@@ -9,7 +9,8 @@ pub(crate) enum Flow {
     Stop,
 }
 
-pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
+/// `at_ms` is when the command was sent.
+pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64) -> Flow {
     match command {
         Command::Shutdown => {
             worker.flush_drafts();
@@ -76,7 +77,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             Flow::Continue
         }
         Command::Undo { undo } => {
-            worker.undo_action(undo);
+            worker.undo_action(undo, at_ms);
             Flow::Continue
         }
         Command::StartCompose {

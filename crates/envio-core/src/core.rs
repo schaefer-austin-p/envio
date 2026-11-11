@@ -9,7 +9,9 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::api::command::Command;
 use crate::api::event::Event;
+use crate::clock::now_ms;
 use crate::supervisor::supervise;
+use crate::worker::Stamped;
 
 /// Where events go. Called on the worker thread, so it must not block.
 pub trait EventSink: Send + Sync + 'static {
@@ -33,7 +35,7 @@ impl Config {
 }
 
 pub struct Core {
-    commands: UnboundedSender<Command>,
+    commands: UnboundedSender<Stamped>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -58,8 +60,11 @@ impl Core {
 
     /// Never blocks. After the worker ended the command is dropped.
     pub fn send(&self, command: Command) {
-        if let Err(error) = self.commands.send(command) {
-            log::warn!("worker has stopped; dropped {}", error.0.name());
+        // Stamped here, on the caller's thread: the worker may be busy in a
+        // step when it gets to the command, and a time limit (Undo) counts
+        // from when the user pressed.
+        if let Err(error) = self.commands.send((command, now_ms())) {
+            log::warn!("worker has stopped; dropped {}", error.0.0.name());
         }
     }
 
@@ -69,7 +74,7 @@ impl Core {
 
 impl Drop for Core {
     fn drop(&mut self) {
-        let _ = self.commands.send(Command::Shutdown);
+        let _ = self.commands.send((Command::Shutdown, now_ms()));
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }

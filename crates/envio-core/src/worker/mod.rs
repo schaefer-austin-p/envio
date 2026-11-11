@@ -78,10 +78,13 @@ pub(crate) struct Worker<'s> {
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
 }
 
+/// A command and the time (ms) its sender gave it to the core.
+pub(crate) type Stamped = (Command, i64);
+
 /// Returns on `Shutdown` or when the handle is gone.
 pub(crate) fn run(
     config: &Config,
-    commands: &mut UnboundedReceiver<Command>,
+    commands: &mut UnboundedReceiver<Stamped>,
     sink: &dyn EventSink,
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -101,11 +104,11 @@ impl<'s> Worker<'s> {
     /// when told to shut down meanwhile.
     async fn open(
         config: &Config,
-        commands: &mut UnboundedReceiver<Command>,
+        commands: &mut UnboundedReceiver<Stamped>,
         sink: &'s dyn EventSink,
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
-        let mut queued: VecDeque<Command> = VecDeque::new();
+        let mut queued: VecDeque<Stamped> = VecDeque::new();
         let (store, cache) = loop {
             match Store::open(config, now_ms()) {
                 Ok(opened) => break opened,
@@ -121,9 +124,9 @@ impl<'s> Worker<'s> {
                 command = commands.recv() => match command {
                     None => return None,
                     Some(command) => {
-                        if matches!(command, Command::Shutdown) {
+                        if matches!(command.0, Command::Shutdown) {
                             if !queued.is_empty() {
-                                let names: Vec<&str> = queued.iter().map(Command::name).collect();
+                                let names: Vec<&str> = queued.iter().map(|(c, _)| c.name()).collect();
                                 log::warn!(
                                     "shutdown with {} unhandled commands: {}",
                                     names.len(),
@@ -166,8 +169,8 @@ impl<'s> Worker<'s> {
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
-        for command in queued {
-            if handle(&mut worker, command).await == Flow::Stop {
+        for (command, at_ms) in queued {
+            if handle(&mut worker, command, at_ms).await == Flow::Stop {
                 return None;
             }
         }
@@ -197,7 +200,14 @@ impl<'s> Worker<'s> {
 
     /// One loop iteration: run a step if an account has one, else wait for
     /// a command, an IDLE to end or the next timer.
-    async fn turn(&mut self, commands: &mut UnboundedReceiver<Command>) -> Flow {
+    pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
+        // Commands that came in during the last step go first: an Undo
+        // pressed inside its window must not find the offer closed.
+        // Commands that came in during the last step go first: an Undo
+        // pressed inside its window must not find the offer closed.
+        if self.drain(commands).await == Flow::Stop {
+            return Flow::Stop;
+        }
         let now = now_ms();
         self.on_timers(now);
         if let Some((account, step)) = self.pick(now).await {
@@ -216,7 +226,7 @@ impl<'s> Worker<'s> {
         };
         tokio::select! {
             command = commands.recv() => match command {
-                Some(command) => match handle(self, command).await {
+                Some((command, at_ms)) => match handle(self, command, at_ms).await {
                     Flow::Continue => self.drain(commands).await,
                     Flow::Stop => Flow::Stop,
                 },
@@ -262,9 +272,9 @@ impl<'s> Worker<'s> {
     }
 
     /// Handles the commands already queued.
-    async fn drain(&mut self, commands: &mut UnboundedReceiver<Command>) -> Flow {
-        while let Ok(command) = commands.try_recv() {
-            if handle(self, command).await == Flow::Stop {
+    async fn drain(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
+        while let Ok((command, at_ms)) = commands.try_recv() {
+            if handle(self, command, at_ms).await == Flow::Stop {
                 return Flow::Stop;
             }
         }

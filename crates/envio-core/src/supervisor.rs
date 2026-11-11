@@ -13,10 +13,10 @@ use std::time::{Duration, Instant};
 use envio_sync::schedule::backoff_ms;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::api::command::Command;
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
+use crate::worker::Stamped;
 use crate::{text, worker};
 
 /// The longest wait before a restart, so `Core::drop` never joins for long.
@@ -47,7 +47,7 @@ pub(crate) fn install_panic_hook() {
 
 pub(crate) fn supervise(
     config: Config,
-    mut commands: UnboundedReceiver<Command>,
+    mut commands: UnboundedReceiver<Stamped>,
     sink: Arc<dyn EventSink>,
 ) {
     install_panic_hook();
