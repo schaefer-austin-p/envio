@@ -18,6 +18,8 @@ Flickable {
     contentHeight: col.height + theme.gu(4)
     clip: true
 
+    KeyboardAvoider { objectName: "keyboardAvoider"; flickable: root }
+
     Column {
         id: col
         x: theme.gu(2.5)

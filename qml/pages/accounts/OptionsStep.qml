@@ -14,6 +14,8 @@ Flickable {
     contentHeight: col.height + theme.gu(4)
     clip: true
 
+    KeyboardAvoider { objectName: "keyboardAvoider"; flickable: root }
+
     component Caption: Text {
         textFormat: Text.PlainText
         width: parent.width

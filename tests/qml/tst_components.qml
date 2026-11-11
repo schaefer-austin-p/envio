@@ -239,10 +239,40 @@ Item {
             compare(FileSize.fileSize(2000000000), "2.0 GB")
         }
 
+        // #61: with the keyboard over the bottom of a form, the focused
+        // field is scrolled above it. A simulated keyboard rectangle: the
+        // offscreen platform has no input panel.
+        function test_focused_field_scrolls_above_the_keyboard() {
+            kbFlick.contentY = 0
+            compare(avoider.covered, 0)
+            avoider.keyboard = Qt.rect(0, 100 + 300 - 150, 400, 150)
+            compare(avoider.covered, 150)
+            kbField.input.forceActiveFocus()
+            tryVerify(function() { return kbField.input.activeFocus })
+            const bottom = kbField.mapToItem(kbFlick, 0, kbField.height).y
+            const top = kbField.mapToItem(kbFlick, 0, 0).y
+            verify(bottom <= kbFlick.height - 150, "field bottom " + bottom + " is under the keyboard")
+            verify(top >= 0)
+            avoider.keyboard = Qt.rect(0, 0, 0, 0)
+            compare(avoider.covered, 0)
+            kbField.input.focus = false
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
         }
+    }
+
+    Flickable {
+        id: kbFlick
+        y: 100
+        width: 300
+        height: 300
+        contentHeight: 1200
+        clip: true
+        Field { id: kbField; theme: thm; y: 900; width: 280 }
+        KeyboardAvoider { id: avoider; flickable: kbFlick }
     }
 
     TextField { id: helper; width: 100; y: 600 }

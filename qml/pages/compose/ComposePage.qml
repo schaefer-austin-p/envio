@@ -181,6 +181,8 @@ Item {
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
 
+        KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+
         Column {
             id: column
             width: flick.width
