@@ -198,3 +198,31 @@ fn disallow_images_from_is_saved() {
     assert!(!on_disk.images_from.contains("ada@example.org"));
     assert!(on_disk.images_from.contains("eve@example.org"));
 }
+
+// The app builds a save from the settings it last heard; a save made before
+// a removal's echo arrived must not bring the sender back.
+#[test]
+fn a_stale_save_keeps_the_current_allowed_senders() {
+    let (h, _) = started(|h| {
+        let settings = Settings {
+            images_from: ["ada@example.org".to_owned(), "eve@example.org".to_owned()].into(),
+            ..Settings::default()
+        };
+        save_settings(&h.paths().settings(), &settings).unwrap();
+    });
+    let stale = settings_event(&h);
+    h.send(Command::DisallowImagesFrom {
+        address: "ada@example.org".into(),
+    });
+    settings_event(&h);
+    h.send(Command::SaveSettings(Settings {
+        dark: DarkMode::Dark,
+        ..stale
+    }));
+    let settings = settings_event(&h);
+    assert_eq!(settings.dark, DarkMode::Dark);
+    assert!(!settings.images_from.contains("ada@example.org"));
+    assert!(settings.images_from.contains("eve@example.org"));
+    let on_disk = load_settings(&h.paths().settings()).unwrap();
+    assert!(!on_disk.images_from.contains("ada@example.org"));
+}

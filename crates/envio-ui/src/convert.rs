@@ -33,32 +33,31 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         status: status_text.to_owned(),
         state: state.to_owned(),
         unread: info.unread,
-        pin_service: String::new(),
-        pin_fingerprint: String::new(),
-        pin_hex: String::new(),
-        pin_text: String::new(),
+        pin: Box::default(),
     }
 }
 
 /// The certificate fields of an account row for a status: filled for a
 /// certificate problem with details, empty otherwise.
 pub fn set_pin(row: &mut AccountRow, status: &AccountStatus, text: &str) {
-    let (service, fingerprint, hex, text) = match status {
+    let (service, host, fingerprint, hex, text) = match status {
         AccountStatus::Certificate(Some(d)) => (
             match d.service {
                 Service::Imap => "imap",
                 Service::Smtp => "smtp",
             },
+            d.host.clone(),
             d.presented.display(),
             d.presented.to_hex(),
             text,
         ),
-        _ => ("", String::new(), String::new(), ""),
+        _ => ("", String::new(), String::new(), String::new(), ""),
     };
-    service.clone_into(&mut row.pin_service);
-    row.pin_fingerprint = fingerprint;
-    row.pin_hex = hex;
-    text.clone_into(&mut row.pin_text);
+    service.clone_into(&mut row.pin.service);
+    row.pin.host = host;
+    row.pin.fingerprint = fingerprint;
+    row.pin.hex = hex;
+    text.clone_into(&mut row.pin.text);
 }
 
 pub fn role_word(role: FolderRole) -> &'static str {

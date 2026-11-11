@@ -43,6 +43,7 @@ use envio_net::Roots;
 use envio_store::{FolderId, FolderRole, MessageRowId};
 use envio_sync::schedule::backoff_ms;
 use store::Store;
+use trust::with_host;
 
 pub(crate) struct Worker<'s> {
     store: Store,
@@ -294,10 +295,14 @@ impl<'s> Worker<'s> {
     pub(crate) fn report(&self, account: &str, before: &AccountStatus) {
         let now = self.status_of(account);
         if now != *before {
+            let status = match self.store.accounts.get(account) {
+                Some(a) => with_host(now, &a.settings),
+                None => now,
+            };
             self.sink.emit(Event::AccountStatus {
                 account: account.to_owned(),
-                text: text::status::status(&now),
-                status: now,
+                text: text::status::status(&status),
+                status,
             });
         }
     }

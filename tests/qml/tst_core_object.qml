@@ -108,6 +108,18 @@ TestCase {
         tryCompare(core, "allowedSenders", [], 20000)
     }
 
+    // What Main.qml binds the Theme to: the settings the core sends back after
+    // a save (Main itself cannot be loaded without an ApplicationWindow).
+    function test_saved_settings_come_back_for_the_theme_binding() {
+        tryVerify(function () { return core.ready }, 20000)
+        core.saveSettings("airmail", "dark", false, "")
+        tryCompare(core, "theme", "airmail", 20000)
+        compare(core.darkMode, "dark")
+        core.saveSettings("carbon", "system", false, "")
+        tryCompare(core, "theme", "carbon", 20000)
+        compare(core.darkMode, "system")
+    }
+
     function test_count_text_is_plural_aware() {
         verify(core.countText("selected", 1) !== core.countText("selected", 2))
         compare(core.countText("results", 1), "1 result")

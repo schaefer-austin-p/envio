@@ -89,14 +89,14 @@ Item {
                 // button is Cancel).
                 AppButton {
                     objectName: "checkCertificate"
-                    visible: row.model.state === "pin"
+                    visible: row.model.state === "pin" && row.model.pinHex !== ""
                     height: visible ? implicitHeight : 0
                     theme: root.theme
                     text: qsTr("Check certificate")
                     onClicked: {
                         root.current = row.model.key
                         trust.account = row.model.key
-                        trust.host = row.model.email
+                        trust.host = row.model.pinHost
                         trust.service = row.model.pinService
                         trust.fingerprint = row.model.pinFingerprint
                         trust.hex = row.model.pinHex

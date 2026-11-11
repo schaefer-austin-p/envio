@@ -13,15 +13,24 @@ pub struct AccountRow {
     /// "ok", "offline", "auth", "pin", "broken" or "diskfull".
     pub state: String,
     pub unread: u32,
-    /// "imap" or "smtp" while the status is a certificate problem with
-    /// details, else empty; so are the next three.
-    pub pin_service: String,
-    /// The presented fingerprint as the trust dialog shows it.
-    pub pin_fingerprint: String,
+    /// The certificate to look at, while the status is a certificate
+    /// problem with details (boxed to keep rows small).
+    pub pin: Box<PinRow>,
+}
+
+/// What the trust dialog shows; all empty when there is nothing to trust.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PinRow {
+    /// "imap" or "smtp".
+    pub service: String,
+    /// The server the certificate came from.
+    pub host: String,
+    /// The presented fingerprint as the dialog shows it.
+    pub fingerprint: String,
     /// The presented fingerprint in the form `AcceptCertificate` takes.
-    pub pin_hex: String,
+    pub hex: String,
     /// The core's words about the certificate.
-    pub pin_text: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -100,6 +109,7 @@ const ACCOUNT: &[&str] = &[
     "state",
     "unread",
     "pinService",
+    "pinHost",
     "pinFingerprint",
     "pinHex",
     "pinText",
@@ -148,10 +158,11 @@ impl Row {
             (Self::Account(r), "status") => s(&r.status),
             (Self::Account(r), "state") => s(&r.state),
             (Self::Account(r), "unread") => Int(r.unread.into()),
-            (Self::Account(r), "pinService") => s(&r.pin_service),
-            (Self::Account(r), "pinFingerprint") => s(&r.pin_fingerprint),
-            (Self::Account(r), "pinHex") => s(&r.pin_hex),
-            (Self::Account(r), "pinText") => s(&r.pin_text),
+            (Self::Account(r), "pinService") => s(&r.pin.service),
+            (Self::Account(r), "pinHost") => s(&r.pin.host),
+            (Self::Account(r), "pinFingerprint") => s(&r.pin.fingerprint),
+            (Self::Account(r), "pinHex") => s(&r.pin.hex),
+            (Self::Account(r), "pinText") => s(&r.pin.text),
             (Self::Folder(r), "id") => Int(r.id),
             (Self::Folder(r), "account") => s(&r.account),
             (Self::Folder(r), "name") => s(&r.name),

@@ -184,6 +184,7 @@ mod tests {
             pinned: None,
             presented: Fingerprint::from_bytes([3; 32]),
             reason: None,
+            host: String::new(),
         };
         let problem = Problem::Certificate(Some(details.clone()));
         assert_eq!(health.failed(&problem, "a", 0), Response::Pause);

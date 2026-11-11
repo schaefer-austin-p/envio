@@ -54,7 +54,7 @@ Item {
         }
         function account(key, name) {
             return { key: key, name: name, email: key + "@example.org", status: "", state: "ok", unread: 0,
-                     pinService: "", pinFingerprint: "", pinHex: "", pinText: "" }
+                     pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" }
         }
         function init() {
             find("searchField").input.text = ""
@@ -137,13 +137,30 @@ Item {
             verify(shown("searchServers"))
         }
 
+        // A keystroke's pending local search must not replace the server one.
+        function test_server_search_stops_the_typing_timer() {
+            typeQuery("train")
+            mouseClick(find("searchServers"))
+            wait(500)
+            verify(shown("searchBusy"))
+            compare(searches().length, 1)
+            compare(searches()[0].args, ["all", "train", true])
+        }
+
         function test_cancel_drops_late_results() {
             typeQuery("train")
             tryVerify(function() { return shown("searchServers") })
             mouseClick(find("searchServers"))
             verify(shown("searchBusy"))
+            core.searchFailed("Ann: offline")
+            tryVerify(function() { return all("failedLine").length === 1 })
             mouseClick(find("cancelServerSearch"))
             verify(!shown("searchBusy"))
+            // The core drops the cancelled search's answers; so does the page.
+            core.searchFailed("Bob: late")
+            wait(50)
+            compare(all("failedLine").length, 1)
+            compare(all("failedLine")[0].text, "Ann: offline")
             // The same question again, locally: Rust drops the servers' late
             // answer to the earlier one (envio-ui test
             // a_cancelled_server_search_drops_late_results).

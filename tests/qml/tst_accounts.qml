@@ -57,7 +57,7 @@ Item {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Up to date", state: "ok", unread: 0,
-                                   pinService: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
             updateClosed.clear()
         }
@@ -151,19 +151,24 @@ Item {
             update.visible = false
         }
 
+        // A ListView's items are reached by two paths: count each once.
+        function certButtons() {
+            return everything(page, []).filter(function(o, i, list) {
+                return o.objectName === "checkCertificate" && o.visible && list.indexOf(o) === i
+            })
+        }
         function pinRow() {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Certificate changed", state: "pin", unread: 0,
-                                   pinService: "smtp", pinFingerprint: "AB:CD", pinHex: "abcd",
+                                   pinService: "smtp", pinHost: "smtp.example.org", pinFingerprint: "AB:CD", pinHex: "abcd",
                                    pinText: "The server's certificate is not the one you trusted." })
-            function buttons() {
-                return everything(page, []).filter(function(o) { return o.objectName === "checkCertificate" && o.visible })
-            }
-            tryVerify(function() { return buttons().length > 0 })
-            // Rows of the cleared model can linger a moment; the newest is last.
+            function buttons() { return certButtons() }
+            // Rows of the cleared model can linger until they are deleted.
+            tryVerify(function() { return buttons().length === 1 })
+            waitForRendering(page)
             wait(100)
-            return buttons().pop()
+            return buttons()[0]
         }
         function test_pin_row_opens_trust_dialog() {
             const b = pinRow()
@@ -172,7 +177,22 @@ Item {
             const dlg = find("trustDialog", page)
             tryVerify(function() { return dlg.visible })
             compare(find("fingerprint", dlg.contentItem).text, "AB:CD")
+            // The title names the server, not the address.
+            compare(dlg.host, "smtp.example.org")
             dlg.close()
+        }
+        // A certificate problem without details (no fingerprint to look at)
+        // offers nothing to trust.
+        function test_pin_row_without_details_has_no_button() {
+            core.accounts.clear()
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+                                   status: "The server certificate needs your attention", state: "pin", unread: 0,
+                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+            tryVerify(function() {
+                return everything(page, []).filter(function(o) { return o.objectName === "status" && o.visible && o.text.indexOf("attention") >= 0 }).length >= 1
+            })
+            wait(50)
+            compare(certButtons().length, 0)
         }
         function test_trust_sends_accept_certificate() {
             mouseClick(pinRow())

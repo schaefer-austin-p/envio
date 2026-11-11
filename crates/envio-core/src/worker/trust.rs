@@ -91,3 +91,68 @@ impl Worker<'_> {
         self.report(account, &before);
     }
 }
+
+/// `status` for the app: a certificate problem names the server it came
+/// from (the status inside the worker does not know it).
+pub(super) fn with_host(
+    status: AccountStatus,
+    settings: &envio_store::AccountSettings,
+) -> AccountStatus {
+    match status {
+        AccountStatus::Certificate(Some(mut details)) => {
+            details.host = match details.service {
+                Service::Imap => settings.imap.host.clone(),
+                Service::Smtp => settings.smtp.host.clone(),
+            };
+            AccountStatus::Certificate(Some(details))
+        }
+        other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::problem::CertDetails;
+    use envio_store::{AccountSettings, Security, Server};
+
+    fn server(host: &str) -> Server {
+        Server {
+            host: host.into(),
+            port: 993,
+            security: Security::Tls,
+            pin: None,
+        }
+    }
+
+    #[test]
+    fn a_certificate_status_names_the_server_of_its_service() {
+        let settings = AccountSettings {
+            imap: server("imap.example.org"),
+            smtp: server("smtp.example.org"),
+            name: "Ann".into(),
+            email: "ann@example.org".into(),
+            username: "ann".into(),
+        };
+        let details = |service| CertDetails {
+            service,
+            pinned: None,
+            presented: Fingerprint::from_bytes([1; 32]),
+            reason: None,
+            host: String::new(),
+        };
+        let host_of = |service| match with_host(
+            AccountStatus::Certificate(Some(details(service))),
+            &settings,
+        ) {
+            AccountStatus::Certificate(Some(d)) => d.host,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(host_of(Service::Imap), "imap.example.org");
+        assert_eq!(host_of(Service::Smtp), "smtp.example.org");
+        assert_eq!(
+            with_host(AccountStatus::Ready, &settings),
+            AccountStatus::Ready
+        );
+    }
+}

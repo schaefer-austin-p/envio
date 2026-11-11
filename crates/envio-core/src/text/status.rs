@@ -96,6 +96,7 @@ mod tests {
             pinned: Some(old),
             presented: new,
             reason: None,
+            host: String::new(),
         });
         assert!(text.contains(&old.display()), "{text}");
         assert!(text.contains(&new.display()), "{text}");

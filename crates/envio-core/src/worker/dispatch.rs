@@ -124,7 +124,13 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.add_contact(&name, &address);
             Flow::Continue
         }
-        Command::SaveSettings(settings) => {
+        Command::SaveSettings(mut settings) => {
+            // The app builds this from the settings it last heard; the
+            // allowed senders change only by Allow/DisallowImagesFrom, so a
+            // save made before their echo arrived keeps the current ones.
+            settings
+                .images_from
+                .clone_from(&worker.store.settings.images_from);
             worker.save_settings(settings);
             Flow::Continue
         }

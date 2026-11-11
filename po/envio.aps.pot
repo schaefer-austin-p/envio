@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 21:25+0100\n"
+"POT-Creation-Date: 2026-11-11 21:35+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -140,7 +140,7 @@ msgstr ""
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
-#: qml/pages/search/SearchPage.qml:194
+#: qml/pages/search/SearchPage.qml:196
 msgid "Cancel"
 msgstr ""
 
@@ -399,7 +399,7 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:98 qml/pages/search/SearchPage.qml:87
+#: qml/pages/inbox/FoldersDrawer.qml:98 qml/pages/search/SearchPage.qml:89
 msgid "All accounts"
 msgstr ""
 
@@ -573,23 +573,23 @@ msgstr ""
 msgid "Forward"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:70
+#: qml/pages/search/SearchPage.qml:72
 msgid "Search mail"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:106
+#: qml/pages/search/SearchPage.qml:108
 msgid "This folder"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:182
+#: qml/pages/search/SearchPage.qml:184
 msgid "Searching the servers…"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:203
+#: qml/pages/search/SearchPage.qml:205
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:211
+#: qml/pages/search/SearchPage.qml:213
 msgid "Finds mail older than the 30 days kept here"
 msgstr ""
 

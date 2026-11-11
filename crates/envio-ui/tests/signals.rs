@@ -224,3 +224,20 @@ fn a_cancelled_server_search_drops_late_results() {
     let outs = feed(&mut ui, server_results("q"));
     assert!(outs.is_empty());
 }
+
+#[test]
+fn a_cancelled_server_search_drops_late_failures() {
+    let mut ui = Ui::new();
+    two_accounts(&mut ui);
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), true);
+    let _ = ui.search(envio_core::SearchScope::All, "q".into(), false);
+    let outs = feed(
+        &mut ui,
+        Event::SearchFailed {
+            scope: envio_core::SearchScope::All,
+            query: "q".into(),
+            text: "late".into(),
+        },
+    );
+    assert!(outs.is_empty());
+}

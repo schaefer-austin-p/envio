@@ -142,6 +142,7 @@ fn a_pin_status_fills_the_row_and_clears_after() {
         pinned: Some(Fingerprint::from_bytes([0x01; 32])),
         presented,
         reason: None,
+        host: "smtp.example.org".into(),
     };
     let outs = feed(
         &mut ui,
@@ -153,10 +154,11 @@ fn a_pin_status_fills_the_row_and_clears_after() {
     );
     let row = account_row_of(&outs);
     assert_eq!(row.state, "pin");
-    assert_eq!(row.pin_service, "smtp");
-    assert_eq!(row.pin_fingerprint, presented.display());
-    assert_eq!(row.pin_hex, presented.to_hex());
-    assert_eq!(row.pin_text, "The certificate changed");
+    assert_eq!(row.pin.service, "smtp");
+    assert_eq!(row.pin.host, "smtp.example.org");
+    assert_eq!(row.pin.fingerprint, presented.display());
+    assert_eq!(row.pin.hex, presented.to_hex());
+    assert_eq!(row.pin.text, "The certificate changed");
 
     let outs = feed(
         &mut ui,
@@ -169,10 +171,11 @@ fn a_pin_status_fills_the_row_and_clears_after() {
     let row = account_row_of(&outs);
     assert_eq!(row.state, "ok");
     for field in [
-        &row.pin_service,
-        &row.pin_fingerprint,
-        &row.pin_hex,
-        &row.pin_text,
+        &row.pin.service,
+        &row.pin.host,
+        &row.pin.fingerprint,
+        &row.pin.hex,
+        &row.pin.text,
     ] {
         assert!(field.is_empty());
     }

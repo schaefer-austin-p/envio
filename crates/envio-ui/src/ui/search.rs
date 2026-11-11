@@ -65,8 +65,10 @@ impl Ui {
         query: &str,
         text: String,
     ) -> Vec<Output> {
+        // A cancelled server search is the same question asked locally: its
+        // late failures are dropped with its late results.
         let state = self.search.as_ref();
-        if !state.is_some_and(|s| s.scope == *scope && s.query == query) {
+        if !state.is_some_and(|s| s.server && s.scope == *scope && s.query == query) {
             return Vec::new();
         }
         self.server_failed += 1;

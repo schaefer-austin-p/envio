@@ -13,6 +13,9 @@ pub struct CertDetails {
     pub pinned: Option<Fingerprint>,
     pub presented: Fingerprint,
     pub reason: Option<Untrusted>,
+    /// The server the certificate came from. Empty until the worker fills
+    /// it in for the app (`Worker::report`).
+    pub host: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,12 +43,14 @@ pub fn from_net(error: &NetError, service: Service) -> Problem {
             pinned: None,
             presented: *presented,
             reason: Some(*reason),
+            host: String::new(),
         })),
         NetError::PinChanged { pinned, presented } => Problem::Certificate(Some(CertDetails {
             service,
             pinned: Some(*pinned),
             presented: *presented,
             reason: None,
+            host: String::new(),
         })),
         NetError::Tls(_) | NetError::NoStartTls => Problem::Certificate(None),
         NetError::Refused(text) => Problem::Refused(text.clone()),
@@ -108,6 +113,7 @@ mod tests {
                     pinned: None,
                     presented: fp(1),
                     reason: Some(Untrusted::Expired),
+                    host: String::new(),
                 })),
             ),
             (NetError::Tls("bad".into()), Problem::Certificate(None)),
@@ -135,6 +141,7 @@ mod tests {
                 pinned: Some(fp(1)),
                 presented: fp(2),
                 reason: None,
+                host: String::new(),
             }))
         );
     }

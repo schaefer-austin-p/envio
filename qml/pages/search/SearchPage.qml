@@ -31,6 +31,8 @@ Item {
     // Asks the core; a new question forgets the last one's failures and
     // stops waiting for the servers.
     function ask(server) {
+        // A question asked now replaces a pending keystroke's.
+        typing.stop()
         failures = []
         serverBusy = server
         if (query !== "") core.search(scope, query, server)
@@ -218,7 +220,11 @@ Item {
 
     Connections {
         target: root.core
-        function onSearchFailed(text) { root.failures = root.failures.concat([text]) }
+        // Only while a server search is waited for: after Cancel (or a new
+        // question) the core drops the late failures too.
+        function onSearchFailed(text) {
+            if (root.serverBusy) root.failures = root.failures.concat([text])
+        }
         function onSearchDone() { root.serverBusy = false }
     }
 }
