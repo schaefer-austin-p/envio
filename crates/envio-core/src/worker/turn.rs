@@ -213,6 +213,53 @@ mod tests {
     }
 
     #[test]
+    fn a_folder_in_parts_goes_first_and_commands_run_between_parts() {
+        use crate::api::command::Command;
+        use crate::api::event::Event;
+        use crate::worker::Input;
+        use envio_store::FolderRole;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let account = seeded.account.clone();
+        worker.foreground = true;
+        // The Inbox sorts first; the Archive is the one with parts left.
+        let archive = worker
+            .store
+            .db
+            .upsert_folder(&account, "Archive", FolderRole::Archive)
+            .unwrap();
+        let live = worker.live.get_mut(&account).unwrap();
+        live.listed = true;
+        live.next_full_ms = i64::MAX;
+        live.wants.folders.insert(seeded.folder);
+        live.wants.folders.insert(archive);
+        let plain = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(plain, Some(Step::Folder(seeded.folder)));
+        worker.live.get_mut(&account).unwrap().continuing = Some(archive);
+        let first = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(first, Some(Step::Folder(archive)));
+        // Between two parts the app asks for the folder list: answered at once.
+        let command = Command::ListFolders {
+            account: account.clone(),
+        };
+        runtime.block_on(worker.input(Input::Command((command, now_ms()))));
+        assert!(
+            sink.events()
+                .iter()
+                .any(|e| matches!(e, Event::Folders { .. }))
+        );
+        // And the folder in progress is still the next step.
+        let next = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(next, Some(Step::Folder(archive)));
+    }
+
+    #[test]
     fn an_idling_account_yields_no_wake_time() {
         let health = Health::default();
         // Its full run is overdue, which would spin the loop if it counted.

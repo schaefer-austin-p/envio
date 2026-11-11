@@ -285,7 +285,7 @@ fn err_before_the_journal_push_keeps_nothing() {
 }
 
 #[test]
-fn err_after_the_journal_push_reverts() {
+fn err_after_the_journal_push_is_done_without_undo() {
     let mut h = Harness::unstarted();
     let key = h.seed_account(ME, Some("pw"));
     let inbox = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, MAIL)]);

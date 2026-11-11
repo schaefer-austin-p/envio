@@ -16,6 +16,13 @@ impl Worker<'_> {
             log::warn!("password for unknown account {account}");
             return;
         }
+        // A broken entry takes no password: say why, write nothing.
+        if let AccountStatus::Broken(reason) = self.status_of(account) {
+            self.emit(Event::Notice {
+                text: text::status::broken(&reason),
+            });
+            return;
+        }
         if let Err(error) = self.store.secrets.set(account, password) {
             log::error!("saving the password: {error}");
             self.emit(Event::Notice {

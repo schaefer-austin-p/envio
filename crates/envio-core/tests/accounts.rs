@@ -3,7 +3,7 @@
 mod support;
 
 use std::net::TcpListener;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use envio_core::secrets::Secrets;
 use envio_core::{
@@ -11,7 +11,7 @@ use envio_core::{
 };
 use envio_net::Security;
 use envio_store::{Accounts, ActionKind, Draft, Journal, MessageRef, NewOutboxItem, Outbox};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use support::Harness;
 use support::fake::{Kind, serve};
 
@@ -430,7 +430,7 @@ fn a_broken_account_is_listed_and_not_connected() {
     let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
     for entry in json["accounts"].as_array_mut().unwrap() {
         if entry["key"] == broken.as_str() {
-            entry["settings"]["imap"]["port"] = "SECRET-PORT-VALUE".into();
+            entry["settings"]["imap"]["pin"] = "not-a-pin".into();
         }
     }
     std::fs::write(&path, json.to_string()).unwrap();
@@ -444,7 +444,26 @@ fn a_broken_account_is_listed_and_not_connected() {
     assert!(matches!(info.status, AccountStatus::Broken(_)));
     assert!(!accounts.iter().find(|a| a.key == good).unwrap().broken);
     // The healthy one still syncs (tries to connect and goes offline).
-    h.wait(|e| status_of(&good)(e).filter(|s| matches!(s, AccountStatus::Offline { .. })));
+    // The store gives a broken entry no server (host "", port 0), so the
+    // listener can never see a dial. A wrongly connected broken account
+    // shows itself instead as a status other than Broken.
+    let moved = std::cell::Cell::new(false);
+    let watch = |e: &Event| {
+        if status_of(&broken)(e).is_some_and(|s| !matches!(s, AccountStatus::Broken(_))) {
+            moved.set(true);
+        }
+    };
+    h.wait(|e| {
+        watch(e);
+        status_of(&good)(e).filter(|s| matches!(s, AccountStatus::Offline { .. }))
+    });
+    let quiet = Instant::now() + Duration::from_millis(700);
+    while let Some(left) = quiet.checked_duration_since(Instant::now()) {
+        if let Ok(event) = h.events.recv_timeout(left) {
+            watch(&event);
+        }
+    }
+    assert!(!moved.get(), "a broken account changed status: it ran");
     assert!(listener.accept().is_err(), "connected a broken account");
 }
 
@@ -548,4 +567,27 @@ fn empty_roots_never_prompt_trust() {
         text.contains("no trusted certificate authorities"),
         "{text}"
     );
+}
+
+#[test]
+fn a_password_for_a_broken_account_is_refused_and_not_written() {
+    let mut h = Harness::unstarted();
+    let broken = h.seed_account("broken@example.org", Some("old-pw"));
+    let path = h.paths().accounts();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    json["accounts"][0]["settings"]["imap"]["pin"] = "not-a-pin".into();
+    std::fs::write(&path, json.to_string()).unwrap();
+    h.start_core();
+    h.send(Command::UpdatePassword {
+        account: broken.clone(),
+        password: SecretString::from("new-pw".to_owned()),
+    });
+    let notice = h.wait(|e| match e {
+        Event::Notice { text } => Some(text.clone()),
+        _ => None,
+    });
+    assert!(notice.contains("Remove it and add it again"), "{notice}");
+    let secrets = Secrets::open(&h.data_dir()).unwrap();
+    assert_eq!(secrets.get(&broken).unwrap().expose_secret(), "old-pw");
 }

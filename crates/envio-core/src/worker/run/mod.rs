@@ -201,6 +201,30 @@ mod tests {
     use crate::worker::testing::{Sink, open, seed};
 
     #[test]
+    fn a_folder_with_parts_left_keeps_its_want() {
+        use super::finished;
+        use crate::worker::plan::Step;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account.clone();
+        let id = seeded.folder;
+        let live = worker.live.get_mut(&account).unwrap();
+        live.wants.folders.insert(id);
+        live.continuing = Some(id);
+        finished(&mut worker, &account, Step::Folder(id));
+        let live = worker.live.get_mut(&account).unwrap();
+        assert!(live.wants.folders.contains(&id), "dropped between parts");
+        // The last part: nothing continues, the want is met.
+        live.continuing = None;
+        finished(&mut worker, &account, Step::Folder(id));
+        let live = worker.live.get_mut(&account).unwrap();
+        assert!(!live.wants.folders.contains(&id));
+    }
+
+    #[test]
     fn a_failed_rebuild_is_noticed() {
         let dir = tempfile::tempdir().unwrap();
         let (config, _) = seed(dir.path());

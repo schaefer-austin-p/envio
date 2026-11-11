@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use envio_core::hooks::{self, Point};
 use envio_core::secrets::Secrets;
 use envio_core::{
-    AccountStatus, Command, ComposeId, DraftInput, Event, FolderRole, Service, StartFrom,
+    AccountStatus, Command, ComposeId, DraftInput, Event, FolderRole, Page, Service, StartFrom,
     UserAction,
 };
 use envio_net::Fingerprint;
@@ -521,6 +521,7 @@ async fn a_first_sync_in_parts_lets_a_list_through() {
     let mut answers = 0;
     let end = Instant::now() + NET;
     let changed = std::cell::Cell::new(0);
+    let inbox = std::cell::Cell::new(None);
     while Instant::now() < end && changed.get() < 3 {
         let began = Instant::now();
         run.core.send(Command::ListFolders {
@@ -531,7 +532,12 @@ async fn a_first_sync_in_parts_lets_a_list_through() {
                 changed.set(changed.get() + 1);
                 None
             }
-            Event::Folders { .. } => Some(()),
+            Event::Folders { folders, .. } => {
+                if let Some(row) = folders.iter().find(|f| f.role == FolderRole::Inbox) {
+                    inbox.set(Some(row.id));
+                }
+                Some(())
+            }
             _ => None,
         });
         slowest = slowest.max(began.elapsed());
@@ -540,4 +546,25 @@ async fn a_first_sync_in_parts_lets_a_list_through() {
     }
     assert!(answers >= 1);
     assert!(slowest < Duration::from_millis(500), "{slowest:?}");
+    // 250 messages are more than one part of 100: the Inbox grew in at
+    // least three steps, and every message arrived.
+    assert!(changed.get() >= 3, "only {} changes", changed.get());
+    let inbox = inbox.get().expect("the Inbox was listed");
+    let mut count = 0;
+    let end = Instant::now() + NET;
+    while count < 250 && Instant::now() < end {
+        run.core.send(Command::ListMessages {
+            folder: inbox,
+            page: Page {
+                offset: 0,
+                limit: 300,
+            },
+        });
+        count = run.wait(Duration::from_secs(2), |event| match event {
+            Event::Messages { rows, .. } => Some(rows.len()),
+            _ => None,
+        });
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert_eq!(count, 250);
 }
