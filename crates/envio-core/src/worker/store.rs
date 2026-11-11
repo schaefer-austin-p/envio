@@ -1,6 +1,5 @@
 //! Everything the worker keeps on disk, opened together.
 
-use std::mem;
 use std::path::PathBuf;
 
 use envio_store::{
@@ -107,9 +106,10 @@ impl Store {
         envio_sync::driver::unsent(&local, drafts, account).map_err(super::remove::store_error)
     }
 
-    /// Reopens the cache database after damage found mid-session.
+    /// Reopens the cache database after damage found mid-session. The old
+    /// handle is kept unless the new one opens, so a failed rebuild leaves
+    /// the store as it was.
     pub fn rebuild(&mut self) -> envio_store::Result<()> {
-        drop(mem::replace(&mut self.db, Db::open_in_memory()?));
         self.db = open_or_rebuild(&self.paths)?.0;
         Ok(())
     }
@@ -119,5 +119,38 @@ impl Store {
         let cutoff = window_start(now_ms);
         self.db.mark_bodies_pruned(cutoff)?;
         self.bodies.retain(&self.db.bodies_to_keep(cutoff)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::super::testing::{Sink, open, seed};
+
+    #[test]
+    fn a_failed_rebuild_keeps_the_open_database() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        // The file at the path is now damaged; the open handle keeps its inode.
+        let db_path = worker.store.paths.db();
+        let garbage = config.cache_dir.join("garbage");
+        fs::write(&garbage, b"not a database, long enough to be read as one").unwrap();
+        fs::rename(&garbage, &db_path).unwrap();
+        // Moving it aside needs a writable folder.
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o500)).unwrap();
+        let as_root = fs::write(config.cache_dir.join("probe"), b"x").is_ok();
+        let result = worker.store.rebuild();
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o700)).unwrap();
+        if as_root {
+            eprintln!("skipped: running as root, read-only has no effect");
+            return;
+        }
+        assert!(result.is_err());
+        let folders = worker.store.db.folders(&seeded.account).unwrap();
+        assert_eq!(folders.len(), 1);
     }
 }
