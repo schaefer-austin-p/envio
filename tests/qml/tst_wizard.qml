@@ -241,6 +241,19 @@ Item {
             compare(wizard.serversConfirmed, false)
         }
 
+        function test_first_run_has_no_back_on_the_email_step() {
+            wizard.canLeave = false
+            verify(!find("backButton").visible)
+            // Between steps Back still works.
+            toSignIn(plainJson, false)
+            verify(find("backButton").visible)
+            back()
+            compare(wizard.step, "email")
+            verify(!find("backButton").visible)
+            wizard.canLeave = true
+            verify(find("backButton").visible)
+        }
+
         function test_editing_the_address_clears_the_password() {
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"

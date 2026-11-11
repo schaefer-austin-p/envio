@@ -24,6 +24,9 @@ Item {
     property string addedKey: ""
     // What the account was created with, for step 3.
     property string accountName: ""
+    // False on first run: with no account the wizard is the root page, so
+    // its first step has nowhere to go back to.
+    property bool canLeave: true
     signal closed()
 
     function clearPasswords() {
@@ -85,7 +88,7 @@ Item {
         id: bar
         theme: root.theme
         width: parent.width
-        showBack: true
+        showBack: root.canLeave || (root.step !== "email" && root.step !== "options")
         title: root.step === "email" ? qsTr("Add account")
              : root.step === "signin" ? qsTr("Sign in")
              : root.step === "servers" ? qsTr("Server settings")

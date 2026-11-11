@@ -15,9 +15,14 @@ AbstractButton {
     implicitWidth: Math.max(theme.gu(6), row.implicitWidth + theme.gu(4))
     opacity: enabled ? 1 : 0.45
 
-    contentItem: Row {
+    // The Control sizes and places its contentItem itself, so the centred
+    // Row lives inside an Item that fills the button.
+    contentItem: Item {
+        implicitWidth: row.implicitWidth
+        implicitHeight: row.implicitHeight
+    Row {
         id: row
-        spacing: theme.gu(1)
+        spacing: root.theme.gu(1)
         anchors.centerIn: parent
         Icon {
             visible: root.iconName !== ""
@@ -29,6 +34,7 @@ AbstractButton {
         }
         Text {
             id: label
+            objectName: "buttonLabel"
             text: root.text
             color: root.primary ? root.theme.primaryText : root.theme.primary
             font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
@@ -36,6 +42,7 @@ AbstractButton {
             font.weight: Font.Medium
             anchors.verticalCenter: parent.verticalCenter
         }
+    }
     }
 
     background: Rectangle {

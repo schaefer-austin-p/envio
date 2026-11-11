@@ -9,7 +9,7 @@ use envio_net::autoconfig::Source;
 /// Said before `Detect`: the domain of the address leaves the phone.
 pub fn ispdb_note() -> String {
     tr(
-        "To find your mail servers, Envio asks the Thunderbird configuration database and your mail provider. Only the part of your address after the @ is sent",
+        "To find your mail servers, Envio asks the Thunderbird configuration database and your mail provider. Only the part of your address after the @ is sent.",
     )
 }
 

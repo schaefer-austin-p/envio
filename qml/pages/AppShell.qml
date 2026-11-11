@@ -77,6 +77,7 @@ Item {
         id: wizardPage
         WizardPage {
             objectName: "wizardPage"
+            canLeave: root.accountCount > 0
             theme: root.theme
             core: root.core
             onClosed: root.wizardClosed()

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:23+0100\n"
+"POT-Creation-Date: 2026-11-11 19:31+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -63,7 +63,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:89
+#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:92
 msgid "Add account"
 msgstr ""
 
@@ -234,15 +234,15 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:90
+#: qml/pages/accounts/WizardPage.qml:93
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:91
+#: qml/pages/accounts/WizardPage.qml:94
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:92
+#: qml/pages/accounts/WizardPage.qml:95
 msgid "Account options"
 msgstr ""
 
@@ -561,7 +561,7 @@ msgstr ""
 #: crates/envio-core/src/text/setup.rs:12
 msgid ""
 "To find your mail servers, Envio asks the Thunderbird configuration database "
-"and your mail provider. Only the part of your address after the @ is sent"
+"and your mail provider. Only the part of your address after the @ is sent."
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:18

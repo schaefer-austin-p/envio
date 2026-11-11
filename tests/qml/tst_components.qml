@@ -132,6 +132,25 @@ Item {
             compare(pwField.password, true)
         }
 
+        function test_button_label_is_centred() {
+            for (const icon of ["", "pencil"]) {
+                const b = createTemporaryObject(buttonComponent, root, { iconName: icon })
+                waitForRendering(b)
+                let label = null
+                const walk = function(it) {
+                    if (it.objectName === "buttonLabel") label = it
+                    for (let i = 0; i < it.children.length; i++) walk(it.children[i])
+                    if (it.contentItem) walk(it.contentItem)
+                }
+                walk(b)
+                verify(label !== null)
+                const centre = label.mapToItem(b, label.width / 2, label.height / 2)
+                verify(Math.abs(centre.x - b.width / 2) <= (icon === "" ? 1 : 16),
+                       "label centre " + centre.x + " of " + b.width)
+                verify(Math.abs(centre.y - b.height / 2) <= 1)
+            }
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
@@ -140,6 +159,10 @@ Item {
 
     Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
+    Component {
+        id: buttonComponent
+        AppButton { theme: thm; text: "Continue"; width: 300; y: 450 }
+    }
     Component {
         id: iconButtonComponent
         IconButton { theme: thm; iconName: "back" }
