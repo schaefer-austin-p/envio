@@ -235,6 +235,18 @@ fn a_failed_sync_is_reported_as_possibly_applied() {
 }
 
 #[test]
+fn a_push_after_a_may_still_apply_failure_never_reuses_its_seq() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut journal = Journal::open(&dir.path().join("actions.journal")).unwrap();
+    journal.fail_next_sync();
+    assert!(journal.push(1, target(1), ActionKind::Delete).is_err());
+    assert_eq!(
+        journal.push(2, target(2), ActionKind::Delete).unwrap().seq,
+        2
+    );
+}
+
+#[test]
 fn other_errors_do_not_claim_the_action_may_apply() {
     assert!(!StoreError::NotFound.may_still_apply());
     assert!(!StoreError::Io(std::io::Error::other("x")).may_still_apply());

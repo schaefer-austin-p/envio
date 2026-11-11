@@ -50,7 +50,9 @@ fn is_web_or_mail(url: &str) -> bool {
 pub fn link_view(url: &str) -> LinkView {
     let Some(parts) = link_parts(url) else {
         // A web or mail link the splitter refuses is not opened; any other
-        // scheme is shown whole, as before.
+        // scheme is shown whole, as before. (Mail bodies only keep http,
+        // https and mailto, so that branch is not reached today; if the
+        // sanitizer widens, make it fail closed.)
         return LinkView {
             after_host: visible(url),
             warning: if is_web_or_mail(url) || !url.contains(':') {

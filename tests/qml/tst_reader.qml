@@ -186,6 +186,23 @@ Item {
             compare(root.openedUrls, [url])
         }
 
+        function test_a_long_host_wraps_and_is_shown_in_full() {
+            open(view([], 0))
+            const host = "www.bank.example.com.secure-account-verify-now.evil.example"
+            const user = "bank.example.com.secure-account-verify-now-please-sign-in"
+            const url = "https://" + user + "@" + host + "/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": user, "host": host,
+                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "warning": "Before the @ is decoration. This link opens " + host + "." }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            const row = find("linkAddress")
+            for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
+                verify(find(name).width <= row.width, name + " is wider than the sheet")
+            verify(find("linkHost").lineCount > 1)
+            verify(find("linkUserinfo").lineCount > 1)
+        }
+
         function test_a_plain_link_shows_no_decoration_and_no_warning() {
             open(view([], 0))
             const url = "https://example.org/"

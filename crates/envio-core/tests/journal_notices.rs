@@ -72,6 +72,20 @@ fn an_undo_that_may_still_apply_says_so() {
     );
 }
 
+/// The notices said up to and including `Started`.
+fn start_notices(h: &Harness) -> Vec<String> {
+    let texts = std::cell::RefCell::new(Vec::new());
+    h.wait(|e| match e {
+        Event::Notice { text } => {
+            texts.borrow_mut().push(text.clone());
+            None
+        }
+        Event::Started { .. } => Some(()),
+        _ => None,
+    });
+    texts.into_inner()
+}
+
 const NEWER: &str = r#"{"v":7,"op":"add","action":{"seq":3,"at_ms":7,"anything":"new"}}"#;
 
 #[test]
@@ -83,15 +97,15 @@ fn skipped_journal_records_are_noticed_at_start() {
     std::fs::write(&path, format!("{NEWER}\n{NEWER}\n")).unwrap();
     h.start_core();
     assert_eq!(
-        notice(&h),
-        "2 pending changes could not be read and were skipped"
+        start_notices(&h),
+        ["2 pending changes could not be read and were skipped"]
     );
 }
 
 #[test]
 fn no_notice_when_nothing_was_skipped() {
     let (h, _) = seeded();
-    h.wait(|e| matches!(e, Event::Started { .. }).then_some(()));
+    assert_eq!(start_notices(&h), Vec::<String>::new());
     std::thread::sleep(Duration::from_millis(300));
     assert!(
         !h.events

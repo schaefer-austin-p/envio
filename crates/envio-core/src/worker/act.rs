@@ -131,7 +131,7 @@ impl Worker<'_> {
                 // An error after the journal write leaves the action
                 // pending: it is done, just not undoable (#41).
                 if self.store.journal.pending().map(|a| a.seq).max() == newest {
-                    done.refused.get_or_insert_with(text::undo::not_done);
+                    done.refused.get_or_insert_with(|| refusal_text(&error));
                     return;
                 }
                 done.kept += 1;
@@ -253,6 +253,15 @@ fn only_maybe_saved(error: &envio_sync::SyncError) -> bool {
     matches!(error, envio_sync::SyncError::Store(e) if e.may_still_apply() && !e.is_disk_full())
 }
 
+/// What the user is told when an action could not be recorded at all.
+fn refusal_text(error: &envio_sync::SyncError) -> String {
+    match error {
+        _ if only_maybe_saved(error) => text::notice::change_may_still_apply(),
+        envio_sync::SyncError::Store(e) if e.is_disk_full() => text::notice::disk_full(),
+        _ => text::undo::not_done(),
+    }
+}
+
 fn failed_text(error: &envio_store::StoreError) -> String {
     log::warn!("finding a message to act on: {error}");
     match problem::from_store(error) {
@@ -266,6 +275,15 @@ mod tests {
     use super::*;
     use crate::api::command::UserAction;
     use envio_store::{ActionKind, Flags, Folder, FolderId, FolderRole};
+
+    #[test]
+    fn a_full_disk_while_recording_says_the_disk_is_full() {
+        let full = std::io::Error::from(std::io::ErrorKind::StorageFull);
+        let error = envio_sync::SyncError::Store(envio_store::StoreError::Io(full));
+        assert_eq!(refusal_text(&error), text::notice::disk_full());
+        let other = envio_sync::SyncError::Store(envio_store::StoreError::NotFound);
+        assert_eq!(refusal_text(&other), text::undo::not_done());
+    }
 
     fn folder(id: i64, path: &str, role: FolderRole) -> Folder {
         Folder {

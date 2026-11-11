@@ -38,6 +38,8 @@ Sheet {
             width: parent.width
             Text {
                 objectName: "linkBefore"
+                wrapMode: Text.WrapAnywhere
+                width: Math.min(implicitWidth, parent.width)
                 text: root.parts.beforeHost
                 textFormat: Text.PlainText
                 color: root.theme.secondary
@@ -46,6 +48,8 @@ Sheet {
             }
             Text {
                 objectName: "linkUserinfo"
+                wrapMode: Text.WrapAnywhere
+                width: Math.min(implicitWidth, parent.width)
                 visible: root.parts.userinfo !== ""
                 text: root.parts.userinfo + "@"
                 textFormat: Text.PlainText
@@ -57,6 +61,8 @@ Sheet {
             }
             Text {
                 objectName: "linkHost"
+                wrapMode: Text.WrapAnywhere
+                width: Math.min(implicitWidth, parent.width)
                 text: root.parts.host
                 textFormat: Text.PlainText
                 color: root.theme.text

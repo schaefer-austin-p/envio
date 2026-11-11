@@ -125,10 +125,15 @@ impl Journal {
             target,
             kind,
         };
-        self.append(&Record::Add {
+        let written = self.append(&Record::Add {
             action: action.clone(),
-        })?;
-        self.next_seq += 1;
+        });
+        // The line may be on disk even when the sync failed: that seq is
+        // spent, so the next action never shares it.
+        if matches!(&written, Ok(()) | Err(StoreError::MayStillApply(_))) {
+            self.next_seq += 1;
+        }
+        written?;
         self.pending.insert(action.seq, action.clone());
         Ok(action)
     }
