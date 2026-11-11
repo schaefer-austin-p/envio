@@ -28,7 +28,7 @@ AbstractButton {
             visible: root.iconName !== ""
             theme: root.theme
             name: root.iconName
-            size: root.theme.iconSmall
+            size: root.theme.iconButton
             color: label.color
             anchors.verticalCenter: parent.verticalCenter
         }

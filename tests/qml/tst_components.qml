@@ -288,6 +288,15 @@ Item {
             compare(icon.x + icon.width / 2, ib.width / 2)
         }
 
+        // The icon inside an AppButton is 20 px (boards: carbon-inbox, carbon-signin).
+        function test_app_button_icon_is_icon_button_size() {
+            const b = createTemporaryObject(appButtonIconComponent, root)
+            const icon = b.contentItem.children[0].children[0]
+            compare(icon.width, thm.iconButton)
+            compare(thm.iconButton, thm.gu(2.5))
+            verify(thm.iconButton > thm.iconSmall && thm.iconButton < thm.iconSize)
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
@@ -312,6 +321,10 @@ Item {
     Component {
         id: buttonComponent
         AppButton { theme: thm; text: "Continue"; width: 300; y: 450 }
+    }
+    Component {
+        id: appButtonIconComponent
+        AppButton { theme: thm; text: "New message"; iconName: "compose"; width: 300; y: 450 }
     }
     Component {
         id: iconButtonComponent

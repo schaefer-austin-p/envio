@@ -23,7 +23,7 @@ Rectangle {
         id: icon
         theme: root.theme
         name: root.kind === "warning" ? "alert" : "info"
-        size: root.theme.iconSmall
+        size: root.theme.iconButton
         color: root.kind === "warning" ? root.theme.accent : root.theme.text
         anchors.left: parent.left
         anchors.leftMargin: root.theme.gu(2)

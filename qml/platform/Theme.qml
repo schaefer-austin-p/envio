@@ -38,6 +38,7 @@ Control {
     // a row, a chip or a banner).
     readonly property real iconSize: gu(3)
     readonly property real iconSmall: gu(2)
+    readonly property real iconButton: gu(2.5)
 
     readonly property var roles: ({
         "carbon": {

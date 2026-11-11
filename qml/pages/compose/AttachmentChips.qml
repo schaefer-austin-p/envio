@@ -27,7 +27,7 @@ Column {
                 id: clip
                 theme: root.theme
                 name: "clip"
-                size: root.theme.iconSmall
+                size: root.theme.iconButton
                 color: root.theme.secondary
                 anchors { left: parent.left; leftMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
             }
