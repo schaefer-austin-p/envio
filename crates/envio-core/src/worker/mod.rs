@@ -18,6 +18,7 @@ mod trust;
 mod turn;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
@@ -28,8 +29,8 @@ use crate::api::command::{Command, ComposeId, StartFrom};
 use crate::api::event::Event;
 use crate::api::view::{AccountInfo, CacheState};
 use crate::clock::now_ms;
-use crate::compose::SaveThrottle;
 use crate::core::{Config, EventSink};
+use crate::drafts::DraftBook;
 use crate::health::AccountStatus;
 use crate::text;
 use crate::undo::UndoBook;
@@ -65,15 +66,9 @@ pub(crate) struct Worker<'s> {
     opening: BTreeMap<MessageRowId, (bool, u32)>,
     /// Actions the user can still take back.
     undo: UndoBook,
-    /// Drafts changed and not yet saved.
-    throttle: SaveThrottle,
-    /// The stored draft of each compose window that has one.
-    drafts_of: BTreeMap<ComposeId, String>,
-    /// Composes whose message is queued, for the whole session: nothing more
-    /// is saved or sent for them, even after the window closed.
-    sent: BTreeSet<ComposeId>,
-    /// Composes whose last save failed (the user was told once).
-    save_failed: BTreeSet<ComposeId>,
+    /// Drafts: saved by the draft thread; the worker only flushes a draft
+    /// before it is sent and deletes it afterwards.
+    book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
 }
@@ -86,13 +81,14 @@ pub(crate) fn run(
     config: &Config,
     commands: &mut UnboundedReceiver<Stamped>,
     sink: &dyn EventSink,
+    book: &Arc<DraftBook>,
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
     runtime.block_on(async {
-        let Some(mut worker) = Worker::open(config, commands, sink).await else {
+        let Some(mut worker) = Worker::open(config, commands, sink, book).await else {
             return;
         };
         while worker.turn(commands).await == Flow::Continue {}
@@ -106,11 +102,12 @@ impl<'s> Worker<'s> {
         config: &Config,
         commands: &mut UnboundedReceiver<Stamped>,
         sink: &'s dyn EventSink,
+        book: &Arc<DraftBook>,
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
         let mut queued: VecDeque<Stamped> = VecDeque::new();
         let (store, cache) = loop {
-            match Store::open(config, now_ms()) {
+            match Store::open(config, book, now_ms()) {
                 Ok(opened) => break opened,
                 Err(error) => {
                     failures = failures.saturating_add(1);
@@ -161,10 +158,7 @@ impl<'s> Worker<'s> {
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
             undo: UndoBook::default(),
-            throttle: SaveThrottle::default(),
-            drafts_of: BTreeMap::new(),
-            sent: BTreeSet::new(),
-            save_failed: BTreeSet::new(),
+            book: Arc::clone(book),
             composing: BTreeMap::new(),
         };
         worker.announce(cache);

@@ -1,7 +1,7 @@
 //! A worker over a temp dir, for unit tests of what needs no server.
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use envio_store::{
     AccountSettings, Accounts, Db, Envelope, Flags, FolderId, FolderRole, MessageRowId, NewMessage,
@@ -12,6 +12,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use super::Worker;
 use crate::api::event::Event;
 use crate::core::{Config, EventSink};
+use crate::drafts::DraftBook;
 
 #[derive(Default)]
 pub(super) struct Sink(pub Mutex<Vec<Event>>);
@@ -94,11 +95,13 @@ pub(super) fn seed(dir: &Path) -> (Config, Seeded) {
 }
 
 pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
+    let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
+    let book = Arc::new(DraftBook::new(&paths.drafts()));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
     let (_keep, mut commands) = unbounded_channel();
     runtime
-        .block_on(Worker::open(config, &mut commands, sink))
+        .block_on(Worker::open(config, &mut commands, sink, &book))
         .unwrap()
 }

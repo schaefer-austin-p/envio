@@ -15,6 +15,7 @@ pub mod hooks;
 
 mod clock;
 mod compose;
+mod drafts;
 mod fsutil;
 mod outbox;
 // The helpers below are still partly consumed (tr_n, mask, more text).

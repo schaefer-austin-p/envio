@@ -138,6 +138,19 @@ pub enum Event {
         compose: ComposeId,
         draft_id: String,
     },
+    /// A file was copied into the draft: `path` is the copy, which is what
+    /// the draft's attachments hold.
+    Attached {
+        compose: ComposeId,
+        path: PathBuf,
+        name: String,
+        size: u64,
+    },
+    /// The file could not be attached; `text` says why.
+    AttachFailed {
+        compose: ComposeId,
+        text: String,
+    },
     /// Compose can not go on (or `Send` did not queue); `text` says why.
     /// The draft is kept.
     ComposeRefused {

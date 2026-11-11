@@ -16,6 +16,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
+use crate::drafts::DraftBook;
 use crate::worker::Stamped;
 use crate::{text, worker};
 
@@ -51,13 +52,14 @@ pub(crate) fn supervise(
     config: Config,
     mut commands: UnboundedReceiver<Stamped>,
     sink: Arc<dyn EventSink>,
+    book: Arc<DraftBook>,
 ) {
     install_panic_hook();
     let mut panics: u32 = 0;
     let mut last_panic = Instant::now();
     loop {
         let run = panic::catch_unwind(AssertUnwindSafe(|| {
-            worker::run(&config, &mut commands, &*sink);
+            worker::run(&config, &mut commands, &*sink, &book);
         }));
         if run.is_ok() {
             return; // Shutdown, or the handle was dropped

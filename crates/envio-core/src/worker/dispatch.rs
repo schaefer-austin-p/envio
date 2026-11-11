@@ -12,10 +12,7 @@ pub(crate) enum Flow {
 /// `at_ms` is when the command was sent.
 pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64) -> Flow {
     match command {
-        Command::Shutdown => {
-            worker.flush_drafts();
-            Flow::Stop
-        }
+        Command::Shutdown => Flow::Stop,
         Command::AppActive(active) => {
             worker.app_active(active);
             Flow::Continue
@@ -89,12 +86,14 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.start_compose(compose, from, (draft_id.as_deref(), mailto.as_deref()));
             Flow::Continue
         }
-        Command::DraftChanged { compose, draft } => {
-            worker.draft_changed(compose, draft);
+        // `Core::send` gives these to the draft thread; one that got here
+        // anyway is not saved from here.
+        Command::DraftChanged { .. } | Command::Attach { .. } => {
+            log::warn!("{} reached the worker; dropped", command.name());
             Flow::Continue
         }
-        Command::CloseCompose { compose, discard } => {
-            worker.close_compose(compose, discard);
+        Command::CloseCompose { compose, .. } => {
+            worker.forget_waiting(compose);
             Flow::Continue
         }
         Command::Send { compose, draft } => {
@@ -115,5 +114,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
+        #[cfg(feature = "test-hooks")]
+        Command::Stall { ms } => {
+            std::thread::sleep(std::time::Duration::from_millis(ms));
+            Flow::Continue
+        }
     }
 }

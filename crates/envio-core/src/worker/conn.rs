@@ -278,7 +278,6 @@ impl Worker<'_> {
                     Conn::Closed => {}
                 }
             }
-            self.flush_drafts();
             return;
         }
         // The phone may have slept through any connection's death.

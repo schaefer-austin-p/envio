@@ -1,6 +1,7 @@
 //! Everything the worker keeps on disk, opened together.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use envio_store::{
     Accounts, Bodies, Db, Drafts, Journal, Opened, Outbox, StoreError, StorePaths, open_or_rebuild,
@@ -11,6 +12,7 @@ use envio_sync::plan::sync::window_start;
 
 use crate::api::view::CacheState;
 use crate::core::Config;
+use crate::drafts::DraftBook;
 use crate::secrets::{Secrets, SecretsError};
 
 pub(crate) struct Store {
@@ -21,7 +23,8 @@ pub(crate) struct Store {
     pub bodies: Bodies,
     pub journal: Journal,
     pub outbox: Outbox,
-    pub drafts: Drafts,
+    /// Shared with the draft thread, which saves through the same handle.
+    pub drafts: Arc<Drafts>,
     pub accounts: Accounts,
     pub secrets: Secrets,
     pub schedule: Schedule,
@@ -42,7 +45,11 @@ pub(super) fn secrets_error(error: SecretsError) -> StoreError {
 }
 
 impl Store {
-    pub fn open(config: &Config, now_ms: i64) -> envio_store::Result<(Store, CacheState)> {
+    pub fn open(
+        config: &Config,
+        book: &DraftBook,
+        now_ms: i64,
+    ) -> envio_store::Result<(Store, CacheState)> {
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
         let (db, opened) = open_or_rebuild(&paths)?;
         let cache = match opened {
@@ -54,7 +61,7 @@ impl Store {
             bodies: Bodies::new(paths.bodies()),
             journal: Journal::open(&paths.journal())?,
             outbox: Outbox::open(&paths.outbox())?,
-            drafts: Drafts::open(&paths.drafts())?,
+            drafts: book.drafts()?,
             accounts: Accounts::open(&paths.accounts())?,
             secrets: Secrets::open(&config.data_dir).map_err(secrets_error)?,
             schedule: Schedule::default(),
@@ -97,7 +104,7 @@ impl Store {
             outbox: &self.outbox,
             schedule: &mut self.schedule,
         };
-        (local, &self.drafts)
+        (local, &*self.drafts)
     }
 
     /// What the account has that no server holds yet.

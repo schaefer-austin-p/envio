@@ -14,10 +14,9 @@ impl Worker<'_> {
     /// Timers that are not accounts' own: an Undo window ended, or a retry in
     /// the schedule is due.
     pub(super) fn on_timers(&mut self, now: i64) {
-        // Undo expiry and draft saves have their own clocks: they must not
-        // share the retry watermark.
+        // Undo expiry has its own clock: it must not share the retry
+        // watermark.
         self.expire_undos(now);
-        self.save_due_drafts(now);
         if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {
             self.handled_due_ms = due;
             for live in self.live.values_mut() {
@@ -118,10 +117,7 @@ impl Worker<'_> {
     /// When to look again with nothing to do: the earliest timer.
     pub(super) fn wake_at(&self, now: i64) -> Option<i64> {
         let retry = self.store.schedule.next_due_after(self.handled_due_ms);
-        let mut wake = [retry, self.undo.next_expiry(), self.throttle.next_due()]
-            .into_iter()
-            .flatten()
-            .min();
+        let mut wake = [retry, self.undo.next_expiry()].into_iter().flatten().min();
         for live in self.live.values() {
             let at = account_wake(
                 needs_timer(self.foreground, &live.conn),

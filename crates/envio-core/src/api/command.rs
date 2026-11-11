@@ -165,6 +165,9 @@ pub enum Command {
     },
     /// The window closed: keep the draft, or delete it.
     CloseCompose { compose: ComposeId, discard: bool },
+    /// A file the user picked: copied into the draft's folder; the answer is
+    /// `Attached` or `AttachFailed`.
+    Attach { compose: ComposeId, path: PathBuf },
     /// Queue the message in the Outbox; the answer is `Queued` or
     /// `ComposeRefused`.
     Send {
@@ -185,6 +188,9 @@ pub enum Command {
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
+    /// Make the worker sleep, to test what must not wait for it.
+    #[cfg(feature = "test-hooks")]
+    Stall { ms: u64 },
 }
 
 impl Command {
@@ -209,12 +215,15 @@ impl Command {
             Self::StartCompose { .. } => "StartCompose",
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",
+            Self::Attach { .. } => "Attach",
             Self::Send { .. } => "Send",
             Self::ListOutbox => "ListOutbox",
             Self::DecideOutbox { .. } => "DecideOutbox",
             Self::EditOutbox { .. } => "EditOutbox",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
+            #[cfg(feature = "test-hooks")]
+            Self::Stall { .. } => "Stall",
         }
     }
 }
