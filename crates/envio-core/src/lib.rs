@@ -33,7 +33,7 @@ mod worker;
 
 pub use api::command::{
     AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice, OutboxDecision,
-    StartFrom, UndoId, UserAction,
+    SearchScope, StartFrom, UndoId, UserAction,
 };
 pub use api::event::Event;
 pub use api::view::{

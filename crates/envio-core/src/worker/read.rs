@@ -18,8 +18,6 @@ use crate::api::view::{AttachmentRow, FolderRow, MessageHeader, MessageRow, Mess
 use crate::clock::now_ms;
 use crate::text;
 
-pub(crate) const SEARCH_LIMIT: usize = 200;
-
 /// Longest file name written, in bytes (file systems stop at 255).
 const MAX_NAME_BYTES: usize = 200;
 
@@ -190,7 +188,7 @@ fn folder_name(path: &str) -> String {
 }
 
 /// The rows for `messages`; `account_of` names the account of a folder.
-fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
+pub(super) fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
     let mut accounts: HashMap<FolderId, String> = HashMap::new();
     messages
         .into_iter()
@@ -220,7 +218,7 @@ fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
 }
 
 impl Worker<'_> {
-    fn read_failed(&self, error: &envio_store::StoreError) {
+    pub(super) fn read_failed(&self, error: &envio_store::StoreError) {
         log::warn!("reading the cache: {error}");
         self.emit(Event::Notice {
             text: text::read::could_not_read(),
@@ -264,18 +262,6 @@ impl Worker<'_> {
                     end,
                 });
             }
-            Err(e) => self.read_failed(&e),
-        }
-    }
-
-    pub(super) fn search(&self, account: &str, query: String) {
-        let limit = u32::try_from(SEARCH_LIMIT).unwrap_or(u32::MAX);
-        match self.store.db.search(account, &query, limit) {
-            Ok(messages) => self.emit(Event::SearchResults {
-                account: account.to_owned(),
-                query,
-                rows: rows(&self.store.db, messages),
-            }),
             Err(e) => self.read_failed(&e),
         }
     }

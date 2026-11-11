@@ -224,6 +224,23 @@ pub fn search_since(unix_secs: i64) -> String {
     format!("SINCE {day}-{}-{year}", MONTHS[month as usize - 1])
 }
 
+/// An IMAP date-time (UTC) for `unix_secs`: `8-Nov-2026 09:05:00 +0000`,
+/// as APPEND takes it for the message's internal date.
+pub fn internal_date(unix_secs: i64) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let (year, month, day) = civil_from_days(unix_secs.div_euclid(86_400));
+    let secs = unix_secs.rem_euclid(86_400);
+    format!(
+        "{day}-{}-{year} {:02}:{:02}:{:02} +0000",
+        MONTHS[month as usize - 1],
+        secs / 3_600,
+        secs % 3_600 / 60,
+        secs % 60
+    )
+}
+
 /// Year, month (1-12) and day (1-31) of a day count since 1970-01-01, in
 /// the proleptic Gregorian calendar (H. Hinnant's `civil_from_days`).
 fn civil_from_days(days: i64) -> (i64, u32, u32) {
@@ -242,6 +259,12 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn internal_date_is_utc() {
+        assert_eq!(internal_date(0), "1-Jan-1970 00:00:00 +0000");
+        assert_eq!(internal_date(1_794_128_700), "8-Nov-2026 09:05:00 +0000");
+    }
 
     #[test]
     fn message_id_search_skips_deleted() {

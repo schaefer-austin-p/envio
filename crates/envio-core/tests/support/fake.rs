@@ -3,7 +3,7 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use envio_net::Fingerprint;
@@ -16,6 +16,9 @@ pub enum Kind {
     Handshake,
     /// Greets, then accepts any LOGIN and answers every command OK.
     Imap,
+    /// Like `Imap`, with an INBOX that holds no mail: LIST, SELECT and
+    /// SEARCH answer for it, and every command line is kept in `log`.
+    Mailbox,
     /// Greets, then accepts any AUTH.
     Smtp,
 }
@@ -24,6 +27,8 @@ pub struct TlsServer {
     pub port: u16,
     /// The certificate's fingerprint as the core shows it in hex.
     pub hex: String,
+    /// The command lines a `Mailbox` server was sent (tag included).
+    pub log: Arc<Mutex<Vec<String>>>,
 }
 
 pub fn serve(kind: Kind) -> TlsServer {
@@ -41,18 +46,26 @@ pub fn serve(kind: Kind) -> TlsServer {
     let config = Arc::new(config);
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let kept = Arc::clone(&log);
     thread::spawn(move || {
         for tcp in listener.incoming().flatten() {
             let config = Arc::clone(&config);
+            let log = Arc::clone(&kept);
             thread::spawn(move || {
-                let _ = handle(kind, config, tcp);
+                let _ = handle(kind, config, tcp, &log);
             });
         }
     });
-    TlsServer { port, hex }
+    TlsServer { port, hex, log }
 }
 
-fn handle(kind: Kind, config: Arc<ServerConfig>, tcp: TcpStream) -> std::io::Result<()> {
+fn handle(
+    kind: Kind,
+    config: Arc<ServerConfig>,
+    tcp: TcpStream,
+    log: &Mutex<Vec<String>>,
+) -> std::io::Result<()> {
     let conn = ServerConnection::new(config).map_err(std::io::Error::other)?;
     let mut tls = StreamOwned::new(conn, tcp);
     match kind {
@@ -64,11 +77,15 @@ fn handle(kind: Kind, config: Arc<ServerConfig>, tcp: TcpStream) -> std::io::Res
         }
         Kind::Imap => {
             tls.write_all(b"* OK fake ready\r\n")?;
-            talk(tls, imap_reply)
+            talk(tls, imap_reply, log)
+        }
+        Kind::Mailbox => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, mailbox_reply, log)
         }
         Kind::Smtp => {
             tls.write_all(b"220 fake ESMTP\r\n")?;
-            talk(tls, smtp_reply)
+            talk(tls, smtp_reply, log)
         }
     }
 }
@@ -76,7 +93,11 @@ fn handle(kind: Kind, config: Arc<ServerConfig>, tcp: TcpStream) -> std::io::Res
 type Stream = StreamOwned<ServerConnection, TcpStream>;
 
 /// Answers each line with `reply`'s text; `None` text ends the talk.
-fn talk(tls: Stream, reply: fn(&str) -> (String, bool)) -> std::io::Result<()> {
+fn talk(
+    tls: Stream,
+    reply: fn(&str) -> (String, bool),
+    log: &Mutex<Vec<String>>,
+) -> std::io::Result<()> {
     let mut reader = BufReader::new(tls);
     let mut line = String::new();
     loop {
@@ -84,6 +105,7 @@ fn talk(tls: Stream, reply: fn(&str) -> (String, bool)) -> std::io::Result<()> {
         if reader.read_line(&mut line)? == 0 {
             return Ok(());
         }
+        log.lock().unwrap().push(line.trim_end().to_owned());
         let (text, last) = reply(line.trim_end());
         reader.get_mut().write_all(text.as_bytes())?;
         if last {
@@ -113,4 +135,20 @@ fn smtp_reply(line: &str) -> (String, bool) {
         "QUIT" => ("221 bye\r\n".to_owned(), true),
         _ => ("250 ok\r\n".to_owned(), false),
     }
+}
+
+fn mailbox_reply(line: &str) -> (String, bool) {
+    let (tag, command) = line.split_once(' ').unwrap_or((line, ""));
+    let word = command.split(' ').next().unwrap_or("").to_ascii_uppercase();
+    let text = match word.as_str() {
+        "LIST" => format!("* LIST (\\HasNoChildren) \"/\" \"INBOX\"\r\n{tag} OK done\r\n"),
+        "SELECT" => format!(
+            "* 0 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 1] ok\r\n{tag} OK [READ-WRITE] done\r\n"
+        ),
+        "UID" if command.to_ascii_uppercase().starts_with("UID SEARCH") => {
+            format!("* SEARCH\r\n{tag} OK done\r\n")
+        }
+        _ => return imap_reply(line),
+    };
+    (text, false)
 }

@@ -60,6 +60,23 @@ pub(super) async fn folder(
     Ok(())
 }
 
+pub(super) async fn search_server(
+    worker: &mut Worker<'_>,
+    account: &str,
+    session: &mut ImapSession,
+    (folder, query): (FolderId, &str),
+) -> Result<(), Problem> {
+    let ids = driver::search_server(session, &mut worker.store.local(), folder, query)
+        .await
+        .map_err(|e| imap_error(&e))?;
+    // Mail found there may be new to the cache.
+    worker.emit(Event::MessagesChanged {
+        folders: vec![folder],
+    });
+    worker.search_found(account, query, &ids);
+    Ok(())
+}
+
 pub(super) async fn body(
     worker: &mut Worker<'_>,
     session: &mut ImapSession,

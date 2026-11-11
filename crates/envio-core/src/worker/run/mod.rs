@@ -23,20 +23,21 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     {
         live.health.status = crate::health::AccountStatus::Syncing;
     }
-    match run_step(worker, account, step).await {
-        Ok(()) => succeeded(worker, account, step),
+    match run_step(worker, account, &step).await {
+        Ok(()) => succeeded(worker, account, &step),
         Err(problem) => {
             // A part of a big folder that failed is not continued first.
             if let Some(live) = worker.live.get_mut(account) {
                 live.continuing = None;
             }
             let response = failed(worker, account, &problem);
+            search_failed(worker, account, &step, &problem);
             if matches!(
                 response,
                 Response::ItemError | Response::StopDownloads | Response::Rebuild
             ) {
                 // Waiting would only repeat it; the next full run tries again.
-                finished(worker, account, step);
+                finished(worker, account, &step);
             }
             if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
                 worker.open_failed(Some(account));
@@ -62,31 +63,54 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     worker.report(account, &before);
 }
 
+/// The user waits for a server search: no retry, and one unreachable
+/// account must not hold the others back. A step before the search (the
+/// folder list) that can't connect fails it too.
+fn search_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Problem) {
+    let own = matches!(step, Step::SearchServer { .. });
+    if let Some(query) = worker.searching(account)
+        && (own || !matches!(problem, Problem::Refused(_)))
+    {
+        if own {
+            finished(worker, account, step);
+        }
+        worker.search_step_failed(account, &query, problem);
+    }
+}
+
 pub(crate) async fn run_step(
     worker: &mut Worker<'_>,
     account: &str,
-    step: Step,
+    step: &Step,
 ) -> Result<(), Problem> {
-    if step == Step::Send {
+    if *step == Step::Send {
         return mail::send(worker, account).await;
     }
     let mut session = worker.imap(account).await?;
     let result = match step {
         Step::Folders => sync::folders(worker, account, &mut session).await,
-        Step::Body(id) => sync::body(worker, &mut session, id).await,
+        Step::Body(id) => sync::body(worker, &mut session, *id).await,
+        Step::SearchServer { folder, query } => {
+            sync::search_server(worker, account, &mut session, (*folder, query)).await
+        }
         Step::Replay => sync::replay(worker, account, &mut session).await,
         Step::File => mail::file(worker, account, &mut session).await,
-        Step::Folder(id) => sync::folder(worker, account, &mut session, id).await,
+        Step::Folder(id) => sync::folder(worker, account, &mut session, *id).await,
         Step::Send => Ok(()),
     };
     if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
-        let changed = match step {
-            Step::Folder(id) if session.take_changes() => Some(id),
-            _ => None,
-        };
+        let changed = changed_folder(step, &mut session);
         keep(worker, account, session, changed);
     }
     result
+}
+
+/// The folder to sync again: the step's, if the server reported a change.
+fn changed_folder(step: &Step, session: &mut ImapSession) -> Option<FolderId> {
+    match step {
+        Step::Folder(id) if session.take_changes() => Some(*id),
+        _ => None,
+    }
 }
 
 /// A session lives on unless the step broke it (a refusal doesn't). If the
@@ -107,7 +131,7 @@ fn keep(worker: &mut Worker<'_>, account: &str, session: ImapSession, changed: O
     }
 }
 
-fn succeeded(worker: &mut Worker<'_>, account: &str, step: Step) {
+fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
     finished(worker, account, step);
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
@@ -121,7 +145,7 @@ fn succeeded(worker: &mut Worker<'_>, account: &str, step: Step) {
 }
 
 /// The step's want is met (or given up): clear it.
-fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
+fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
     let folders = worker.store.db.folders(account).unwrap_or_default();
     let Some(live) = worker.live.get_mut(account) else {
         return;
@@ -132,14 +156,18 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
             live.relist = false;
             live.wants.expand(&folders);
         }
-        Step::Body(id) => live.wants.bodies.retain(|b| *b != id),
+        Step::Body(id) => live.wants.bodies.retain(|b| b != id),
+        Step::SearchServer { folder, query } => live
+            .wants
+            .searches
+            .retain(|(f, q)| !(f == folder && q == query)),
         Step::Replay => live.wants.replay = false,
         Step::Send => live.wants.send = false,
         Step::File => live.wants.file = false,
         Step::Folder(id) => {
             // Parts remain: the same folder runs again, ahead of the others.
-            if live.continuing != Some(id) {
-                live.wants.folders.remove(&id);
+            if live.continuing != Some(*id) {
+                live.wants.folders.remove(id);
             }
         }
     }
@@ -214,12 +242,12 @@ mod tests {
         let live = worker.live.get_mut(&account).unwrap();
         live.wants.folders.insert(id);
         live.continuing = Some(id);
-        finished(&mut worker, &account, Step::Folder(id));
+        finished(&mut worker, &account, &Step::Folder(id));
         let live = worker.live.get_mut(&account).unwrap();
         assert!(live.wants.folders.contains(&id), "dropped between parts");
         // The last part: nothing continues, the want is met.
         live.continuing = None;
-        finished(&mut worker, &account, Step::Folder(id));
+        finished(&mut worker, &account, &Step::Folder(id));
         let live = worker.live.get_mut(&account).unwrap();
         assert!(!live.wants.folders.contains(&id));
     }

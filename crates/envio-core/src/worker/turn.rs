@@ -115,7 +115,7 @@ impl Worker<'_> {
                     let mut todo = steps(&live.wants, &folders, disk_full, live.relist)
                         .into_iter()
                         .find(|step| !(live.listed && *step == Step::Folders));
-                    if let (Some(Step::Folder(_)), Some(id)) = (todo, live.continuing) {
+                    if let (Some(Step::Folder(_)), Some(id)) = (&todo, live.continuing) {
                         // The next part of the folder in progress goes first.
                         todo = Some(Step::Folder(id));
                     }

@@ -18,3 +18,7 @@ pub fn attachment_not_saved() -> String {
 pub fn could_not_read() -> String {
     tr("Could not read your mail from this phone")
 }
+
+pub fn search_unavailable() -> String {
+    tr("This folder can't be searched on the server right now")
+}

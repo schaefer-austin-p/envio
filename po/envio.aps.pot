@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 17:16+0100\n"
+"POT-Creation-Date: 2026-11-11 17:28+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -218,6 +218,10 @@ msgstr ""
 
 #: crates/envio-core/src/text/read.rs:19
 msgid "Could not read your mail from this phone"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:23
+msgid "This folder can't be searched on the server right now"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:12

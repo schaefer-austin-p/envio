@@ -8,6 +8,16 @@ use secrecy::SecretString;
 
 use crate::servers::{ServerAddr, Service};
 
+/// Where a search looks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchScope {
+    /// Every account (locally); a server search takes each Inbox.
+    All,
+    /// One account (a server search takes its Inbox).
+    Account(String),
+    Folder(FolderId),
+}
+
 /// Whether `OpenMessage` loads remote images.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ImagesChoice {
@@ -132,8 +142,11 @@ pub enum Command {
         list: ListRef,
         after: Option<Cursor>,
     },
-    /// Full-text search over the account's cached mail.
-    Search { account: String, query: String },
+    /// Header and body search over cached mail (`All`: every account).
+    Search { scope: SearchScope, query: String },
+    /// Ask the server too: the folder of `scope` (an account's or the
+    /// unified Inbox: each account's Inbox), found mail is cached.
+    SearchServer { scope: SearchScope, query: String },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,
@@ -224,6 +237,7 @@ impl Command {
             Self::ListFolders { .. } => "ListFolders",
             Self::ListMessages { .. } => "ListMessages",
             Self::Search { .. } => "Search",
+            Self::SearchServer { .. } => "SearchServer",
             Self::OpenMessage { .. } => "OpenMessage",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",

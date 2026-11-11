@@ -9,6 +9,7 @@ mod plan;
 mod read;
 mod remove;
 mod run;
+mod search;
 mod setup;
 mod start;
 mod store;
@@ -79,6 +80,8 @@ pub(crate) struct Worker<'s> {
     detecting: BTreeMap<String, u64>,
     /// The newest `Connect` ticket by address.
     probing: BTreeMap<String, u64>,
+    /// The "Search on server" the user waits for (the newest one).
+    server_search: Option<search::ServerSearch>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -192,6 +195,7 @@ impl<'s> Worker<'s> {
             setup: Arc::clone(setup),
             detecting: BTreeMap::new(),
             probing: BTreeMap::new(),
+            server_search: None,
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

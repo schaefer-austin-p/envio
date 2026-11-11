@@ -36,7 +36,7 @@ pub use migrate::SCHEMA_VERSION;
 pub use outbox::{NewOutboxItem, Outbox, OutboxItem, OutboxMeta, SendState};
 pub use paths::StorePaths;
 pub use rebuild::{Opened, open_or_rebuild};
-pub use search::BODY_INDEX_BYTES;
+pub use search::{BODY_INDEX_BYTES, Within};
 pub use userdata::{
     Contact, DarkMode, ImagesDefault, Settings, ThemeName, load_contacts, load_settings,
     save_contacts, save_settings,

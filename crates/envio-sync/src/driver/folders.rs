@@ -1,6 +1,6 @@
 //! Folder list and folder sync, and fetching one body on open.
 
-use envio_net::imap::FlagUpdate;
+use envio_net::imap::{FlagUpdate, Summary};
 use envio_store::{BodyState, Folder, FolderId, MessageRowId};
 
 use super::Local;
@@ -92,26 +92,37 @@ pub async fn sync_folder(
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
     for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
-        let rows = rows(&summaries, &pending);
-        local.db.step(|db| {
-            for row in &rows {
-                db.upsert_message(id, row)?;
-            }
-            // For autocomplete: every sender and recipient, as of the
-            // message's date.
-            for summary in &summaries {
-                let (found, when) = crate::convert::seen_addresses(summary);
-                db.remember_addresses(&found, when)?;
-            }
-            Ok(())
-        })?;
-        synced.fetched += rows.len();
+        synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
     if !synced.more {
         local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
     }
     Ok(synced)
+}
+
+/// Caches one fetched batch in a single transaction (and remembers its
+/// senders and recipients for autocomplete); returns the rows' ids.
+pub(super) fn store_summaries(
+    local: &Local<'_>,
+    id: FolderId,
+    summaries: &[Summary],
+    pending: &Pending,
+) -> Result<Vec<MessageRowId>> {
+    let rows = rows(summaries, pending);
+    Ok(local.db.step(|db| {
+        let mut ids = Vec::with_capacity(rows.len());
+        for row in &rows {
+            ids.push(db.upsert_message(id, row)?);
+        }
+        // For autocomplete: every sender and recipient, as of the
+        // message's date.
+        for summary in summaries {
+            let (found, when) = crate::convert::seen_addresses(summary);
+            db.remember_addresses(&found, when)?;
+        }
+        Ok(ids)
+    })?)
 }
 
 fn begin(local: &Local<'_>, id: FolderId, plan: &FolderPlan) -> Result<()> {

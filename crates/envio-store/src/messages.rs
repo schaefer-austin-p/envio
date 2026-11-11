@@ -283,6 +283,24 @@ impl Db {
         Ok(messages)
     }
 
+    /// The row ids of the cached messages with these UIDs (UIDs not cached
+    /// are skipped), in the order given.
+    pub fn ids_of(&self, folder: FolderId, uids: &[u32]) -> Result<Vec<MessageRowId>> {
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id FROM messages WHERE folder_id = ?1 AND uid = ?2")?;
+        let mut ids = Vec::new();
+        for uid in uids {
+            if let Some(id) = stmt
+                .query_row(params![folder.0, uid], |row| row.get(0))
+                .optional()?
+            {
+                ids.push(MessageRowId(id));
+            }
+        }
+        Ok(ids)
+    }
+
     /// The UIDs cached for a folder, ascending.
     pub fn uids(&self, folder: FolderId) -> Result<Vec<u32>> {
         let mut stmt = self

@@ -4,30 +4,50 @@ use rusqlite::params;
 
 use crate::db::Db;
 use crate::error::Result;
+use crate::folders::FolderId;
 use crate::messages::{COLUMNS, Message, MessageRowId, from_row};
 
 /// How much of a body's text is indexed.
 pub const BODY_INDEX_BYTES: usize = 65_536;
+
+/// Where a search looks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Within<'a> {
+    Everything,
+    Account(&'a str),
+    Folder(FolderId),
+}
 
 impl Db {
     /// Messages in `account` matching every word of `query` (each word also
     /// matches as a prefix) in the envelope fields or in the indexed body,
     /// newest first, each message once.
     pub fn search(&self, account: &str, query: &str, limit: u32) -> Result<Vec<Message>> {
+        self.search_in(Within::Account(account), query, limit)
+    }
+
+    /// Like [`Db::search`], over every account, one account or one folder.
+    pub fn search_in(&self, within: Within<'_>, query: &str, limit: u32) -> Result<Vec<Message>> {
         let Some(fts) = fts_query(query) else {
             return Ok(Vec::new());
+        };
+        let (account, folder) = match within {
+            Within::Everything => (None, None),
+            Within::Account(account) => (Some(account), None),
+            Within::Folder(folder) => (None, Some(folder.0)),
         };
         let mut stmt = self.conn().prepare(&format!(
             "SELECT {COLUMNS} FROM messages m
              JOIN folders f ON f.id = m.folder_id
-             WHERE f.account = ?2 AND m.id IN (
+             WHERE (?2 IS NULL OR f.account = ?2) AND (?4 IS NULL OR f.id = ?4)
+             AND m.id IN (
                  SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1
                  UNION
                  SELECT rowid FROM bodies_fts WHERE bodies_fts MATCH ?1)
              ORDER BY m.date DESC, m.id DESC LIMIT ?3"
         ))?;
         let messages = stmt
-            .query_map(params![fts, account, limit], from_row)?
+            .query_map(params![fts, account, limit, folder], from_row)?
             .collect::<rusqlite::Result<_>>()?;
         Ok(messages)
     }

@@ -3,7 +3,9 @@
 mod support;
 
 use envio_core::api::view::{MessageRow, MessageView};
-use envio_core::{Command, Event, FolderId, FolderRole, ImagesChoice, ListRef, MessageRowId, PAGE};
+use envio_core::{
+    Command, Event, FolderId, FolderRole, ImagesChoice, ListRef, MessageRowId, PAGE, SearchScope,
+};
 use envio_store::{BodyState, Db};
 use support::Harness;
 
@@ -136,7 +138,7 @@ fn remote_images_stay_blocked_until_asked() {
 fn search_finds_by_subject() {
     let s = seeded(&[(7, HTML), (8, HTML)]);
     s.h.send(Command::Search {
-        account: s.key.clone(),
+        scope: SearchScope::Account(s.key.clone()),
         query: "message 7".into(),
     });
     let (query, rows) = s.h.wait(|e| match e {

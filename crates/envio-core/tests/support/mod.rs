@@ -184,6 +184,8 @@ impl Harness {
             let id = db.upsert_message(folder, &message).unwrap();
             db.set_body_state(id, BodyState::Downloaded).unwrap();
             bodies.write(folder, *uid, eml).unwrap();
+            // As the worker does when a body is downloaded.
+            db.index_body(id, &envio_mime::quote_text(eml)).unwrap();
         }
         folder
     }

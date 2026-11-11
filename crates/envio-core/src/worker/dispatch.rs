@@ -53,8 +53,12 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.list_messages(list, after);
             Flow::Continue
         }
-        Command::Search { account, query } => {
-            worker.search(&account, query);
+        Command::Search { scope, query } => {
+            worker.search(scope, query);
+            Flow::Continue
+        }
+        Command::SearchServer { scope, query } => {
+            worker.search_server(scope, query);
             Flow::Continue
         }
         Command::OpenMessage {

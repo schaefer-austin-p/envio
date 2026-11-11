@@ -1,6 +1,6 @@
 //! What the core tells the app.
 
-use super::command::{AccountSetup, ComposeId, DraftInput, UndoId};
+use super::command::{AccountSetup, ComposeId, DraftInput, SearchScope, UndoId};
 use std::path::PathBuf;
 
 use super::view::{
@@ -100,11 +100,21 @@ pub enum Event {
         /// This page was the last: it held fewer than `PAGE` rows.
         end: bool,
     },
-    /// The answer to `Search`.
+    /// The answer to `Search` (`server: false`), or to `SearchServer`
+    /// (`server: true`, every match: cached and fetched, newest first).
     SearchResults {
-        account: String,
+        scope: SearchScope,
         query: String,
+        server: bool,
         rows: Vec<MessageRow>,
+    },
+    /// A server search that could not ask an account; `text` says why (the
+    /// account's status, or the server's refusal). Other accounts of the
+    /// same search still answer with `SearchResults`.
+    SearchFailed {
+        scope: SearchScope,
+        query: String,
+        text: String,
     },
     /// The answer to `Autocomplete`, for the same `query`.
     Suggestions {
