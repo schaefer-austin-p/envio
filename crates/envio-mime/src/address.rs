@@ -13,6 +13,7 @@ impl Address {
     pub fn new(name: Option<&str>, email: &str) -> Self {
         let name = name.map(|n| {
             n.chars()
+                .filter(|&c| !crate::link::is_format_char(c))
                 .map(|c| if c.is_control() { ' ' } else { c })
                 .collect::<String>()
         });
@@ -37,7 +38,9 @@ impl Address {
         };
         let email = email.trim();
         (email.contains('@')
-            && !email.chars().any(|c| c.is_control() || c.is_whitespace())
+            && !email
+                .chars()
+                .any(|c| c.is_control() || c.is_whitespace() || crate::link::is_format_char(c))
             && !has_specials(email))
         .then(|| Self::new(name, email))
     }

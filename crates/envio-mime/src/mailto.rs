@@ -63,7 +63,9 @@ fn addresses(list: &str) -> Vec<Address> {
 }
 
 /// Splits at commas that are not inside a double-quoted string (a backslash
-/// escapes the next character there). An unclosed quote runs to the end.
+/// escapes the next character there). A quote opens a string only as the
+/// first character of an entry; one stray inside an address, or left
+/// unclosed, falls back to a plain comma split so later recipients survive.
 fn split_outside_quotes(list: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let (mut start, mut quoted, mut escaped) = (0, false, false);
@@ -71,13 +73,17 @@ fn split_outside_quotes(list: &str) -> Vec<&str> {
         match c {
             _ if escaped => escaped = false,
             '\\' if quoted => escaped = true,
-            '"' => quoted = !quoted,
+            '"' if quoted => quoted = false,
+            '"' if list[start..i].trim().is_empty() => quoted = true,
             ',' if !quoted => {
                 parts.push(&list[start..i]);
                 start = i + 1;
             }
             _ => {}
         }
+    }
+    if quoted {
+        return list.split(',').collect();
     }
     parts.push(&list[start..]);
     parts

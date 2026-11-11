@@ -125,3 +125,47 @@ fn other_or_broken_links_have_no_parts() {
     }
     assert_eq!(parts("http://[::1]:80/").host, "[::1]");
 }
+
+#[test]
+fn plain_text_links_get_the_same_href_rules() {
+    use envio_mime::plain_to_rich;
+    let out = plain_to_rich("see https://\u{202E}moc.evil.example/ now", false, false);
+    assert!(!out.contains("<a"), "{out}");
+    let out = plain_to_rich("see https://a.example/x\u{202E}y now", false, false);
+    assert!(
+        out.contains("href=\"https://a.example/x%E2%80%AEy\""),
+        "{out}"
+    );
+}
+
+#[test]
+fn backslash_in_the_authority_is_refused() {
+    assert_eq!(link_parts("https://evil.example\\@bank.example/"), None);
+    assert_eq!(
+        clean("<a href=\"https://evil.example\\@bank.example/\">x</a>"),
+        "<a>x</a>"
+    );
+}
+
+#[test]
+fn format_characters_in_userinfo_or_port_are_refused() {
+    assert_eq!(
+        link_parts("https://bank.example\u{202E}@evil.example/"),
+        None
+    );
+    assert_eq!(link_parts("https://a.example:8\u{200B}0/"), None);
+}
+
+#[test]
+fn percent_encoded_hosts_show_the_host_that_opens() {
+    assert_eq!(parts("https://b%61nk.example/").host, "bank.example");
+    assert_eq!(link_parts("https://a%E2%80%AEb.example/"), None);
+}
+
+#[test]
+fn the_format_character_set_is_complete() {
+    for c in ["\u{0890}", "\u{110CD}", "\u{13430}", "\u{1BCA1}"] {
+        let out = clean(&format!("<a href=\"https://a.example/x{c}y\">x</a>"));
+        assert!(!out.contains(c), "{c:?}");
+    }
+}

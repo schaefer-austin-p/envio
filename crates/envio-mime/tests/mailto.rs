@@ -87,3 +87,27 @@ fn mailto_plain_addr_specs_still_split_at_commas() {
         ["a@x.example", "b@y.example", "c@z.example", "d@w.example"]
     );
 }
+
+#[test]
+fn mailto_recipients_with_format_characters_are_dropped() {
+    for uri in [
+        "mailto:pay@\u{202E}elpmaxe.knab",
+        "mailto:pay@%E2%80%AEelpmaxe.knab",
+        "mailto:?to=ok@x.example%2C%20a%40b%E2%80%8B.example",
+    ] {
+        let draft = parse_mailto(uri).unwrap();
+        assert!(
+            draft.to.iter().all(|a| a.email == "ok@x.example"),
+            "{uri} {:?}",
+            draft.to
+        );
+    }
+    let draft = parse_mailto("mailto:?to=%22J%E2%80%AEane%22%20%3Cj%40x.example%3E").unwrap();
+    assert_eq!(draft.to[0].name.as_deref(), Some("Jane"));
+}
+
+#[test]
+fn mailto_stray_quote_keeps_later_recipients() {
+    let draft = parse_mailto("mailto:?to=a%22b%40x.example%2Cboss%40y.example").unwrap();
+    assert_eq!(draft.to, [addr("boss@y.example")]);
+}

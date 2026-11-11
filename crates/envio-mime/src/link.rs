@@ -4,13 +4,15 @@
 use std::borrow::Cow;
 
 /// Unicode format (Cf) and bidi control characters: invisible, and able to
-/// reorder or hide what follows them when a link is shown.
+/// reorder or hide what follows them when a link is shown. The list is the
+/// Cf set of Unicode 16.
 pub(crate) fn is_format_char(c: char) -> bool {
     matches!(c,
         '\u{00AD}' | '\u{0600}'..='\u{0605}' | '\u{061C}' | '\u{06DD}' | '\u{070F}'
-        | '\u{08E2}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}'
+        | '\u{0890}'..='\u{0891}' | '\u{08E2}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}'
         | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{206F}' | '\u{FEFF}'
-        | '\u{FFF9}'..='\u{FFFB}' | '\u{110BD}' | '\u{1D173}'..='\u{1D17A}'
+        | '\u{FFF9}'..='\u{FFFB}' | '\u{110BD}' | '\u{110CD}' | '\u{13430}'..='\u{1343F}' | '\u{1BCA0}'..='\u{1BCA3}'
+        | '\u{1D173}'..='\u{1D17A}'
         | '\u{E0001}' | '\u{E0020}'..='\u{E007F}')
 }
 
@@ -33,10 +35,15 @@ fn authority_end(url: &str) -> usize {
 /// truth); in the scheme or authority they could make one host look like
 /// another, so the link is dropped (`None`).
 pub(crate) fn safe_href(href: &str) -> Option<Cow<'_, str>> {
+    let split = authority_end(href);
+    // Browsers read `\` in an http(s) authority as `/`, so the host they open
+    // differs from the one the text suggests; it is never legitimate.
+    if href[..split].contains('\\') {
+        return None;
+    }
     if !href.chars().any(is_format_char) {
         return Some(Cow::Borrowed(href));
     }
-    let split = authority_end(href);
     if href[..split].chars().any(is_format_char) {
         return None;
     }
@@ -86,6 +93,9 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
             let after = after.strip_prefix("//")?;
             let end = after.find(['/', '?', '#']).unwrap_or(after.len());
             let (authority, rest) = after.split_at(end);
+            if authority.contains('\\') || authority.chars().any(bad_host_char) {
+                return None;
+            }
             let (userinfo, hostport) = match authority.rsplit_once('@') {
                 Some((u, h)) => (Some(u.to_owned()), h),
                 None => (None, authority),
@@ -101,14 +111,15 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
         _ => return None,
     };
     let (host, port) = split_port(hostport);
-    if host.is_empty()
-        || host
-            .chars()
-            .any(|c| is_format_char(c) || c.is_control() || c.is_whitespace())
-    {
+    if port.is_some_and(|p| !p.chars().all(|c| c.is_ascii_digit())) {
         return None;
     }
-    let (host, punycode) = host_forms(host)?;
+    // Browsers percent-decode the host before IDNA, so show that one.
+    let host = percent_decode(host)?;
+    if host.is_empty() || host.chars().any(bad_host_char) {
+        return None;
+    }
+    let (host, punycode) = host_forms(&host)?;
     Some(LinkParts {
         scheme,
         userinfo,
@@ -117,6 +128,34 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
         port: port.map(str::to_owned),
         rest: rest.to_owned(),
     })
+}
+
+fn bad_host_char(c: char) -> bool {
+    is_format_char(c) || c.is_control() || c.is_whitespace()
+}
+
+/// `None` when the result isn't UTF-8.
+fn percent_decode(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match (bytes[i], hex) {
+            (b'%', Some(b)) => {
+                out.push(b);
+                i += 3;
+            }
+            (b, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
 }
 
 fn split_port(hostport: &str) -> (&str, Option<&str>) {
