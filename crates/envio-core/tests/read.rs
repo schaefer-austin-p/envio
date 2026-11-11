@@ -179,6 +179,24 @@ fn save_attachment_sanitizes_the_file_name() {
 }
 
 #[test]
+fn save_attachment_creates_a_missing_folder() {
+    let s = seeded(&[(1, WITH_ATTACHMENT)]);
+    let id = s.id_of("message 1");
+    let out = tempfile::tempdir().unwrap();
+    let dir = out.path().join("cache").join("attachments");
+    s.h.send(Command::SaveAttachment {
+        id,
+        index: 0,
+        dir: dir.clone(),
+    });
+    let path = s.h.wait(|e| match e {
+        Event::AttachmentSaved { path, .. } => Some(path.clone()),
+        _ => None,
+    });
+    assert_eq!(path, dir.join("evil.txt"));
+}
+
+#[test]
 fn opening_without_a_body_offline_is_unavailable() {
     let mut h = Harness::unstarted();
     h.foreground = true;

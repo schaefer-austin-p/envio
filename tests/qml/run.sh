@@ -13,6 +13,10 @@ export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target/ci-qt}
 cmake "$build" -DENVIO_QMLTEST=ON >/dev/null
 cmake --build "$build" --target envio-qmltest -j "$(nproc)"
 
+# tst_rich_text.qml reads what envio-mime renders for its corpus.
+ENVIO_CORPUS_DIR=$("$root/tools/ci/render-corpus.sh" "$build/corpus")
+export ENVIO_CORPUS_DIR QML_XHR_ALLOW_FILE_READ=1
+
 home=$(mktemp -d)
 trap 'rm -rf "$home"' EXIT
 mkdir -m 700 "$home/run"

@@ -12,6 +12,15 @@
         <file>pages/inbox/MoveSheet.qml</file>
         <file>pages/inbox/OutboxPage.qml</file>
         <file>pages/inbox/OutboxRow.qml</file>
+        <file>pages/reader/ReaderPage.qml</file>
+        <file>pages/reader/HeaderBlock.qml</file>
+        <file>pages/reader/ImagesBanner.qml</file>
+        <file>pages/reader/LinkSheet.qml</file>
+        <file>pages/reader/ForwardPrompt.qml</file>
+        <file>pages/reader/AttachmentsSheet.qml</file>
+        <file>pages/reader/AttachmentList.qml</file>
+        <file>pages/reader/ReaderMore.qml</file>
+        <file>pages/reader/ReplyBar.qml</file>
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>
         <file>pages/accounts/SignInStep.qml</file>
@@ -25,6 +34,8 @@
         <file>platform/Theme.qml</file>
         <file>platform/ut/SystemColours.qml</file>
         <file>platform/ut/GridUnit.qml</file>
+        <file>platform/Content.qml</file>
+        <file>platform/ut/ContentExport.qml</file>
         <file>components/qmldir</file>
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
@@ -35,6 +46,7 @@
         <file>components/AppDialog.qml</file>
         <file>components/Field.qml</file>
         <file>components/Icon.qml</file>
+        <file>components/fileSize.js</file>
         <file>components/IconButton.qml</file>
         <file>components/ListRow.qml</file>
         <file>components/RadioRow.qml</file>

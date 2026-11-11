@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import "../platform"
 import "accounts"
 import "inbox"
+import "reader"
 
 // The app below the window: which page shows (the wizard while there are no
 // accounts, else the inbox), the pages the inbox leads to and the full-page
@@ -67,10 +68,22 @@ Item {
             folders: root.folders
             messages: root.messages
             outbox: root.outbox
-            onMessageRequested: root.core.open(message, false, Math.round(width))
+            onMessageRequested: stack.push(readerPage, { messageId: message })
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
-            // The reader, compose, search and settings arrive with their pages.
+            // Compose, search and settings arrive with their pages.
+        }
+    }
+    Component {
+        id: readerPage
+        ReaderPage {
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            folders: root.folders
+            onBackRequested: stack.pop()
+            // Compose arrives with its page (Task 14); until then the
+            // compose id it returns is not followed.
         }
     }
     Component {

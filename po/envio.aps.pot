@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:31+0100\n"
+"POT-Creation-Date: 2026-11-11 19:53+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,6 +36,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:19 qml/pages/inbox/SelectionBar.qml:28
+#: qml/pages/reader/ReaderPage.qml:103
 msgid "Archive"
 msgstr ""
 
@@ -55,7 +56,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:46
+#: qml/pages/ProblemPage.qml:46 qml/pages/reader/ReaderPage.qml:221
 msgid "Try again"
 msgstr ""
 
@@ -97,6 +98,8 @@ msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:57
+#: qml/pages/reader/AttachmentsSheet.qml:76
+#: qml/pages/reader/ForwardPrompt.qml:43 qml/pages/reader/LinkSheet.qml:62
 msgid "Cancel"
 msgstr ""
 
@@ -121,6 +124,7 @@ msgid "Email address"
 msgstr ""
 
 #: qml/pages/accounts/EmailStep.qml:60 qml/pages/accounts/SignInStep.qml:74
+#: qml/pages/reader/ForwardPrompt.qml:51
 msgid "Continue"
 msgstr ""
 
@@ -299,6 +303,7 @@ msgid "Undo"
 msgstr ""
 
 #: qml/pages/inbox/MoveSheet.qml:16 qml/pages/inbox/SelectionBar.qml:42
+#: qml/pages/reader/ReaderMore.qml:19
 msgid "Move to folder"
 msgstr ""
 
@@ -315,7 +320,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:58 qml/pages/inbox/OutboxRow.qml:87
-#: qml/pages/inbox/SelectionBar.qml:35
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:111
 msgid "Delete"
 msgstr ""
 
@@ -335,7 +340,7 @@ msgstr ""
 msgid "Edit"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/inbox/SelectionBar.qml:50 qml/pages/reader/ReaderPage.qml:119
 msgid "More actions"
 msgstr ""
 
@@ -347,12 +352,122 @@ msgstr ""
 msgid "Mark as unread"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:62
+#: qml/pages/inbox/SelectionBar.qml:62 qml/pages/reader/ReaderMore.qml:20
 msgid "Flag"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:63
+#: qml/pages/inbox/SelectionBar.qml:63 qml/pages/reader/ReaderMore.qml:21
 msgid "Remove flag"
+msgstr ""
+
+#: qml/pages/reader/AttachmentList.qml:19
+msgid "Attachments"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:36 qml/pages/reader/LinkSheet.qml:43
+msgid "Open"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:36
+msgid "Pick an app, like Document Viewer"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:37
+msgid "Save"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:37
+msgid "Into Files or another app"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:38
+msgid "Share"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:38
+msgid "Send it with another app"
+msgstr ""
+
+#: qml/pages/reader/ForwardPrompt.qml:13
+msgid "Forward message"
+msgstr ""
+
+#: qml/pages/reader/ForwardPrompt.qml:20
+msgid "With attachments"
+msgstr ""
+
+#: qml/pages/reader/ForwardPrompt.qml:21
+msgid "The files go along with the text"
+msgstr ""
+
+#: qml/pages/reader/ForwardPrompt.qml:29
+msgid "Without attachments"
+msgstr ""
+
+#: qml/pages/reader/ForwardPrompt.qml:30
+msgid "Only the text of the message"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:15 crates/envio-core/src/text/compose.rs:37
+msgid "From"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:16 crates/envio-core/src/text/compose.rs:40
+msgid "To"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:17
+msgid "Cc"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:38
+msgid "Date"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:19
+msgid "Account"
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:16
+msgid ""
+"Remote images are blocked. They can tell the sender when and where you "
+"opened this."
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:32
+msgid "Load images"
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:38
+msgid "Always for this sender"
+msgstr ""
+
+#: qml/pages/reader/LinkSheet.qml:14
+msgid "Open this link?"
+msgstr ""
+
+#: qml/pages/reader/LinkSheet.qml:50
+msgid "Copy"
+msgstr ""
+
+#: qml/pages/reader/ReaderMore.qml:18
+msgid "Reply all"
+msgstr ""
+
+#: qml/pages/reader/ReaderMore.qml:22
+msgid "Add sender to Contacts"
+msgstr ""
+
+#: qml/pages/reader/ReaderPage.qml:197
+msgid "Loading…"
+msgstr ""
+
+#: qml/pages/reader/ReplyBar.qml:28
+msgid "Reply"
+msgstr ""
+
+#: qml/pages/reader/ReplyBar.qml:35
+msgid "Forward"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8
@@ -375,20 +490,8 @@ msgstr ""
 msgid "Forwarded message"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:37
-msgid "From"
-msgstr ""
-
-#: crates/envio-core/src/text/compose.rs:38
-msgid "Date"
-msgstr ""
-
 #: crates/envio-core/src/text/compose.rs:39
 msgid "Subject"
-msgstr ""
-
-#: crates/envio-core/src/text/compose.rs:40
-msgid "To"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:45

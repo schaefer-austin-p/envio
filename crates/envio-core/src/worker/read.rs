@@ -391,6 +391,7 @@ impl Worker<'_> {
             Mime::Raw(_) => None,
         };
         let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
+        std::fs::create_dir_all(dir)?;
         write_new(dir, &name, &bytes)
     }
 }
