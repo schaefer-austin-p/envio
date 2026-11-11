@@ -3,6 +3,7 @@
 //! (small, a few ms), never across a network call.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -104,7 +105,10 @@ impl DraftBook {
 
     /// A compose window opened for `account`.
     pub fn opened(&self, compose: ComposeId, account: &str) {
-        self.lock().accounts.insert(compose, account.to_owned());
+        let mut st = self.lock();
+        // An id is unique among open windows only: a reused one is new.
+        st.closed.remove(&compose);
+        st.accounts.insert(compose, account.to_owned());
     }
 
     /// The user changed the draft: it is due `DRAFT_SAVE_MS` after the first
@@ -135,7 +139,7 @@ impl DraftBook {
     pub fn flush(&self, compose: ComposeId) -> Result<Option<String>, String> {
         let mut st = self.lock();
         if let Some(draft) = st.throttle.take(compose) {
-            match self.store(&mut st, compose, &draft) {
+            match self.store_guarded(&mut st, compose, &draft) {
                 Ok(_) => {
                     st.save_failed.remove(&compose);
                 }
@@ -249,7 +253,9 @@ impl DraftBook {
 
     /// The compose edits a draft that already exists: saves go to its file.
     pub fn adopt(&self, compose: ComposeId, draft_id: String) {
-        self.lock().ids.insert(compose, draft_id);
+        let mut st = self.lock();
+        st.closed.remove(&compose);
+        st.ids.insert(compose, draft_id);
     }
 
     pub fn next_due(&self) -> Option<i64> {
@@ -302,7 +308,7 @@ impl DraftBook {
         (compose, draft): (ComposeId, DraftInput),
         events: &mut Vec<Event>,
     ) -> bool {
-        match self.store(st, compose, &draft) {
+        match self.store_guarded(st, compose, &draft) {
             Ok(created) => {
                 st.save_failed.remove(&compose);
                 if let Some(draft_id) = created {
@@ -319,6 +325,22 @@ impl DraftBook {
                 false
             }
         }
+    }
+
+    /// `store`, where a panic counts as a failed write: the change stays
+    /// pending and the next tick tries again.
+    fn store_guarded(
+        &self,
+        st: &mut BookState,
+        compose: ComposeId,
+        draft: &DraftInput,
+    ) -> Result<Option<String>, String> {
+        panic::catch_unwind(AssertUnwindSafe(|| self.store(st, compose, draft))).unwrap_or_else(
+            |_| {
+                log::error!("saving a draft panicked; it stays pending");
+                Err(text::compose::draft_not_saved())
+            },
+        )
     }
 
     /// Writes the draft: created the first time, replaced after. The id when
@@ -483,6 +505,28 @@ mod tests {
         // A second file goes to the same draft.
         assert_eq!(saved(&book.attach(A, &source)), 0);
         assert_eq!(book.drafts().unwrap().list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_reused_compose_id_starts_a_new_draft() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        book.changed(A, input("old"), 0);
+        assert_eq!(saved(&book.close(A, false)), 1);
+        // The app reuses the id for a new window.
+        book.opened(A, "acct");
+        book.changed(A, input("new"), 10);
+        assert_eq!(saved(&book.flush_all()), 1);
+        let bodies: Vec<String> = book
+            .drafts()
+            .unwrap()
+            .list()
+            .unwrap()
+            .into_iter()
+            .map(|(_, d)| d.body)
+            .collect();
+        assert_eq!(bodies.len(), 2);
+        assert!(bodies.contains(&"old".to_owned()) && bodies.contains(&"new".to_owned()));
     }
 
     #[test]
