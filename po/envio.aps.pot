@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 18:27+0100\n"
+"POT-Creation-Date: 2026-11-11 18:48+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -32,6 +32,193 @@ msgstr ""
 
 #: qml/pages/InboxPage.qml:38
 msgid "No accounts yet."
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:25
+msgid "Accounts"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:58
+msgid "Add account"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:104
+#: qml/pages/accounts/UpdatePasswordPage.qml:26
+msgid "Update password"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:122
+#: qml/pages/accounts/AccountsPage.qml:137
+msgid "Remove"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:135
+msgid "Remove this account?"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:136
+msgid "Keep account"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:17
+msgid "Use these servers?"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:18
+msgid ""
+"These servers are not on your address's domain. They came from the domain's "
+"DNS records. Use them only if you recognise them."
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:19
+#: qml/pages/accounts/TrustDialog.qml:19
+msgid "Cancel"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:20
+msgid "Use these servers"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:27
+msgid "IMAP: %1, port %2"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:36
+msgid "SMTP: %1, port %2"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:29
+msgid "Enter your email address. Envio finds the mail servers for it."
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:40
+msgid "Email address"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:60 qml/pages/accounts/SignInStep.qml:74
+msgid "Continue"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:78
+msgid "Set up manually"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:46
+msgid "Account name"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:56 qml/pages/accounts/OptionsStep.qml:59
+msgid "Use as default sender"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:57
+msgid "New messages start from this account"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:64
+msgid "Sync"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:68
+msgid "While Envio is open"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:73
+msgid "Envio checks for new mail while it is open. Push is not available yet."
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:78
+msgid "Keep mail for"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:82
+msgid "Last 30 days"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:93
+msgid "Done"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:51
+msgid "IMAP server"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:53
+msgid "IMAP port"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:60 qml/pages/accounts/ServersStep.qml:78
+msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:66
+msgid "IMAP STARTTLS"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:69
+msgid "SMTP server"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:71
+msgid "SMTP port"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:84
+msgid "SMTP STARTTLS"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:87
+msgid "User name"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:89 qml/pages/accounts/SignInStep.qml:65
+msgid "Password"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:95
+msgid "Connect"
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:52
+msgid ""
+"This provider needs an app password for Envio, not your usual one. Create "
+"one in your account settings."
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:65
+msgid "App password"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:17
+msgid "Can't verify %1"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:20
+msgid "Trust this certificate"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:25
+msgid "SHA-256"
+msgstr ""
+
+#: qml/pages/accounts/UpdatePasswordPage.qml:49
+msgid "New password"
+msgstr ""
+
+#: qml/pages/accounts/UpdatePasswordPage.qml:58
+msgid "Save password"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:59
+msgid "Sign in"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:60
+msgid "Server settings"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:61
+msgid "Account options"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8

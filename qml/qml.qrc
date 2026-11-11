@@ -2,6 +2,15 @@
     <qresource prefix="/qml">
         <file>Main.qml</file>
         <file>pages/InboxPage.qml</file>
+        <file>pages/accounts/WizardPage.qml</file>
+        <file>pages/accounts/EmailStep.qml</file>
+        <file>pages/accounts/SignInStep.qml</file>
+        <file>pages/accounts/ServersStep.qml</file>
+        <file>pages/accounts/OptionsStep.qml</file>
+        <file>pages/accounts/ConfirmHostsDialog.qml</file>
+        <file>pages/accounts/TrustDialog.qml</file>
+        <file>pages/accounts/AccountsPage.qml</file>
+        <file>pages/accounts/UpdatePasswordPage.qml</file>
         <file>platform/qmldir</file>
         <file>platform/Theme.qml</file>
         <file>platform/ut/SystemColours.qml</file>
