@@ -108,19 +108,15 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
 /// A fresh Message-ID (without angle brackets): 128 random bits in hex,
 /// then `@` and the sender's domain. Never the device's hostname.
 ///
-/// A domain that isn't plain ASCII letters, digits, dots and hyphens (an
-/// IDN such as `例え.jp`, which is not punycoded here) gives `@invalid`.
-/// The id stays unique; only the domain part is lost.
+/// A Unicode domain (`例え.jp`) is punycoded (`xn--r8jz45g.jp`). A domain
+/// that isn't then plain ASCII letters, digits, dots and hyphens, or that
+/// holds invisible format characters, gives `@invalid`. The id stays unique;
+/// only the domain part is lost.
 pub fn new_message_id(from_email: &str) -> String {
     let domain = from_email
         .rsplit_once('@')
-        .map(|(_, d)| d.trim())
-        .filter(|d| {
-            !d.is_empty()
-                && d.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
-        })
-        .unwrap_or("invalid");
+        .and_then(|(_, d)| ascii_domain(d.trim()))
+        .unwrap_or_else(|| "invalid".to_owned());
     let mut random = [0u8; 16];
     if getrandom::fill(&mut random).is_err() {
         // No OS randomness: fall back to std's per-process random keys.
@@ -131,6 +127,21 @@ pub fn new_message_id(from_email: &str) -> String {
     }
     let hex: String = random.iter().map(|b| format!("{b:02x}")).collect();
     format!("{hex}@{domain}")
+}
+
+fn ascii_domain(domain: &str) -> Option<String> {
+    let ascii = if domain.is_ascii() {
+        domain.to_owned()
+    } else if domain.chars().any(crate::link::is_format_char) {
+        return None;
+    } else {
+        idna::domain_to_ascii(domain).ok()?
+    };
+    (!ascii.is_empty()
+        && ascii
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+    .then_some(ascii)
 }
 
 /// `type/subtype` of RFC 2045 token characters, else `application/octet-stream`.
