@@ -9,6 +9,7 @@ mod read;
 mod remove;
 mod run;
 mod setup;
+mod start;
 mod store;
 #[cfg(test)]
 mod testing;
@@ -68,6 +69,10 @@ pub(crate) struct Worker<'s> {
     throttle: SaveThrottle,
     /// The stored draft of each compose window that has one.
     drafts_of: BTreeMap<ComposeId, String>,
+    /// Composes whose message is queued: nothing more is saved for them.
+    sent: BTreeSet<ComposeId>,
+    /// Composes whose last save failed (the user was told once).
+    save_failed: BTreeSet<ComposeId>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
 }
@@ -154,6 +159,8 @@ impl<'s> Worker<'s> {
             undo: UndoBook::default(),
             throttle: SaveThrottle::default(),
             drafts_of: BTreeMap::new(),
+            sent: BTreeSet::new(),
+            save_failed: BTreeSet::new(),
             composing: BTreeMap::new(),
         };
         worker.announce(cache);

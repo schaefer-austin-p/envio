@@ -24,9 +24,30 @@ struct Seeded {
 }
 
 fn seeded() -> Seeded {
+    seeded_with(false)
+}
+
+/// `missing`: the message's body is not in the cache (and the server is
+/// unreachable), so a Reply has to wait for a download that fails.
+fn seeded_with(missing: bool) -> Seeded {
     let mut h = Harness::unstarted();
+    h.foreground = missing;
     let key = h.seed_account(ME, Some("pw"));
-    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, FLOWED)]);
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, FLOWED)]);
+    if missing {
+        let db = envio_store::Db::open(&h.paths().db()).unwrap();
+        let rows = db
+            .messages(
+                folder,
+                Page {
+                    offset: 0,
+                    limit: 10,
+                },
+            )
+            .unwrap();
+        db.set_body_state(rows[0].id, envio_store::BodyState::Missing)
+            .unwrap();
+    }
     h.start_core();
     Seeded { h, key }
 }
@@ -54,6 +75,27 @@ impl Seeded {
             .unwrap()
             .items()
             .unwrap()
+    }
+
+    /// The first stored draft that `ok` accepts, within 5 s.
+    fn wait_for_draft(&self, ok: impl Fn(&envio_store::Draft) -> bool) -> envio_store::Draft {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Some((_, d)) = self.drafts().into_iter().find(|(_, d)| ok(d)) {
+                return d;
+            }
+            assert!(Instant::now() < deadline, "no such draft");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    /// Everything sent so far has been handled.
+    fn settle(&self) {
+        self.h.send(Command::ListFolders {
+            account: self.key.clone(),
+        });
+        self.h
+            .wait(|e| matches!(e, Event::Folders { .. }).then_some(()));
     }
 
     fn saved(&self) -> String {
@@ -122,6 +164,13 @@ fn send_with_no_recipients_is_refused_and_keeps_the_draft() {
     assert!(!s.refused().is_empty());
     assert!(s.outbox().is_empty());
     assert_eq!(s.drafts().len(), 1);
+    // What the Send carried is kept too, even if no change came before it.
+    let mut newer = s.draft(&[]);
+    newer.body = "typed just before Send".into();
+    s.send(newer);
+    s.refused();
+    let stored = s.wait_for_draft(|d| d.body == "typed just before Send");
+    assert_eq!(stored.subject, "Plans");
 }
 
 #[test]
@@ -239,4 +288,124 @@ fn a_reopened_draft_keeps_its_attachments() {
         draft.attachments,
         vec![std::path::PathBuf::from("/tmp/keep-me.txt")]
     );
+}
+
+#[test]
+fn a_failed_save_stays_pending_and_is_retried() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = seeded();
+    let dir = s.h.paths().drafts();
+    Drafts::open(&dir).unwrap();
+    let mode = |m| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(m)).unwrap();
+    mode(0o555);
+    s.change(s.draft(&["ada@example.org"]));
+    // The failed save tells the user once.
+    s.h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    let more_notices = std::cell::Cell::new(0);
+    std::thread::sleep(Duration::from_millis(1_300));
+    mode(0o755);
+    s.h.wait(|e| match e {
+        Event::Notice { .. } => {
+            more_notices.set(more_notices.get() + 1);
+            None
+        }
+        Event::DraftSaved { .. } => Some(()),
+        _ => None,
+    });
+    assert_eq!(more_notices.get(), 0, "one notice per run of failures");
+    assert_eq!(s.drafts().len(), 1);
+}
+
+#[test]
+fn a_failed_save_is_still_saved_when_the_window_closes() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = seeded();
+    let dir = s.h.paths().drafts();
+    Drafts::open(&dir).unwrap();
+    let mode = |m| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(m)).unwrap();
+    mode(0o555);
+    s.change(s.draft(&["ada@example.org"]));
+    s.h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    mode(0o755);
+    s.h.send(Command::CloseCompose {
+        compose: C,
+        discard: false,
+    });
+    s.saved();
+    assert_eq!(s.drafts().len(), 1);
+}
+
+#[test]
+fn a_second_send_queues_nothing_more() {
+    let s = seeded();
+    let d = s.draft(&["ada@example.org"]);
+    s.send(d.clone());
+    s.queued();
+    s.send(d);
+    s.settle();
+    assert_eq!(s.outbox().len(), 1);
+}
+
+#[test]
+fn a_change_after_send_does_not_bring_the_draft_back() {
+    let s = seeded();
+    let d = s.draft(&["ada@example.org"]);
+    s.send(d.clone());
+    s.queued();
+    s.change(d);
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert!(s.drafts().is_empty());
+}
+
+#[test]
+fn send_drops_the_pending_save() {
+    let s = seeded();
+    let d = s.draft(&["ada@example.org"]);
+    s.change(d.clone());
+    s.send(d);
+    s.queued();
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert!(s.drafts().is_empty());
+}
+
+#[test]
+fn a_change_for_a_removed_account_is_not_saved() {
+    let s = seeded();
+    s.h.send(Command::RemoveAccount {
+        account: s.key.clone(),
+        confirmed: true,
+    });
+    s.h.wait(|e| matches!(e, Event::AccountRemoved { .. }).then_some(()));
+    s.change(s.draft(&["ada@example.org"]));
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert!(s.drafts().is_empty());
+}
+
+fn reply(id: MessageRowId) -> Command {
+    Command::StartCompose {
+        compose: C,
+        from: StartFrom::Reply { id, all: false },
+        draft_id: None,
+        mailto: None,
+    }
+}
+
+#[test]
+fn a_reply_waiting_for_a_body_is_refused_when_it_cannot_be_had() {
+    let s = seeded_with(true);
+    let id = s.message_id();
+    s.h.send(reply(id));
+    assert!(!s.refused().is_empty());
+}
+
+#[test]
+fn removing_the_account_answers_a_waiting_reply() {
+    let s = seeded_with(true);
+    let id = s.message_id();
+    s.h.send(reply(id));
+    s.h.send(Command::RemoveAccount {
+        account: s.key.clone(),
+        confirmed: true,
+    });
+    assert!(!s.refused().is_empty());
 }

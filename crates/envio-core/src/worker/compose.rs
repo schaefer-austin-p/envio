@@ -4,10 +4,10 @@
 
 use std::path::Path;
 
-use envio_mime::{Address, OutgoingAttachment, Quote, ReplyKind};
-use envio_store::{BodyState, MessageRowId};
+use envio_mime::{Address, OutgoingAttachment};
 
 use super::Worker;
+use super::start::displayed;
 use crate::api::command::{ComposeId, DraftInput, StartFrom};
 use crate::api::event::Event;
 use crate::clock::now_ms;
@@ -23,17 +23,6 @@ fn refusal(error: &ComposeError) -> String {
     }
 }
 
-/// The user's text of a name, or the address when it has none.
-fn shown_name(from: &[Address]) -> String {
-    from.first()
-        .map(|a| a.name.clone().unwrap_or_else(|| a.email.clone()))
-        .unwrap_or_default()
-}
-
-fn displayed(list: &[Address]) -> Vec<String> {
-    list.iter().map(Address::display).collect()
-}
-
 /// A file to attach: its name and bytes.
 fn read_attachment(path: &Path) -> std::io::Result<OutgoingAttachment> {
     Ok(OutgoingAttachment {
@@ -46,7 +35,7 @@ fn read_attachment(path: &Path) -> std::io::Result<OutgoingAttachment> {
 }
 
 impl Worker<'_> {
-    fn compose_refused(&self, compose: ComposeId, text: String) {
+    pub(super) fn compose_refused(&self, compose: ComposeId, text: String) {
         self.emit(Event::ComposeRefused { compose, text });
     }
 
@@ -75,7 +64,7 @@ impl Worker<'_> {
         }
     }
 
-    fn compose_ready(&self, compose: ComposeId, draft: DraftInput, quoted: String) {
+    pub(super) fn compose_ready(&self, compose: ComposeId, draft: DraftInput, quoted: String) {
         self.emit(Event::ComposeReady {
             compose,
             draft,
@@ -120,137 +109,38 @@ impl Worker<'_> {
         self.compose_ready(compose, draft, String::new());
     }
 
-    /// Reply and Forward quote the message, so its body comes first.
-    fn start_from_message(&mut self, compose: ComposeId, id: MessageRowId, from: StartFrom) {
-        let unavailable = text::read::message_unavailable();
-        let Ok(message) = self.store.db.message(id) else {
-            return self.compose_refused(compose, unavailable);
-        };
-        if message.body == BodyState::Downloaded {
-            match self.store.bodies.read(message.folder, message.uid) {
-                Ok(raw) => return self.finish_start((compose, &from), id, &raw),
-                Err(e) => log::warn!("reading a cached body: {e}"),
-            }
-        }
-        let now = now_ms();
-        let full = self.disk_full(now);
-        let live = self
-            .account_of(id)
-            .and_then(|account| self.live.get_mut(&account));
-        let Some(live) = live else {
-            return self.compose_refused(compose, unavailable);
-        };
-        if full || live.health.is_paused() || !live.health.can_run(now) {
-            return self.compose_refused(compose, unavailable);
-        }
-        if !live.wants.bodies.contains(&id) {
-            live.wants.bodies.push(id);
-        }
-        self.composing.entry(id).or_default().push((compose, from));
-    }
-
-    /// Builds the reply or forward from the message's raw bytes.
-    fn finish_start(
-        &mut self,
-        (compose, from): (ComposeId, &StartFrom),
-        id: MessageRowId,
-        raw: &[u8],
-    ) {
-        let Some(account) = self.account_of(id) else {
-            return self.compose_refused(compose, text::read::message_unavailable());
-        };
-        let Some(settings) = self
-            .store
-            .accounts
-            .get(&account)
-            .map(|a| a.settings.clone())
-        else {
-            return self.compose_refused(compose, text::compose::no_account());
-        };
-        let Some(original) = envio_mime::envelope(raw) else {
-            return self.compose_refused(compose, text::read::message_unavailable());
-        };
-        let quote = envio_mime::quote_text(raw);
-        let date = compose::date_text(original.date);
-        let mut draft = DraftInput {
-            account,
-            ..DraftInput::default()
-        };
-        let quoted = match from {
-            StartFrom::Forward { .. } => {
-                let labels = text::compose::forward_labels();
-                let fwd = envio_mime::forward(&original, &quote, &labels, &date);
-                draft.subject = fwd.subject;
-                fwd.forwarded
-            }
-            _ => {
-                let all = matches!(from, StartFrom::Reply { all: true, .. });
-                let kind = if all {
-                    ReplyKind::All
-                } else {
-                    ReplyKind::Sender
-                };
-                let attribution = text::compose::attribution(&shown_name(&original.from), &date);
-                let quote = Quote {
-                    text: &quote,
-                    attribution: &attribution,
-                };
-                let reply = envio_mime::reply(&original, &quote, &[settings.email], kind);
-                draft.to = displayed(&reply.to);
-                draft.cc = displayed(&reply.cc);
-                draft.subject = reply.subject;
-                draft.in_reply_to = reply
-                    .in_reply_to
-                    .map(|m| envio_sync::convert::bracketed(&m));
-                draft.references = reply
-                    .references
-                    .iter()
-                    .map(|m| envio_sync::convert::bracketed(m))
-                    .collect();
-                reply.quoted
-            }
-        };
-        self.compose_ready(compose, draft, quoted);
-    }
-
-    /// A body step ended: start the replies and forwards that waited for it.
-    pub(super) fn compose_body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
-        for (compose, from) in self.composing.remove(&id).unwrap_or_default() {
-            match raw {
-                Some(raw) => self.finish_start((compose, &from), id, raw),
-                None => self.compose_refused(compose, text::read::message_unavailable()),
-            }
-        }
-    }
-
-    /// A step failed: nobody waiting for a body of `account` (any account
-    /// for `None`) will get it soon.
-    pub(super) fn compose_failed(&mut self, account: Option<&str>) {
-        let waiting: Vec<MessageRowId> = self
-            .composing
-            .keys()
-            .copied()
-            .filter(|id| account.is_none_or(|a| self.account_of(*id).is_none_or(|b| a == b)))
-            .collect();
-        for id in waiting {
-            for live in self.live.values_mut() {
-                live.wants.bodies.retain(|b| *b != id);
-            }
-            self.compose_body_fetched(id, None);
-        }
-    }
-
     /// An account is going: its pending draft saves must not bring it back.
     pub(super) fn drop_composes_of(&mut self, account: &str) {
         self.throttle.drop_account(account);
     }
 
     pub(super) fn draft_changed(&mut self, compose: ComposeId, draft: DraftInput) {
+        // A sent message must not come back as a draft, nor a removed
+        // account's.
+        if self.sent.contains(&compose) || self.store.accounts.get(&draft.account).is_none() {
+            return;
+        }
         self.throttle.changed(compose, draft, now_ms());
     }
 
-    /// Writes the draft: created the first time, replaced after.
-    pub(super) fn save_draft(&mut self, compose: ComposeId, draft: &DraftInput) {
+    /// Saves the draft; when that fails it stays pending and is tried again
+    /// a second later, so closing the window afterwards still saves it.
+    fn persist(&mut self, compose: ComposeId, draft: DraftInput) -> bool {
+        let saved = self.save_draft(compose, &draft);
+        if saved {
+            self.save_failed.remove(&compose);
+        } else {
+            self.throttle.retry(compose, draft, now_ms());
+        }
+        saved
+    }
+
+    /// Writes the draft: created the first time, replaced after. False when
+    /// the write failed (the first failure of a run tells the user).
+    fn save_draft(&mut self, compose: ComposeId, draft: &DraftInput) -> bool {
+        if self.store.accounts.get(&draft.account).is_none() {
+            return true;
+        }
         let stored = compose::to_store(draft, now_ms());
         let known = self
             .drafts_of
@@ -269,6 +159,7 @@ impl Worker<'_> {
                 if let Some(draft_id) = created {
                     self.emit(Event::DraftSaved { compose, draft_id });
                 }
+                true
             }
             Err(error) => {
                 log::warn!("saving a draft: {error}");
@@ -276,7 +167,10 @@ impl Worker<'_> {
                     Problem::DiskFull => text::notice::disk_full(),
                     _ => text::compose::draft_not_saved(),
                 };
-                self.emit(Event::Notice { text });
+                if self.save_failed.insert(compose) {
+                    self.emit(Event::Notice { text });
+                }
+                false
             }
         }
     }
@@ -284,28 +178,37 @@ impl Worker<'_> {
     /// Saves every draft still waiting for its second.
     pub(super) fn flush_drafts(&mut self) {
         for (compose, draft) in self.throttle.take_all() {
-            self.save_draft(compose, &draft);
+            self.persist(compose, draft);
         }
     }
 
     pub(super) fn save_due_drafts(&mut self, now: i64) {
         for (compose, draft) in self.throttle.due(now) {
-            self.save_draft(compose, &draft);
+            self.persist(compose, draft);
         }
     }
 
     pub(super) fn close_compose(&mut self, compose: ComposeId, discard: bool) {
         let pending = self.throttle.take(compose);
+        self.composing.retain(|_, waiting| {
+            waiting.retain(|(c, _)| *c != compose);
+            !waiting.is_empty()
+        });
+        let was_sent = self.sent.remove(&compose);
+        self.save_failed.remove(&compose);
         if discard {
             self.delete_draft(
                 compose,
                 pending.as_ref().and_then(|d| d.draft_id.as_deref()),
             );
         } else {
-            if let Some(draft) = pending {
-                self.save_draft(compose, &draft);
+            let saved = match pending.filter(|_| !was_sent) {
+                Some(draft) => self.persist(compose, draft),
+                None => true,
+            };
+            if saved {
+                self.drafts_of.remove(&compose);
             }
-            self.drafts_of.remove(&compose);
         }
     }
 
@@ -319,13 +222,32 @@ impl Worker<'_> {
     }
 
     pub(super) fn send(&mut self, compose: ComposeId, draft: &DraftInput) {
+        if self.sent.contains(&compose) {
+            return;
+        }
+        match self.try_send(compose, draft) {
+            Ok(item) => {
+                self.sent.insert(compose);
+                self.emit(Event::Queued { compose, item });
+                self.emit(Event::OutboxChanged);
+            }
+            Err(text) => {
+                // The window stays open: keep what the user wrote.
+                self.draft_changed(compose, draft.clone());
+                self.compose_refused(compose, text);
+            }
+        }
+    }
+
+    /// Queues the message; the item's id, or the text of the refusal.
+    fn try_send(&mut self, compose: ComposeId, draft: &DraftInput) -> Result<String, String> {
         let Some(settings) = self
             .store
             .accounts
             .get(&draft.account)
             .map(|a| a.settings.clone())
         else {
-            return self.compose_refused(compose, refusal(&ComposeError::NoAccount));
+            return Err(refusal(&ComposeError::NoAccount));
         };
         let from = Address::new(
             Some(&settings.name)
@@ -342,14 +264,13 @@ impl Worker<'_> {
                     let name = path
                         .file_name()
                         .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-                    return self
-                        .compose_refused(compose, text::compose::attachment_unreadable(&name));
+                    return Err(text::compose::attachment_unreadable(&name));
                 }
             }
         }
         let outgoing = match compose::to_outgoing(draft, from, files) {
             Ok(outgoing) => outgoing,
-            Err(error) => return self.compose_refused(compose, refusal(&error)),
+            Err(error) => return Err(refusal(&error)),
         };
         let now = now_ms();
         let built = envio_mime::build(
@@ -372,16 +293,78 @@ impl Worker<'_> {
                 if let Some(live) = self.live.get_mut(&draft.account) {
                     live.wants.send = true;
                 }
-                self.emit(Event::Queued {
-                    compose,
-                    item: item.id,
-                });
-                self.emit(Event::OutboxChanged);
+                Ok(item.id)
             }
             Err(error) => {
                 log::warn!("queueing a message: {error}");
-                self.compose_refused(compose, text::compose::queue_failed());
+                Err(text::compose::queue_failed())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use envio_store::BodyState;
+
+    use super::super::testing::{Sink, open, seed};
+    use super::*;
+
+    const C: ComposeId = ComposeId(7);
+
+    /// What compose said (the worker also announces itself at start).
+    fn said(sink: &Sink) -> Vec<Event> {
+        let mut events = sink.events();
+        events.retain(|e| !matches!(e, Event::Started { .. }));
+        events
+    }
+
+    fn waiting<'a>(
+        dir: &std::path::Path,
+        sink: &'a Sink,
+    ) -> (Worker<'a>, String, envio_store::MessageRowId) {
+        let (config, seeded) = seed(dir);
+        let mut worker = open(&config, sink);
+        worker
+            .store
+            .db
+            .set_body_state(seeded.message, BodyState::Missing)
+            .unwrap();
+        worker.start_compose(
+            C,
+            StartFrom::Reply {
+                id: seeded.message,
+                all: false,
+            },
+            (None, None),
+        );
+        (worker, seeded.account, seeded.message)
+    }
+
+    #[test]
+    fn a_reply_waits_for_its_body_and_closing_forgets_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, id) = waiting(dir.path(), &sink);
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        assert!(worker.live[&account].wants.bodies.contains(&id));
+        worker.close_compose(C, true);
+        assert!(worker.composing.is_empty());
+        worker.compose_body_fetched(id, None);
+        assert!(said(&sink).is_empty());
+    }
+
+    #[test]
+    fn a_failed_body_or_a_removed_account_answers_a_waiting_reply() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, id) = waiting(dir.path(), &sink);
+        worker.compose_failed(Some(&account));
+        assert!(worker.composing.is_empty());
+        assert!(!worker.live[&account].wants.bodies.contains(&id));
+        assert!(matches!(
+            said(&sink).as_slice(),
+            [Event::ComposeRefused { compose, .. }] if *compose == C
+        ));
     }
 }

@@ -120,6 +120,14 @@ impl SaveThrottle {
             .collect()
     }
 
+    /// Puts back a draft that could not be saved, due a second from now.
+    /// A newer change that came meanwhile wins and keeps its own time.
+    pub fn retry(&mut self, compose: ComposeId, draft: DraftInput, now_ms: i64) {
+        self.pending
+            .entry(compose)
+            .or_insert((now_ms + DRAFT_SAVE_MS, draft));
+    }
+
     pub fn take(&mut self, compose: ComposeId) -> Option<DraftInput> {
         self.pending.remove(&compose).map(|(_, draft)| draft)
     }
@@ -230,6 +238,19 @@ mod tests {
         assert!(t.due(1_499).is_empty());
         assert_eq!(t.due(1_500).len(), 1);
         assert_eq!(t.next_due(), None);
+    }
+
+    #[test]
+    fn a_retry_keeps_a_newer_change() {
+        let mut t = SaveThrottle::default();
+        let c = ComposeId(1);
+        t.retry(c, marked("old"), 100);
+        assert_eq!(t.next_due(), Some(100 + DRAFT_SAVE_MS));
+        t.retry(c, marked("older"), 900);
+        assert_eq!(t.take(c), Some(marked("old")));
+        t.changed(c, marked("new"), 200);
+        t.retry(c, marked("old"), 300);
+        assert_eq!(t.take(c), Some(marked("new")));
     }
 
     #[test]
