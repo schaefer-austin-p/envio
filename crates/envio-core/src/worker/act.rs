@@ -77,6 +77,26 @@ impl Worker<'_> {
         }
     }
 
+    /// Opening a message marks it read. Recorded like any flag change, but
+    /// the user did not ask for it, so there is no Undo offer and no notice.
+    pub(super) fn mark_opened_read(&mut self, id: MessageRowId) {
+        match self.store.db.message(id) {
+            Ok(message) if !message.flags.contains(Flags::SEEN) => {}
+            _ => return,
+        }
+        let mut done = Done {
+            now: now_ms(),
+            ..Done::default()
+        };
+        self.act_one(id, UserAction::MarkRead(true), &mut done);
+        if !done.folders.is_empty() {
+            self.emit(Event::MessagesChanged {
+                folders: done.folders.iter().copied().collect(),
+            });
+        }
+        self.want_replay(&done.accounts);
+    }
+
     fn offer_undo(&mut self, action: UserAction, done: Done, now: i64) {
         let shown = !done.undos.is_empty();
         let text = text::undo::offer(action, done.count());

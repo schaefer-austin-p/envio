@@ -304,7 +304,8 @@ impl Worker<'_> {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
                     let view = self.view(&message, &raw, (images, width_px));
-                    return self.emit(Event::MessageOpened { id, view });
+                    self.emit(Event::MessageOpened { id, view });
+                    return self.mark_opened_read(id);
                 }
                 // The file is gone: fetch it again.
                 Err(e) => log::warn!("reading a cached body: {e}"),
@@ -338,6 +339,7 @@ impl Worker<'_> {
             (Some(raw), Ok(message)) => {
                 let view = self.view(&message, raw, (images, width_px));
                 self.emit(Event::MessageOpened { id, view });
+                self.mark_opened_read(id);
             }
             _ => self.unavailable(id),
         }

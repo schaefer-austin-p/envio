@@ -412,3 +412,47 @@ fn images_load_by_default_for_an_allowed_sender() {
     assert!(view.html.contains("images.example.net/a.png"));
     assert!(view.header.sender_known);
 }
+
+#[test]
+fn opening_a_message_marks_it_read_without_an_undo_offer() {
+    let s = seeded(&[(1, HTML), (2, HTML)]);
+    let id = s.id_of("message 1");
+    assert!(
+        !s.rows()
+            .iter()
+            .find(|r| r.id == id)
+            .unwrap()
+            .flags
+            .contains(envio_core::Flags::SEEN)
+    );
+    s.open(id, ImagesChoice::Default);
+    // The list is told; an Undo toast for something nobody asked for is not.
+    let changed = s.h.wait(|e| match e {
+        Event::MessagesChanged { folders } => Some(folders.contains(&s.folder)),
+        Event::UndoOffer { .. } => Some(false),
+        _ => None,
+    });
+    assert!(changed, "MessagesChanged for the folder, no UndoOffer");
+    let rows = s.rows();
+    let seen = |subject: &str| {
+        rows.iter()
+            .find(|r| r.subject == subject)
+            .unwrap()
+            .flags
+            .contains(envio_core::Flags::SEEN)
+    };
+    assert!(seen("message 1"));
+    assert!(!seen("message 2"));
+    // Opening it again changes nothing.
+    s.open(id, ImagesChoice::Load);
+    s.h.send(Command::ListMessages {
+        list: ListRef::Folder(s.folder),
+        after: None,
+    });
+    let again = s.h.wait(|e| match e {
+        Event::MessagesChanged { .. } | Event::UndoOffer { .. } => Some(true),
+        Event::Messages { .. } => Some(false),
+        _ => None,
+    });
+    assert!(!again, "a second open sent no change");
+}
