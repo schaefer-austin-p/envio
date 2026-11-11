@@ -21,6 +21,14 @@ pub enum SecretsError {
     Io(#[from] io::Error),
     #[error("passwords file is damaged")]
     Damaged,
+    /// Written by a newer envio: left alone, so a downgrade loses nothing.
+    #[error("passwords file is from a newer envio (version {0})")]
+    Newer(u32),
+}
+
+#[derive(Deserialize)]
+struct Version {
+    version: u32,
 }
 
 #[derive(Deserialize)]
@@ -107,6 +115,11 @@ fn read(path: &Path) -> Result<BTreeMap<String, SecretString>, SecretsError> {
         log::warn!("passwords file was readable by others; narrowed to 0600");
     }
     let bytes = Zeroizing::new(fs::read(path)?);
+    if let Ok(Version { version }) = serde_json::from_slice(&bytes)
+        && version > VERSION
+    {
+        return Err(SecretsError::Newer(version));
+    }
     match serde_json::from_slice::<FileV1>(&bytes) {
         Ok(f) if f.version == VERSION => Ok(f.passwords),
         _ => {

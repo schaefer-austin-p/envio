@@ -35,6 +35,10 @@ pub(super) fn secrets_error(error: SecretsError) -> StoreError {
             file: crate::secrets::FILE_NAME.into(),
             reason: "damaged".into(),
         },
+        SecretsError::Newer(version) => StoreError::BadRecord {
+            file: crate::secrets::FILE_NAME.into(),
+            reason: format!("version {version} is from a newer envio"),
+        },
     }
 }
 

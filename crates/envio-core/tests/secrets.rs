@@ -81,6 +81,18 @@ fn a_damaged_file_is_moved_aside_not_overwritten() {
 }
 
 #[test]
+fn a_file_from_a_newer_envio_is_refused_and_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(FILE_NAME);
+    let text = br#"{"version": 2, "passwords": {"a1": {"secret": "x"}}}"#;
+    fs::write(&path, text).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(Secrets::open(dir.path()).is_err());
+    assert_eq!(fs::read(&path).unwrap(), text);
+    assert!(!dir.path().join(format!("{FILE_NAME}.damaged")).exists());
+}
+
+#[test]
 fn debug_never_shows_a_password() {
     let dir = tempfile::tempdir().unwrap();
     let mut secrets = Secrets::open(dir.path()).unwrap();
