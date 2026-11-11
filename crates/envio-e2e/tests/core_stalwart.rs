@@ -199,6 +199,17 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
             .await
             .is_empty()
     );
+    // The undone message stayed: still in INBOX, never in Trash, though its
+    // delete was replayed together with the later one.
+    assert_eq!(
+        on_server(&server, "grace", "INBOX", &keep_id).await.len(),
+        1
+    );
+    assert!(
+        on_server(&server, "grace", &trash, &keep_id)
+            .await
+            .is_empty()
+    );
 
     // Send to herself: queued, the Outbox empties, Sent has it once and
     // it arrives in the Inbox.
@@ -260,8 +271,9 @@ async fn a_changed_pin_stops_and_shows_both_fingerprints() {
     let Some((server, _turn)) = find().await else {
         return;
     };
+    let proxy = Proxy::start(&server.host, server.imaps);
     let run = CoreRun::start(LevelFilter::Info);
-    let account = run.add_account(&server, "grace");
+    let account = run.add_account_with("grace", &setup_at(&server, "grace", proxy.port));
     let fake = "ab".repeat(32);
     let key = account.clone();
     let run = run.restart_with(|paths| {
@@ -280,7 +292,11 @@ async fn a_changed_pin_stops_and_shows_both_fingerprints() {
     assert_eq!(details.service, Service::Imap);
     assert_eq!(details.pinned, Fingerprint::from_hex(&"ab".repeat(32)));
     assert_eq!(details.presented, server.pin);
-    // Stopped: nothing is synced.
+    // Stopped: nothing is synced, nothing connects. A message is waiting, so
+    // a sync that wrongly ran would show it.
+    let waiting = unique("Waiting behind a changed pin");
+    deliver(&server, "grace", &waiting).await;
+    let attempts = proxy.connections();
     let synced = run.happens(Duration::from_secs(3), |event| {
         matches!(
             event,
@@ -288,6 +304,11 @@ async fn a_changed_pin_stops_and_shows_both_fingerprints() {
         )
     });
     assert!(!synced, "the account synced against a changed certificate");
+    assert_eq!(
+        proxy.connections(),
+        attempts,
+        "the account connected again against a changed certificate"
+    );
 }
 
 #[tokio::test]
