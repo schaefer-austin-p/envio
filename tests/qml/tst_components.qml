@@ -297,6 +297,19 @@ Item {
             verify(thm.iconButton > thm.iconSmall && thm.iconButton < thm.iconSize)
         }
 
+        // Phone: a sheet whose content grew after it opened kept its first height
+        // and rested at the screen's bottom edge with only its handle showing.
+        function test_sheet_whose_content_grows_ends_at_the_window_bottom() {
+            growSheet.open()
+            tryVerify(function() { return growSheet.opened })
+            growBody.height = 240
+            tryVerify(function() { return growSheet.height >= 240 })
+            compare(growSheet.y + growSheet.height, growSheet.parent.height)
+            growSheet.close()
+            tryVerify(function() { return !growSheet.visible })
+            growBody.height = 0
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
@@ -321,6 +334,12 @@ Item {
     Component {
         id: buttonComponent
         AppButton { theme: thm; text: "Continue"; width: 300; y: 450 }
+    }
+    Sheet {
+        id: growSheet
+        theme: thm
+        title: "Grows"
+        Item { id: growBody; width: 10; height: 0 }
     }
     Component {
         id: appButtonIconComponent

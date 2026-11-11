@@ -20,6 +20,9 @@ QC.Popup {
         parent && keyboard.height > 0 ? Math.max(0, parent.height - keyboard.y) : 0
     x: 0
     width: parent ? parent.width : 0
+    // Follow the content as it grows after open (a popup left to itself kept
+    // its first height on the phone and rested far too low).
+    height: implicitHeight
     y: parent ? Math.max(0, parent.height - height - keyboardInset) : 0
     padding: 0
 
