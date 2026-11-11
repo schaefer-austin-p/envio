@@ -29,7 +29,12 @@ pub enum Signal {
         hex: String,
         text: String,
     },
-    AccountAdded(String),
+    /// The new account and its address: a wizard only advances for the
+    /// address it asked about.
+    AccountAdded {
+        account: String,
+        email: String,
+    },
     ConfirmRemove {
         account: String,
         text: String,

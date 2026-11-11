@@ -108,6 +108,11 @@ fn an_account_already_listed_is_not_added_twice() {
     let ops = changes(&outs, Model::Accounts);
     assert!(matches!(ops[..], [Op::Update { at: 1, .. }]), "{ops:?}");
     let outs = feed(&mut ui, Event::AccountAdded { account: info("c") });
+    assert!(
+        matches!(signals(&outs)[..], [Signal::AccountAdded { account, email }]
+            if account == "c" && email == "c@example.org"),
+        "the signal names the account and its address"
+    );
     let ops = changes(&outs, Model::Accounts);
     assert!(matches!(ops[..], [Op::Insert { at: 2, .. }]), "{ops:?}");
 }

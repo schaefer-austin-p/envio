@@ -30,7 +30,7 @@ Item {
     signal detected(string email, string text, bool needsConfirm, string setupJson)
     signal setupProblem(string email, string text)
     signal trustPrompt(string email, string service, string host, string fingerprint, string hex, string text)
-    signal accountAdded(string account)
+    signal accountAdded(string account, string email)
     signal confirmRemove(string account, string text)
     signal messageOpened(var view)
     signal messageUnavailable(real id, string text)

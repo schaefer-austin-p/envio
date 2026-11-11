@@ -52,7 +52,10 @@ impl Ui {
         };
         vec![
             change(Model::Accounts, op),
-            Output::Signal(Signal::AccountAdded(info.key.clone())),
+            Output::Signal(Signal::AccountAdded {
+                account: info.key.clone(),
+                email: info.email.clone(),
+            }),
         ]
     }
 

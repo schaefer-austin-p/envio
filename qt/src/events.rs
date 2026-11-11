@@ -114,7 +114,7 @@ impl qobject::EnvioCore {
                 &q(&hex),
                 &q(&text),
             ),
-            Signal::AccountAdded(a) => self.account_added(&q(&a)),
+            Signal::AccountAdded { account, email } => self.account_added(&q(&account), &q(&email)),
             Signal::ConfirmRemove { account, text } => self.confirm_remove(&q(&account), &q(&text)),
             Signal::MessageOpened { id, view } => {
                 let map = map_of(&json::message_view_value(id, &view));

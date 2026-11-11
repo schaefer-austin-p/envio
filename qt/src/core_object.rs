@@ -70,7 +70,7 @@ pub mod qobject {
         );
         #[qsignal]
         #[cxx_name = "accountAdded"]
-        fn account_added(self: Pin<&mut EnvioCore>, account: &QString);
+        fn account_added(self: Pin<&mut EnvioCore>, account: &QString, email: &QString);
         #[qsignal]
         #[cxx_name = "confirmRemove"]
         fn confirm_remove(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);

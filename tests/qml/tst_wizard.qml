@@ -127,6 +127,8 @@ Item {
 
         function test_trust_dialog_primary_is_cancel() {
             toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            mouseClick(find("signInContinue"))
             core.trustPrompt("ann@example.org", "imap", "mail.example.net",
                              "4F:2A:91", "4f2a91", "No authority signed it.")
             const dlg = find("trustDialog")
@@ -143,7 +145,7 @@ Item {
             mouseClick(primary)
             tryVerify(function() { return !dlg.visible })
             compare(core.called("acceptSetupCertificate").length, 0)
-            compare(connectCalls().length, 0)
+            compare(connectCalls().length, 1)
         }
 
         function test_trust_accept_reconnects_with_hex() {
@@ -184,7 +186,7 @@ Item {
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
-            core.accountAdded("ann")
+            core.accountAdded("ann", "ann@example.org")
             compare(find("passwordField").text, "")
             compare(wizard.step, "options")
             compare(find("syncText").text, "While Envio is open")
@@ -210,7 +212,7 @@ Item {
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
-            core.accountAdded("ann")
+            core.accountAdded("ann", "ann@example.org")
             compare(wizard.step, "options")
             find("passwordField").text = "typed-after"
             find("serversPassword").text = "typed-after"
@@ -266,7 +268,7 @@ Item {
             compare(wizard.busy, false)
             core.trustPrompt("ann@example.org", "imap", "mail.example.net", "4F", "4f", "Late.")
             core.setupProblem("ann@example.org", "Late problem.")
-            core.accountAdded("ann")
+            core.accountAdded("ann", "ann@example.org")
             core.detected("ann@example.org", "Late", false, plainJson)
             wait(50)
             verify(!find("trustDialog").visible)
@@ -274,6 +276,39 @@ Item {
             compare(wizard.error, "")
             compare(core.called("acceptSetupCertificate").length, 0)
             compare(connectCalls().length, 1)
+        }
+
+        function test_a_late_account_added_for_another_address_does_not_move_the_wizard() {
+            toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            mouseClick(find("signInContinue"))
+            back()
+            find("emailField").text = "bob@example.org"
+            mouseClick(find("continueButton"))
+            core.detected("bob@example.org", "Settings found", false,
+                plainJson.replace(/ann@example.org/g, "bob@example.org"))
+            compare(wizard.step, "signin")
+            find("passwordField").text = "swordfish"
+            mouseClick(find("signInContinue"))
+            compare(wizard.busy, true)
+            core.accountAdded("ann", "ann@example.org")
+            wait(50)
+            compare(wizard.step, "signin")
+            compare(wizard.busy, true)
+            compare(find("passwordField").text, "swordfish")
+            core.accountAdded("bob", "bob@example.org")
+            compare(wizard.step, "options")
+        }
+
+        function test_a_trust_prompt_on_the_address_step_is_ignored() {
+            typeEmail()
+            mouseClick(find("continueButton"))
+            compare(wizard.busy, true)
+            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "4F", "4f", "Early.")
+            wait(50)
+            verify(!find("trustDialog").visible)
+            compare(wizard.step, "email")
+            compare(wizard.busy, true)
         }
 
         function test_answers_for_another_address_are_ignored() {
@@ -339,7 +374,7 @@ Item {
             // The user typed these hosts: their own choice, so confirmed.
             compare(connectCalls()[0].args[2], true)
             // A stale detected name does not leak into step 3.
-            core.accountAdded("ann")
+            core.accountAdded("ann", "ann@example.org")
             compare(find("accountName").text, "ann@example.org")
         }
 
@@ -364,7 +399,7 @@ Item {
             find("smtpHost").text = "smtp.mine.example"
             find("serversPassword").text = "hunter2"
             find("connectButton").clicked()
-            core.accountAdded("ann")
+            core.accountAdded("ann", "ann@example.org")
             compare(find("accountName").text, "ann@example.org")
         }
 

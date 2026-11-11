@@ -63,7 +63,10 @@ Item {
         asked = emailStep.email.trim()
         core.detect(asked)
     }
+    // Only the sign-in and servers steps connect.
+    readonly property bool connecting: step === "signin" || step === "servers"
     function submit() {
+        if (!connecting) return
         error = ""
         busy = true
         if (step === "servers") {
@@ -181,7 +184,7 @@ Item {
             root.error = text
         }
         function onTrustPrompt(email, service, host, fingerprint, hex, text) {
-            if (!root.current(email)) return
+            if (!root.current(email) || !root.busy || !root.connecting) return
             root.busy = false
             trust.service = service
             trust.host = host
@@ -190,9 +193,9 @@ Item {
             trust.body = text
             trust.open()
         }
-        function onAccountAdded(account) {
-            // It names no address: only an attempt still in flight counts.
-            if (!root.busy || root.asked === "") return
+        function onAccountAdded(account, email) {
+            // Only the attempt in flight, for its own address, counts.
+            if (!root.busy || !root.current(email)) return
             root.busy = false
             root.clearPasswords()
             root.addedKey = account
