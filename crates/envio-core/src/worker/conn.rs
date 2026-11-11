@@ -9,7 +9,7 @@ use std::time::Duration;
 use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
-use envio_store::{Account, FolderRole, SyncState};
+use envio_store::{Account, FolderId, FolderRole, SyncState};
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
 
@@ -45,6 +45,8 @@ pub(crate) struct Live {
     /// Filing in Sent was refused: the next run lists the folders even if it
     /// only sends, so a renamed or deleted Sent is found again.
     pub relist: bool,
+    /// A folder with parts left: it is synced again before the others.
+    pub continuing: Option<FolderId>,
 }
 
 impl Live {
@@ -58,7 +60,19 @@ impl Live {
             idle_synced_first: false,
             listed: false,
             relist: false,
+            continuing: None,
         }
+    }
+}
+
+impl Live {
+    /// An account as loaded: one that cannot be read is stopped for good.
+    pub fn for_account(account: &Account) -> Self {
+        let mut live = Self::new();
+        if let Some(reason) = &account.broken {
+            live.health.status = AccountStatus::Broken(reason.clone());
+        }
+        live
     }
 }
 
@@ -204,7 +218,7 @@ impl Worker<'_> {
                 // Back after a failure, or the Inbox changed after its sync:
                 // sync it first; IDLE starts on the next turn.
                 if failed {
-                    live.health.ok();
+                    live.health.ok(disk_full);
                 }
                 live.idle_synced_first = true;
                 live.wants.folders.insert(inbox.id);
@@ -262,6 +276,8 @@ impl Worker<'_> {
                 live.conn = Conn::Closed;
                 let problem = problem::from_net(&error, Service::Imap);
                 super::run::failed(self, account, &problem);
+                // Nobody waiting for a body of this account gets it soon.
+                self.open_failed(Some(account));
             }
         }
         self.report(account, &before);

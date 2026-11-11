@@ -311,6 +311,22 @@ mod worker_tests {
     }
 
     #[test]
+    fn expiry_sets_replay() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.act(&[seeded.message], UserAction::Flag(true));
+        assert!(!worker.live[&seeded.account].wants.replay);
+        // Inside the window the action is held back.
+        let _ = worker.expire_undos(now_ms());
+        assert!(!worker.live[&seeded.account].wants.replay);
+        let closed = worker.expire_undos(now_ms() + 60_000);
+        assert_eq!(closed.len(), 1);
+        assert!(worker.live[&seeded.account].wants.replay);
+    }
+
+    #[test]
     fn an_undo_pressed_inside_the_window_wins_though_the_worker_is_late() {
         let dir = tempfile::tempdir().unwrap();
         let (config, seeded) = seed(dir.path());
@@ -354,17 +370,20 @@ mod worker_tests {
             expires_at_ms: now_ms() - 1,
         });
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        tx.send((
+        tx.send(crate::worker::Input::Command((
             crate::api::command::Command::Undo { undo: id },
             now_ms() - 100,
-        ))
+        )))
         .unwrap();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
-        tx.send((crate::api::command::Command::Shutdown, now_ms()))
-            .unwrap();
+        tx.send(crate::worker::Input::Command((
+            crate::api::command::Command::Shutdown,
+            now_ms(),
+        )))
+        .unwrap();
         runtime.block_on(worker.turn(&mut rx));
         assert!(
             sink.events()

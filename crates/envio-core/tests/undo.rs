@@ -201,3 +201,137 @@ fn a_flag_undo_queues_a_flag_check() {
     let db = Db::open(&s.h.paths().db()).unwrap();
     assert_eq!(db.folder(inbox).unwrap().sync.unwrap().highestmodseq, None);
 }
+
+fn new_message(uid: u32) -> envio_store::NewMessage {
+    envio_store::NewMessage {
+        uid,
+        size: 10,
+        envelope: envio_store::Envelope {
+            subject: format!("message {uid}"),
+            from: "Ada <ada@example.org>".into(),
+            to: ME.into(),
+            date: support::now_secs(),
+            ..envio_store::Envelope::default()
+        },
+        flags: Flags::default(),
+        preview: String::new(),
+    }
+}
+
+/// An Inbox with two synced messages, and a folder that never synced (a
+/// message in it has no UIDVALIDITY, so recording an action on it fails
+/// before anything is journaled).
+fn with_unsynced() -> (Harness, String, FolderId, FolderId) {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let inbox = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, MAIL), (2, MAIL)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let raw = db.upsert_folder(&key, "Raw", FolderRole::Other).unwrap();
+    db.upsert_message(raw, &new_message(1)).unwrap();
+    drop(db);
+    h.start_core();
+    (h, key, inbox, raw)
+}
+
+fn rows_of(h: &Harness, folder: FolderId) -> Vec<MessageRow> {
+    h.send(Command::ListMessages {
+        folder,
+        page: Page {
+            offset: 0,
+            limit: 50,
+        },
+    });
+    h.wait(|e| match e {
+        Event::Messages {
+            folder: f, rows, ..
+        } if *f == folder => Some(rows.clone()),
+        _ => None,
+    })
+}
+
+fn journal_adds(h: &Harness) -> usize {
+    let text = std::fs::read_to_string(h.paths().journal()).unwrap_or_default();
+    text.lines()
+        .filter(|l| l.contains("\"Add\"") || l.contains("\"add\""))
+        .count()
+}
+
+fn act_on(h: &Harness, rows: &[MessageRow], action: UserAction) {
+    h.send(Command::Act {
+        ids: rows.iter().map(|r| r.id).collect(),
+        action,
+    });
+}
+
+#[test]
+fn err_before_the_journal_push_keeps_nothing() {
+    let (h, _, _, raw) = with_unsynced();
+    let rows = rows_of(&h, raw);
+    act_on(&h, &rows, UserAction::Delete);
+    let text = h.wait(|e| match e {
+        Event::Notice { text } => Some(text.clone()),
+        _ => None,
+    });
+    assert!(text.contains("Could not"), "{text}");
+    assert_eq!(journal_adds(&h), 0);
+    assert_eq!(rows_of(&h, raw).len(), 1);
+    // No Undo is offered for what was not done.
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        !h.events
+            .try_iter()
+            .any(|e| matches!(e, Event::UndoOffer { .. }))
+    );
+}
+
+#[test]
+fn err_after_the_journal_push_reverts() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let inbox = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, MAIL)]);
+    // The cache refuses to delete a message, after the journal took the action.
+    let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
+    conn.execute_batch(
+        "CREATE TRIGGER no_delete BEFORE DELETE ON messages \
+         BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+    )
+    .unwrap();
+    drop(conn);
+    h.start_core();
+    let rows = rows_of(&h, inbox);
+    act_on(&h, &rows, UserAction::Delete);
+    // The action stays pending, so the user is told it cannot be undone.
+    let text = h.wait(|e| match e {
+        Event::Notice { text } => Some(text.clone()),
+        _ => None,
+    });
+    assert!(text.to_lowercase().contains("undo"), "{text}");
+    assert_eq!(journal_adds(&h), 1);
+    assert_eq!(rows_of(&h, inbox).len(), 1);
+}
+
+#[test]
+fn a_mix_of_refused_and_accepted_items() {
+    let (h, _, inbox, raw) = with_unsynced();
+    let mut rows = rows_of(&h, inbox);
+    rows.truncate(1);
+    rows.extend(rows_of(&h, raw));
+    act_on(&h, &rows, UserAction::Delete);
+    // The accepted one is offered for Undo; the refused one is told apart.
+    h.wait(|e| matches!(e, Event::Notice { text } if text.contains("Could not")).then_some(()));
+    let (undo, text, _) = h.wait(|e| match e {
+        Event::UndoOffer {
+            undo,
+            text,
+            expires_at_ms,
+        } => Some((*undo, text.clone(), *expires_at_ms)),
+        _ => None,
+    });
+    assert!(text.contains("Deleted"), "{text}");
+    assert_eq!(rows_of(&h, inbox).len(), 1);
+    assert_eq!(rows_of(&h, raw).len(), 1);
+    assert_eq!(journal_adds(&h), 1);
+    h.send(Command::Undo { undo });
+    assert!(closed(&h, undo));
+    assert_eq!(rows_of(&h, inbox).len(), 2);
+}

@@ -41,6 +41,14 @@ pub fn trust(host: &str, reason: Untrusted) -> String {
     )
 }
 
+/// Said instead of the trust prompt when no root certificates loaded: a
+/// fingerprint dialog would then ask about every server.
+pub fn no_roots() -> String {
+    tr(
+        "Envio has no trusted certificate authorities on this device, so it cannot check the server. Please report this problem",
+    )
+}
+
 pub fn unconfirmed() -> String {
     tr("Confirm the servers before signing in")
 }

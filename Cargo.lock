@@ -494,6 +494,7 @@ dependencies = [
  "gettext-rs",
  "log",
  "rcgen",
+ "rusqlite",
  "rustls",
  "secrecy",
  "serde",

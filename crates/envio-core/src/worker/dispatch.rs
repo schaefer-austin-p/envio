@@ -22,11 +22,11 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             Flow::Continue
         }
         Command::Detect { email } => {
-            worker.detect(email).await;
+            worker.detect(email);
             Flow::Continue
         }
         Command::Connect(request) => {
-            worker.connect(*request).await;
+            worker.connect(*request);
             Flow::Continue
         }
         Command::UpdatePassword { account, password } => {

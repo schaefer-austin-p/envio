@@ -328,6 +328,26 @@ impl Worker<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn an_idle_error_answers_a_pending_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.open_message(seeded.message, false, 300);
+        assert!(worker.opening.contains_key(&seeded.message));
+        // What `begin_idle` and `idle_done` do with an error.
+        worker.open_failed(Some(&seeded.account));
+        assert!(worker.opening.is_empty());
+        assert!(worker.live[&seeded.account].wants.bodies.is_empty());
+        let answered = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageUnavailable { id, .. } if id == seeded.message));
+        assert!(answered);
+    }
 
     #[test]
     fn safe_file_name_strips_paths_and_controls() {

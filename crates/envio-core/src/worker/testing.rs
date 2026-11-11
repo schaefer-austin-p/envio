@@ -13,6 +13,7 @@ use super::Worker;
 use crate::api::event::Event;
 use crate::core::{Config, EventSink};
 use crate::drafts::DraftBook;
+use crate::setup_thread::SetupThread;
 
 #[derive(Default)]
 pub(super) struct Sink(pub Mutex<Vec<Event>>);
@@ -100,8 +101,9 @@ pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
-    let (_keep, mut commands) = unbounded_channel();
+    let (keep, mut commands) = unbounded_channel();
+    let setup = Arc::new(SetupThread::start(config.roots.clone(), keep).unwrap());
     runtime
-        .block_on(Worker::open(config, &mut commands, sink, &book))
+        .block_on(Worker::open(config, &mut commands, sink, (&book, &setup)))
         .unwrap()
 }

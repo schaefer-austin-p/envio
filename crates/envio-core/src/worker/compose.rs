@@ -90,7 +90,13 @@ impl Worker<'_> {
     }
 
     fn start_from_mailto(&mut self, compose: ComposeId, mailto: Option<&str>) {
-        let Some(account) = self.store.accounts.list().first().map(|a| a.key.clone()) else {
+        let first = self
+            .store
+            .accounts
+            .list()
+            .iter()
+            .find(|a| a.broken.is_none());
+        let Some(account) = first.map(|a| a.key.clone()) else {
             return self.compose_refused(compose, text::compose::no_account());
         };
         let Some(parsed) = mailto.and_then(envio_mime::parse_mailto) else {

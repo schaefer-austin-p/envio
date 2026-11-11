@@ -8,11 +8,16 @@ use envio_sync::schedule::backoff_ms;
 pub enum AccountStatus {
     Ready,
     Syncing,
-    Offline { retry_at_ms: i64 },
+    Offline {
+        retry_at_ms: i64,
+    },
     SignInFailed,
     Certificate(Option<CertDetails>),
     DiskFull,
     Removing,
+    /// The stored entry cannot be read: never connected, never retried.
+    /// The text is the store's fixed reason.
+    Broken(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,9 +46,15 @@ impl Default for Health {
 
 impl Health {
     /// A step worked. A paused account stays paused until `resume`.
-    pub fn ok(&mut self) {
+    /// A full disk is not a failure that went away: with `disk_full` the
+    /// status stays DiskFull.
+    pub fn ok(&mut self, disk_full: bool) {
         if !self.is_paused() {
-            self.status = AccountStatus::Ready;
+            self.status = if disk_full {
+                AccountStatus::DiskFull
+            } else {
+                AccountStatus::Ready
+            };
             self.failures = 0;
         }
     }
@@ -83,14 +94,18 @@ impl Health {
             AccountStatus::Offline { retry_at_ms } => retry_at_ms <= now_ms,
             AccountStatus::SignInFailed
             | AccountStatus::Certificate(_)
-            | AccountStatus::Removing => false,
+            | AccountStatus::Removing
+            | AccountStatus::Broken(_) => false,
         }
     }
 
     pub fn is_paused(&self) -> bool {
         matches!(
             self.status,
-            AccountStatus::SignInFailed | AccountStatus::Certificate(_) | AccountStatus::Removing
+            AccountStatus::SignInFailed
+                | AccountStatus::Certificate(_)
+                | AccountStatus::Removing
+                | AccountStatus::Broken(_)
         )
     }
 
@@ -184,12 +199,37 @@ mod tests {
     fn ok_does_not_unpause() {
         let mut health = Health::default();
         health.failed(&Problem::SignIn, "a", 0);
-        health.ok();
+        health.ok(false);
         assert_eq!(health.status, AccountStatus::SignInFailed);
         health.resume();
         health.failed(&Problem::Temporary, "a", 0);
-        health.ok();
+        health.ok(false);
         assert_eq!(health, Health::default());
+    }
+
+    #[test]
+    fn ok_after_a_temporary_failure_keeps_disk_full() {
+        let mut health = Health::default();
+        health.failed(&Problem::DiskFull, "a", 0);
+        health.failed(&Problem::Temporary, "a", 0);
+        assert!(matches!(health.status, AccountStatus::Offline { .. }));
+        health.ok(true);
+        assert_eq!(health.status, AccountStatus::DiskFull);
+        assert_eq!(health.failures, 0);
+        health.ok(false);
+        assert_eq!(health.status, AccountStatus::Ready);
+    }
+
+    #[test]
+    fn a_broken_account_never_runs_and_stays_paused() {
+        let mut health = Health {
+            status: AccountStatus::Broken("x".into()),
+            ..Health::default()
+        };
+        assert!(!health.can_run(i64::MAX));
+        assert!(health.is_paused());
+        health.ok(false);
+        assert_eq!(health.status, AccountStatus::Broken("x".into()));
     }
 
     #[test]

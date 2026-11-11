@@ -11,6 +11,14 @@ pub fn cache_rebuilt() -> String {
     tr("The mail cache was damaged and is being rebuilt from the server")
 }
 
+pub fn store_problem() -> String {
+    tr("Envio cannot open its mail storage. Your unsent mail is safe; trying again")
+}
+
+pub fn rebuild_failed() -> String {
+    tr("The mail cache is damaged and could not be rebuilt. Free some space or restart Envio")
+}
+
 pub fn disk_full() -> String {
     tr("Storage is full. Free some space to keep mail up to date")
 }

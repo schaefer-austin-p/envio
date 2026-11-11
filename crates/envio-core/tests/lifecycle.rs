@@ -112,3 +112,79 @@ fn a_command_sent_while_the_store_cannot_open_runs_after_it_opens() {
     std::fs::remove_file(h.data_dir()).unwrap();
     h.wait(|e| matches!(e, Event::WorkerRestarted { .. }).then_some(()));
 }
+
+/// The account list is a directory: the store cannot open, drafts still can.
+fn block_accounts(h: &Harness) -> std::path::PathBuf {
+    let path = h.paths().accounts();
+    let aside = path.with_extension("aside");
+    std::fs::rename(&path, &aside).unwrap();
+    std::fs::create_dir_all(&path).unwrap();
+    aside
+}
+
+fn unblock_accounts(h: &Harness, aside: &std::path::Path) {
+    let path = h.paths().accounts();
+    std::fs::remove_dir(&path).unwrap();
+    std::fs::rename(aside, &path).unwrap();
+}
+
+#[test]
+fn a_store_that_wont_open_says_so_once() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account("me@example.org", Some("pw"));
+    let aside = block_accounts(&h);
+    h.start_core();
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
+    // It keeps trying for a few rounds without saying it again.
+    std::thread::sleep(Duration::from_millis(3_000));
+    let again = h
+        .events
+        .try_iter()
+        .filter(|e| matches!(e, Event::StoreProblem { .. }))
+        .count();
+    assert_eq!(again, 0);
+    unblock_accounts(&h, &aside);
+    let (accounts, _) = h.wait(started);
+    assert_eq!(accounts[0].key, key);
+}
+
+#[test]
+fn commands_queued_while_the_store_is_closed_run_after_it_opens() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account("me@example.org", Some("pw"));
+    let aside = block_accounts(&h);
+    h.start_core();
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
+    h.send(Command::ListFolders { account: key });
+    std::thread::sleep(Duration::from_millis(200));
+    unblock_accounts(&h, &aside);
+    h.wait(|e| matches!(e, Event::Folders { .. }).then_some(()));
+}
+
+#[test]
+fn drafts_are_saved_while_the_store_is_closed() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account("me@example.org", Some("pw"));
+    let _aside = block_accounts(&h);
+    h.start_core();
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
+    h.send(Command::DraftChanged {
+        compose: envio_core::ComposeId(1),
+        draft: envio_core::DraftInput {
+            account: key,
+            to: vec!["ada@example.org".into()],
+            subject: "Plans".into(),
+            body: "kept".into(),
+            ..envio_core::DraftInput::default()
+        },
+    });
+    let drafts = envio_store::Drafts::open(&h.paths().drafts()).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(4);
+    loop {
+        if drafts.list().unwrap().iter().any(|(_, d)| d.body == "kept") {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the draft was not saved");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}

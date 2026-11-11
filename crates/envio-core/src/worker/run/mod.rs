@@ -26,6 +26,10 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     match run_step(worker, account, step).await {
         Ok(()) => succeeded(worker, account, step),
         Err(problem) => {
+            // A part of a big folder that failed is not continued first.
+            if let Some(live) = worker.live.get_mut(account) {
+                live.continuing = None;
+            }
             let response = failed(worker, account, &problem);
             if matches!(
                 response,
@@ -72,7 +76,7 @@ pub(crate) async fn run_step(
         Step::Body(id) => sync::body(worker, &mut session, id).await,
         Step::Replay => sync::replay(worker, account, &mut session).await,
         Step::File => mail::file(worker, account, &mut session).await,
-        Step::Folder(id) => sync::folder(worker, &mut session, id).await,
+        Step::Folder(id) => sync::folder(worker, account, &mut session, id).await,
         Step::Send => Ok(()),
     };
     if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
@@ -93,7 +97,13 @@ fn keep(worker: &mut Worker<'_>, account: &str, session: ImapSession, changed: O
         if let Some(id) = changed {
             live.wants.folders.insert(id);
         }
-        live.conn = Conn::Ready(session);
+        // In the background only a body the reader waits for is fetched:
+        // the connection is not kept.
+        live.conn = if worker.foreground {
+            Conn::Ready(session)
+        } else {
+            Conn::Closed
+        };
     }
 }
 
@@ -101,9 +111,7 @@ fn succeeded(worker: &mut Worker<'_>, account: &str, step: Step) {
     finished(worker, account, step);
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
-        if !disk_full {
-            live.health.ok();
-        }
+        live.health.ok(disk_full);
         if live.wants.is_empty() {
             live.listed = false;
         } else if live.health.status == crate::health::AccountStatus::Ready {
@@ -129,7 +137,10 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
         Step::Send => live.wants.send = false,
         Step::File => live.wants.file = false,
         Step::Folder(id) => {
-            live.wants.folders.remove(&id);
+            // Parts remain: the same folder runs again, ahead of the others.
+            if live.continuing != Some(id) {
+                live.wants.folders.remove(&id);
+            }
         }
     }
 }
@@ -161,6 +172,7 @@ fn rebuild(worker: &mut Worker<'_>) {
             });
             for (key, live) in &mut worker.live {
                 // Folder ids did not survive.
+                live.continuing = None;
                 live.wants = super::plan::Wants {
                     full: true,
                     ..super::plan::Wants::default()
@@ -170,6 +182,50 @@ fn rebuild(worker: &mut Worker<'_>) {
                 });
             }
         }
-        Err(error) => log::error!("rebuilding the cache: {error}"),
+        Err(error) => {
+            log::error!("rebuilding the cache: {error}");
+            worker.emit(Event::Notice {
+                text: text::notice::rebuild_failed(),
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::rebuild;
+    use crate::api::event::Event;
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn a_failed_rebuild_is_noticed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let garbage = config.cache_dir.join("garbage");
+        fs::write(&garbage, b"not a database, long enough to be read as one").unwrap();
+        fs::rename(&garbage, worker.store.paths.db()).unwrap();
+        // Moving the damaged file aside needs a writable folder.
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o500)).unwrap();
+        let as_root = fs::write(config.cache_dir.join("probe"), b"x").is_ok();
+        rebuild(&mut worker);
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o700)).unwrap();
+        if as_root {
+            eprintln!("skipped: running as root, read-only has no effect");
+            return;
+        }
+        let notices: Vec<String> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Notice { text } => Some(text),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(notices, [crate::text::notice::rebuild_failed()]);
     }
 }

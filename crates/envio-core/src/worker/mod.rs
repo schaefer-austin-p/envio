@@ -32,6 +32,7 @@ use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
 use crate::drafts::DraftBook;
 use crate::health::AccountStatus;
+use crate::setup_thread::{SetupDone, SetupThread};
 use crate::text;
 use crate::undo::UndoBook;
 use conn::{IdleFuture, Live};
@@ -71,24 +72,39 @@ pub(crate) struct Worker<'s> {
     book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
+    /// The thread that does the network half of account setup.
+    setup: Arc<SetupThread>,
+    /// The newest `Detect` ticket by address: an older answer is dropped.
+    detecting: BTreeMap<String, u64>,
+    /// The newest `Connect` ticket by address.
+    probing: BTreeMap<String, u64>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
 pub(crate) type Stamped = (Command, i64);
 
+/// What the worker's queue carries: the app's commands, and the answers of
+/// the setup thread.
+// A command is by far the common input; boxing it would allocate for each one.
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum Input {
+    Command(Stamped),
+    Setup(SetupDone),
+}
+
 /// Returns on `Shutdown` or when the handle is gone.
 pub(crate) fn run(
     config: &Config,
-    commands: &mut UnboundedReceiver<Stamped>,
+    commands: &mut UnboundedReceiver<Input>,
     sink: &dyn EventSink,
-    book: &Arc<DraftBook>,
+    (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
     runtime.block_on(async {
-        let Some(mut worker) = Worker::open(config, commands, sink, book).await else {
+        let Some(mut worker) = Worker::open(config, commands, sink, (book, setup)).await else {
             return;
         };
         while worker.turn(commands).await == Flow::Continue {}
@@ -100,18 +116,24 @@ impl<'s> Worker<'s> {
     /// when told to shut down meanwhile.
     async fn open(
         config: &Config,
-        commands: &mut UnboundedReceiver<Stamped>,
+        commands: &mut UnboundedReceiver<Input>,
         sink: &'s dyn EventSink,
-        book: &Arc<DraftBook>,
+        (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
-        let mut queued: VecDeque<Stamped> = VecDeque::new();
+        let mut queued: VecDeque<Input> = VecDeque::new();
         let (store, cache) = loop {
             match Store::open(config, book, now_ms()) {
                 Ok(opened) => break opened,
                 Err(error) => {
                     failures = failures.saturating_add(1);
                     log::error!("opening the store: {error}");
+                    if failures == 1 {
+                        // Once per open: it keeps trying, drafts are safe.
+                        sink.emit(Event::StoreProblem {
+                            text: text::notice::store_problem(),
+                        });
+                    }
                 }
             }
             let wait = backoff_ms(failures, u64::from(failures));
@@ -121,9 +143,15 @@ impl<'s> Worker<'s> {
                 command = commands.recv() => match command {
                     None => return None,
                     Some(command) => {
-                        if matches!(command.0, Command::Shutdown) {
+                        if matches!(&command, Input::Command((Command::Shutdown, _))) {
                             if !queued.is_empty() {
-                                let names: Vec<&str> = queued.iter().map(|(c, _)| c.name()).collect();
+                                let names: Vec<&str> = queued
+                                    .iter()
+                                    .map(|input| match input {
+                                        Input::Command((c, _)) => c.name(),
+                                        Input::Setup(_) => "setup result",
+                                    })
+                                    .collect();
                                 log::warn!(
                                     "shutdown with {} unhandled commands: {}",
                                     names.len(),
@@ -141,7 +169,7 @@ impl<'s> Worker<'s> {
             .accounts
             .list()
             .iter()
-            .map(|a| (a.key.clone(), Live::new()))
+            .map(|a| (a.key.clone(), Live::for_account(a)))
             .collect();
         let mut worker = Worker {
             store,
@@ -160,11 +188,14 @@ impl<'s> Worker<'s> {
             undo: UndoBook::default(),
             book: Arc::clone(book),
             composing: BTreeMap::new(),
+            setup: Arc::clone(setup),
+            detecting: BTreeMap::new(),
+            probing: BTreeMap::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
-        for (command, at_ms) in queued {
-            if handle(&mut worker, command, at_ms).await == Flow::Stop {
+        for input in queued {
+            if worker.input(input).await == Flow::Stop {
                 return None;
             }
         }
@@ -186,7 +217,12 @@ impl<'s> Worker<'s> {
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
                 email: a.settings.email.clone(),
-                status: AccountStatus::Ready,
+                status: a
+                    .broken
+                    .clone()
+                    .map_or(AccountStatus::Ready, AccountStatus::Broken),
+                unread: 0,
+                broken: a.broken.is_some(),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
@@ -194,7 +230,7 @@ impl<'s> Worker<'s> {
 
     /// One loop iteration: run a step if an account has one, else wait for
     /// a command, an IDLE to end or the next timer.
-    pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
+    pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
         // Commands that came in during the last step go first: an Undo
         // pressed inside its window must not find the offer closed.
         if self.drain(commands).await == Flow::Stop {
@@ -217,8 +253,8 @@ impl<'s> Worker<'s> {
             }
         };
         tokio::select! {
-            command = commands.recv() => match command {
-                Some((command, at_ms)) => match handle(self, command, at_ms).await {
+            input = commands.recv() => match input {
+                Some(input) => match self.input(input).await {
                     Flow::Continue => self.drain(commands).await,
                     Flow::Stop => Flow::Stop,
                 },
@@ -263,13 +299,23 @@ impl<'s> Worker<'s> {
             .map(|f| f.id)
     }
 
-    /// Handles the commands already queued.
-    async fn drain(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
-        while let Ok((command, at_ms)) = commands.try_recv() {
-            if handle(self, command, at_ms).await == Flow::Stop {
+    /// Handles the inputs already queued.
+    async fn drain(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
+        while let Ok(input) = commands.try_recv() {
+            if self.input(input).await == Flow::Stop {
                 return Flow::Stop;
             }
         }
         Flow::Continue
+    }
+
+    async fn input(&mut self, input: Input) -> Flow {
+        match input {
+            Input::Command((command, at_ms)) => handle(self, command, at_ms).await,
+            Input::Setup(done) => {
+                self.setup_done(done);
+                Flow::Continue
+            }
+        }
     }
 }

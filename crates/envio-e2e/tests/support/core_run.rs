@@ -40,7 +40,7 @@ fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
     let config = Config {
         cache_dir: dir.path().join("cache"),
         data_dir: dir.path().join("data"),
-        roots: Roots::empty(),
+        roots: Roots::bundled(),
         log_level: level,
         foreground: true,
     };

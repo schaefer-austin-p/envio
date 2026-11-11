@@ -18,6 +18,10 @@ pub struct AccountInfo {
     pub name: String,
     pub email: String,
     pub status: AccountStatus,
+    /// Unread messages in the Inbox (filled from Task 6 on; 0 until then).
+    pub unread: u32,
+    /// The stored entry cannot be read; `status` names why.
+    pub broken: bool,
 }
 
 /// Work an account has that no server holds yet.

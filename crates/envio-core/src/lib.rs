@@ -18,6 +18,7 @@ mod compose;
 mod drafts;
 mod fsutil;
 mod outbox;
+mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
 #[allow(dead_code)]
 mod i18n;

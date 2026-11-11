@@ -494,3 +494,50 @@ async fn an_open_whose_body_cannot_be_fetched_answers_with_a_failure() {
         _ => None,
     });
 }
+
+#[tokio::test]
+async fn a_first_sync_in_parts_lets_a_list_through() {
+    let Some((server, _turn)) = find().await else {
+        return;
+    };
+    // More than two parts of the Inbox (a part is 100 messages) for a new user.
+    let user = "heidi";
+    {
+        let mut session = server.imap(&creds(user)).await;
+        for n in 0..250 {
+            let id = message_id();
+            let subject = format!("Bulk {n}");
+            session
+                .append("INBOX", &[], &message(&id, &subject, 300))
+                .await
+                .unwrap();
+        }
+        session.logout().await.unwrap();
+    }
+    let run = CoreRun::start(LevelFilter::Info);
+    let account = run.add_account(&server, user);
+    // While the Inbox comes in part by part, a list is answered at once.
+    let mut slowest = Duration::ZERO;
+    let mut answers = 0;
+    let end = Instant::now() + NET;
+    let changed = std::cell::Cell::new(0);
+    while Instant::now() < end && changed.get() < 3 {
+        let began = Instant::now();
+        run.core.send(Command::ListFolders {
+            account: account.clone(),
+        });
+        run.wait(Duration::from_secs(2), |event| match event {
+            Event::MessagesChanged { .. } => {
+                changed.set(changed.get() + 1);
+                None
+            }
+            Event::Folders { .. } => Some(()),
+            _ => None,
+        });
+        slowest = slowest.max(began.elapsed());
+        answers += 1;
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(answers >= 1);
+    assert!(slowest < Duration::from_millis(500), "{slowest:?}");
+}

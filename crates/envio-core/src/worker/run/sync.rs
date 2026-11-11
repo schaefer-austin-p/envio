@@ -42,12 +42,18 @@ pub(super) async fn folders(
 
 pub(super) async fn folder(
     worker: &mut Worker<'_>,
+    account: &str,
     session: &mut ImapSession,
     id: FolderId,
 ) -> Result<(), Problem> {
-    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now_ms())
+    // One time for the whole step.
+    let now = now_ms();
+    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now)
         .await
         .map_err(|e| imap_error(&e))?;
+    if let Some(live) = worker.live.get_mut(account) {
+        live.continuing = synced.more.then_some(id);
+    }
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
     }

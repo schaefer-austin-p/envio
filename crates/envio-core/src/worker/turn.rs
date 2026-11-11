@@ -61,6 +61,20 @@ impl Worker<'_> {
         loop {
             let folders = self.store.db.folders(account).unwrap_or_default();
             let live = self.live.get_mut(account)?;
+            // A message opened in the background is fetched now (and only
+            // it), not when the app comes back.
+            if !self.foreground
+                && !disk_full
+                && !live.health.is_paused()
+                && live.health.can_run(now)
+                && let Some(id) = live.wants.bodies.first().copied()
+            {
+                if let Conn::Idling(stop) = &live.conn {
+                    stop.notify_one();
+                    return None;
+                }
+                return Some(Step::Body(id));
+            }
             let timing = Timing {
                 foreground: self.foreground,
                 can_run: live.health.can_run(now),
@@ -77,6 +91,7 @@ impl Worker<'_> {
                     if !matches!(live.conn, Conn::Idling(_)) {
                         if let Err(problem) = self.begin_idle(account, until_ms).await {
                             super::run::failed(self, account, &problem);
+                            self.open_failed(Some(account));
                             return None;
                         }
                         // Recovery may have queued the Inbox: decide again.
@@ -97,9 +112,13 @@ impl Worker<'_> {
                     if live.listed {
                         live.wants.expand(&folders);
                     }
-                    let todo = steps(&live.wants, &folders, disk_full, live.relist)
+                    let mut todo = steps(&live.wants, &folders, disk_full, live.relist)
                         .into_iter()
                         .find(|step| !(live.listed && *step == Step::Folders));
+                    if let (Some(Step::Folder(_)), Some(id)) = (todo, live.continuing) {
+                        // The next part of the folder in progress goes first.
+                        todo = Some(Step::Folder(id));
+                    }
                     if todo.is_some() {
                         return todo;
                     }
@@ -166,6 +185,32 @@ mod tests {
 
     use envio_sync::Key;
     use tokio::sync::Notify;
+
+    use crate::clock::now_ms;
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn an_open_in_the_background_is_served() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        assert!(!config.foreground);
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let account = seeded.account.clone();
+        // Nothing is wanted: the background stays quiet.
+        let idle = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(idle, None);
+        // The reader opens a message that was never downloaded.
+        worker.open_message(seeded.message, false, 300);
+        let step = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(step, Some(Step::Body(seeded.message)));
+        // Not with a full disk, which has no room for it.
+        let full = runtime.block_on(worker.pick_for(&account, now_ms(), true));
+        assert_eq!(full, None);
+    }
 
     #[test]
     fn an_idling_account_yields_no_wake_time() {

@@ -31,6 +31,9 @@ pub struct Harness {
     pub events: Receiver<Event>,
     /// `Config.foreground` for the next `start_core`.
     pub foreground: bool,
+    /// `Config.roots` for the next `start_core`: the bundled ones, so a
+    /// self-signed test server is untrusted, not "no roots".
+    pub roots: envio_net::Roots,
     sender: Sender<Event>,
 }
 
@@ -43,6 +46,7 @@ impl Harness {
             core: None,
             events,
             foreground: false,
+            roots: envio_net::Roots::bundled(),
             sender,
         }
     }
@@ -69,7 +73,7 @@ impl Harness {
         Config {
             cache_dir: self.cache_dir(),
             data_dir: self.data_dir(),
-            roots: envio_net::Roots::empty(),
+            roots: self.roots.clone(),
             log_level: log::LevelFilter::Info,
             foreground: self.foreground,
         }

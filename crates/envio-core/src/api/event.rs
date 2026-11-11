@@ -19,6 +19,11 @@ pub enum Event {
         accounts: Vec<AccountInfo>,
         cache: CacheState,
     },
+    /// The store will not open; the worker keeps trying. Drafts are safe.
+    /// `Started` follows once it opens.
+    StoreProblem {
+        text: String,
+    },
     /// The worker panicked and came back.
     WorkerRestarted {
         text: String,

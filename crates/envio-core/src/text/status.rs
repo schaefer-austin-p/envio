@@ -6,6 +6,15 @@ use crate::problem::CertDetails;
 use crate::servers::Service;
 use envio_net::Untrusted;
 
+/// An account that could not be loaded; `reason` is a fixed text from the
+/// store (never a value from the file).
+pub fn broken(reason: &str) -> String {
+    fill(
+        &tr("This account's settings cannot be read ({reason}). Remove it and add it again"),
+        &[("reason", reason)],
+    )
+}
+
 pub fn status(status: &AccountStatus) -> String {
     match status {
         AccountStatus::Ready => tr("Ready"),
@@ -16,6 +25,7 @@ pub fn status(status: &AccountStatus) -> String {
         AccountStatus::Certificate(None) => tr("The server certificate needs your attention"),
         AccountStatus::DiskFull => tr("Storage is full, downloads stopped"),
         AccountStatus::Removing => tr("Removing account"),
+        AccountStatus::Broken(reason) => broken(reason),
     }
 }
 

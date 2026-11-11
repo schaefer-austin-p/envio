@@ -73,6 +73,10 @@ impl Worker<'_> {
     /// The user fixed what paused the account: sync again now.
     fn resume(&mut self, account: &str) {
         let before = self.status_of(account);
+        // A broken entry is cleared only by repairing it or removing it.
+        if matches!(before, AccountStatus::Broken(_)) {
+            return;
+        }
         if let Some(live) = self.live.get_mut(account) {
             live.health.resume();
             live.wants.full = true;

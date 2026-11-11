@@ -12,8 +12,9 @@ use crate::api::command::Command;
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::drafts::{DraftBook, DraftKeeper};
+use crate::setup_thread::SetupThread;
 use crate::supervisor::supervise;
-use crate::worker::Stamped;
+use crate::worker::Input;
 
 /// Where events go. Called on the worker thread, so it must not block.
 pub trait EventSink: Send + Sync + 'static {
@@ -37,7 +38,7 @@ impl Config {
 }
 
 pub struct Core {
-    commands: UnboundedSender<Stamped>,
+    commands: UnboundedSender<Input>,
     thread: Option<JoinHandle<()>>,
     /// Saves drafts on its own thread, whatever the worker is doing. Dropped
     /// after the worker has stopped (field order), which flushes it again.
@@ -63,9 +64,12 @@ impl Core {
         }
         let keeper = DraftKeeper::start(Arc::clone(&book), Arc::clone(&sink))?;
         let (commands, receiver) = unbounded_channel();
+        // Outlives the worker's restarts: a probe that was running when the
+        // worker panicked ends in the same channel, and is dropped as stale.
+        let setup = Arc::new(SetupThread::start(config.roots.clone(), commands.clone())?);
         let thread = thread::Builder::new()
             .name("envio-worker".into())
-            .spawn(move || supervise(config, receiver, sink, book))?;
+            .spawn(move || supervise(config, receiver, sink, (book, setup)))?;
         Ok(Core {
             commands,
             thread: Some(thread),
@@ -99,8 +103,10 @@ impl Core {
             }
             other => other,
         };
-        if let Err(error) = self.commands.send((command, at)) {
-            log::warn!("worker has stopped; dropped {}", error.0.0.name());
+        if let Err(error) = self.commands.send(Input::Command((command, at)))
+            && let Input::Command((command, _)) = error.0
+        {
+            log::warn!("worker has stopped; dropped {}", command.name());
         }
     }
 
@@ -113,7 +119,9 @@ impl Drop for Core {
         // Saved before the worker is stopped, so even a worker stuck in a
         // step costs no draft.
         self.keeper.flush();
-        let _ = self.commands.send((Command::Shutdown, now_ms()));
+        let _ = self
+            .commands
+            .send(Input::Command((Command::Shutdown, now_ms())));
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
