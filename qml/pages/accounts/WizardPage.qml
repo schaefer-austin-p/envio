@@ -22,6 +22,8 @@ Item {
     // True only after "Use these servers" for the hosts now in `setup`.
     property bool serversConfirmed: false
     property string addedKey: ""
+    // What the account was created with, for step 3.
+    property string accountName: ""
     signal closed()
 
     function clearPasswords() {
@@ -32,13 +34,31 @@ Item {
         clearPasswords()
         root.closed()
     }
-    function back() {
+    // Drop everything tied to the address being set up: the passwords,
+    // the confirmation of its hosts, and interest in any answer still on
+    // its way (`asked` is empty, so late events are ignored).
+    function forget() {
+        clearPasswords()
+        serversConfirmed = false
+        busy = false
+        asked = ""
         error = ""
-        if (step === "email" || step === "options") close()
-        else step = "email"
+    }
+    function back() {
+        if (step === "email" || step === "options") {
+            error = ""
+            close()
+        } else {
+            forget()
+            step = "email"
+        }
+    }
+    // Is `email` the address of the attempt in flight?
+    function current(email) {
+        return asked !== "" && String(email).toLowerCase() === asked.toLowerCase()
     }
     function detect() {
-        error = ""
+        forget()
         busy = true
         asked = emailStep.email.trim()
         core.detect(asked)
@@ -46,8 +66,16 @@ Item {
     function submit() {
         error = ""
         busy = true
-        if (step === "servers") core.connect(servers.setupJson(), servers.password, false)
-        else core.connect(setupJson, signIn.password, serversConfirmed)
+        if (step === "servers") {
+            // The user typed these hosts: their own choice, so confirmed.
+            asked = emailStep.email.trim()
+            accountName = asked
+            core.connect(servers.setupJson(), servers.password, true)
+        } else {
+            asked = setup.email
+            accountName = setup.name
+            core.connect(setupJson, signIn.password, serversConfirmed)
+        }
     }
 
     TopBar {
@@ -71,7 +99,10 @@ Item {
         error: root.error
         busy: root.busy
         onContinued: root.detect()
-        onManualRequested: { root.error = ""; root.step = "servers" }
+        // Editing the address ends the attempt for the old one.
+        onEmailChanged: root.forget()
+        // A detect still running is dropped: its answer must not move us.
+        onManualRequested: { root.forget(); root.step = "servers" }
     }
     SignInStep {
         id: signIn
@@ -99,7 +130,7 @@ Item {
         theme: root.theme
         anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "options"
-        accountName: root.setup.name !== undefined ? root.setup.name : emailStep.email.trim()
+        accountName: root.accountName
         onDone: {
             if (options.isDefault) {
                 root.core.saveSettings(root.core.theme, root.core.darkMode, root.core.imagesAlways, root.addedKey)
@@ -117,9 +148,9 @@ Item {
         smtpHost: root.setup.smtpHost !== undefined ? root.setup.smtpHost : ""
         smtpPort: root.setup.smtpPort !== undefined ? root.setup.smtpPort : 0
         onConfirmed: root.serversConfirmed = true
-        onCancelled: root.step = "email"
+        onCancelled: { root.forget(); root.step = "email" }
         // Cancel, or dismissing the dialog any other way: back to the address.
-        onClosed: if (!root.serversConfirmed && root.step === "signin") root.step = "email"
+        onClosed: if (!root.serversConfirmed && root.step === "signin") { root.forget(); root.step = "email" }
     }
     TrustDialog {
         id: trust
@@ -136,7 +167,7 @@ Item {
     Connections {
         target: root.core
         function onDetected(email, text, needsConfirm, json) {
-            if (email !== root.asked) return
+            if (!root.current(email)) return
             root.busy = false
             root.foundText = text
             root.setupJson = json
@@ -145,10 +176,12 @@ Item {
             if (needsConfirm) confirmHosts.open()
         }
         function onSetupProblem(email, text) {
+            if (!root.current(email)) return
             root.busy = false
             root.error = text
         }
         function onTrustPrompt(email, service, host, fingerprint, hex, text) {
+            if (!root.current(email)) return
             root.busy = false
             trust.service = service
             trust.host = host
@@ -158,6 +191,8 @@ Item {
             trust.open()
         }
         function onAccountAdded(account) {
+            // It names no address: only an attempt still in flight counts.
+            if (!root.busy || root.asked === "") return
             root.busy = false
             root.clearPasswords()
             root.addedKey = account

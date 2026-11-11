@@ -123,6 +123,19 @@ Item {
             compare(wantsPassword.signalArguments[0][0], "ann")
         }
 
+        function test_update_password_back_clears_the_field() {
+            update.visible = true
+            const field = find("newPassword", update)
+            field.text = "n3w-secret"
+            const back = everything(update, []).filter(function(o) { return o.text === "Back" && o.clicked !== undefined })[0]
+            verify(back !== undefined)
+            back.clicked()
+            compare(field.text, "")
+            compare(updateClosed.count, 1)
+            compare(core.called("updatePassword").length, 0)
+            update.visible = false
+        }
+
         function test_update_password_sends_it() {
             update.visible = true
             const field = find("newPassword", update)

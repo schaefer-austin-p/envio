@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 18:48+0100\n"
+"POT-Creation-Date: 2026-11-11 18:57+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -38,7 +38,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:58
+#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:86
 msgid "Add account"
 msgstr ""
 
@@ -147,7 +147,7 @@ msgstr ""
 msgid "IMAP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:60 qml/pages/accounts/ServersStep.qml:78
+#: qml/pages/accounts/ServersStep.qml:60 qml/pages/accounts/ServersStep.qml:81
 msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
 msgstr ""
 
@@ -163,19 +163,19 @@ msgstr ""
 msgid "SMTP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:84
+#: qml/pages/accounts/ServersStep.qml:87
 msgid "SMTP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:87
+#: qml/pages/accounts/ServersStep.qml:90
 msgid "User name"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:89 qml/pages/accounts/SignInStep.qml:65
+#: qml/pages/accounts/ServersStep.qml:92 qml/pages/accounts/SignInStep.qml:65
 msgid "Password"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:95
+#: qml/pages/accounts/ServersStep.qml:98
 msgid "Connect"
 msgstr ""
 
@@ -209,15 +209,15 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:59
+#: qml/pages/accounts/WizardPage.qml:87
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:60
+#: qml/pages/accounts/WizardPage.qml:88
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:61
+#: qml/pages/accounts/WizardPage.qml:89
 msgid "Account options"
 msgstr ""
 

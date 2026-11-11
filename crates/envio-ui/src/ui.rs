@@ -48,6 +48,8 @@ pub struct Ui {
     /// Certificates accepted for the account being set up; the next
     /// `Connect` carries them.
     accepted: Vec<(Service, String)>,
+    /// The address those acceptances were made for.
+    setup_email: Option<String>,
     now: i64,
     utc_offset_s: i32,
 }
@@ -75,6 +77,18 @@ impl Ui {
     /// A new setup starts: earlier acceptances do not carry over.
     pub fn clear_accepted(&mut self) {
         self.accepted.clear();
+        self.setup_email = None;
+    }
+
+    /// A setup (`Detect` or `Connect`) for `email` begins: acceptances made
+    /// for another address are dropped. They hold no host, so they must
+    /// not follow the user to another address's servers.
+    pub fn begin_setup(&mut self, email: &str) {
+        let email = email.trim().to_lowercase();
+        if self.setup_email.as_deref() != Some(email.as_str()) {
+            self.accepted.clear();
+            self.setup_email = Some(email);
+        }
     }
 
     pub fn apply(&mut self, event: Event, now: i64, utc_offset_s: i32) -> Vec<Output> {

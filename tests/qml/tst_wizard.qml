@@ -49,6 +49,9 @@ Item {
             return hit[0]
         }
         function init() {
+            find("confirmHosts").close()
+            find("trustDialog").close()
+            tryVerify(function() { return !find("confirmHosts").visible && !find("trustDialog").visible })
             core.reset()
             wizard.clearPasswords()
             wizard.step = "email"
@@ -194,15 +197,118 @@ Item {
             compare(wizardClosed.count, 1)
         }
 
+        function back() {
+            const all = everything(wizard, []).filter(function(o) { return o.text === "Back" && o.clicked !== undefined })
+            verify(all.length > 0)
+            all[0].clicked()
+        }
+
         function test_password_cleared_when_closed() {
+            // Back from the last step closes the wizard; both password
+            // fields are empty.
+            find("serversPassword").text = "left-over"
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"
-            wizard.back()
-            wizard.step = "signin"
-            verify(find("passwordField").text !== "")
-            wizard.close()
+            mouseClick(find("signInContinue"))
+            core.accountAdded("ann")
+            compare(wizard.step, "options")
+            find("passwordField").text = "typed-after"
+            find("serversPassword").text = "typed-after"
+            back()
             compare(find("passwordField").text, "")
+            compare(find("serversPassword").text, "")
             compare(wizardClosed.count, 1)
+        }
+
+        function test_back_clears_the_password_and_the_confirmation() {
+            toSignIn(srvJson, true)
+            mouseClick(dialogButton("confirmHosts", "secondaryAction"))
+            tryVerify(function() { return !find("confirmHosts").visible })
+            find("passwordField").text = "hunter2"
+            compare(wizard.serversConfirmed, true)
+            back()
+            compare(wizard.step, "email")
+            compare(find("passwordField").text, "")
+            compare(wizard.serversConfirmed, false)
+            // Another address: step 2 comes up empty and unconfirmed.
+            find("emailField").text = "bob@example.net"
+            mouseClick(find("continueButton"))
+            core.detected("bob@example.net", "Settings found", false, plainJson)
+            compare(wizard.step, "signin")
+            compare(find("passwordField").text, "")
+            compare(wizard.serversConfirmed, false)
+        }
+
+        function test_editing_the_address_clears_the_password() {
+            toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            wizard.step = "email"
+            find("emailField").text = "ann@example.org2"
+            compare(find("passwordField").text, "")
+            compare(wizard.serversConfirmed, false)
+        }
+
+        function test_servers_step_back_clears_its_password() {
+            typeEmail()
+            mouseClick(find("manualButton"))
+            find("serversPassword").text = "hunter2"
+            back()
+            compare(wizard.step, "email")
+            compare(find("serversPassword").text, "")
+        }
+
+        function test_late_events_after_back_are_ignored() {
+            toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            mouseClick(find("signInContinue"))
+            compare(wizard.busy, true)
+            back()
+            compare(wizard.busy, false)
+            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "4F", "4f", "Late.")
+            core.setupProblem("ann@example.org", "Late problem.")
+            core.accountAdded("ann")
+            core.detected("ann@example.org", "Late", false, plainJson)
+            wait(50)
+            verify(!find("trustDialog").visible)
+            compare(wizard.step, "email")
+            compare(wizard.error, "")
+            compare(core.called("acceptSetupCertificate").length, 0)
+            compare(connectCalls().length, 1)
+        }
+
+        function test_answers_for_another_address_are_ignored() {
+            toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            mouseClick(find("signInContinue"))
+            core.setupProblem("someone@else.example", "Not ours.")
+            core.trustPrompt("someone@else.example", "imap", "x", "4F", "4f", "Not ours.")
+            wait(50)
+            compare(wizard.error, "")
+            verify(!find("trustDialog").visible)
+            compare(wizard.busy, true)
+        }
+
+        function test_a_late_detected_does_not_leave_manual_setup() {
+            typeEmail()
+            mouseClick(find("continueButton"))
+            mouseClick(find("manualButton"))
+            compare(wizard.step, "servers")
+            core.detected("ann@example.org", "Late", false, plainJson)
+            compare(wizard.step, "servers")
+        }
+
+        function test_a_new_detected_resets_the_confirmation() {
+            toSignIn(srvJson, true)
+            mouseClick(dialogButton("confirmHosts", "secondaryAction"))
+            tryVerify(function() { return !find("confirmHosts").visible })
+            compare(wizard.serversConfirmed, true)
+            // The same attempt is answered again, with hosts to confirm.
+            core.detected("ann@example.org", "Settings found", true, srvJson)
+            compare(wizard.serversConfirmed, false)
+            find("passwordField").text = "hunter2"
+            wizard.submit()
+            compare(connectCalls().length, 1)
+            compare(connectCalls()[0].args[2], false)
         }
 
         function test_manual_setup_connects_with_typed_servers() {
@@ -230,7 +336,36 @@ Item {
             compare(setup.smtpSecurity, "tls")
             compare(setup.needsConfirm, false)
             compare(connectCalls()[0].args[1], "hunter2")
-            compare(connectCalls()[0].args[2], false)
+            // The user typed these hosts: their own choice, so confirmed.
+            compare(connectCalls()[0].args[2], true)
+            // A stale detected name does not leak into step 3.
+            core.accountAdded("ann")
+            compare(find("accountName").text, "ann@example.org")
+        }
+
+        function test_smtp_port_465_turns_starttls_off() {
+            typeEmail()
+            mouseClick(find("manualButton"))
+            find("smtpPort").text = "587"
+            verify(find("smtpStarttls").checked)
+            find("smtpPort").text = "465"
+            verify(!find("smtpStarttls").checked)
+            find("smtpStarttls").checked = true // still the user's to change
+            verify(find("smtpStarttls").checked)
+            find("smtpPort").text = "587"
+            verify(find("smtpStarttls").checked)
+        }
+
+        function test_manual_name_ignores_an_earlier_detect() {
+            toSignIn(plainJson, false)
+            back()
+            mouseClick(find("manualButton"))
+            find("imapHost").text = "imap.mine.example"
+            find("smtpHost").text = "smtp.mine.example"
+            find("serversPassword").text = "hunter2"
+            find("connectButton").clicked()
+            core.accountAdded("ann")
+            compare(find("accountName").text, "ann@example.org")
         }
 
         function test_manual_setup_needs_valid_ports() {

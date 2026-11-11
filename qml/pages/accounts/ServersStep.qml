@@ -68,7 +68,10 @@ Flickable {
         Field { id: smtpHost; objectName: "smtpHost"; width: parent.width; theme: root.theme
             label: qsTr("SMTP server"); inputMethodHints: Qt.ImhUrlCharactersOnly | Qt.ImhNoAutoUppercase }
         Field { id: smtpPort; objectName: "smtpPort"; width: parent.width; theme: root.theme
-            label: qsTr("SMTP port"); text: "587"; inputMethodHints: Qt.ImhDigitsOnly }
+            label: qsTr("SMTP port"); text: "587"; inputMethodHints: Qt.ImhDigitsOnly
+            // Port 465 is TLS from the start; any other starts with STARTTLS.
+            // The switch can still be turned either way afterwards.
+            onTextChanged: if (smtpStarttls) smtpStarttls.checked = text !== "465" }
         Row {
             width: parent.width
             spacing: root.theme.gu(1)

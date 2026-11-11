@@ -45,7 +45,11 @@ impl qobject::EnvioCore {
     }
 
     pub fn detect(mut self: Pin<&mut Self>, email: &QString) {
-        self.as_mut().rust_mut().ui.clear_accepted();
+        {
+            let ui = &mut self.as_mut().rust_mut().ui;
+            ui.clear_accepted();
+            ui.begin_setup(&s(email));
+        }
         self.send_command(Command::Detect { email: s(email) });
     }
 
@@ -64,6 +68,7 @@ impl qobject::EnvioCore {
                 return;
             }
         };
+        self.as_mut().rust_mut().ui.begin_setup(&setup.email);
         let accepted = self.rust().ui.accepted().to_vec();
         let request = ConnectRequest {
             setup,

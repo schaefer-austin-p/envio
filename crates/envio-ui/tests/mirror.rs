@@ -82,6 +82,24 @@ fn accepted_certificates_are_kept_until_a_new_setup() {
 }
 
 #[test]
+fn a_setup_for_another_address_drops_the_acceptances() {
+    let mut ui = Ui::new();
+    ui.begin_setup("ann@example.org");
+    ui.accept_setup_certificate(Service::Smtp, "ab".into());
+    // The same address, in another spelling, keeps them (a retry).
+    ui.begin_setup(" Ann@Example.org ");
+    assert_eq!(ui.accepted().len(), 1);
+    // Another address does not inherit them.
+    ui.begin_setup("bob@example.net");
+    assert!(ui.accepted().is_empty());
+    ui.accept_setup_certificate(Service::Imap, "cd".into());
+    // A new detect clears them even for the same address.
+    ui.clear_accepted();
+    ui.begin_setup("bob@example.net");
+    assert!(ui.accepted().is_empty());
+}
+
+#[test]
 fn an_opened_message_names_its_id() {
     let mut ui = Ui::new();
     let view = MessageView {
