@@ -91,8 +91,9 @@ for my $file (@ARGV) {
     # styled text, which fetches <img src>. Every Text states its format;
     # AutoText is never one, StyledText only with a "styled-ok" comment on
     # its line or the line above.
-    while ($code =~ /(?<![\w.])Text\s*\{/g) {
-        my $open = pos($code);
+    # Label (Controls 2) and a namespaced X.Text are Texts too.
+    while ($code =~ /(?<![\w.])(?:[A-Za-z_]\w*\.)*(Text|Label)\s*\{/g) {
+        my ($type, $open) = ($1, pos($code));
         my ($depth, $j, $len, $found) = (1, $open, length $code, 0);
         while ($j < $len && $depth > 0) {
             my $d = substr($code, $j, 1);
@@ -102,11 +103,11 @@ for my $file (@ARGV) {
             $j++;
         }
         next if $found;
-        print "$file:" . line_of($code, $open) . ": Text without textFormat (use Text.PlainText)\n";
+        print "$file:" . line_of($code, $open) . ": $type without textFormat (use Text.PlainText)\n";
         $bad = 1;
     }
     my @lines = split /\n/, $src, -1;
-    while ($code =~ /\bText\.(AutoText|StyledText)\b/g) {
+    while ($code =~ /\bText\.(AutoText|StyledText|MarkdownText)\b/g) {
         my ($kind, $ln) = ($1, line_of($code, $-[0]));
         next if $kind eq 'StyledText'
             && (($lines[$ln - 1] =~ /styled-ok/) || ($ln > 1 && $lines[$ln - 2] =~ /styled-ok/));
