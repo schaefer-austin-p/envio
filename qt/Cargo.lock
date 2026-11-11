@@ -658,6 +658,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-ui"
+version = "0.1.0"
+dependencies = [
+ "envio-core",
+]
+
+[[package]]
 name = "envio_qt"
 version = "0.1.0"
 dependencies = [
@@ -666,6 +673,11 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "envio-core",
+ "envio-ui",
+ "log",
+ "secrecy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
