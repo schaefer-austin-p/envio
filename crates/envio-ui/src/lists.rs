@@ -1,0 +1,174 @@
+//! The rows a message model shows, and the operations that change them:
+//! reset, append a page, merge a refreshed first page.
+
+use envio_core::Cursor;
+
+use crate::models::Op;
+use crate::rows::{MessageRowUi, Row};
+
+/// A shown row and where it sits in the newest-first order.
+#[derive(Debug, Clone)]
+pub struct Shown {
+    pub row: MessageRowUi,
+    pub cursor: Cursor,
+}
+
+impl Shown {
+    fn key(&self) -> (i64, i64) {
+        (self.cursor.date, self.cursor.id.0)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ShownList {
+    rows: Vec<Shown>,
+}
+
+fn rows_of(shown: &[Shown]) -> Vec<Row> {
+    shown.iter().map(|s| Row::Message(s.row.clone())).collect()
+}
+
+impl ShownList {
+    pub fn contains(&self, id: i64) -> bool {
+        self.rows.iter().any(|s| s.row.id == id)
+    }
+
+    /// Where the next page starts: after the last row shown.
+    pub fn last_cursor(&self) -> Option<Cursor> {
+        self.rows.last().map(|s| s.cursor)
+    }
+
+    pub fn reset(&mut self, rows: Vec<Shown>) -> Op {
+        let op = Op::Reset(rows_of(&rows));
+        self.rows = rows;
+        op
+    }
+
+    /// Add an older page at the end; rows already shown are skipped.
+    pub fn append(&mut self, page: Vec<Shown>) -> Option<Op> {
+        let fresh: Vec<Shown> = page
+            .into_iter()
+            .filter(|s| !self.contains(s.row.id))
+            .collect();
+        if fresh.is_empty() {
+            return None;
+        }
+        let at = self.rows.len();
+        let op = Op::Insert {
+            at,
+            rows: rows_of(&fresh),
+        };
+        self.rows.extend(fresh);
+        Some(op)
+    }
+
+    /// Merge a fresh first page: new rows go in at their sorted place,
+    /// changed rows are updated, rows gone from the range the page covers
+    /// are removed; rows beyond that range stay. `end`: the page was the
+    /// last, so it covers the whole list.
+    pub fn merge_first(&mut self, first: Vec<Shown>, end: bool) -> Vec<Op> {
+        let bound = if end {
+            None
+        } else {
+            first.last().map(Shown::key)
+        };
+        let mut ops = self.remove_gone(&first, end, bound);
+        let (mut i, mut p, mut insert_at) = (0, 0, None::<usize>);
+        let mut pending: Vec<Shown> = Vec::new();
+        for new in first {
+            if self.rows.get(i).is_some_and(|s| s.key() == new.key()) {
+                flush(&mut ops, &mut insert_at, &mut pending);
+                if self.rows[i].row != new.row {
+                    ops.push(Op::Update {
+                        at: p,
+                        row: Row::Message(new.row.clone()),
+                    });
+                }
+                self.rows[i] = new;
+                i += 1;
+            } else {
+                insert_at.get_or_insert(p);
+                self.rows.insert(i, new.clone());
+                i += 1;
+                pending.push(new);
+            }
+            p += 1;
+        }
+        flush(&mut ops, &mut insert_at, &mut pending);
+        ops
+    }
+
+    /// Remove the shown rows in the page's range that the page lacks, as
+    /// runs from the back so earlier positions stay valid.
+    fn remove_gone(&mut self, first: &[Shown], end: bool, bound: Option<(i64, i64)>) -> Vec<Op> {
+        let gone = |s: &Shown| {
+            let in_range = end || bound.is_some_and(|b| s.key() >= b);
+            in_range && !first.iter().any(|f| f.key() == s.key())
+        };
+        let mut ops = Vec::new();
+        let mut i = self.rows.len();
+        while i > 0 {
+            i -= 1;
+            if !gone(&self.rows[i]) {
+                continue;
+            }
+            let end_at = i + 1;
+            while i > 0 && gone(&self.rows[i - 1]) {
+                i -= 1;
+            }
+            ops.push(Op::Remove {
+                at: i,
+                count: end_at - i,
+            });
+            self.rows.drain(i..end_at);
+        }
+        ops
+    }
+
+    /// Set the selected mark of a shown row; the update to apply, if the
+    /// row is shown and changes.
+    pub fn set_selected(&mut self, id: i64, on: bool) -> Option<Op> {
+        let at = self.rows.iter().position(|s| s.row.id == id)?;
+        let shown = &mut self.rows[at];
+        if shown.row.selected == on {
+            return None;
+        }
+        shown.row.selected = on;
+        Some(Op::Update {
+            at,
+            row: Row::Message(shown.row.clone()),
+        })
+    }
+
+    /// Drop the rows of an account, as runs from the back.
+    pub fn remove_account(&mut self, account: &str) -> Vec<Op> {
+        let mut ops = Vec::new();
+        let mut i = self.rows.len();
+        while i > 0 {
+            i -= 1;
+            if self.rows[i].row.account != account {
+                continue;
+            }
+            let end_at = i + 1;
+            while i > 0 && self.rows[i - 1].row.account == account {
+                i -= 1;
+            }
+            ops.push(Op::Remove {
+                at: i,
+                count: end_at - i,
+            });
+            self.rows.drain(i..end_at);
+        }
+        ops
+    }
+}
+
+fn flush(ops: &mut Vec<Op>, at: &mut Option<usize>, pending: &mut Vec<Shown>) {
+    if let Some(at) = at.take() {
+        ops.push(Op::Insert {
+            at,
+            rows: rows_of(pending),
+        });
+        pending.clear();
+    }
+}

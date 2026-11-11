@@ -576,6 +576,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-ui"
+version = "0.1.0"
+dependencies = [
+ "envio-core",
+ "envio-net",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

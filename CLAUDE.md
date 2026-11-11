@@ -12,8 +12,9 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
   planner and driver; `envio-net` IMAP, SMTP, autoconfig, TLS;
   `envio-store` SQLite, migrations, journal, Outbox and draft files;
   `envio-mime` parse, build, HTML to Qt rich text; `envio-e2e` cross-crate
-  tests only.
-- Dependencies point one way: core → sync → net, store, mime. net, store and
+  tests only; `envio-ui` the screens' state (list models as row
+  operations, selection, paging, signals), Qt-free.
+- Dependencies point one way: ui → core → sync → net, store, mime. net, store and
   mime never depend on each other.
 - `qt/` cxx-qt glue (its own workspace, holds no logic). `qml/` views;
   Lomiri and Suru APIs only in `qml/platform/ut/`.
@@ -49,6 +50,7 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
 
 Trunk:
 - `crates/envio-store/`, `crates/envio-sync/`, `crates/envio-net/`,
+  `crates/envio-ui/`,
   `crates/envio-core/`, `crates/envio-mime/`: user data, migrations, sync,
   TLS and passwords, the Outbox, what mail shows on screen.
 - `qt/`, `qml/Main.qml`, `qml/platform/Theme.qml`.
