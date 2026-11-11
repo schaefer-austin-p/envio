@@ -110,7 +110,7 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
         }
         _ => return None,
     };
-    let (host, port) = split_port(hostport);
+    let (host, port) = split_port(hostport)?;
     if port.is_some_and(|p| !p.chars().all(|c| c.is_ascii_digit())) {
         return None;
     }
@@ -162,23 +162,24 @@ fn percent_decode(text: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-fn split_port(hostport: &str) -> (&str, Option<&str>) {
-    if hostport.starts_with('[') {
-        // IPv6 literal: the port follows the closing bracket.
-        return match hostport.find(']') {
-            Some(i) => (
-                &hostport[..=i],
-                hostport[i + 1..]
-                    .strip_prefix(':')
-                    .filter(|p| !p.is_empty()),
-            ),
-            None => (hostport, None),
+/// Host and port; `None` for a bracketed host that isn't a real IPv6
+/// literal followed by nothing or `:port`.
+fn split_port(hostport: &str) -> Option<(&str, Option<&str>)> {
+    if let Some(inner) = hostport.strip_prefix('[') {
+        let close = inner.find(']')?;
+        inner[..close].parse::<std::net::Ipv6Addr>().ok()?;
+        let after = &inner[close + 1..];
+        let port = match after.strip_prefix(':') {
+            Some(p) => Some(p).filter(|p| !p.is_empty()),
+            None if after.is_empty() => None,
+            None => return None,
         };
+        return Some((&hostport[..close + 2], port));
     }
-    match hostport.rsplit_once(':') {
+    Some(match hostport.rsplit_once(':') {
         Some((h, p)) => (h, Some(p).filter(|p| !p.is_empty())),
         None => (hostport, None),
-    }
+    })
 }
 
 /// Removes the Bidi_Control characters (U+061C, U+200E, U+200F,

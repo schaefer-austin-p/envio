@@ -113,6 +113,23 @@ fn mailto_splits_at_the_address() {
 }
 
 #[test]
+fn bracketed_hosts_must_be_ipv6_literals() {
+    for url in [
+        "https://[bank.example]/",
+        "https://[bank.example",
+        "https://[::1]evil.example/",
+        "https://[::1]:80x/",
+    ] {
+        assert_eq!(link_parts(url), None, "{url}");
+    }
+    let p = parts("https://[::1]:8080/x");
+    assert_eq!(
+        (p.host.as_str(), p.port.as_deref()),
+        ("[::1]", Some("8080"))
+    );
+}
+
+#[test]
 fn other_or_broken_links_have_no_parts() {
     for url in [
         "ftp://a.example/",
