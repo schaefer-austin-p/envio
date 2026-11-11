@@ -13,9 +13,14 @@ QC.Popup {
     parent: QC.Overlay.overlay
     modal: true
     closePolicy: QC.Popup.CloseOnEscape | QC.Popup.CloseOnPressOutside
+    // The keyboard in window coordinates (tests set it). Where it covers the
+    // screen's bottom the sheet rests on its top edge, not behind it.
+    property rect keyboard: Qt.inputMethod.keyboardRectangle
+    readonly property real keyboardInset:
+        parent && keyboard.height > 0 ? Math.max(0, parent.height - keyboard.y) : 0
     x: 0
     width: parent ? parent.width : 0
-    y: parent ? parent.height - height : 0
+    y: parent ? Math.max(0, parent.height - height - keyboardInset) : 0
     padding: 0
 
     QC.Overlay.modal: Rectangle { color: root.theme.scrim }

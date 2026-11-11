@@ -253,6 +253,22 @@ Item {
             return find(action, dlg.contentItem)
         }
 
+        // The discard sheet rests above a keyboard that covers the screen's
+        // bottom (simulated rectangle: the offscreen platform has no keyboard).
+        function test_discard_sheet_sits_above_the_keyboard() {
+            mock.composeReady(1, reply, "")
+            const sheet = find("discardSheet")
+            sheet.keyboard = Qt.rect(0, 450, 400, 250)
+            mouseClick(find("moreButton"))
+            tryVerify(function() { return sheet.opened })
+            tryVerify(function() { return sheet.height > 0 })
+            verify(sheet.y + sheet.height <= 450, "sheet bottom " + (sheet.y + sheet.height))
+            verify(sheet.y >= 0)
+            sheet.close()
+            tryVerify(function() { return !sheet.visible })
+            sheet.keyboard = Qt.rect(0, 0, 0, 0)
+        }
+
         function test_discard_asks_then_discards() {
             mock.composeReady(1, reply, "")
             mouseClick(find("moreButton"))
