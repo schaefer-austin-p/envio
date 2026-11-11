@@ -94,7 +94,13 @@ impl Worker<'_> {
                 folders: done.folders.iter().copied().collect(),
             });
         }
-        self.want_replay(&done.accounts);
+        // The journal holds the action back for the Undo window; an offer
+        // with nothing to take back is what runs the replay when it ends.
+        if !done.accounts.is_empty() {
+            let now = done.now;
+            done.undos.clear();
+            self.offer_undo(UserAction::MarkRead(true), done, now);
+        }
     }
 
     fn offer_undo(&mut self, action: UserAction, done: Done, now: i64) {
@@ -384,6 +390,29 @@ mod worker_tests {
         worker.act(&[seeded.message], UserAction::Flag(true));
         assert!(!worker.live[&seeded.account].wants.replay);
         // Inside the window the action is held back.
+        let _ = worker.expire_undos(now_ms());
+        assert!(!worker.live[&seeded.account].wants.replay);
+        let closed = worker.expire_undos(now_ms() + 60_000);
+        assert_eq!(closed.len(), 1);
+        assert!(worker.live[&seeded.account].wants.replay);
+    }
+
+    #[test]
+    fn opening_a_message_replays_when_the_window_ends() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.mark_opened_read(seeded.message);
+        let pending: Vec<_> = worker.store.journal.pending().collect();
+        assert!(
+            pending.iter().any(|a| matches!(
+                &a.kind,
+                ActionKind::SetFlags { add, .. } if add.contains(Flags::SEEN)
+            )),
+            "a pending SEEN entry"
+        );
+        assert!(!worker.live[&seeded.account].wants.replay);
         let _ = worker.expire_undos(now_ms());
         assert!(!worker.live[&seeded.account].wants.replay);
         let closed = worker.expire_undos(now_ms() + 60_000);
