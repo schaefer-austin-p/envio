@@ -191,8 +191,7 @@ Item {
             tryVerify(function() {
                 return everything(page, []).filter(function(o) { return o.objectName === "status" && o.visible && o.text.indexOf("attention") >= 0 }).length >= 1
             })
-            wait(50)
-            compare(certButtons().length, 0)
+            tryVerify(function() { return certButtons().length === 0 })
         }
         function test_trust_sends_accept_certificate() {
             mouseClick(pinRow())
