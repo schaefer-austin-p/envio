@@ -11,7 +11,7 @@ mod replay;
 
 pub use account::{AccountSynced, Unsent, has_due_mail, remove_account, sync_account, unsent};
 pub use actions::{Undo, record, undo};
-pub use folders::{Synced, fetch_body, sync_folder, sync_folders};
+pub use folders::{BATCHES_PER_STEP, Synced, fetch_body, sync_folder, sync_folders};
 pub use outbox::{Filed, Sent, file_sent, send_outbox};
 pub use replay::{Replayed, replay};
 

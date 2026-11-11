@@ -16,4 +16,4 @@ mod verifier;
 pub use connect::{COMMAND_TIMEOUT, CONNECT_TIMEOUT};
 pub use error::{NetError, Result, Untrusted};
 pub use server::{Credentials, Endpoint, Fingerprint, Security};
-pub use tls::Roots;
+pub use tls::{Roots, RootsSource};

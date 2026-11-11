@@ -43,10 +43,21 @@ pub struct Synced {
     pub fetched: usize,
     pub removed: usize,
     pub flags_changed: usize,
+    /// Batches remain: call `sync_folder` again for the same folder. The
+    /// folder's sync state is not finished until a call returns `false`.
+    pub more: bool,
 }
+
+/// Batches (of [`crate::plan::sync::BATCH`] messages) fetched per call, so
+/// a big first sync lets other commands run between parts.
+pub const BATCHES_PER_STEP: usize = 2;
 
 /// Syncs one folder: reset on a new UIDVALIDITY, drop what's gone, update
 /// flags, fetch what's new (newest first), then store the folder's state.
+/// At most [`BATCHES_PER_STEP`] batches are fetched per call; when more
+/// remain the result has `more: true` and the state is left unfinished.
+/// The next call plans again from the cache, so it fetches only what is
+/// missing (`begin` is a no-op then: the stored UIDVALIDITY matches).
 pub async fn sync_folder(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -79,7 +90,7 @@ pub async fn sync_folder(
         ..Synced::default()
     };
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
-    for batch in &plan.fetch {
+    for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
         let rows = rows(&summaries, &pending);
         local.db.step(|db| {
@@ -90,7 +101,10 @@ pub async fn sync_folder(
         })?;
         synced.fetched += rows.len();
     }
-    local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
+    synced.more = plan.fetch.len() > BATCHES_PER_STEP;
+    if !synced.more {
+        local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
+    }
     Ok(synced)
 }
 
