@@ -233,13 +233,19 @@ pub fn password(user: &str) -> String {
 
 /// IMAPS and submissions of the server, for `user` (the name before `@`).
 pub fn setup(server: &Stalwart, user: &str) -> AccountSetup {
-    setup_at(server, user, server.imaps)
+    with_imap(server, user, &server.host, server.imaps)
 }
 
-/// Like `setup`, with IMAPS reached on `imaps` (a proxy, say).
-pub fn setup_at(server: &Stalwart, user: &str, imaps: u16) -> AccountSetup {
-    let at = |port| ServerAddr {
-        host: server.host.clone(),
+/// Like `setup`, with IMAPS reached through a local `Proxy` on `port`.
+/// The proxy listens on 127.0.0.1, which is not the server's host in CI
+/// (Stalwart runs in the dind daemon there).
+pub fn setup_at(server: &Stalwart, user: &str, port: u16) -> AccountSetup {
+    with_imap(server, user, "127.0.0.1", port)
+}
+
+fn with_imap(server: &Stalwart, user: &str, imap_host: &str, imaps: u16) -> AccountSetup {
+    let at = |host: &str, port| ServerAddr {
+        host: host.to_owned(),
         port,
         security: Security::Tls,
     };
@@ -247,8 +253,8 @@ pub fn setup_at(server: &Stalwart, user: &str, imaps: u16) -> AccountSetup {
         name: user.to_owned(),
         email: format!("{user}@envio.test"),
         username: user.to_owned(),
-        imap: at(imaps),
-        smtp: at(server.submissions),
+        imap: at(imap_host, imaps),
+        smtp: at(&server.host, server.submissions),
         source: None,
         needs_confirm: false,
     }
