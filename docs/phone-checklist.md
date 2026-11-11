@@ -99,3 +99,20 @@ No row reacts to a swipe.
 
 | Item | Result | Evidence |
 | ---- | ------ | -------- |
+| Content Hub, in | Partial pass | Document Viewer pick of a text file adds it with name and size (`r28`); the draft keeps a copy under `~/.local/share/envio.aps/drafts/files/`. Photo, PDF and send-and-arrive not run. |
+| Content Hub, out | Pass | Open starts Document Viewer (`r16`); Save goes through File Manager, which says "saved 1 file into ~/Downloads", file checked (`r21`); Share shows the picker (`r22`). Forward carries both attachments (`r24`). |
+| mailto: | Pass | Sent through `lomiri-url-dispatcher`, not the browser UI: compose opens with the address chip, subject and body (`r32`). |
+| Suspend and resume | Partial pass | Half-written draft kept after a minute behind System Settings (`s03`); mail appended meanwhile shows within about 7 s (`s04`). Screen-lock variant not run. |
+| Dark mode (#15) | Pass | Airmail light/dark and Carbon light/dark for inbox, reader and compose: readable, no light patches (`t-*`). |
+| Memory and sync time | Partial | Only 67 test messages, so no first-sync timing for a large box. RSS 296 MB after 38 min of use. |
+| CA roots load confined (#31) | Pass | Log: "CA roots: source system, 121 certificates". |
+| The trust dialog | Pass | Shown at account add; on a changed pin it names the host, shows old and new fingerprints, Cancel is primary (`c05`). |
+| Check certificate for a changed pin | Pass | New server certificate: the account says the certificate changed with both fingerprints (`c04`); Cancel keeps it stopped; Trust gives Ready (`c07`), and the inbox follows the new server (`c08`). |
+| The SRV confirm | Not run | Needs a DNS SRV record the phone resolves; covered by envio-net tests. |
+| Rich text and links (#29) | Pass | Deep-nesting message renders and opens as fast as a plain one (`r12`); newsletter images blocked, quote levels shown (`r06`, `r07`); spoofed userinfo link names the real host (`r08`); punycode link warns (`r09`, bold host is #76). |
+| Search on the server | Pass | Old message: 0 local results, 1 after "Search the servers too" (`q04`); with the server paused it shows progress and Cancel, and Cancel stops it (`q06`, `q07`). |
+| No swipe conflicts with edge gestures | Pass | Left edge opens the launcher, app unchanged after (`e05`). A horizontal drag on a row opens the message like a tap (`e02`); no row action. |
+| Unread count | Fail | Account and unified unread count stay at the startup value (64) after new or read mail: #75. |
+
+Screenshots are in `docs/phone-runs/0.1.0/`. Phone: Ubuntu Touch 24.04,
+build df69b78, throwaway Stalwart through `adb reverse`.
