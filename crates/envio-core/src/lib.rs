@@ -49,6 +49,7 @@ pub use health::AccountStatus;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
 pub use text::count::{CountKind, count_text};
+pub use text::link::{malformed as link_malformed, userinfo_decoration, written_as};
 pub use text::notice::start_failed;
 pub use text::setup::ispdb_note;
 // What the app's glue names without depending on envio-net.

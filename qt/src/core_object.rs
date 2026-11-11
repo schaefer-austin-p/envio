@@ -244,6 +244,9 @@ pub mod qobject {
         #[cxx_name = "countText"]
         fn count_text(self: &EnvioCore, kind: &QString, n: i32) -> QString;
         #[qinvokable]
+        #[cxx_name = "linkView"]
+        fn link_view(self: &EnvioCore, url: &QString) -> QMap_QString_QVariant;
+        #[qinvokable]
         #[cxx_name = "dateBucket"]
         fn date_bucket(self: &EnvioCore, unix_secs: i64) -> QString;
     }

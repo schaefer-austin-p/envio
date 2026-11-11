@@ -663,6 +663,7 @@ name = "envio-ui"
 version = "0.1.0"
 dependencies = [
  "envio-core",
+ "envio-mime",
 ]
 
 [[package]]

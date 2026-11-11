@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 20:50+0100\n"
+"POT-Creation-Date: 2026-11-11 21:01+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -22,7 +22,7 @@ msgstr ""
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:55 qml/pages/reader/LinkSheet.qml:56
+#: qml/components/EditMenu.qml:55 qml/pages/reader/LinkSheet.qml:102
 msgid "Copy"
 msgstr ""
 
@@ -134,7 +134,7 @@ msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
-#: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:68
+#: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:114
 msgid "Cancel"
 msgstr ""
 
@@ -496,7 +496,7 @@ msgstr ""
 msgid "Attachments"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:49
+#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:95
 msgid "Open"
 msgstr ""
 
@@ -542,7 +542,7 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/LinkSheet.qml:20
+#: qml/pages/reader/LinkSheet.qml:21
 msgid "Open this link?"
 msgstr ""
 
@@ -630,6 +630,18 @@ msgid_plural "{n} new messages"
 msgstr[0] ""
 msgstr[1] ""
 
+#: crates/envio-core/src/text/link.rs:8
+msgid "Before the @ is decoration. This link opens {host}."
+msgstr ""
+
+#: crates/envio-core/src/text/link.rs:16
+msgid "The address is written as {punycode}."
+msgstr ""
+
+#: crates/envio-core/src/text/link.rs:22
+msgid "This link looks malformed and can't be opened."
+msgstr ""
+
 #: crates/envio-core/src/text/notice.rs:7
 msgid "The server refused: {reason}"
 msgstr ""
@@ -694,6 +706,20 @@ msgstr ""
 #: crates/envio-core/src/text/notice.rs:58
 msgid "Could not save the contact"
 msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:63
+msgid "This change couldn't be saved on the phone. It may still be applied."
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:68
+msgid "Undo couldn't be saved on the phone. The change may still be undone."
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:75
+msgid "{n} pending change could not be read and was skipped"
+msgid_plural "{n} pending changes could not be read and were skipped"
+msgstr[0] ""
+msgstr[1] ""
 
 #: crates/envio-core/src/text/outbox.rs:8
 msgid "Waiting to be sent"

@@ -12,6 +12,7 @@ workspace = true
 
 [dependencies]
 envio-core = { path = "../envio-core" }
+envio-mime = { path = "../envio-mime" }
 
 [dev-dependencies]
 envio-net = { path = "../envio-net" }

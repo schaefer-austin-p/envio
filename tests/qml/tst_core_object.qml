@@ -105,4 +105,14 @@ TestCase {
         compare(core.countText("results", 2), "2 results")
         compare(core.countText("nonsense", 2), "")
     }
+
+    function test_link_view_names_the_real_host() {
+        const v = core.linkView("https://bank.example@evil.example/login")
+        compare(v.host, "evil.example")
+        compare(v.userinfo, "bank.example")
+        compare(v.afterHost, "/login")
+        compare(v.openable, true)
+        verify(v.warning.indexOf("evil.example") >= 0)
+        compare(core.linkView("https://exa mple.org/").openable, false)
+    }
 }

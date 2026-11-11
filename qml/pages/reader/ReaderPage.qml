@@ -257,6 +257,7 @@ Item {
     LinkSheet {
         id: linkSheet
         theme: root.theme
+        core: root.core
         onOpenRequested: root.openUrl(url)
     }
     AttachmentsSheet {

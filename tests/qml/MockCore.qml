@@ -92,6 +92,13 @@ Item {
     function saveSettings(theme, darkMode, imagesAlways, defaultAccount) {
         record("saveSettings", [theme, darkMode, imagesAlways, defaultAccount])
     }
+    // The parts `linkView` answers per address; any other address is shown whole.
+    property var linkViews: ({})
+    function linkView(url) {
+        record("linkView", [url])
+        return linkViews[url] || { "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+                                   "afterHost": url, "warning": "", "openable": true }
+    }
     function countText(kind, n) { return kind + " " + n }
     function dateBucket(unixSecs) { return "time" }
     function attachModel(model) { models.push(model) }

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use cxx_qt::CxxQtType;
-use cxx_qt_lib::QString;
+use cxx_qt_lib::{QMap, QMapPair_QString_QVariant, QString};
 use envio_core::{
     Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
 };
@@ -15,6 +15,7 @@ use zeroize::Zeroize;
 use crate::convert as cv;
 use crate::core_object::qobject;
 use crate::lifecycle::clock;
+use crate::variant::map_of;
 
 fn s(q: &QString) -> String {
     String::from(q)
@@ -332,6 +333,20 @@ impl qobject::EnvioCore {
             .map(|kind| count_text(kind, u64::try_from(n).unwrap_or(0)))
             .unwrap_or_default();
         QString::from(text)
+    }
+
+    /// A link's parts for the link sheet (`envio_ui::link_view`).
+    pub fn link_view(&self, url: &QString) -> QMap<QMapPair_QString_QVariant> {
+        let v = envio_ui::link_view(&s(url));
+        map_of(&serde_json::json!({
+            "beforeHost": v.before_host,
+            "userinfo": v.userinfo,
+            "host": v.host,
+            "punycode": v.punycode,
+            "afterHost": v.after_host,
+            "warning": v.warning,
+            "openable": v.openable,
+        }))
     }
 
     /// "time", "weekday", "daymonth", "full" or "none"; QML formats it.

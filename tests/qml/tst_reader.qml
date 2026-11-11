@@ -161,23 +161,54 @@ Item {
             compare(root.openedUrls.length, 0)
             const sheet = find("linkSheet")
             tryVerify(function() { return sheet.opened })
-            // The address shows exactly as written.
-            compare(find("linkAddress").text, url)
+            // The address shows as the core split it (here whole).
+            compare(find("linkAfter").text, url)
             mouseClick(find("linkOpen"))
             compare(root.openedUrls, [url])
         }
 
-        function test_direction_overrides_in_a_link_are_shown_not_applied() {
+        function test_decoration_before_the_at_is_flagged_and_the_host_shown() {
             open(view([], 0))
-            const url = "https://good.example/\u202Eformat.exe"
+            const url = "https://bank.example@evil.example/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
+                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "warning": "Before the @ is decoration. This link opens evil.example." }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
-            const shown = find("linkAddress").text
-            compare(shown, "https://good.example/[U+202E]format.exe")
-            verify(shown.indexOf("\u202E") < 0)
+            compare(find("linkHost").text, "evil.example")
+            compare(find("linkHost").font.bold, true)
+            compare(find("linkUserinfo").text, "bank.example@")
+            compare(find("linkUserinfo").visible, true)
+            compare(find("linkWarning").visible, true)
+            verify(find("linkWarning").text.indexOf("evil.example") >= 0)
             mouseClick(find("linkOpen"))
             // Display only: what opens is the address as it was.
             compare(root.openedUrls, [url])
+        }
+
+        function test_a_plain_link_shows_no_decoration_and_no_warning() {
+            open(view([], 0))
+            const url = "https://example.org/"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "example.org",
+                                    "punycode": "", "afterHost": "/", "openable": true, "warning": "" }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkUserinfo").visible, false)
+            compare(find("linkWarning").visible, false)
+        }
+
+        function test_a_malformed_link_cannot_be_opened() {
+            open(view([], 0))
+            const url = "https://exa mple.org/"
+            mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+                                    "afterHost": url, "openable": false,
+                                    "warning": "This link looks malformed and can't be opened." }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkOpen").enabled, false)
+            compare(find("linkWarning").visible, true)
+            mouseClick(find("linkOpen"))
+            compare(root.openedUrls.length, 0)
         }
 
         function test_a_failed_save_is_not_exported_by_the_next_one() {
