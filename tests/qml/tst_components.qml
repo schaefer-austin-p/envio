@@ -175,6 +175,24 @@ Item {
             compare(f.text, "clip@example.org")
         }
 
+        function test_press_and_hold_keeps_the_selection_for_copy() {
+            const f = createTemporaryObject(fieldComponent, root, { text: "keep@example.org" })
+            waitForRendering(f)
+            f.input.forceActiveFocus()
+            f.input.selectAll()
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            compare(f.input.selectedText, "keep@example.org")
+            const it = items(f)
+            verify(it.editCopy.enabled, "Copy is enabled")
+            verify(it.editCut.enabled, "Cut is enabled")
+            it.editCopy.triggered()
+            f.editMenu.close()
+            helper.text = ""
+            helper.paste()
+            compare(helper.text, "keep@example.org")
+        }
+
         function test_password_field_offers_paste_only() {
             helper.text = "x"
             helper.selectAll()
