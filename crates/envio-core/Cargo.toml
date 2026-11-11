@@ -24,6 +24,7 @@ secrecy = { version = "0.10", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = { version = "0.4", features = ["std"] }
+# RUSTSEC-2026-0244 (unsound) is a cargo-audit warning: core calls only dgettext/dngettext, never setlocale or TextDomain::init.
 gettext-rs = { version = "0.7", features = ["gettext-system"] }
 thiserror = "2"
 zeroize = "1"
