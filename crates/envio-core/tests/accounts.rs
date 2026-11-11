@@ -322,6 +322,41 @@ fn an_interrupted_removal_is_finished_at_start() {
 }
 
 #[test]
+fn a_damaged_removal_marker_is_kept_aside_and_the_store_opens() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    std::fs::write(h.data_dir().join("removing.json"), "not json {").unwrap();
+    h.start_core();
+    let accounts = h.wait(|e| match e {
+        Event::Started { accounts, .. } => Some(accounts.clone()),
+        _ => None,
+    });
+    assert_eq!(accounts.len(), 1, "{accounts:?}");
+    drop(h.core.take());
+    let aside = h.data_dir().join("removing.json.damaged");
+    assert_eq!(std::fs::read_to_string(aside).unwrap(), "not json {");
+    assert!(!h.data_dir().join("removing.json").exists());
+    assert_eq!(saved_accounts(&h)[0].key, key);
+}
+
+#[test]
+fn a_failed_resume_does_not_stop_the_store_opening() {
+    let mut h = Harness::unstarted();
+    h.seed_account(EMAIL, Some("pw"));
+    // Reading it fails (a directory), which is not a damaged file.
+    let marker = h.data_dir().join("removing.json");
+    std::fs::create_dir(&marker).unwrap();
+    h.start_core();
+    let accounts = h.wait(|e| match e {
+        Event::Started { accounts, .. } => Some(accounts.clone()),
+        _ => None,
+    });
+    assert_eq!(accounts.len(), 1, "{accounts:?}");
+    drop(h.core.take());
+    assert!(marker.is_dir(), "the marker was not kept");
+}
+
+#[test]
 fn update_password_resumes_a_paused_account() {
     let mut h = Harness::unstarted();
     h.foreground = true;

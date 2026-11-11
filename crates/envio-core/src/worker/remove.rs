@@ -29,21 +29,24 @@ pub(crate) fn store_error(error: SyncError) -> StoreError {
     }
 }
 
-/// The keys in the marker. A marker that cannot be read is logged and
-/// treated as empty: failing the start over it would lock the user out.
-fn read_marker(store: &Store) -> Vec<String> {
+/// The keys in the marker. A damaged marker is moved aside (like the
+/// passwords file) and reported as `InvalidData`; its keys are never
+/// guessed at or overwritten.
+fn read_marker(store: &Store) -> io::Result<Vec<String>> {
     let path = store.data_dir.join(MARKER);
-    match fs::read(&path) {
-        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_else(|error| {
-            log::error!("{MARKER} is damaged: {error}");
-            Vec::new()
-        }),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => {
-            log::error!("reading {MARKER}: {error}");
-            Vec::new()
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    serde_json::from_slice(&bytes).map_err(|_| {
+        let aside = store.data_dir.join(format!("{MARKER}.damaged"));
+        log::error!("{MARKER} is damaged; moving it to {MARKER}.damaged");
+        match fs::rename(&path, &aside) {
+            Ok(()) => io::Error::new(io::ErrorKind::InvalidData, "damaged removal marker"),
+            Err(error) => error,
         }
-    }
+    })
 }
 
 fn write_marker(store: &Store, keys: &[String]) -> io::Result<()> {
@@ -65,7 +68,7 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
 
 /// Marks the account as being removed, deletes it, clears the mark.
 fn remove(store: &mut Store, key: &str) -> envio_store::Result<()> {
-    let mut keys = read_marker(store);
+    let mut keys = read_marker(store)?;
     if !keys.iter().any(|k| k == key) {
         keys.push(key.to_owned());
     }
@@ -78,7 +81,12 @@ fn remove(store: &mut Store, key: &str) -> envio_store::Result<()> {
 
 /// Finishes the removals a crash cut short; returns their keys.
 pub(crate) fn resume_removals(store: &mut Store) -> envio_store::Result<Vec<String>> {
-    let keys = read_marker(store);
+    let keys = match read_marker(store) {
+        Ok(keys) => keys,
+        // Moved aside; there is nothing known to finish.
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
     for key in &keys {
         delete_everything(store, key)?;
     }

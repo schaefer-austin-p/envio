@@ -7,6 +7,7 @@ mod remove;
 mod run;
 mod setup;
 mod store;
+mod trust;
 mod turn;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -49,6 +50,9 @@ pub(crate) struct Worker<'s> {
     handled_due_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
+    /// Servers found through DNS (SRV) by `Detect`: connecting to them
+    /// needs the user's confirmation whatever the app says.
+    srv_hosts: BTreeSet<(String, u16)>,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -128,6 +132,7 @@ impl<'s> Worker<'s> {
             unfiled: BTreeSet::new(),
             handled_due_ms: i64::MIN,
             last_ran: None,
+            srv_hosts: BTreeSet::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

@@ -1,5 +1,7 @@
 //! Adding an account: finding servers, checking them, saving.
 
+use std::collections::BTreeSet;
+
 use envio_net::autoconfig::{self, Found, Internet, Setting};
 use envio_net::imap::ImapSession;
 use envio_net::smtp::SmtpSession;
@@ -39,6 +41,19 @@ pub(crate) fn setup_from(found: &Found, email: &str) -> AccountSetup {
         source: Some(found.source),
         needs_confirm: found.confirm,
     }
+}
+
+/// The (host, port) of both servers in the form.
+fn hosts_of(setup: &AccountSetup) -> [(String, u16); 2] {
+    [
+        (setup.imap.host.clone(), setup.imap.port),
+        (setup.smtp.host.clone(), setup.smtp.port),
+    ]
+}
+
+/// Whether the form uses a server that was found through DNS.
+fn touches(srv_hosts: &BTreeSet<(String, u16)>, setup: &AccountSetup) -> bool {
+    hosts_of(setup).iter().any(|host| srv_hosts.contains(host))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,6 +162,9 @@ impl Worker<'_> {
                     text::setup::found_by(found.source)
                 };
                 let setup = setup_from(&found, &email);
+                if found.confirm {
+                    self.srv_hosts.extend(hosts_of(&setup));
+                }
                 self.emit(Event::Detected { email, setup, text });
             }
             Err(error) => {
@@ -160,7 +178,9 @@ impl Worker<'_> {
     }
 
     /// Checks both servers with the password, then adds the account.
-    pub(crate) async fn connect(&mut self, request: ConnectRequest) {
+    pub(crate) async fn connect(&mut self, mut request: ConnectRequest) {
+        // Do not trust the app's flag for servers that DNS gave us.
+        request.setup.needs_confirm |= touches(&self.srv_hosts, &request.setup);
         let email = request.setup.email.clone();
         let accepted = match check_request(&request, self.store.accounts.list()) {
             Ok(accepted) => accepted,
@@ -224,76 +244,6 @@ impl Worker<'_> {
             email,
             status: AccountStatus::Ready,
         })
-    }
-
-    /// A new password for a paused account: save it, run again.
-    pub(crate) fn update_password(&mut self, account: &str, password: SecretString) {
-        if !self.live.contains_key(account) {
-            log::warn!("password for unknown account {account}");
-            return;
-        }
-        if let Err(error) = self.store.secrets.set(account, password) {
-            log::error!("saving the password: {error}");
-            self.emit(Event::Notice {
-                text: text::setup::not_saved(),
-            });
-            return;
-        }
-        self.resume(account);
-    }
-
-    /// Pins the certificate the account's server presented, if it is the
-    /// one the user was shown.
-    pub(crate) fn accept_certificate(&mut self, account: &str, service: Service, hex: &str) {
-        let Some(pin) = self.presented_certificate(account, service, hex) else {
-            self.emit(Event::Notice {
-                text: text::setup::nothing_to_accept(),
-            });
-            return;
-        };
-        let Some(current) = self.store.accounts.get(account) else {
-            return;
-        };
-        let mut settings = current.settings.clone();
-        match service {
-            Service::Imap => settings.imap.pin = Some(pin.to_hex()),
-            Service::Smtp => settings.smtp.pin = Some(pin.to_hex()),
-        }
-        if let Err(error) = self.store.accounts.update(account, settings) {
-            log::error!("saving the pin: {error}");
-            self.emit(Event::Notice {
-                text: text::setup::not_saved(),
-            });
-            return;
-        }
-        self.resume(account);
-    }
-
-    /// The certificate `hex` names, if the account is paused on exactly it.
-    fn presented_certificate(
-        &self,
-        account: &str,
-        service: Service,
-        hex: &str,
-    ) -> Option<Fingerprint> {
-        match &self.live.get(account)?.health.status {
-            AccountStatus::Certificate(Some(details))
-                if details.service == service && details.presented.to_hex() == hex =>
-            {
-                Some(details.presented)
-            }
-            _ => None,
-        }
-    }
-
-    /// The user fixed what paused the account: sync again now.
-    fn resume(&mut self, account: &str) {
-        let before = self.status_of(account);
-        if let Some(live) = self.live.get_mut(account) {
-            live.health.resume();
-            live.wants.full = true;
-        }
-        self.report(account, &before);
     }
 
     /// Opens IMAP, then SMTP, with the request's pins. The error is the
@@ -382,6 +332,24 @@ mod tests {
         let refused = check_request(&request(setup.clone(), false, &[]), &[]);
         assert_eq!(refused, Err(Refusal::Unconfirmed));
         assert_eq!(check_request(&request(setup, true, &[]), &[]), Ok(vec![]));
+    }
+
+    #[test]
+    fn an_srv_host_needs_confirmation_whatever_the_app_says() {
+        let srv = setup_from(&found(Source::Srv, true), "ada@example.org");
+        let mut srv_hosts = BTreeSet::new();
+        srv_hosts.extend(hosts_of(&srv));
+        let mut lying = srv.clone();
+        lying.needs_confirm = false;
+        assert!(touches(&srv_hosts, &lying));
+        lying.needs_confirm |= touches(&srv_hosts, &lying);
+        let refused = check_request(&request(lying, false, &[]), &[]);
+        assert_eq!(refused, Err(Refusal::Unconfirmed));
+        let other = setup_from(&found(Source::Ispdb, false), "ada@example.org");
+        let mut elsewhere = other;
+        elsewhere.imap.host = "imap.other.org".into();
+        elsewhere.smtp.host = "smtp.other.org".into();
+        assert!(!touches(&srv_hosts, &elsewhere));
     }
 
     #[test]

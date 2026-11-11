@@ -59,9 +59,14 @@ impl Store {
             data_dir: config.data_dir.clone(),
             paths,
         };
-        let finished = super::remove::resume_removals(&mut store)?;
-        if !finished.is_empty() {
-            log::info!("finished {} interrupted removals", finished.len());
+        // A failed resume keeps its marker and is retried at the next start;
+        // it must not lock the user out of their mail.
+        match super::remove::resume_removals(&mut store) {
+            Ok(finished) if !finished.is_empty() => {
+                log::info!("finished {} interrupted removals", finished.len());
+            }
+            Ok(_) => {}
+            Err(error) => log::error!("finishing interrupted removals: {error}"),
         }
         if let Err(e) = store.sweep_bodies(now_ms) {
             log::warn!("sweeping bodies: {e}");
