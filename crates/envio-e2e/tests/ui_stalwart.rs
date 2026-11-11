@@ -6,14 +6,16 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use envio_core::{
-    Command, ComposeId, DraftInput, Event, FolderRole, ImagesChoice, SearchScope, StartFrom,
-};
+use envio_core::{Command, ComposeId, DraftInput, Event, FolderRole, ImagesChoice, SearchScope};
 use log::LevelFilter;
 use support::core_run::{CoreRun, NET, password, setup_at};
 use support::proxy::Proxy;
 use support::stalwart::{Stalwart, message, message_id};
-use support::ui_help::{deliver, draft_texts, unified, unique_word};
+use support::ui_help::{compose_new, deliver, draft_texts, unified, unique_word};
+
+/// Serial: tests sign in as the same users, and Stalwart drops SMTP TLS
+/// connections when several of those sign-ins overlap.
+static TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 const DAY: i64 = 86_400;
 
@@ -84,24 +86,6 @@ async fn search_on_server_finds_mail_older_than_the_window() {
     assert_eq!(found[0].subject, subject);
 }
 
-/// Serial: tests sign in as the same users, and Stalwart drops SMTP TLS
-/// connections when several of those sign-ins overlap.
-static TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-fn compose_new(run: &CoreRun, compose: ComposeId, account: &str) {
-    run.core.send(Command::StartCompose {
-        compose,
-        from: StartFrom::New {
-            account: account.to_owned(),
-        },
-        draft_id: None,
-        mailto: None,
-    });
-    run.wait(NET, |event| {
-        matches!(event, Event::ComposeReady { .. }).then_some(())
-    });
-}
-
 #[tokio::test]
 async fn a_draft_survives_a_slow_first_sync() {
     let _turn = TURN.lock().await;
@@ -146,21 +130,16 @@ async fn a_draft_survives_a_slow_first_sync() {
         std::thread::sleep(Duration::from_millis(25));
     }
 
-    // The sync really was stalled: the Inbox does not show the mail yet.
-    // When the proxy lets go it does.
-    run.core.send(Command::ListFolders {
-        account: account.clone(),
-    });
-    let folders = run.wait(NET, |event| match event {
-        Event::Folders { folders, .. } => Some(folders.clone()),
-        _ => None,
-    });
-    if let Some(inbox) = folders.iter().find(|f| f.role == FolderRole::Inbox) {
-        assert!(
-            run.rows(inbox.id).iter().all(|r| r.subject != subject),
-            "the first sync had finished; the proxy did not slow it"
-        );
-    }
+    // The sync really was stalled: the proxy is holding a batch, and the
+    // cache (deleted before the start) shows none of the Inbox's mail.
+    assert!(
+        proxy.held() >= 1,
+        "the proxy held no batch: no stalled sync"
+    );
+    assert!(
+        unified(&run).iter().all(|r| r.subject != subject),
+        "the first sync had finished; the proxy did not slow it"
+    );
     proxy.slow(Duration::ZERO);
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
     run.row_with(inbox, &subject);

@@ -16,6 +16,8 @@ struct State {
     accepted: AtomicUsize,
     /// Milliseconds each batch from the server waits before it is passed on.
     delay_ms: AtomicU64,
+    /// Batches that waited for the delay.
+    held: AtomicUsize,
 }
 
 pub struct Proxy {
@@ -77,6 +79,11 @@ impl Proxy {
         self.state.delay_ms.store(ms, Ordering::SeqCst);
     }
 
+    /// How many batches have waited for the delay so far.
+    pub fn held(&self) -> usize {
+        self.state.held.load(Ordering::SeqCst)
+    }
+
     pub fn up(&self) {
         self.state.down.store(false, Ordering::SeqCst);
     }
@@ -89,6 +96,7 @@ fn pipe(mut from: TcpStream, mut to: TcpStream, slow: Option<Arc<State>>) {
             if let Some(state) = &slow {
                 let ms = state.delay_ms.load(Ordering::SeqCst);
                 if ms > 0 {
+                    state.held.fetch_add(1, Ordering::SeqCst);
                     thread::sleep(Duration::from_millis(ms));
                 }
             }

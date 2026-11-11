@@ -1,6 +1,6 @@
 //! Small helpers of the UI tests against Stalwart.
 
-use envio_core::{Command, Event, ListRef, MessageRow};
+use envio_core::{Command, ComposeId, Event, ListRef, MessageRow, StartFrom};
 
 use super::core_run::{CoreRun, NET, password};
 use super::stalwart::{Stalwart, message, message_id};
@@ -57,4 +57,19 @@ pub fn unified(run: &CoreRun) -> Vec<MessageRow> {
             return all;
         }
     }
+}
+
+/// Opens a new compose window on the account and waits until it is ready.
+pub fn compose_new(run: &CoreRun, compose: ComposeId, account: &str) {
+    run.core.send(Command::StartCompose {
+        compose,
+        from: StartFrom::New {
+            account: account.to_owned(),
+        },
+        draft_id: None,
+        mailto: None,
+    });
+    run.wait(NET, |event| {
+        matches!(event, Event::ComposeReady { .. }).then_some(())
+    });
 }
