@@ -145,3 +145,22 @@ fn a_draft_without_attachments_field_loads_with_none() {
     assert!(loaded.attachments.is_empty());
     assert_eq!(loaded.subject, "old");
 }
+
+#[test]
+fn a_non_utf8_attachment_path_fails_the_save_without_panicking() {
+    use std::os::unix::ffi::OsStrExt;
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let mut bad = draft("Odd name", 1);
+    bad.attachments
+        .push(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(
+            b"/tmp/\xff.txt",
+        )));
+    assert!(matches!(
+        drafts.create(&bad),
+        Err(StoreError::BadRecord { .. })
+    ));
+    let id = drafts.create(&draft("Fine", 2)).unwrap();
+    assert!(drafts.save(&id, &bad).is_err());
+    assert_eq!(drafts.load(&id).unwrap(), draft("Fine", 2));
+}
