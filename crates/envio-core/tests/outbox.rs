@@ -248,3 +248,25 @@ fn edit_refuses_an_item_that_is_not_failed() {
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
     assert!(drafts.list().unwrap().is_empty());
 }
+
+#[test]
+fn a_send_lists_the_outbox() {
+    let (mut h, key) = unstarted();
+    h.start_core();
+    h.send(Command::Send {
+        compose: C,
+        draft: envio_core::DraftInput {
+            account: key,
+            to: vec!["ada@example.org".into()],
+            subject: "Plans".into(),
+            body: "See you".into(),
+            ..envio_core::DraftInput::default()
+        },
+    });
+    let items = h.wait(|e| match e {
+        Event::Outbox { items } => Some(items.clone()),
+        _ => None,
+    });
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].subject, "Plans");
+}

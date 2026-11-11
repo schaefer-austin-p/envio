@@ -231,6 +231,7 @@ impl Worker<'_> {
                 self.sent.insert(compose);
                 self.emit(Event::Queued { compose, item });
                 self.emit(Event::OutboxChanged);
+                self.emit_outbox();
             }
             Err(text) => {
                 // The window stays open: keep what the user wrote.
