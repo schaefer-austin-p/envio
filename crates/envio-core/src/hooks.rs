@@ -70,6 +70,24 @@ pub fn setup_runs(email: &str) -> usize {
     })
 }
 
+static JOURNAL_FAILS: Mutex<Vec<std::path::PathBuf>> = Mutex::new(Vec::new());
+
+/// The next journal write of the store whose journal is at `journal` fails
+/// to sync after the line is written (`StoreError::MayStillApply`).
+pub fn fail_next_journal_sync(journal: std::path::PathBuf) {
+    if let Ok(mut fails) = JOURNAL_FAILS.lock() {
+        fails.push(journal);
+    }
+}
+
+pub(crate) fn take_journal_failure(journal: &std::path::Path) -> bool {
+    JOURNAL_FAILS.lock().is_ok_and(|mut fails| {
+        let before = fails.len();
+        fails.retain(|p| p != journal);
+        fails.len() != before
+    })
+}
+
 pub(crate) fn setup_started(email: &str) -> Option<SetupFake> {
     let mut fakes = SETUP.lock().ok()?;
     let entry = fakes.iter_mut().find(|(e, _, _)| e == email)?;

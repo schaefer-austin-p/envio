@@ -118,10 +118,16 @@ impl Worker<'_> {
             return;
         };
         let newest = self.store.journal.pending().map(|a| a.seq).max();
+        self.arm_journal_hook();
         match driver::record(&mut self.store.local(), id, kind, done.now) {
             Ok(undo) => done.undos.push(undo),
             Err(error) => {
                 log::warn!("recording an action: {error}");
+                if only_maybe_saved(&error) {
+                    done.refused
+                        .get_or_insert_with(text::notice::change_may_still_apply);
+                    return;
+                }
                 // An error after the journal write leaves the action
                 // pending: it is done, just not undoable (#41).
                 if self.store.journal.pending().map(|a| a.seq).max() == newest {
@@ -154,6 +160,8 @@ impl Worker<'_> {
         let mut undone = 0;
         let mut late = 0;
         let mut failed = false;
+        let mut may_still_apply = false;
+        self.arm_journal_hook();
         for item in &offer.undos {
             match driver::undo(&mut self.store.local(), item) {
                 Ok(true) => undone += 1,
@@ -161,6 +169,7 @@ impl Worker<'_> {
                 Err(error) => {
                     log::warn!("undoing an action: {error}");
                     failed = true;
+                    may_still_apply |= only_maybe_saved(&error);
                 }
             }
         }
@@ -178,12 +187,24 @@ impl Worker<'_> {
             // Those stay pending: replay them without waiting for a poll.
             self.want_replay(&offer.accounts);
             self.emit(Event::Notice {
-                text: text::undo::cannot_undo(),
+                text: if may_still_apply {
+                    text::notice::undo_may_still_apply()
+                } else {
+                    text::undo::cannot_undo()
+                },
             });
         } else if late > 0 {
             self.emit(Event::Notice {
                 text: text::undo::too_late(),
             });
+        }
+    }
+
+    /// Test hook: makes the next journal write fail to sync, if asked to.
+    fn arm_journal_hook(&mut self) {
+        #[cfg(feature = "test-hooks")]
+        if crate::hooks::take_journal_failure(&self.store.paths.journal()) {
+            self.store.journal.fail_next_sync();
         }
     }
 
@@ -224,6 +245,12 @@ impl Worker<'_> {
         }
         closed
     }
+}
+
+/// The journal line may be on disk without being durable, and the disk is
+/// not the reason (disk-full text wins).
+fn only_maybe_saved(error: &envio_sync::SyncError) -> bool {
+    matches!(error, envio_sync::SyncError::Store(e) if e.may_still_apply() && !e.is_disk_full())
 }
 
 fn failed_text(error: &envio_store::StoreError) -> String {

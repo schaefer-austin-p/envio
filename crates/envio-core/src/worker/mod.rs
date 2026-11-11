@@ -213,6 +213,12 @@ impl<'s> Worker<'s> {
                 text: text::notice::cache_rebuilt(),
             });
         }
+        let skipped = self.store.journal.skipped().len();
+        if skipped > 0 {
+            self.sink.emit(Event::Notice {
+                text: text::notice::journal_skipped(u64::try_from(skipped).unwrap_or(u64::MAX)),
+            });
+        }
         let accounts = self
             .store
             .accounts

@@ -1,6 +1,6 @@
 //! One-line notices the worker shows the user.
 
-use crate::i18n::{fill, tr};
+use crate::i18n::{fill, tr, tr_n};
 use envio_store::{Action, ActionKind};
 
 pub fn refused(reason: &str) -> String {
@@ -56,4 +56,26 @@ pub fn settings_not_saved() -> String {
 
 pub fn contact_not_saved() -> String {
     tr("Could not save the contact")
+}
+
+/// The journal could not make a new action durable: it may replay.
+pub fn change_may_still_apply() -> String {
+    tr("This change couldn't be saved on the phone. It may still be applied.")
+}
+
+/// The journal could not make an Undo durable: the change may come back.
+pub fn undo_may_still_apply() -> String {
+    tr("Undo couldn't be saved on the phone. The change may still be undone.")
+}
+
+/// Journal records a newer Envio wrote, left alone at start.
+pub fn journal_skipped(n: u64) -> String {
+    fill(
+        &tr_n(
+            "{n} pending change could not be read and was skipped",
+            "{n} pending changes could not be read and were skipped",
+            n,
+        ),
+        &[("n", &n.to_string())],
+    )
 }
