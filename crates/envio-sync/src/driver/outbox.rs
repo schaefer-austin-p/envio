@@ -88,7 +88,8 @@ pub struct Filed {
 /// files a message twice. With no folders cached at all (the folder list
 /// hasn't been fetched yet) nothing is filed: items stay in the Outbox, in
 /// no list, until a run that knows the account's folders. A refusal leaves
-/// the item in the Outbox; an accepted one is reported in `unfiled`.
+/// the item in the Outbox; an accepted one is reported in `unfiled`. Only a
+/// search that finds nothing asks the user (`ask`).
 pub async fn file_sent(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -161,12 +162,12 @@ pub async fn file_sent(
 }
 
 /// Sent refused something for this item: an accepted one is reported as
-/// unfiled, a May have been sent one goes to the user to decide.
+/// unfiled. A May have been sent one stays where it is, unasked: Sent was
+/// not searched, so "not found" is not known, and asking would invite a
+/// resend of mail that may be there. The check is retried next time.
 fn refused(filed: &mut Filed, step: ItemStep, id: String) {
     if step == ItemStep::File {
         filed.unfiled.push(id);
-    } else {
-        filed.ask.push(id);
     }
 }
 

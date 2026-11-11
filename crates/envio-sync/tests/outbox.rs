@@ -251,7 +251,7 @@ async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
         .await
         .unwrap();
     assert!(filed.removed.is_empty());
-    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.ask.is_empty(), "Sent was not searched: not asked");
     assert_eq!(filed.unfiled, std::slice::from_ref(&accepted));
     assert_eq!(state(&store, &accepted), Some(SendState::Accepted));
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
@@ -279,7 +279,7 @@ async fn a_refused_sent_select_keeps_what_was_already_filed() {
         .unwrap();
     assert_eq!(filed.removed, std::slice::from_ref(&accepted));
     assert!(filed.unfiled.is_empty(), "it needed no Sent folder");
-    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.ask.is_empty(), "Sent was not searched: not asked");
     assert_eq!(state(&store, &accepted), None);
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
 }
@@ -299,7 +299,7 @@ async fn with_no_folders_cached_an_accepted_item_is_left_in_the_outbox() {
 }
 
 #[tokio::test]
-async fn a_maybe_sent_item_whose_sent_search_is_refused_is_asked() {
+async fn a_maybe_sent_item_whose_sent_search_is_refused_is_left_for_the_next_try() {
     let mut server = FakeServer::new();
     let mut store = store_with_sent(&mut server).await;
     let unsure = queue(&store, "two");
@@ -311,14 +311,14 @@ async fn a_maybe_sent_item_whose_sent_search_is_refused_is_asked() {
     let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
         .await
         .unwrap();
-    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.ask.is_empty(), "the search failed: not asked");
     assert!(filed.removed.is_empty());
     assert!(filed.unfiled.is_empty());
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
 }
 
 #[tokio::test]
-async fn a_refused_sent_select_asks_for_maybe_sent_items() {
+async fn a_refused_sent_select_leaves_maybe_sent_items_unasked() {
     let mut server = FakeServer::new();
     let mut store = store_with_sent(&mut server).await;
     let unsure = queue(&store, "two");
@@ -330,9 +330,24 @@ async fn a_refused_sent_select_asks_for_maybe_sent_items() {
     let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
         .await
         .unwrap();
-    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(filed.ask.is_empty(), "the select failed: not asked");
     assert!(filed.unfiled.is_empty());
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
+}
+
+#[tokio::test]
+async fn a_maybe_sent_item_is_asked_only_when_sent_was_searched_and_lacks_it() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let unsure = queue(&store, "two");
+    store
+        .outbox
+        .set_state(&unsure, SendState::MayHaveBeenSent)
+        .unwrap();
+    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
+        .await
+        .unwrap();
+    assert_eq!(filed.ask, std::slice::from_ref(&unsure));
 }
 
 #[tokio::test]
