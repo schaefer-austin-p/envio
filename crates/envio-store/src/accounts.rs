@@ -204,7 +204,7 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Parsed> {
                 None => account,
                 Some(reason) => stand_in(&value, key.clone(), reason),
             },
-            Err(error) => stand_in(&value, key.clone(), format!("unreadable settings: {error}")),
+            Err(_) => stand_in(&value, key.clone(), unreadable(&value)),
         };
         if account.broken.is_some() {
             raw.insert(key, value);
@@ -213,6 +213,23 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Parsed> {
     }
     check(path, &accounts)?;
     Ok((accounts, raw))
+}
+
+/// A fixed reason naming which part failed, never a value from the file.
+fn unreadable(value: &serde_json::Value) -> String {
+    let settings = value.get("settings");
+    let server_bad = |which: &str| {
+        settings
+            .and_then(|settings| settings.get(which))
+            .is_none_or(|server| serde_json::from_value::<Server>(server.clone()).is_err())
+    };
+    if server_bad("imap") {
+        "unreadable IMAP server settings".to_owned()
+    } else if server_bad("smtp") {
+        "unreadable SMTP server settings".to_owned()
+    } else {
+        "unreadable account settings".to_owned()
+    }
 }
 
 /// A stand-in for an entry that did not parse: its key and whatever name and

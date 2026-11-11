@@ -89,11 +89,14 @@ fn an_entry_that_does_not_parse_is_broken_with_its_key() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
     let text = r#"{"version": 2, "accounts": [{"key": "1000",
-      "settings": {"name": "Ada", "email": "ada@example.org", "imap": 5}}]}"#;
+      "settings": {"name": "Ada", "email": "ada@example.org", "imap": {"host": "h", "port": "SECRET-PORT-VALUE"}}}]}"#;
     fs::write(&path, text).unwrap();
     let accounts = Accounts::open(&path).unwrap();
     let account = accounts.get("1000").unwrap();
-    assert!(account.broken.is_some());
+    assert_eq!(
+        account.broken.as_deref(),
+        Some("unreadable IMAP server settings")
+    );
     assert_eq!(account.settings.name, "Ada");
 }
 
