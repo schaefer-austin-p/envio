@@ -203,8 +203,6 @@ impl<'s> Worker<'s> {
     pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
         // Commands that came in during the last step go first: an Undo
         // pressed inside its window must not find the offer closed.
-        // Commands that came in during the last step go first: an Undo
-        // pressed inside its window must not find the offer closed.
         if self.drain(commands).await == Flow::Stop {
             return Flow::Stop;
         }
