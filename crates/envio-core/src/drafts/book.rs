@@ -355,7 +355,10 @@ impl DraftBook {
             return Ok(None);
         }
         let stored: Draft = compose::to_store(draft, now_ms());
-        let known = st.id_for(compose).or_else(|| draft.draft_id.clone());
+        // An empty id is no id: a new compose may carry "" for it.
+        let known = st
+            .id_for(compose)
+            .or_else(|| draft.draft_id.clone().filter(|id| !id.is_empty()));
         let result = self.drafts().and_then(|drafts| match &known {
             Some(id) => drafts.save(id, &stored).map(|()| None),
             None => drafts.create(&stored).map(Some),
@@ -425,6 +428,20 @@ mod tests {
         assert!(book.save_due(2_050).is_empty());
         let drafts = book.drafts().unwrap().list().unwrap();
         assert_eq!((drafts.len(), drafts[0].1.body.as_str()), (1, "b"));
+    }
+
+    #[test]
+    fn an_empty_draft_id_is_a_new_draft() {
+        // The QML page sends `draftId: ""` until the draft has one.
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        let mut draft = input("hello");
+        draft.draft_id = Some(String::new());
+        book.changed(A, draft, 0);
+        let events = book.save_due(DRAFT_SAVE_MS);
+        assert_eq!(saved(&events), 1, "{events:?}");
+        assert!(!events.iter().any(|e| matches!(e, Event::Notice { .. })));
+        assert_eq!(book.drafts().unwrap().list().unwrap().len(), 1);
     }
 
     #[test]

@@ -49,13 +49,14 @@ pub fn draft_from_json(text: &str) -> Result<DraftInput, Rejected> {
     let d: DraftJson = serde_json::from_str(text).map_err(|e| rejected(&e))?;
     Ok(DraftInput {
         account: d.account,
-        draft_id: d.draft_id,
+        // QML sends "" for what it does not have yet.
+        draft_id: d.draft_id.filter(|id| !id.is_empty()),
         to: d.to,
         cc: d.cc,
         bcc: d.bcc,
         subject: d.subject,
         body: d.body,
-        in_reply_to: d.in_reply_to,
+        in_reply_to: d.in_reply_to.filter(|id| !id.is_empty()),
         references: d.references,
         attachments: d.attachments,
     })
@@ -214,6 +215,13 @@ mod tests {
         // The refusal quotes nothing QML sent.
         let bad = draft_from_json(r#"{"to":"bob@example.org"}"#).unwrap_err();
         assert!(!bad.to_string().contains("bob"), "{bad}");
+    }
+
+    #[test]
+    fn empty_ids_from_qml_are_none() {
+        let draft = draft_from_json(r#"{"account":"a","draftId":"","inReplyTo":""}"#).unwrap();
+        assert_eq!(draft.draft_id, None);
+        assert_eq!(draft.in_reply_to, None);
     }
 
     #[test]
