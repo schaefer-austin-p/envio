@@ -8,3 +8,14 @@ pub enum Command {
     #[cfg(feature = "test-hooks")]
     Crash,
 }
+
+impl Command {
+    /// The variant's name, for logs (never the payload).
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Shutdown => "Shutdown",
+            #[cfg(feature = "test-hooks")]
+            Self::Crash => "Crash",
+        }
+    }
+}

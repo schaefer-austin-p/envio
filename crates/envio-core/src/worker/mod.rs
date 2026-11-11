@@ -3,6 +3,7 @@
 mod dispatch;
 mod store;
 
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -56,6 +57,7 @@ impl<'s> Worker<'s> {
         sink: &'s dyn EventSink,
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
+        let mut queued: VecDeque<Command> = VecDeque::new();
         let (store, cache) = loop {
             match Store::open(config, now_ms()) {
                 Ok(opened) => break opened,
@@ -69,19 +71,37 @@ impl<'s> Worker<'s> {
             tokio::select! {
                 () = tokio::time::sleep(wait) => {}
                 command = commands.recv() => match command {
-                    None | Some(Command::Shutdown) => return None,
-                    #[cfg(feature = "test-hooks")]
-                    Some(other) => log::warn!("store not open; dropped {other:?}"),
+                    None => return None,
+                    Some(command) => {
+                        if matches!(command, Command::Shutdown) {
+                            if !queued.is_empty() {
+                                let names: Vec<&str> = queued.iter().map(Command::name).collect();
+                                log::warn!(
+                                    "shutdown with {} unhandled commands: {}",
+                                    names.len(),
+                                    names.join(", ")
+                                );
+                            }
+                            return None;
+                        }
+                        queued.push_back(command);
+                    }
                 },
             }
         };
-        let worker = Worker {
+        let mut worker = Worker {
             store,
             sink,
             roots: config.roots.clone(),
             foreground: config.foreground,
         };
         worker.announce(cache);
+        // What was sent while the store could not open, in order.
+        for command in queued {
+            if handle(&mut worker, command).await == Flow::Stop {
+                return None;
+            }
+        }
         Some(worker)
     }
 

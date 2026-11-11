@@ -92,7 +92,23 @@ fn shutdown_while_the_store_cannot_open_returns() {
     h.start_core();
     std::thread::sleep(Duration::from_millis(200));
     let core = h.core.take().unwrap();
-    let began = Instant::now();
-    core.shutdown();
-    assert!(began.elapsed() < Duration::from_secs(2));
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        core.shutdown();
+        let _ = done.send(());
+    });
+    finished
+        .recv_timeout(Duration::from_secs(2))
+        .expect("shutdown did not return");
+}
+
+#[test]
+fn a_command_sent_while_the_store_cannot_open_runs_after_it_opens() {
+    let mut h = Harness::unstarted();
+    std::fs::write(h.data_dir(), b"a file where the data dir should be").unwrap();
+    h.start_core();
+    h.send(Command::Crash);
+    std::thread::sleep(Duration::from_millis(200));
+    std::fs::remove_file(h.data_dir()).unwrap();
+    h.wait(|e| matches!(e, Event::WorkerRestarted { .. }).then_some(()));
 }

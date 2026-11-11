@@ -59,7 +59,7 @@ impl Core {
     /// Never blocks. After the worker ended the command is dropped.
     pub fn send(&self, command: Command) {
         if let Err(error) = self.commands.send(command) {
-            log::warn!("worker has stopped; dropped {:?}", error.0);
+            log::warn!("worker has stopped; dropped {}", error.0.name());
         }
     }
 
