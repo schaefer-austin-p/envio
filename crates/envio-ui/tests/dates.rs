@@ -16,8 +16,10 @@ fn the_utc_offset_decides_the_day() {
     let date = NOW - 13 * H;
     assert_eq!(bucket(NOW, Some(date), 0), DateBucket::Weekday);
     assert_eq!(bucket(NOW, Some(date), 2 * 3_600), DateBucket::Time);
-    // 09:00 UTC is 01:00 on the 15th at -8h, and now is 04:00 there.
-    assert_eq!(bucket(NOW, Some(NOW - 3 * H), -8 * 3_600), DateBucket::Time);
+    // 01:00 UTC on the 15th is the 14th at -8h (now is 04:00 on the 15th there).
+    let date = NOW - 11 * H;
+    assert_eq!(bucket(NOW, Some(date), 0), DateBucket::Time);
+    assert_eq!(bucket(NOW, Some(date), -8 * 3_600), DateBucket::Weekday);
 }
 
 #[test]
@@ -41,4 +43,11 @@ fn older_is_full() {
 #[test]
 fn no_date_is_none() {
     assert_eq!(bucket(NOW, None, 0), DateBucket::None);
+}
+
+#[test]
+fn a_future_date_is_never_a_weekday() {
+    assert_eq!(bucket(NOW, Some(NOW + 3 * H), 0), DateBucket::Time);
+    assert_eq!(bucket(NOW, Some(NOW + 2 * D), 0), DateBucket::DayMonth);
+    assert_eq!(bucket(NOW, Some(NOW + 400 * D), 0), DateBucket::Full);
 }

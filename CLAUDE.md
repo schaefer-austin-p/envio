@@ -14,8 +14,8 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
   `envio-mime` parse, build, HTML to Qt rich text; `envio-e2e` cross-crate
   tests only; `envio-ui` the screens' state (list models as row
   operations, selection, paging, signals), Qt-free.
-- Dependencies point one way: ui → core → sync → net, store, mime. net, store and
-  mime never depend on each other.
+- Dependencies point one way: ui → core → sync → net, store, mime. net,
+  store and mime never depend on each other.
 - `qt/` cxx-qt glue (its own workspace, holds no logic). `qml/` views;
   Lomiri and Suru APIs only in `qml/platform/ut/`.
 - `xtask/` CI helpers (`cargo xtask affected`).

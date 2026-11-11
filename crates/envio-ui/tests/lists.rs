@@ -139,3 +139,49 @@ fn the_unified_inbox_reacts_to_any_inbox() {
     );
     assert!(changed(&mut ui, &[2]).is_empty(), "Sent is not an Inbox");
 }
+
+#[test]
+fn a_change_in_an_unseen_folder_refreshes_the_unified_inbox() {
+    let mut ui = Ui::new();
+    feed(
+        &mut ui,
+        Event::Folders {
+            account: "a".into(),
+            folders: vec![folder(2, FolderRole::Sent)],
+        },
+    );
+    opened(&mut ui, ListRef::Inboxes, vec![msg(1, 10)], true);
+    assert_eq!(sends(&changed(&mut ui, &[99])), 1);
+}
+
+#[test]
+fn a_refresh_removes_only_rows_inside_a_partial_first_page() {
+    let mut ui = Ui::new();
+    opened(
+        &mut ui,
+        F1,
+        vec![msg(5, 50), msg(4, 40), msg(3, 30), msg(2, 20), msg(1, 10)],
+        false,
+    );
+    changed(&mut ui, &[1]);
+    // The page (not the end) is 5, 3 down to the bound 30: 4 is gone,
+    // 2 and 1 lie beyond the bound and stay.
+    let outs = feed(&mut ui, page(F1, None, vec![msg(5, 50), msg(3, 30)], false));
+    let ops = changes(&outs, Model::Messages);
+    assert!(
+        matches!(ops[..], [Op::Remove { at: 1, count: 1 }]),
+        "{ops:?}"
+    );
+}
+
+#[test]
+fn a_refresh_inserts_in_the_middle() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(4, 40), msg(2, 20)], true);
+    changed(&mut ui, &[1]);
+    let rows = vec![msg(4, 40), msg(3, 30), msg(2, 20)];
+    let outs = feed(&mut ui, page(F1, None, rows, true));
+    let ops = changes(&outs, Model::Messages);
+    assert!(matches!(ops[..], [Op::Insert { at: 1, .. }]), "{ops:?}");
+    assert_eq!(ids(ops[0]), vec![3]);
+}

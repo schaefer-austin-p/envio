@@ -136,3 +136,21 @@ fn a_search_failure_shows_only_for_the_current_search() {
     let outs = feed(&mut ui, failed("q"));
     assert_eq!(signals(&outs), [&Signal::SearchFailed("down".into())]);
 }
+
+#[test]
+fn switching_lists_or_searching_clears_the_marks() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+    ui.select(2, true);
+    let (_, outs) = ui.open_list(envio_core::ListRef::Inboxes);
+    let ops = changes(&outs, Model::Messages);
+    assert!(matches!(ops[..], [Op::Update { .. }]) && !selected(ops[0]));
+    assert!(ui.act_on_selection(UserAction::Delete).is_none());
+
+    opened(&mut ui, F1, vec![msg(2, 20)], true);
+    ui.select(2, true);
+    let (_, outs) = ui.search(envio_core::SearchScope::All, "q".into(), false);
+    let ops = changes(&outs, Model::Messages);
+    assert!(matches!(ops[..], [Op::Update { .. }]) && !selected(ops[0]));
+    assert!(ui.act_on_selection(UserAction::Delete).is_none());
+}

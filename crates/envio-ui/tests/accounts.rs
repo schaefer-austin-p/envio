@@ -99,3 +99,15 @@ fn removed_account_leaves_the_model_and_its_rows() {
         "{msgs:?}"
     );
 }
+
+#[test]
+fn an_account_already_listed_is_not_added_twice() {
+    let mut ui = Ui::new();
+    start(&mut ui);
+    let outs = feed(&mut ui, Event::AccountAdded { account: info("b") });
+    let ops = changes(&outs, Model::Accounts);
+    assert!(matches!(ops[..], [Op::Update { at: 1, .. }]), "{ops:?}");
+    let outs = feed(&mut ui, Event::AccountAdded { account: info("c") });
+    let ops = changes(&outs, Model::Accounts);
+    assert!(matches!(ops[..], [Op::Insert { at: 2, .. }]), "{ops:?}");
+}
