@@ -2,6 +2,7 @@
 //! restarts: it is owned by `Core`, not by the supervisor.
 
 use std::io;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
@@ -104,8 +105,21 @@ fn emit_all(sink: &dyn EventSink, events: Vec<Event>) {
     }
 }
 
+/// Keeps going after a panic (the app's sink, or the store, may panic): the
+/// book is plain data and the channel is still there.
 fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) {
     loop {
+        match panic::catch_unwind(AssertUnwindSafe(|| step(book, rx, sink))) {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(_) => log::error!("the draft thread panicked; going on"),
+        }
+    }
+}
+
+/// One message (or due time) handled; false when the thread should end.
+fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> bool {
+    {
         let wait = book
             .next_due()
             .map(|due| u64::try_from((due - now_ms()).max(0)).unwrap_or(0));
@@ -125,10 +139,11 @@ fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) {
             }
             Ok(KeeperMsg::Stop) | Err(RecvTimeoutError::Disconnected) => {
                 emit_all(sink, book.flush_all());
-                return;
+                return false;
             }
             Ok(KeeperMsg::Wake) | Err(RecvTimeoutError::Timeout) => {}
         }
         emit_all(sink, book.save_due(now_ms()));
     }
+    true
 }

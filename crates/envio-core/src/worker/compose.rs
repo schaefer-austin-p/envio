@@ -152,7 +152,8 @@ impl Worker<'_> {
                 .map(String::as_str),
             &settings.email,
         );
-        // The draft is on disk with every change before anything is built.
+        // What this Send carries is on disk before anything is built.
+        self.book.changed(compose, draft.clone(), now_ms());
         self.book.flush(compose)?;
         let mut files = Vec::new();
         for path in &draft.attachments {

@@ -4,9 +4,11 @@
 mod support;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use envio_core::{Command, ComposeId, DraftInput, Event, StartFrom};
+use envio_core::{Command, ComposeId, Core, DraftInput, Event, EventSink, StartFrom};
 use envio_store::{Drafts, Outbox};
 use support::Harness;
 
@@ -248,4 +250,52 @@ fn a_reopened_draft_saves_to_the_same_file() {
     let drafts = s.drafts();
     assert_eq!(drafts.len(), 1);
     assert_eq!(drafts[0].0, id);
+}
+
+#[test]
+fn close_then_send_deletes_the_draft() {
+    let s = started();
+    s.stall(1_000);
+    s.change(s.draft("typed"));
+    // The close reaches the draft thread at once; the Send waits behind the
+    // stalled worker.
+    s.h.send(Command::CloseCompose {
+        compose: C,
+        discard: false,
+    });
+    s.h.send(Command::Send {
+        compose: C,
+        draft: s.draft("typed"),
+    });
+    s.h.wait(|e| matches!(e, Event::Queued { .. }).then_some(()));
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(s.drafts().is_empty(), "the sent mail is not a draft");
+}
+
+/// Panics once, on the first `DraftSaved`.
+struct PanicOnce(AtomicBool);
+
+impl EventSink for PanicOnce {
+    fn emit(&self, event: Event) {
+        if matches!(event, Event::DraftSaved { .. }) && !self.0.swap(true, Ordering::SeqCst) {
+            panic!("sink panic");
+        }
+    }
+}
+
+#[test]
+fn a_panicking_sink_does_not_stop_draft_saving() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    h.core = Some(Core::start(h.config(), Arc::new(PanicOnce(AtomicBool::new(false)))).unwrap());
+    let s = S { h, key };
+    s.change(s.draft("first"));
+    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "first"));
+    std::thread::sleep(Duration::from_millis(100));
+    s.h.send(Command::DraftChanged {
+        compose: ComposeId(2),
+        draft: s.draft("second"),
+    });
+    let limit = Duration::from_millis(SAVE_MS + 200);
+    assert!(s.wait_for_draft(limit, |d| d.body == "second"));
 }

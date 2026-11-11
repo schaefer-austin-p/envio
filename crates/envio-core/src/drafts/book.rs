@@ -30,6 +30,10 @@ struct BookState {
     throttle: SaveThrottle,
     /// The stored draft of each compose window that has one.
     ids: BTreeMap<ComposeId, String>,
+    /// The draft of a compose whose window closed with the draft kept: a
+    /// Send still queued behind the close (it goes through the worker) must
+    /// find and delete it.
+    closed: BTreeMap<ComposeId, String>,
     /// The account each open compose window writes from.
     accounts: BTreeMap<ComposeId, String>,
     /// Composes whose message is queued, for the whole session: nothing more
@@ -39,6 +43,16 @@ struct BookState {
     save_failed: BTreeSet<ComposeId>,
     /// Accounts being or already removed: their drafts are not saved.
     removed: BTreeSet<String>,
+}
+
+impl BookState {
+    /// The compose's draft, open or closed.
+    fn id_for(&self, compose: ComposeId) -> Option<String> {
+        self.ids
+            .get(&compose)
+            .or_else(|| self.closed.get(&compose))
+            .cloned()
+    }
 }
 
 impl DraftBook {
@@ -131,7 +145,7 @@ impl DraftBook {
                 }
             }
         }
-        Ok(st.ids.get(&compose).cloned())
+        Ok(st.id_for(compose))
     }
 
     /// Saves every draft still waiting for its second.
@@ -153,7 +167,10 @@ impl DraftBook {
         st.save_failed.remove(&compose);
         st.accounts.remove(&compose);
         if discard {
-            let id = st.ids.remove(&compose);
+            let id = st
+                .ids
+                .remove(&compose)
+                .or_else(|| st.closed.remove(&compose));
             let fallback = pending.as_ref().and_then(|d| d.draft_id.clone());
             if let Some(id) = id.or(fallback)
                 && let Err(e) = self.drafts().and_then(|drafts| drafts.delete(&id))
@@ -165,8 +182,8 @@ impl DraftBook {
                 Some(draft) => self.persist(&mut st, (compose, draft), &mut events),
                 None => true,
             };
-            if saved {
-                st.ids.remove(&compose);
+            if saved && let Some(id) = st.ids.remove(&compose) {
+                st.closed.insert(compose, id);
             }
         }
         events
@@ -218,7 +235,8 @@ impl DraftBook {
         let mut st = self.lock();
         st.sent.insert(compose);
         st.throttle.take(compose);
-        st.ids.remove(&compose)
+        let id = st.ids.remove(&compose);
+        id.or_else(|| st.closed.remove(&compose))
     }
 
     pub fn is_sent(&self, compose: ComposeId) -> bool {
@@ -315,11 +333,7 @@ impl DraftBook {
             return Ok(None);
         }
         let stored: Draft = compose::to_store(draft, now_ms());
-        let known = st
-            .ids
-            .get(&compose)
-            .cloned()
-            .or_else(|| draft.draft_id.clone());
+        let known = st.id_for(compose).or_else(|| draft.draft_id.clone());
         let result = self.drafts().and_then(|drafts| match &known {
             Some(id) => drafts.save(id, &stored).map(|()| None),
             None => drafts.create(&stored).map(Some),
