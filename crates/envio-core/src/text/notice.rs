@@ -44,3 +44,11 @@ pub fn given_up(action: &Action) -> String {
         ActionKind::Delete => tr("Gave up deleting the message on the server; it's back"),
     }
 }
+
+pub fn settings_not_saved() -> String {
+    tr("Could not save your settings")
+}
+
+pub fn contact_not_saved() -> String {
+    tr("Could not save the contact")
+}

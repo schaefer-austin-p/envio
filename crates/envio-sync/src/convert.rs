@@ -60,6 +60,20 @@ pub fn new_message(summary: &Summary) -> NewMessage {
     }
 }
 
+/// The people a message's header names (From, then To) as (name, address)
+/// pairs, and when it was written: what autocomplete remembers.
+pub fn seen_addresses(summary: &Summary) -> (Vec<(String, String)>, i64) {
+    let parsed = envio_mime::envelope(&summary.header).unwrap_or_default();
+    let when = parsed.date.or(summary.internal_date).unwrap_or(0);
+    let found = parsed
+        .from
+        .iter()
+        .chain(&parsed.to)
+        .map(|a| (a.name.clone().unwrap_or_default(), a.email.clone()))
+        .collect();
+    (found, when)
+}
+
 /// A cached message as a row to write back (Undo puts a removed one back).
 pub fn row_of(message: &Message) -> NewMessage {
     NewMessage {

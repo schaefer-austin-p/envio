@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use envio_store::{
-    Accounts, Bodies, Db, Drafts, Journal, Opened, Outbox, StoreError, StorePaths, open_or_rebuild,
+    Accounts, Bodies, Contact, Db, Drafts, Journal, Opened, Outbox, Settings, StoreError,
+    StorePaths, load_contacts, load_settings, open_or_rebuild,
 };
 use envio_sync::Schedule;
 use envio_sync::driver::{Local, Unsent};
@@ -28,6 +29,10 @@ pub(crate) struct Store {
     pub accounts: Accounts,
     pub secrets: Secrets,
     pub schedule: Schedule,
+    /// `settings.json`: loaded at open, replaced only after a save worked.
+    pub settings: Settings,
+    /// `contacts.json`.
+    pub contacts: Vec<Contact>,
 }
 
 pub(super) fn secrets_error(error: SecretsError) -> StoreError {
@@ -65,6 +70,16 @@ impl Store {
             accounts: Accounts::open(&paths.accounts())?,
             secrets: Secrets::open(&config.data_dir).map_err(secrets_error)?,
             schedule: Schedule::default(),
+            // A file that cannot be read or set aside is not worth refusing
+            // mail for: start from the defaults.
+            settings: load_settings(&paths.settings()).unwrap_or_else(|e| {
+                log::warn!("loading the settings: {e}");
+                Settings::default()
+            }),
+            contacts: load_contacts(&paths.contacts()).unwrap_or_else(|e| {
+                log::warn!("loading the contacts: {e}");
+                Vec::new()
+            }),
             db,
             data_dir: config.data_dir.clone(),
             paths,

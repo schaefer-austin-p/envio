@@ -204,7 +204,11 @@ mod tests {
         let idle = runtime.block_on(worker.pick_for(&account, now_ms(), false));
         assert_eq!(idle, None);
         // The reader opens a message that was never downloaded.
-        worker.open_message(seeded.message, false, 300);
+        worker.open_message(
+            seeded.message,
+            crate::api::command::ImagesChoice::Default,
+            300,
+        );
         let step = runtime.block_on(worker.pick_for(&account, now_ms(), false));
         assert_eq!(step, Some(Step::Body(seeded.message)));
         // Not with a full disk, which has no room for it.

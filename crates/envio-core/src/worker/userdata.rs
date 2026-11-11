@@ -1,0 +1,225 @@
+//! What belongs to the user rather than to an account: settings, contacts,
+//! the addresses seen, and who may load remote images. Settings and contacts
+//! are files outside the cache; the addresses seen are a cache table.
+
+use envio_mime::Address;
+use envio_store::{Contact, FolderRole, ImagesDefault, Settings, save_contacts, save_settings};
+
+use super::Worker;
+use crate::api::command::{DraftInput, ImagesChoice};
+use crate::api::event::Event;
+use crate::api::view::Suggestion;
+use crate::clock::now_ms;
+use crate::text;
+
+/// Most suggestions one `Autocomplete` answers.
+const SUGGESTIONS: usize = 8;
+
+/// Whether `contact` matches what the user typed: the address, or any word
+/// of the name, starts with it (ASCII case ignored).
+fn matches(contact: &Contact, query: &str) -> bool {
+    let starts = |text: &str| text.to_lowercase().starts_with(query);
+    starts(&contact.address) || contact.name.split_whitespace().any(starts)
+}
+
+/// Whether remote images load for a sender, with no word from the user.
+pub(super) fn loads_images(settings: &Settings, choice: ImagesChoice, sender: &str) -> bool {
+    match choice {
+        ImagesChoice::Load => true,
+        ImagesChoice::Default => {
+            settings.images == ImagesDefault::Always
+                || settings.images_from.contains(&sender.trim().to_lowercase())
+        }
+    }
+}
+
+/// The sender is a saved contact or an allowed image sender.
+pub(super) fn is_known(settings: &Settings, contacts: &[Contact], sender: &str) -> bool {
+    let sender = sender.trim().to_lowercase();
+    settings.images_from.contains(&sender)
+        || contacts
+            .iter()
+            .any(|c| c.address.trim().eq_ignore_ascii_case(&sender))
+}
+
+impl Worker<'_> {
+    /// Unread messages in the account's Inbox.
+    pub(super) fn inbox_unread(&self, account: &str) -> u32 {
+        let counts = self.store.db.unread_counts(account);
+        let folders = self.store.db.folders(account);
+        match (counts, folders) {
+            (Ok(counts), Ok(folders)) => folders
+                .iter()
+                .find(|f| f.role == FolderRole::Inbox)
+                .and_then(|f| counts.get(&f.id).copied())
+                .unwrap_or(0),
+            (Err(e), _) => {
+                log::warn!("counting unread messages: {e}");
+                0
+            }
+            (_, Err(e)) => {
+                log::warn!("listing folders to count unread: {e}");
+                0
+            }
+        }
+    }
+
+    pub(super) fn autocomplete(&self, query: String) {
+        let typed = query.trim().to_lowercase();
+        let mut items: Vec<Suggestion> = Vec::new();
+        if !typed.is_empty() {
+            items.extend(
+                self.store
+                    .contacts
+                    .iter()
+                    .filter(|c| matches(c, &typed))
+                    .map(|c| Suggestion {
+                        name: c.name.clone(),
+                        address: c.address.clone(),
+                        from_contacts: true,
+                        last_seen: None,
+                    }),
+            );
+            match self.store.db.suggest(&typed, SUGGESTIONS as u32) {
+                Ok(seen) => {
+                    for s in seen {
+                        let known = items
+                            .iter()
+                            .any(|i| i.address.eq_ignore_ascii_case(&s.address));
+                        if !known {
+                            items.push(Suggestion {
+                                name: s.name,
+                                address: s.address,
+                                from_contacts: false,
+                                last_seen: Some(s.last_seen),
+                            });
+                        }
+                    }
+                }
+                Err(e) => log::warn!("looking up addresses: {e}"),
+            }
+            items.truncate(SUGGESTIONS);
+        }
+        self.emit(Event::Suggestions { query, items });
+    }
+
+    pub(super) fn add_contact(&mut self, name: &str, address: &str) {
+        let Some(parsed) = Address::parse(address) else {
+            return self.emit(Event::Notice {
+                text: text::notice::contact_not_saved(),
+            });
+        };
+        let mut contacts = self.store.contacts.clone();
+        let name = name.trim().to_owned();
+        match contacts.iter_mut().find(|c| parsed.is(&c.address)) {
+            Some(known) => {
+                if !name.is_empty() {
+                    known.name = name;
+                }
+            }
+            None => contacts.push(Contact {
+                name,
+                address: parsed.email,
+            }),
+        }
+        match save_contacts(&self.store.paths.contacts(), &contacts) {
+            Ok(()) => self.store.contacts = contacts,
+            Err(e) => {
+                log::warn!("saving the contacts: {e}");
+                self.emit(Event::Notice {
+                    text: text::notice::contact_not_saved(),
+                });
+            }
+        }
+    }
+
+    /// Writes `settings`; they take effect only if that worked. Either way
+    /// the app is told what is now in effect.
+    pub(super) fn save_settings(&mut self, settings: Settings) {
+        match save_settings(&self.store.paths.settings(), &settings) {
+            Ok(()) => self.store.settings = settings,
+            Err(e) => {
+                log::warn!("saving the settings: {e}");
+                self.emit(Event::Notice {
+                    text: text::notice::settings_not_saved(),
+                });
+            }
+        }
+        self.emit(Event::Settings(self.store.settings.clone()));
+    }
+
+    pub(super) fn allow_images_from(&mut self, address: &str) {
+        let mut settings = self.store.settings.clone();
+        settings.images_from.insert(address.trim().to_lowercase());
+        self.save_settings(settings);
+    }
+
+    /// Sending teaches autocomplete the people written to.
+    pub(super) fn remember_recipients(&self, draft: &DraftInput) {
+        let found: Vec<(String, String)> = draft
+            .to
+            .iter()
+            .chain(&draft.cc)
+            .chain(&draft.bcc)
+            .filter_map(|typed| Address::parse(typed))
+            .map(|a| (a.name.unwrap_or_default(), a.email))
+            .collect();
+        if let Err(e) = self.store.db.remember_addresses(&found, now_ms() / 1000) {
+            log::warn!("remembering recipients: {e}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(images: ImagesDefault, from: &[&str]) -> Settings {
+        Settings {
+            images,
+            images_from: from.iter().map(|s| (*s).to_owned()).collect(),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn default_loads_images_for_an_allowed_sender_or_when_always() {
+        let ask = settings(ImagesDefault::Ask, &["ada@example.org"]);
+        assert!(loads_images(&ask, ImagesChoice::Default, "Ada@Example.org"));
+        assert!(!loads_images(
+            &ask,
+            ImagesChoice::Default,
+            "eve@example.org"
+        ));
+        assert!(loads_images(&ask, ImagesChoice::Load, "eve@example.org"));
+        let always = settings(ImagesDefault::Always, &[]);
+        assert!(loads_images(
+            &always,
+            ImagesChoice::Default,
+            "eve@example.org"
+        ));
+    }
+
+    #[test]
+    fn a_contact_or_allowed_sender_is_known() {
+        let contacts = [Contact {
+            name: "Bob".into(),
+            address: "Bob@example.org".into(),
+        }];
+        let s = settings(ImagesDefault::Ask, &["ada@example.org"]);
+        assert!(is_known(&s, &contacts, "bob@example.org"));
+        assert!(is_known(&s, &contacts, "ADA@example.org"));
+        assert!(!is_known(&s, &contacts, "eve@example.org"));
+    }
+
+    #[test]
+    fn a_contact_matches_by_address_or_any_word_of_the_name() {
+        let c = Contact {
+            name: "Grace Hopper".into(),
+            address: "gh@navy.example".into(),
+        };
+        assert!(matches(&c, "gh@"));
+        assert!(matches(&c, "hop"));
+        assert!(!matches(&c, "race"));
+    }
+}

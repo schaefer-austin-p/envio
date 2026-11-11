@@ -203,6 +203,7 @@ impl Worker<'_> {
                 if let Some(live) = self.live.get_mut(&draft.account) {
                     live.wants.send = true;
                 }
+                self.remember_recipients(draft);
                 Ok(item.id)
             }
             Err(error) => {
@@ -225,7 +226,7 @@ mod tests {
     /// What compose said (the worker also announces itself at start).
     fn said(sink: &Sink) -> Vec<Event> {
         let mut events = sink.events();
-        events.retain(|e| !matches!(e, Event::Started { .. }));
+        events.retain(|e| !matches!(e, Event::Started { .. } | Event::Settings(_)));
         events
     }
 

@@ -12,8 +12,8 @@ use std::time::{Duration, Instant};
 use envio_core::hooks::{self, Point};
 use envio_core::secrets::Secrets;
 use envio_core::{
-    AccountStatus, Command, ComposeId, DraftInput, Event, FolderRole, Page, Service, StartFrom,
-    UserAction,
+    AccountStatus, Command, ComposeId, DraftInput, Event, FolderRole, ImagesChoice, Service,
+    StartFrom, UserAction,
 };
 use envio_net::Fingerprint;
 use log::LevelFilter;
@@ -486,7 +486,7 @@ async fn an_open_whose_body_cannot_be_fetched_answers_with_a_failure() {
     hooks::before_next(Point::BodyFetch, &account, move || cut.cut());
     run.core.send(Command::OpenMessage {
         id: row.id,
-        images: false,
+        images: ImagesChoice::Default,
         width_px: 360,
     });
     run.wait(Duration::from_secs(15), |event| match event {
@@ -553,17 +553,7 @@ async fn a_first_sync_in_parts_lets_a_list_through() {
     let mut count = 0;
     let end = Instant::now() + NET;
     while count < 250 && Instant::now() < end {
-        run.core.send(Command::ListMessages {
-            folder: inbox,
-            page: Page {
-                offset: 0,
-                limit: 300,
-            },
-        });
-        count = run.wait(Duration::from_secs(2), |event| match event {
-            Event::Messages { rows, .. } => Some(rows.len()),
-            _ => None,
-        });
+        count = run.rows(inbox).len();
         std::thread::sleep(Duration::from_millis(100));
     }
     assert_eq!(count, 250);

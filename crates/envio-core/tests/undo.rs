@@ -5,7 +5,7 @@ mod support;
 use std::time::{Duration, Instant};
 
 use envio_core::api::view::MessageRow;
-use envio_core::{Command, Event, FolderId, FolderRole, Page, UndoId, UserAction};
+use envio_core::{Command, Event, FolderId, FolderRole, UndoId, UserAction};
 use envio_store::{Db, Flags, SyncState};
 use support::Harness;
 
@@ -37,11 +37,8 @@ fn seeded(archive: bool) -> Seeded {
 impl Seeded {
     fn rows(&self) -> Vec<MessageRow> {
         self.h.send(Command::ListMessages {
-            folder: self.inbox,
-            page: Page {
-                offset: 0,
-                limit: 50,
-            },
+            list: envio_core::ListRef::Folder(self.inbox),
+            after: None,
         });
         self.h.wait(|e| match e {
             Event::Messages { rows, .. } => Some(rows.clone()),
@@ -235,15 +232,14 @@ fn with_unsynced() -> (Harness, String, FolderId, FolderId) {
 
 fn rows_of(h: &Harness, folder: FolderId) -> Vec<MessageRow> {
     h.send(Command::ListMessages {
-        folder,
-        page: Page {
-            offset: 0,
-            limit: 50,
-        },
+        list: envio_core::ListRef::Folder(folder),
+        after: None,
     });
     h.wait(|e| match e {
         Event::Messages {
-            folder: f, rows, ..
+            list: envio_core::ListRef::Folder(f),
+            rows,
+            ..
         } if *f == folder => Some(rows.clone()),
         _ => None,
     })

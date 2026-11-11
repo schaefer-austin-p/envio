@@ -49,8 +49,8 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.list_folders(&account);
             Flow::Continue
         }
-        Command::ListMessages { folder, page } => {
-            worker.list_messages(folder, page);
+        Command::ListMessages { list, after } => {
+            worker.list_messages(list, after);
             Flow::Continue
         }
         Command::Search { account, query } => {
@@ -110,6 +110,22 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
         Command::EditOutbox { item, compose } => {
             worker.edit_outbox(&item, compose);
+            Flow::Continue
+        }
+        Command::Autocomplete { query } => {
+            worker.autocomplete(query);
+            Flow::Continue
+        }
+        Command::AddContact { name, address } => {
+            worker.add_contact(&name, &address);
+            Flow::Continue
+        }
+        Command::SaveSettings(settings) => {
+            worker.save_settings(settings);
+            Flow::Continue
+        }
+        Command::AllowImagesFrom { address } => {
+            worker.allow_images_from(&address);
             Flow::Continue
         }
         #[cfg(feature = "test-hooks")]

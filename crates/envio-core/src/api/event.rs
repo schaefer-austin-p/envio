@@ -4,13 +4,12 @@ use super::command::{AccountSetup, ComposeId, DraftInput, UndoId};
 use std::path::PathBuf;
 
 use super::view::{
-    AccountInfo, CacheState, FolderRow, MessageRow, MessageView, OutboxRow, UnsentCounts,
+    AccountInfo, CacheState, FolderRow, MessageRow, MessageView, OutboxRow, Suggestion,
+    UnsentCounts,
 };
 use crate::health::AccountStatus;
 use crate::servers::Service;
-use envio_store::{FolderId, MessageRowId};
-
-use super::command::Page;
+use envio_store::{Cursor, FolderId, ListRef, MessageRowId, Settings};
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -94,9 +93,12 @@ pub enum Event {
     },
     /// The answer to `ListMessages`.
     Messages {
-        folder: FolderId,
-        page: Page,
+        list: ListRef,
+        /// The cursor the page was asked after (`None`: the first page).
+        after: Option<Cursor>,
         rows: Vec<MessageRow>,
+        /// This page was the last: it held fewer than `PAGE` rows.
+        end: bool,
     },
     /// The answer to `Search`.
     SearchResults {
@@ -104,6 +106,14 @@ pub enum Event {
         query: String,
         rows: Vec<MessageRow>,
     },
+    /// The answer to `Autocomplete`, for the same `query`.
+    Suggestions {
+        query: String,
+        items: Vec<Suggestion>,
+    },
+    /// The settings as they are now: sent after `Started` and after each
+    /// save.
+    Settings(Settings),
     MessageOpened {
         id: MessageRowId,
         view: MessageView,

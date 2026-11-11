@@ -3,17 +3,19 @@
 use std::path::PathBuf;
 
 use envio_net::autoconfig::Source;
-use envio_store::{FolderId, MessageRowId};
+use envio_store::{Cursor, FolderId, ListRef, MessageRowId, Settings};
 use secrecy::SecretString;
 
 use crate::servers::{ServerAddr, Service};
 
-/// A window of a folder's list, newest first: skip `offset` rows, take
-/// `limit`.
+/// Whether `OpenMessage` loads remote images.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Page {
-    pub offset: u32,
-    pub limit: u32,
+pub enum ImagesChoice {
+    /// As the settings say: for an allowed sender, or when images always
+    /// load. Otherwise they stay blocked.
+    Default,
+    /// The user asked for them for this message.
+    Load,
 }
 
 /// What the wizard has settled on for a new account.
@@ -124,15 +126,20 @@ pub enum Command {
     RemoveAccount { account: String, confirmed: bool },
     /// The account's folders, from the cache.
     ListFolders { account: String },
-    /// One page of a folder's messages, newest first, from the cache.
-    ListMessages { folder: FolderId, page: Page },
+    /// One page (`PAGE` rows) of a list, newest first, from the cache:
+    /// the first page, or the one after `after`.
+    ListMessages {
+        list: ListRef,
+        after: Option<Cursor>,
+    },
     /// Full-text search over the account's cached mail.
     Search { account: String, query: String },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,
-        /// Load remote images (off by default: privacy).
-        images: bool,
+        /// Remote images stay blocked unless the settings or the user
+        /// say otherwise.
+        images: ImagesChoice,
         /// Widest image or table, in pixels.
         width_px: u32,
     },
@@ -185,6 +192,15 @@ pub enum Command {
     /// Turn a refused message into a draft in compose window `compose`, then
     /// remove it from the Outbox.
     EditOutbox { item: String, compose: ComposeId },
+    /// Addresses to suggest for what the user has typed in a recipient field.
+    Autocomplete { query: String },
+    /// Keep a sender in the contacts ("Add sender to Contacts").
+    AddContact { name: String, address: String },
+    /// Replace the settings; the answer is `Settings`.
+    SaveSettings(Settings),
+    /// Always load remote images from this sender. Open the message again
+    /// to see them.
+    AllowImagesFrom { address: String },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -220,6 +236,10 @@ impl Command {
             Self::ListOutbox => "ListOutbox",
             Self::DecideOutbox { .. } => "DecideOutbox",
             Self::EditOutbox { .. } => "EditOutbox",
+            Self::Autocomplete { .. } => "Autocomplete",
+            Self::AddContact { .. } => "AddContact",
+            Self::SaveSettings(_) => "SaveSettings",
+            Self::AllowImagesFrom { .. } => "AllowImagesFrom",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
             #[cfg(feature = "test-hooks")]

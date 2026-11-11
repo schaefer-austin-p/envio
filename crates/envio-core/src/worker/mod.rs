@@ -16,6 +16,7 @@ mod store;
 mod testing;
 mod trust;
 mod turn;
+mod userdata;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
@@ -25,7 +26,7 @@ use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::api::command::{Command, ComposeId, StartFrom};
+use crate::api::command::{Command, ComposeId, ImagesChoice, StartFrom};
 use crate::api::event::Event;
 use crate::api::view::{AccountInfo, CacheState};
 use crate::clock::now_ms;
@@ -64,7 +65,7 @@ pub(crate) struct Worker<'s> {
     /// needs the user's confirmation whatever the app says.
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.
-    opening: BTreeMap<MessageRowId, (bool, u32)>,
+    opening: BTreeMap<MessageRowId, (ImagesChoice, u32)>,
     /// Actions the user can still take back.
     undo: UndoBook,
     /// Drafts: saved by the draft thread; the worker only flushes a draft
@@ -214,6 +215,7 @@ impl<'s> Worker<'s> {
             .list()
             .iter()
             .map(|a| AccountInfo {
+                unread: self.inbox_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
                 email: a.settings.email.clone(),
@@ -221,11 +223,11 @@ impl<'s> Worker<'s> {
                     .broken
                     .clone()
                     .map_or(AccountStatus::Ready, AccountStatus::Broken),
-                unread: 0,
                 broken: a.broken.is_some(),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
+        self.sink.emit(Event::Settings(self.store.settings.clone()));
     }
 
     /// One loop iteration: run a step if an account has one, else wait for

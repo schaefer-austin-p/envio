@@ -4,9 +4,7 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use envio_core::{
-    Command, ComposeId, DraftInput, Event, FolderRole, MessageRowId, Page, StartFrom,
-};
+use envio_core::{Command, ComposeId, DraftInput, Event, FolderRole, MessageRowId, StartFrom};
 use envio_store::{Drafts, Outbox};
 use support::Harness;
 
@@ -123,11 +121,8 @@ impl Seeded {
 
     fn message_id(&self) -> MessageRowId {
         self.h.send(Command::ListMessages {
-            folder: envio_core::FolderId(1),
-            page: Page {
-                offset: 0,
-                limit: 10,
-            },
+            list: envio_core::ListRef::Folder(envio_core::FolderId(1)),
+            after: None,
         });
         self.h.wait(|e| match e {
             Event::Messages { rows, .. } => rows.first().map(|r| r.id),

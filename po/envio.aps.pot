@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 16:04+0100\n"
+"POT-Creation-Date: 2026-11-11 17:16+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -78,6 +78,30 @@ msgstr ""
 msgid "Could not save your draft"
 msgstr ""
 
+#: crates/envio-core/src/text/count.rs:20
+msgid "{n} selected"
+msgid_plural "{n} selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:24
+msgid "{n} result"
+msgid_plural "{n} results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:31
+msgid "{n} message waiting to send"
+msgid_plural "{n} messages waiting to send"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:40
+msgid "{n} new message"
+msgid_plural "{n} new messages"
+msgstr[0] ""
+msgstr[1] ""
+
 #: crates/envio-core/src/text/notice.rs:7
 msgid "The server refused: {reason}"
 msgstr ""
@@ -128,6 +152,14 @@ msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:44
 msgid "Gave up deleting the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:49
+msgid "Could not save your settings"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:53
+msgid "Could not save the contact"
 msgstr ""
 
 #: crates/envio-core/src/text/outbox.rs:8
@@ -228,53 +260,53 @@ msgid ""
 "before you accept it"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:47
+#: crates/envio-core/src/text/setup.rs:48
 msgid ""
 "Envio has no trusted certificate authorities on this device, so it cannot "
 "check the server. Please report this problem"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:51
+#: crates/envio-core/src/text/setup.rs:53
 msgid "Confirm the servers before signing in"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:55
+#: crates/envio-core/src/text/setup.rs:57
 msgid "This account is already added"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:59
+#: crates/envio-core/src/text/setup.rs:61
 msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:63
+#: crates/envio-core/src/text/setup.rs:65
 msgid "That certificate fingerprint is not valid"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:67
+#: crates/envio-core/src/text/setup.rs:69
 msgid "That does not look like an email address"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:71
+#: crates/envio-core/src/text/setup.rs:73
 msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:75
+#: crates/envio-core/src/text/setup.rs:77
 msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:79
+#: crates/envio-core/src/text/setup.rs:81
 msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:83
+#: crates/envio-core/src/text/setup.rs:85
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:91
+#: crates/envio-core/src/text/setup.rs:93
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:110
+#: crates/envio-core/src/text/setup.rs:112
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."

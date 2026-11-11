@@ -78,6 +78,13 @@ pub(super) async fn body(
     let eml = driver::fetch_body(session, &mut worker.store.local(), id)
         .await
         .map_err(|e| imap_error(&e))?;
+    if let Some(eml) = &eml {
+        // Local search finds words in bodies: the text of the message, an
+        // HTML one through its text conversion. A failure only costs that.
+        if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
+            log::warn!("indexing a body: {e}");
+        }
+    }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
     });

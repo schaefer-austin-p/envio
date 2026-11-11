@@ -5,6 +5,7 @@ pub mod build_info;
 pub mod core;
 pub mod health;
 pub mod logging;
+pub mod paths;
 pub mod problem;
 pub mod secrets;
 pub mod servers;
@@ -30,19 +31,22 @@ mod text;
 mod undo;
 mod worker;
 
-pub use api::command::Page;
 pub use api::command::{
-    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, OutboxDecision, StartFrom,
-    UndoId, UserAction,
+    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice, OutboxDecision,
+    StartFrom, UndoId, UserAction,
 };
 pub use api::event::Event;
 pub use api::view::{
-    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, OutboxRow,
-    OutboxStatus, UnsentCounts,
+    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageHeader, MessageRow, MessageView,
+    OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink};
-pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId};
+pub use envio_store::{
+    Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, ListRef, MessageRowId,
+    PAGE, Settings, ThemeName,
+};
 pub use health::AccountStatus;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
+pub use text::count::{CountKind, count_text};
 pub use text::setup::ispdb_note;

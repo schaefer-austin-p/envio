@@ -207,3 +207,16 @@ async fn a_failed_window_search_keeps_the_cache() {
     assert_eq!(store.uids("INBOX"), [1, 2], "nothing was dropped");
     assert_eq!(store.subjects("INBOX").len(), 2);
 }
+
+#[tokio::test]
+async fn a_sync_remembers_who_wrote_and_who_was_written_to() {
+    let mut server = FakeServer::new();
+    server.deliver_id("INBOX", "a");
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    let found = store.db.suggest("ad", 8).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].address, "ada@example.org");
+    assert_eq!(found[0].name, "Ada");
+    assert_eq!(store.db.suggest("bob", 8).unwrap().len(), 1);
+}

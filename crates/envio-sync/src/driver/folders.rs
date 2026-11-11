@@ -97,6 +97,12 @@ pub async fn sync_folder(
             for row in &rows {
                 db.upsert_message(id, row)?;
             }
+            // For autocomplete: every sender and recipient, as of the
+            // message's date.
+            for summary in &summaries {
+                let (found, when) = crate::convert::seen_addresses(summary);
+                db.remember_addresses(&found, when)?;
+            }
             Ok(())
         })?;
         synced.fetched += rows.len();
