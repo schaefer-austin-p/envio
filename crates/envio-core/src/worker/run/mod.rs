@@ -34,6 +34,9 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
                 // Waiting would only repeat it; the next full run tries again.
                 finished(worker, account, step);
             }
+            if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
+                worker.open_failed(Some(account));
+            }
             if let Problem::Refused(reason) = &problem
                 && !reason.is_empty()
             {
@@ -150,6 +153,8 @@ pub(crate) fn failed(worker: &mut Worker<'_>, account: &str, problem: &Problem) 
 fn rebuild(worker: &mut Worker<'_>) {
     match worker.store.rebuild() {
         Ok(()) => {
+            // Row ids did not survive: nothing waiting can be answered.
+            worker.open_failed(None);
             worker.emit(Event::Notice {
                 text: text::notice::cache_rebuilt(),
             });

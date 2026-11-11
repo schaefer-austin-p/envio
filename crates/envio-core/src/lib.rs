@@ -23,7 +23,9 @@ mod worker;
 
 pub use api::command::{AccountSetup, Command, ConnectRequest};
 pub use api::event::Event;
-pub use api::view::{AccountInfo, CacheState, UnsentCounts};
+pub use api::view::{
+    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts,
+};
 pub use core::{Config, Core, EventSink};
 pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId, Page};
 pub use health::AccountStatus;

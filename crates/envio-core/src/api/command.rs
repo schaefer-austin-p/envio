@@ -1,6 +1,9 @@
 //! What the app asks the core to do.
 
+use std::path::PathBuf;
+
 use envio_net::autoconfig::Source;
+use envio_store::{FolderId, MessageRowId, Page};
 use secrecy::SecretString;
 
 use crate::servers::{ServerAddr, Service};
@@ -55,6 +58,26 @@ pub enum Command {
     /// Remove an account and everything kept for it. Asks first when
     /// work is unsent, unless `confirmed`.
     RemoveAccount { account: String, confirmed: bool },
+    /// The account's folders, from the cache.
+    ListFolders { account: String },
+    /// One page of a folder's messages, newest first, from the cache.
+    ListMessages { folder: FolderId, page: Page },
+    /// Full-text search over the account's cached mail.
+    Search { account: String, query: String },
+    /// Show a message; its body is fetched first if it is not cached.
+    OpenMessage {
+        id: MessageRowId,
+        /// Load remote images (off by default: privacy).
+        images: bool,
+        /// Widest image or table, in pixels.
+        width_px: u32,
+    },
+    /// Write an attachment into `dir` under a safe name.
+    SaveAttachment {
+        id: MessageRowId,
+        index: usize,
+        dir: PathBuf,
+    },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -72,6 +95,11 @@ impl Command {
             Self::UpdatePassword { .. } => "UpdatePassword",
             Self::AcceptCertificate { .. } => "AcceptCertificate",
             Self::RemoveAccount { .. } => "RemoveAccount",
+            Self::ListFolders { .. } => "ListFolders",
+            Self::ListMessages { .. } => "ListMessages",
+            Self::Search { .. } => "Search",
+            Self::OpenMessage { .. } => "OpenMessage",
+            Self::SaveAttachment { .. } => "SaveAttachment",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
         }

@@ -47,6 +47,30 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.remove_account(&account, confirmed);
             Flow::Continue
         }
+        Command::ListFolders { account } => {
+            worker.list_folders(&account);
+            Flow::Continue
+        }
+        Command::ListMessages { folder, page } => {
+            worker.list_messages(folder, page);
+            Flow::Continue
+        }
+        Command::Search { account, query } => {
+            worker.search(&account, query);
+            Flow::Continue
+        }
+        Command::OpenMessage {
+            id,
+            images,
+            width_px,
+        } => {
+            worker.open_message(id, images, width_px);
+            Flow::Continue
+        }
+        Command::SaveAttachment { id, index, dir } => {
+            worker.save_attachment(id, index, &dir);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

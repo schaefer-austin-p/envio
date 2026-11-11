@@ -3,6 +3,7 @@
 mod conn;
 mod dispatch;
 mod plan;
+mod read;
 mod remove;
 mod run;
 mod setup;
@@ -27,7 +28,7 @@ use crate::text;
 use conn::{IdleFuture, Live};
 use dispatch::{Flow, handle};
 use envio_net::Roots;
-use envio_store::{FolderId, FolderRole};
+use envio_store::{FolderId, FolderRole, MessageRowId};
 use envio_sync::schedule::backoff_ms;
 use store::Store;
 
@@ -53,6 +54,8 @@ pub(crate) struct Worker<'s> {
     /// Servers found through DNS (SRV) by `Detect`: connecting to them
     /// needs the user's confirmation whatever the app says.
     srv_hosts: BTreeSet<(String, u16)>,
+    /// Open requests waiting for a body: images, width.
+    opening: BTreeMap<MessageRowId, (bool, u32)>,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -133,6 +136,7 @@ impl<'s> Worker<'s> {
             handled_due_ms: i64::MIN,
             last_ran: None,
             srv_hosts: BTreeSet::new(),
+            opening: BTreeMap::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

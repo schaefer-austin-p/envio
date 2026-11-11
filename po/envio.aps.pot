@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 09:23+0100\n"
+"POT-Creation-Date: 2026-11-11 09:37+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -64,6 +64,23 @@ msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:36
 msgid "Gave up deleting the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:7
+msgid "Image not loaded"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:11
+msgid ""
+"This message is not available right now. Check your connection and try again"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:15
+msgid "Could not save the attachment"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:19
+msgid "Could not read your mail from this phone"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:12

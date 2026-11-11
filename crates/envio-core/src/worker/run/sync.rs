@@ -65,12 +65,13 @@ pub(super) async fn body(
         .message(id)
         .map_err(|e| store_error(&e))?
         .folder;
-    driver::fetch_body(session, &mut worker.store.local(), id)
+    let eml = driver::fetch_body(session, &mut worker.store.local(), id)
         .await
         .map_err(|e| imap_error(&e))?;
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
     });
+    worker.body_fetched(id, eml.as_deref());
     Ok(())
 }
 

@@ -1,10 +1,12 @@
 //! What the core tells the app.
 
 use super::command::AccountSetup;
-use super::view::{AccountInfo, CacheState, UnsentCounts};
+use std::path::PathBuf;
+
+use super::view::{AccountInfo, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts};
 use crate::health::AccountStatus;
 use crate::servers::Service;
-use envio_store::FolderId;
+use envio_store::{FolderId, MessageRowId, Page};
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -70,5 +72,37 @@ pub enum Event {
     },
     AccountRemoved {
         account: String,
+    },
+    /// The answer to `ListFolders`.
+    Folders {
+        account: String,
+        folders: Vec<FolderRow>,
+    },
+    /// The answer to `ListMessages`.
+    Messages {
+        folder: FolderId,
+        page: Page,
+        rows: Vec<MessageRow>,
+    },
+    /// The answer to `Search`.
+    SearchResults {
+        account: String,
+        query: String,
+        rows: Vec<MessageRow>,
+    },
+    MessageOpened {
+        id: MessageRowId,
+        view: MessageView,
+    },
+    /// The body can't be had now (gone from the server, or the account
+    /// can't connect); `text` says so.
+    MessageUnavailable {
+        id: MessageRowId,
+        text: String,
+    },
+    AttachmentSaved {
+        id: MessageRowId,
+        index: usize,
+        path: PathBuf,
     },
 }

@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 use envio_core::secrets::Secrets;
 use envio_core::{Command, Config, Core, Event, EventSink};
 use envio_store::{
-    AccountSettings, Accounts, Bodies, Db, Envelope, Flags, FolderId, FolderRole, NewMessage,
-    Security, Server, StorePaths, SyncState,
+    AccountSettings, Accounts, Bodies, BodyState, Db, Envelope, Flags, FolderId, FolderRole,
+    NewMessage, Security, Server, StorePaths, SyncState,
 };
 use secrecy::SecretString;
 use tempfile::TempDir;
@@ -177,7 +177,8 @@ impl Harness {
                 flags: Flags::default(),
                 preview: String::new(),
             };
-            db.upsert_message(folder, &message).unwrap();
+            let id = db.upsert_message(folder, &message).unwrap();
+            db.set_body_state(id, BodyState::Downloaded).unwrap();
             bodies.write(folder, *uid, eml).unwrap();
         }
         folder
