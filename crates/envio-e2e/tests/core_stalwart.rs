@@ -26,12 +26,26 @@ const UNDO_WAIT: Duration = Duration::from_secs(8);
 
 static TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-/// The server, once it is this test's turn: the tests share users, and
-/// Stalwart refuses connections when several tests sign in as one user at
-/// once ("Could not reach the server"), so they run one at a time.
+/// The server, once it is this test's turn. The tests share users, and
+/// Stalwart closes SMTP TLS connections without a close_notify when several
+/// `Connect`s sign in as one user at once (the core rightly calls that
+/// Temporary, "Could not reach the server"), so the tests run one at a time.
 async fn find() -> Option<(Stalwart, tokio::sync::MutexGuard<'static, ()>)> {
     let turn = TURN.lock().await;
     Stalwart::find().await.map(|server| (server, turn))
+}
+
+/// Tells when the account's server accepts IDLE next: mail that arrives
+/// after that is reported, so tests deliver after it, never on a timer.
+fn idle_entered(account: &str) -> std::sync::mpsc::Receiver<()> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let tx = std::sync::Mutex::new(tx);
+    hooks::before_next(Point::IdleEntered, account, move || {
+        if let Ok(tx) = tx.lock() {
+            let _ = tx.send(());
+        }
+    });
+    rx
 }
 
 fn unique(tag: &str) -> String {
@@ -281,8 +295,9 @@ async fn a_wrong_password_pauses_for_sign_in() {
     let Some((server, _turn)) = find().await else {
         return;
     };
+    let proxy = Proxy::start(&server.host, server.imaps);
     let run = CoreRun::start(LevelFilter::Info);
-    let account = run.add_account(&server, "grace");
+    let account = run.add_account_with("grace", &setup_at(&server, "grace", proxy.port));
     run.folder(&account, FolderRole::Inbox);
     // The password changed at the provider: the stored one no longer works
     // (a live connection would not notice), so the next start is refused.
@@ -308,11 +323,15 @@ async fn a_wrong_password_pauses_for_sign_in() {
         password: SecretString::from("not-the-password".to_owned()),
     });
     run.wait(NET, signed_out);
-    // Paused: no second attempt, which would show as a status change.
-    let again = run.happens(Duration::from_secs(5), |event| {
-        matches!(event, Event::AccountStatus { .. })
-    });
-    assert!(!again, "the core tried to sign in again by itself");
+    // Paused: no second attempt. A status event would not show one (the
+    // status stays SignInFailed), a connection through the proxy does.
+    let tried = proxy.connections();
+    run.happens(Duration::from_secs(5), |_| false);
+    assert_eq!(
+        proxy.connections(),
+        tried,
+        "the core tried to sign in again by itself"
+    );
     run.core.send(Command::UpdatePassword {
         account,
         password: SecretString::from(password("grace")),
@@ -346,14 +365,8 @@ async fn new_mail_wakes_idle_after_a_full_sync() {
     let run = CoreRun::start(LevelFilter::Info);
     let account = run.add_account(&server, "grace");
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
-    // Let the first full sync finish: it SELECTs the other folders last.
-    run.wait(NET, |event| match event {
-        Event::AccountStatus {
-            status: AccountStatus::Ready,
-            ..
-        } => Some(()),
-        _ => None,
-    });
+    let idle = idle_entered(&account);
+    idle.recv_timeout(NET).expect("IDLE was never entered");
     let subject = unique("Wake up");
     deliver(&server, "grace", &subject).await;
     run.row_with(inbox, &subject);
@@ -368,6 +381,8 @@ async fn idle_comes_back_after_the_connection_drops() {
     let run = CoreRun::start(LevelFilter::Info);
     let account = run.add_account_with("grace", &setup_at(&server, "grace", proxy.port));
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
+    let idle = idle_entered(&account);
+    idle.recv_timeout(NET).expect("IDLE was never entered");
     let first = unique("Before the drop");
     deliver(&server, "grace", &first).await;
     run.row_with(inbox, &first);
@@ -383,6 +398,7 @@ async fn idle_comes_back_after_the_connection_drops() {
     // Mail arrives while the connection is down; the retry finds it.
     let during = unique("During the drop");
     deliver(&server, "grace", &during).await;
+    let idle = idle_entered(&account);
     proxy.up();
     run.wait(Duration::from_secs(90), |event| match event {
         Event::AccountStatus {
@@ -393,6 +409,7 @@ async fn idle_comes_back_after_the_connection_drops() {
     });
     run.row_with(inbox, &during);
     // And IDLE is back: new mail arrives without a Refresh.
+    idle.recv_timeout(NET).expect("IDLE did not come back");
     let after = unique("After the drop");
     deliver(&server, "grace", &after).await;
     run.row_with(inbox, &after);

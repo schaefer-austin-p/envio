@@ -4,7 +4,7 @@
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -12,6 +12,7 @@ use std::thread;
 struct State {
     open: Mutex<Vec<TcpStream>>,
     down: AtomicBool,
+    accepted: AtomicUsize,
 }
 
 pub struct Proxy {
@@ -32,6 +33,7 @@ impl Proxy {
                 if shared.down.load(Ordering::SeqCst) {
                     continue; // dropped: the client sees a closed connection
                 }
+                shared.accepted.fetch_add(1, Ordering::SeqCst);
                 let Ok(server) = TcpStream::connect((host.as_str(), target)) else {
                     continue;
                 };
@@ -54,6 +56,11 @@ impl Proxy {
         for stream in self.state.open.lock().unwrap().drain(..) {
             let _ = stream.shutdown(Shutdown::Both);
         }
+    }
+
+    /// Connections clients have opened through the proxy so far.
+    pub fn connections(&self) -> usize {
+        self.state.accepted.load(Ordering::SeqCst)
     }
 
     pub fn up(&self) {
