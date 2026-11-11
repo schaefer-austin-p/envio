@@ -39,7 +39,7 @@ repeats these values, since the core is Qt-free.
 | tint B | `#E3E6EA` | `#26303B` | info banners |
 | selected | `#ECE9E1` | `#232932` | selected rows |
 | scrim | `rgba(30,42,56,.45)` | `rgba(0,0,0,.55)` | behind sheets and dialogs |
-| chevron | `#5A5D62` | `#A2A5AA` | disclosure chevrons (same as secondary) |
+| chevron, chevron blue | `#5A5D62` | `#A2A5AA` | disclosure chevrons (same as secondary; both roles) |
 
 ### Airmail
 

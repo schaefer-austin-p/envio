@@ -11,7 +11,9 @@ Column {
     property alias text: input.text
     property alias placeholder: hint.text
     property bool password: false
-    property alias inputMethodHints: input.inputMethodHints
+    readonly property int effectiveHints: input.inputMethodHints
+    // Extra hints; a password field always keeps no-prediction and sensitive.
+    property int inputMethodHints: Qt.ImhNone
     property alias readOnly: input.readOnly
     signal accepted()
 
@@ -47,8 +49,9 @@ Column {
             font.family: root.theme.fontUi
             font.pixelSize: 16
             echoMode: root.password ? TextInput.Password : TextInput.Normal
-            inputMethodHints: root.password ? Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData
-                                            : Qt.ImhNone
+            inputMethodHints: root.password
+                ? root.inputMethodHints | Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData
+                : root.inputMethodHints
             onAccepted: root.accepted()
             Text {
                 id: hint

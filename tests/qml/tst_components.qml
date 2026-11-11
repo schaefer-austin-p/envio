@@ -23,7 +23,7 @@ Item {
     SignalSpy { id: toastExpired; target: toast; signalName: "expired" }
     SignalSpy { id: toastAction; target: toast; signalName: "actionTriggered" }
 
-    Dialog {
+    AppDialog {
         id: dialog
         theme: thm
         title: "Unverified certificate"
@@ -123,11 +123,22 @@ Item {
             tryVerify(function() { return !dialog.visible })
         }
 
+        function test_password_field_keeps_its_hints() {
+            pwField.inputMethodHints = Qt.ImhEmailCharactersOnly
+            const h = pwField.effectiveHints
+            verify(h & Qt.ImhNoPredictiveText, "no prediction")
+            verify(h & Qt.ImhSensitiveData, "sensitive")
+            verify(h & Qt.ImhEmailCharactersOnly, "the caller's hint stays")
+            compare(pwField.password, true)
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
         }
     }
+
+    Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
     Component {
         id: iconButtonComponent

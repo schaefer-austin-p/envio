@@ -2,8 +2,8 @@
 
 All three families are under the SIL Open Font License 1.1; each folder
 carries its `OFL.txt`. Only the weights the design uses are included. The
-fonts are compiled into the app through `qml/qml.qrc` and also travel in the
-click's `assets/` folder with their licences.
+fonts and their `OFL.txt` files are compiled into the app through
+`qml/qml.qrc` (the only copy in the click; this folder is not installed).
 
 | Family | Version | Weights | Source |
 | --- | --- | --- | --- |

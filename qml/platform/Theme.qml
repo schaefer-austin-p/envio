@@ -17,11 +17,12 @@ Control {
     readonly property bool airmail: name === "airmail"
 
     readonly property color systemWindow: loader.item ? loader.item.windowColour : palette.window
-    // The system's switch; writable so tests can inject it.
+    // The system's switch. Only tests assign it: an assignment breaks the
+    // binding to the system.
     property bool systemDark: systemWindow.hslLightness < 0.5
     readonly property bool dark: darkMode === "system" ? systemDark : darkMode === "dark"
 
-    // Fonts ship in the click (assets/fonts, all OFL); Ubuntu is the
+    // Fonts ship once, inside the app (qrc from third_party/fonts, all OFL, licences included); Ubuntu is the
     // fallback while one is missing.
     readonly property string fontUi: ui.name !== "" ? ui.name : "Ubuntu"
     readonly property string fontMono: mono.name !== "" ? mono.name : "Ubuntu Mono"
@@ -80,14 +81,14 @@ Control {
     readonly property color chevron: current.chevron
     readonly property color chevronBlue: current.chevronBlue
 
-    FontLoader { id: ui; source: "../../assets/fonts/Inter/Inter-Regular.ttf" }
-    FontLoader { source: "../../assets/fonts/Inter/Inter-Medium.ttf" }
-    FontLoader { source: "../../assets/fonts/Inter/Inter-SemiBold.ttf" }
-    FontLoader { id: mono; source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf" }
-    FontLoader { source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-Medium.ttf" }
-    FontLoader { source: "../../assets/fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf" }
-    FontLoader { id: lora; source: "../../assets/fonts/Lora/Lora-Regular.ttf" }
-    FontLoader { source: "../../assets/fonts/Lora/Lora-SemiBold.ttf" }
+    FontLoader { id: ui; source: "../../third_party/fonts/Inter/Inter-Regular.ttf" }
+    FontLoader { source: "../../third_party/fonts/Inter/Inter-Medium.ttf" }
+    FontLoader { source: "../../third_party/fonts/Inter/Inter-SemiBold.ttf" }
+    FontLoader { id: mono; source: "../../third_party/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf" }
+    FontLoader { source: "../../third_party/fonts/IBMPlexMono/IBMPlexMono-Medium.ttf" }
+    FontLoader { source: "../../third_party/fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf" }
+    FontLoader { id: lora; source: "../../third_party/fonts/Lora/Lora-Regular.ttf" }
+    FontLoader { source: "../../third_party/fonts/Lora/Lora-SemiBold.ttf" }
 
     Loader {
         id: loader

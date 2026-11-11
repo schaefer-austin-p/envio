@@ -58,7 +58,7 @@ QC.Popup {
             lineHeight: 1.3
         }
         Column { id: extra; width: parent.width; spacing: root.theme.gu(1) }
-        Button {
+        AppButton {
             objectName: "primaryAction"
             width: parent.width
             theme: root.theme
@@ -66,7 +66,7 @@ QC.Popup {
             text: root.primaryText
             onClicked: { root.primaryActivated(); root.close() }
         }
-        Button {
+        AppButton {
             objectName: "secondaryAction"
             width: parent.width
             visible: root.secondaryText !== ""
