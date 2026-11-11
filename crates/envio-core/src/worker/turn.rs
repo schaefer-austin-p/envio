@@ -2,6 +2,7 @@
 //! and when to wake.
 
 use envio_store::FolderRole;
+use envio_sync::Schedule;
 
 use crate::health::{AccountStatus, Health};
 
@@ -14,10 +15,7 @@ impl Worker<'_> {
     pub(super) fn on_timers(&mut self, now: i64) {
         // Undo expiry and draft saves join this with the commands that
         // create them (Tasks 9 and 12).
-        let Some(due) = self.store.schedule.next_due_after(self.handled_due_ms) else {
-            return;
-        };
-        if due <= now {
+        if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {
             self.handled_due_ms = due;
             for live in self.live.values_mut() {
                 live.wants.replay = true;
@@ -74,10 +72,13 @@ impl Worker<'_> {
             match next(&timing, now) {
                 Next::Sleep { .. } => return None,
                 Next::Idle { until_ms } => {
-                    if !matches!(live.conn, Conn::Idling(_))
-                        && let Err(problem) = self.begin_idle(account, until_ms).await
-                    {
-                        super::run::failed(self, account, &problem);
+                    if !matches!(live.conn, Conn::Idling(_)) {
+                        if let Err(problem) = self.begin_idle(account, until_ms).await {
+                            super::run::failed(self, account, &problem);
+                            return None;
+                        }
+                        // Recovery may have queued the Inbox: decide again.
+                        continue;
                     }
                     return None;
                 }
@@ -116,7 +117,7 @@ impl Worker<'_> {
         let mut wake = self.store.schedule.next_due_after(self.handled_due_ms);
         for live in self.live.values() {
             let at = account_wake(
-                self.foreground && !matches!(live.conn, Conn::Idling(_)),
+                needs_timer(self.foreground, &live.conn),
                 &live.health,
                 live.next_full_ms,
                 now,
@@ -130,10 +131,21 @@ impl Worker<'_> {
     }
 }
 
-/// When an account needs the loop to wake. `needs_timer` is false in the
-/// background and in IDLE: the latter wakes the loop with its own future,
-/// so it needs none:
-/// its IDLE future wakes the loop, and its own deadline is the next full run.
+/// Whether an account needs the loop to wake for it: not in the background,
+/// and not in IDLE, whose own future wakes the loop.
+fn needs_timer(foreground: bool, conn: &Conn) -> bool {
+    foreground && !matches!(conn, Conn::Idling(_))
+}
+
+/// The retry timer to handle now: the earliest one after the watermark, if
+/// it is due.
+fn due_retry(schedule: &Schedule, handled_ms: i64, now: i64) -> Option<i64> {
+    schedule
+        .next_due_after(handled_ms)
+        .filter(|due| *due <= now)
+}
+
+/// When an account needs the loop to wake, if it needs a timer at all.
 fn account_wake(needs_timer: bool, health: &Health, next_full_ms: i64, now: i64) -> Option<i64> {
     if !needs_timer || health.is_paused() {
         None
@@ -147,7 +159,10 @@ fn account_wake(needs_timer: bool, health: &Health, next_full_ms: i64, now: i64)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use envio_sync::{Key, Schedule};
+    use std::rc::Rc;
+
+    use envio_sync::Key;
+    use tokio::sync::Notify;
 
     #[test]
     fn an_idling_account_yields_no_wake_time() {
@@ -155,6 +170,26 @@ mod tests {
         // Its full run is overdue, which would spin the loop if it counted.
         assert_eq!(account_wake(false, &health, 0, 10_000), None);
         assert_eq!(account_wake(true, &health, 0, 10_000), Some(0));
+    }
+
+    #[test]
+    fn only_a_foreground_account_outside_idle_needs_a_timer() {
+        let idling = Conn::Idling(Rc::new(Notify::new()));
+        assert!(!needs_timer(true, &idling));
+        assert!(!needs_timer(false, &Conn::Closed));
+        assert!(needs_timer(true, &Conn::Closed));
+    }
+
+    #[test]
+    fn a_retry_is_handled_once_and_only_when_due() {
+        let mut schedule = Schedule::default();
+        let first = schedule.failed(Key::Action(1), 0);
+        let second = schedule.failed(Key::Action(2), 5_000);
+        assert_eq!(due_retry(&schedule, i64::MIN, first - 1), None);
+        assert_eq!(due_retry(&schedule, i64::MIN, first), Some(first));
+        // With the first handled, the second is next, not the first again.
+        assert_eq!(due_retry(&schedule, first, second - 1), None);
+        assert_eq!(due_retry(&schedule, first, second), Some(second));
     }
 
     #[test]

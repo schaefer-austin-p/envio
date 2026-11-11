@@ -160,15 +160,20 @@ impl Worker<'_> {
         prepare_idle(&mut session, &inbox.path)
             .await
             .map_err(|e| problem::from_net(&e, Service::Imap))?;
+        if let Some(live) = self.live.get_mut(account)
+            && live.health.failures > 0
+        {
+            // Back after a failure: mail may have arrived meanwhile, so
+            // sync the Inbox first; IDLE starts on the next turn.
+            live.health.ok();
+            live.wants.folders.insert(inbox.id);
+            live.conn = Conn::Ready(session);
+            return Ok(());
+        }
         let (future, notify) = start_idle(account.to_owned(), session, until_ms, now_ms());
         self.idles.push(future);
         if let Some(live) = self.live.get_mut(account) {
             live.conn = Conn::Idling(notify);
-            if live.health.failures > 0 {
-                // Back after a failure: mail may have arrived meanwhile.
-                live.health.ok();
-                live.wants.folders.insert(inbox.id);
-            }
         }
         Ok(())
     }

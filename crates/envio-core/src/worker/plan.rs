@@ -148,6 +148,16 @@ mod tests {
     }
 
     #[test]
+    fn wanted_work_runs_before_idle() {
+        let t = Timing {
+            idle_capable: true,
+            has_wants: true,
+            ..timing()
+        };
+        assert_eq!(next(&t, 0), Next::Run);
+    }
+
+    #[test]
     fn folders_come_before_replay_and_filing() {
         let wants = Wants {
             replay: true,
