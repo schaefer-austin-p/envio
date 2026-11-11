@@ -68,6 +68,15 @@ pub struct DraftInput {
     pub attachments: Vec<PathBuf>,
 }
 
+/// What the user decides about a queued message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutboxDecision {
+    SendAgain,
+    MoveToSent,
+    Retry,
+    Delete,
+}
+
 /// Where a compose window starts from. `Draft` and `Mailto` carry their
 /// data in `StartCompose`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +163,17 @@ pub enum Command {
         compose: ComposeId,
         draft: DraftInput,
     },
+    /// List the Outbox; the answer is `Outbox`.
+    ListOutbox,
+    /// The user's decision about a queued message; refused with a `Notice`
+    /// when the item's state does not allow it.
+    DecideOutbox {
+        item: String,
+        decision: OutboxDecision,
+    },
+    /// Turn a refused message into a draft in compose window `compose`, then
+    /// remove it from the Outbox.
+    EditOutbox { item: String, compose: ComposeId },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
@@ -182,6 +202,9 @@ impl Command {
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",
             Self::Send { .. } => "Send",
+            Self::ListOutbox => "ListOutbox",
+            Self::DecideOutbox { .. } => "DecideOutbox",
+            Self::EditOutbox { .. } => "EditOutbox",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
         }

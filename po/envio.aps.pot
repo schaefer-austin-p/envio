@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 10:05+0100\n"
+"POT-Creation-Date: 2026-11-11 10:12+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -117,6 +117,42 @@ msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:36
 msgid "Gave up deleting the message on the server; it's back"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:8
+msgid "Waiting to be sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:9
+msgid "Sending"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:11
+msgid "May have been sent: looking for it in Sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:14
+msgid "May have been sent: not found in Sent. Send again, or move to Sent?"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:16
+msgid "Sent, not yet in Sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:18
+msgid "Couldn't be sent: {reason}"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:20
+msgid "This message can't be read"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:26
+msgid "Not possible right now"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:30
+msgid "Could not change the message in the Outbox"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:7

@@ -77,3 +77,34 @@ pub struct MessageView {
     pub blocked_images: usize,
     pub attachments: Vec<AttachmentRow>,
 }
+
+/// Where a queued message stands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OutboxStatus {
+    Queued,
+    Sending,
+    /// `asked`: Sent was searched this session and came up empty, so the
+    /// user may decide.
+    MayHaveBeenSent {
+        asked: bool,
+    },
+    /// The server took it; it is not in Sent yet.
+    SentNotFiled,
+    Failed {
+        reason: String,
+    },
+    /// The files can not be read; it can only be deleted.
+    Damaged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutboxRow {
+    pub id: String,
+    pub account: String,
+    pub subject: String,
+    pub recipients: Vec<String>,
+    pub queued_at_ms: i64,
+    pub status: OutboxStatus,
+    /// The status in words.
+    pub text: String,
+}

@@ -12,6 +12,7 @@ pub mod servers;
 mod clock;
 mod compose;
 mod fsutil;
+mod outbox;
 // The helpers below are still partly consumed (tr_n, mask, more text).
 #[allow(dead_code)]
 mod i18n;
@@ -24,11 +25,13 @@ mod undo;
 mod worker;
 
 pub use api::command::{
-    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, StartFrom, UndoId, UserAction,
+    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, OutboxDecision, StartFrom,
+    UndoId, UserAction,
 };
 pub use api::event::Event;
 pub use api::view::{
-    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts,
+    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, OutboxRow,
+    OutboxStatus, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink};
 pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId, Page};

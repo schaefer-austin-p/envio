@@ -3,7 +3,9 @@
 use super::command::{AccountSetup, ComposeId, DraftInput, UndoId};
 use std::path::PathBuf;
 
-use super::view::{AccountInfo, CacheState, FolderRow, MessageRow, MessageView, UnsentCounts};
+use super::view::{
+    AccountInfo, CacheState, FolderRow, MessageRow, MessageView, OutboxRow, UnsentCounts,
+};
 use crate::health::AccountStatus;
 use crate::servers::Service;
 use envio_store::{FolderId, MessageRowId, Page};
@@ -39,6 +41,11 @@ pub enum Event {
     },
     /// The Outbox changed (sent, failed, filed).
     OutboxChanged,
+    /// The Outbox as it is now (after `ListOutbox`, a send or file step, or
+    /// a decision).
+    Outbox {
+        items: Vec<OutboxRow>,
+    },
     /// Servers found for an address; `text` says where, or asks the user to
     /// confirm the hosts.
     Detected {

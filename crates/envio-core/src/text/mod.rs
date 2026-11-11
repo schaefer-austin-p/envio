@@ -3,6 +3,7 @@
 
 pub mod compose;
 pub mod notice;
+pub mod outbox;
 pub mod read;
 pub mod setup;
 pub mod status;

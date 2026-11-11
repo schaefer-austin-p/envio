@@ -33,6 +33,7 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
             live.wants.file = true;
         }
         worker.emit(Event::OutboxChanged);
+        worker.emit_outbox();
     }
     match sent.stopped {
         Some(kind) => Err(problem::from_kind(kind)),
@@ -60,6 +61,7 @@ pub(super) async fn file(
     worker.unfiled.extend(filed.unfiled.iter().cloned());
     if !(filed.removed.is_empty() && filed.ask.is_empty() && filed.unfiled.is_empty()) {
         worker.emit(Event::OutboxChanged);
+        worker.emit_outbox();
     }
     Ok(())
 }

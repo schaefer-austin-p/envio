@@ -100,6 +100,18 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.send(compose, &draft);
             Flow::Continue
         }
+        Command::ListOutbox => {
+            worker.emit_outbox();
+            Flow::Continue
+        }
+        Command::DecideOutbox { item, decision } => {
+            worker.decide_outbox(&item, decision);
+            Flow::Continue
+        }
+        Command::EditOutbox { item, compose } => {
+            worker.edit_outbox(&item, compose);
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

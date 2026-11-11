@@ -109,6 +109,7 @@ impl Worker<'_> {
         // Before the rows go: waiting opens are answered, not leaked.
         self.open_failed(Some(account));
         self.drop_composes_of(account);
+        self.drop_outbox_of(account);
         if let Some(live) = self.live.get_mut(account) {
             // Sessions and the idler go; its IDLE future ends on the
             // notify and its result is dropped with the account.

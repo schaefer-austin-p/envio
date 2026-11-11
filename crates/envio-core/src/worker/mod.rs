@@ -4,6 +4,7 @@ mod act;
 mod compose;
 mod conn;
 mod dispatch;
+mod outbox;
 mod plan;
 mod read;
 mod remove;
@@ -49,10 +50,9 @@ pub(crate) struct Worker<'s> {
     /// Downloads are stopped until then (storage was full).
     disk_full_until: Option<i64>,
     /// Outbox items the user must decide on (filled by `file_sent`).
-    #[allow(dead_code)] // read by the Outbox commands (Task 13)
+    /// Session only: after a restart Sent is searched again first.
     asked: BTreeSet<String>,
     /// Outbox items sent but not yet in Sent.
-    #[allow(dead_code)] // read by the Outbox commands (Task 13)
     unfiled: BTreeSet<String>,
     /// The schedule entry already acted on.
     handled_due_ms: i64,
