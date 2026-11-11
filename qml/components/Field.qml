@@ -15,6 +15,9 @@ Column {
     // Extra hints; a password field always keeps no-prediction and sensitive.
     property int inputMethodHints: Qt.ImhNone
     property alias readOnly: input.readOnly
+    // For tests: the inner field and its menu.
+    readonly property alias input: input
+    readonly property alias editMenu: menu
     signal accepted()
 
     spacing: theme.gu(0.75)
@@ -36,11 +39,17 @@ Column {
         border.width: input.activeFocus ? 2 : 1
         border.color: input.activeFocus ? root.theme.primary : root.theme.field
 
-        TextInput {
+        TextField {
             id: input
+            objectName: "fieldInput"
+            background: null
+            topPadding: 0
+            bottomPadding: 0
+            selectByMouse: true
+            leftPadding: root.theme.gu(1.75)
+            rightPadding: root.theme.gu(1.75)
+            onPressAndHold: function (event) { menu.popup(input, event.x, event.y) }
             anchors.fill: parent
-            anchors.leftMargin: root.theme.gu(1.75)
-            anchors.rightMargin: root.theme.gu(1.75)
             verticalAlignment: TextInput.AlignVCenter
             clip: true
             color: root.theme.text
@@ -57,10 +66,17 @@ Column {
                 id: hint
                 visible: input.text === "" && !input.activeFocus
                 anchors.fill: parent
+                leftPadding: input.leftPadding
                 verticalAlignment: Text.AlignVCenter
                 color: root.theme.secondary
                 font: input.font
             }
+        }
+        EditMenu {
+            id: menu
+            theme: root.theme
+            field: input
+            password: root.password
         }
     }
 }

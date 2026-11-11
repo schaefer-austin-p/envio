@@ -44,6 +44,7 @@
         <file>components/DateText.qml</file>
         <file>components/FolderLabel.qml</file>
         <file>components/AppDialog.qml</file>
+        <file>components/EditMenu.qml</file>
         <file>components/Field.qml</file>
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>

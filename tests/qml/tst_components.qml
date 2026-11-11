@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.2
+import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/components"
 
@@ -132,6 +133,63 @@ Item {
             compare(pwField.password, true)
         }
 
+        function holdOn(f) {
+            mousePress(f.input, 20, f.input.height / 2)
+            wait(1000)
+            mouseRelease(f.input, 20, f.input.height / 2)
+        }
+
+        function items(f) {
+            const m = f.editMenu
+            const out = {}
+            for (let i = 0; i < m.count; i++) out[m.itemAt(i).objectName] = m.itemAt(i)
+            return out
+        }
+
+        function test_press_and_hold_opens_the_edit_menu() {
+            const f = createTemporaryObject(fieldComponent, root, { text: "abc" })
+            waitForRendering(f)
+            verify(!f.editMenu.visible)
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            compare(f.editMenu.objectName, "editMenu")
+            const it = items(f)
+            for (const n of ["editCut", "editCopy", "editPaste", "editSelectAll"]) {
+                verify(it[n] !== undefined, n)
+                verify(it[n].height >= 44, n + " is touch high")
+            }
+            f.editMenu.close()
+        }
+
+        function test_paste_puts_the_clipboard_in_the_field() {
+            helper.text = "clip@example.org"
+            helper.selectAll()
+            helper.copy()
+            const f = createTemporaryObject(fieldComponent, root, {})
+            waitForRendering(f)
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            const paste = items(f).editPaste
+            verify(paste.enabled)
+            paste.triggered()
+            compare(f.text, "clip@example.org")
+        }
+
+        function test_password_field_offers_paste_only() {
+            helper.text = "x"
+            helper.selectAll()
+            helper.copy()
+            const f = createTemporaryObject(fieldComponent, root, { text: "secret", password: true })
+            waitForRendering(f)
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            const it = items(f)
+            verify(it.editPaste !== undefined && it.editPaste.visible)
+            for (const n of ["editCut", "editCopy", "editSelectAll"])
+                verify(it[n] === undefined || !it[n].visible || !it[n].enabled, n + " not offered")
+            f.editMenu.close()
+        }
+
         function test_button_label_is_centred() {
             for (const icon of ["", "pencil"]) {
                 const b = createTemporaryObject(buttonComponent, root, { iconName: icon })
@@ -157,6 +215,8 @@ Item {
         }
     }
 
+    TextField { id: helper; width: 100; y: 600 }
+    Component { id: fieldComponent; Field { theme: thm; width: 300; y: 300 } }
     Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
     Component {

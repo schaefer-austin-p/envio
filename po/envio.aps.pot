@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 19:53+0100\n"
+"POT-Creation-Date: 2026-11-11 19:58+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,6 +17,22 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: qml/components/EditMenu.qml:47
+msgid "Cut"
+msgstr ""
+
+#: qml/components/EditMenu.qml:54 qml/pages/reader/LinkSheet.qml:50
+msgid "Copy"
+msgstr ""
+
+#: qml/components/EditMenu.qml:61
+msgid "Paste"
+msgstr ""
+
+#: qml/components/EditMenu.qml:67
+msgid "Select all"
+msgstr ""
 
 #: qml/components/FolderLabel.qml:15 qml/pages/inbox/InboxPage.qml:21
 #: qml/pages/inbox/InboxPage.qml:40 qml/pages/inbox/InboxPage.qml:56
@@ -444,10 +460,6 @@ msgstr ""
 
 #: qml/pages/reader/LinkSheet.qml:14
 msgid "Open this link?"
-msgstr ""
-
-#: qml/pages/reader/LinkSheet.qml:50
-msgid "Copy"
 msgstr ""
 
 #: qml/pages/reader/ReaderMore.qml:18
