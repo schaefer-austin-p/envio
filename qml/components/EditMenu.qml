@@ -12,6 +12,18 @@ Menu {
     required property Item field
     property bool password: false
 
+    // What the field allows, read once as the menu opens. Live bindings to
+    // the field's selection and clipboard state loop on the phone: opening
+    // the menu moves focus, which changes that state while it is evaluated.
+    property bool hasSelection: false
+    property bool hasText: false
+    property bool pasteable: false
+    onAboutToShow: {
+        hasSelection = field.selectedText !== ""
+        hasText = field.text !== ""
+        pasteable = field.canPaste
+    }
+
     objectName: "editMenu"
     implicitWidth: theme.gu(25)
     padding: theme.gu(0.75)
@@ -47,27 +59,27 @@ Menu {
         objectName: "editCut"
         text: qsTr("Cut")
         visible: !root.password
-        enabled: root.field.selectedText !== ""
+        enabled: root.hasSelection
         onTriggered: root.field.cut()
     }
     EditRow {
         objectName: "editCopy"
         text: qsTr("Copy")
         visible: !root.password
-        enabled: root.field.selectedText !== ""
+        enabled: root.hasSelection
         onTriggered: root.field.copy()
     }
     EditRow {
         objectName: "editPaste"
         text: qsTr("Paste")
-        enabled: root.field.canPaste
+        enabled: root.pasteable
         onTriggered: root.field.paste()
     }
     EditRow {
         objectName: "editSelectAll"
         text: qsTr("Select all")
         visible: !root.password
-        enabled: root.field.text !== ""
+        enabled: root.hasText
         onTriggered: root.field.selectAll()
     }
 }

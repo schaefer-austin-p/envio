@@ -194,6 +194,24 @@ Item {
             compare(helper.text, "keep@example.org")
         }
 
+        // The rows read the field once, as the menu opens (no live bindings:
+        // they looped on the phone), and again on the next opening.
+        function test_edit_menu_rows_are_read_when_it_opens() {
+            const f = createTemporaryObject(fieldComponent, root, {})
+            waitForRendering(f)
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            compare(items(f).editSelectAll.enabled, false)
+            f.input.text = "abc"
+            compare(items(f).editSelectAll.enabled, false)
+            f.editMenu.close()
+            tryVerify(function() { return !f.editMenu.visible })
+            holdOn(f)
+            tryVerify(function() { return f.editMenu.visible })
+            compare(items(f).editSelectAll.enabled, true)
+            f.editMenu.close()
+        }
+
         function test_password_field_offers_paste_only() {
             helper.text = "x"
             helper.selectAll()
