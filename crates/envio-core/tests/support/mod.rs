@@ -27,6 +27,8 @@ pub struct Harness {
     pub dir: TempDir,
     pub core: Option<Core>,
     pub events: Receiver<Event>,
+    /// `Config.foreground` for the next `start_core`.
+    pub foreground: bool,
     sender: Sender<Event>,
 }
 
@@ -38,6 +40,7 @@ impl Harness {
             dir: tempfile::tempdir().unwrap(),
             core: None,
             events,
+            foreground: false,
             sender,
         }
     }
@@ -66,7 +69,7 @@ impl Harness {
             data_dir: self.data_dir(),
             roots: envio_net::Roots::empty(),
             log_level: log::LevelFilter::Info,
-            foreground: false,
+            foreground: self.foreground,
         }
     }
 
@@ -108,9 +111,14 @@ impl Harness {
     /// Writes the account (servers at 127.0.0.1:1) and its password; call
     /// before `start_core`. Returns the account key.
     pub fn seed_account(&self, email: &str, password: Option<&str>) -> String {
+        self.seed_account_at(email, password, 1)
+    }
+
+    /// Like `seed_account`, with the servers' port chosen.
+    pub fn seed_account_at(&self, email: &str, password: Option<&str>, port: u16) -> String {
         let server = || Server {
             host: "127.0.0.1".into(),
-            port: 1,
+            port,
             security: Security::Tls,
             pin: None,
         };
@@ -172,6 +180,16 @@ impl Harness {
         }
         folder
     }
+}
+
+pub fn now_ms() -> i64 {
+    now_secs() * 1000
+        + i64::from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_millis(),
+        )
 }
 
 pub fn now_secs() -> i64 {

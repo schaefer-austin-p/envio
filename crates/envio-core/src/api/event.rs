@@ -1,6 +1,8 @@
 //! What the core tells the app.
 
 use super::view::{AccountInfo, CacheState};
+use crate::health::AccountStatus;
+use envio_store::FolderId;
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -13,4 +15,16 @@ pub enum Event {
     WorkerRestarted { text: String },
     /// A one-line message for the user.
     Notice { text: String },
+    /// An account's status changed; `text` is what to show.
+    AccountStatus {
+        account: String,
+        status: AccountStatus,
+        text: String,
+    },
+    /// The account's folder list changed.
+    FoldersChanged { account: String },
+    /// Messages in these folders changed (new, gone, flags, bodies).
+    MessagesChanged { folders: Vec<FolderId> },
+    /// The Outbox changed (sent, failed, filed).
+    OutboxChanged,
 }

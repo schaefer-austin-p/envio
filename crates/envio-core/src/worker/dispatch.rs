@@ -15,6 +15,14 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command) -> Flow {
             worker.flush_drafts();
             Flow::Stop
         }
+        Command::AppActive(active) => {
+            worker.app_active(active);
+            Flow::Continue
+        }
+        Command::Refresh { account } => {
+            worker.refresh(account.as_deref());
+            Flow::Continue
+        }
         #[cfg(feature = "test-hooks")]
         Command::Crash => panic!("test crash"),
     }

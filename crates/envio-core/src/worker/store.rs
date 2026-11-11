@@ -22,7 +22,6 @@ pub(crate) struct Store {
     #[allow(dead_code)] // Task 12
     pub drafts: Drafts,
     pub accounts: Accounts,
-    #[allow(dead_code)] // Task 8
     pub secrets: Secrets,
     pub schedule: Schedule,
 }
@@ -64,7 +63,6 @@ impl Store {
     }
 
     /// The store as sync uses it.
-    #[allow(dead_code)] // sync runs arrive in Task 8
     pub fn local(&mut self) -> Local<'_> {
         Local {
             db: &self.db,
@@ -76,7 +74,6 @@ impl Store {
     }
 
     /// Reopens the cache database after damage found mid-session.
-    #[allow(dead_code)] // damage handling arrives in Task 8
     pub fn rebuild(&mut self) -> envio_store::Result<()> {
         drop(mem::replace(&mut self.db, Db::open_in_memory()?));
         self.db = open_or_rebuild(&self.paths)?.0;
