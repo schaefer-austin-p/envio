@@ -12,6 +12,7 @@ mod error;
 mod folders;
 mod ids;
 mod journal;
+mod journal_replay;
 mod lookup;
 mod messages;
 mod migrate;
@@ -29,6 +30,7 @@ pub use drafts::{Draft, Drafts};
 pub use error::{Result, StoreError};
 pub use folders::{Folder, FolderId, FolderRole, SyncState};
 pub use journal::{Action, ActionKind, Journal, MessageRef};
+pub use journal_replay::{SkipReason, Skipped};
 pub use messages::{
     BodyState, Cursor, Envelope, Flags, ListRef, Message, MessageRowId, NewMessage, PAGE,
 };
