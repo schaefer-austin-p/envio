@@ -105,6 +105,7 @@ async fn a_draft_survives_a_slow_first_sync() {
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
     run.row_with(inbox, &subject);
     let cache = run.dir.path().join("cache");
+    let connections_before = proxy.connections();
     let run = run.restart_with(|_| {
         std::fs::remove_dir_all(&cache).unwrap();
         proxy.slow(Duration::from_secs(3));
@@ -132,6 +133,12 @@ async fn a_draft_survives_a_slow_first_sync() {
 
     // The sync really was stalled: the proxy is holding a batch, and the
     // cache (deleted before the start) shows none of the Inbox's mail.
+    // `held` also counts EOF and TLS-hello batches, so the restart must
+    // also have opened a new connection through the proxy.
+    assert!(
+        proxy.connections() > connections_before,
+        "the restarted core made no new connection"
+    );
     assert!(
         proxy.held() >= 1,
         "the proxy held no batch: no stalled sync"
