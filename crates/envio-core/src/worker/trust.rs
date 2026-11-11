@@ -126,6 +126,38 @@ mod tests {
     }
 
     #[test]
+    fn a_reported_certificate_problem_carries_the_host() {
+        use crate::worker::testing::{Sink, open, seed};
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let details = CertDetails {
+            service: Service::Imap,
+            pinned: None,
+            presented: Fingerprint::from_bytes([1; 32]),
+            reason: None,
+            host: String::new(),
+        };
+        worker.live.get_mut(&seeded.account).unwrap().health.status =
+            AccountStatus::Certificate(Some(details));
+        worker.report(&seeded.account, &AccountStatus::Ready);
+        let hosts: Vec<String> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::AccountStatus {
+                    status: AccountStatus::Certificate(Some(d)),
+                    ..
+                } => Some(d.host),
+                _ => None,
+            })
+            .collect();
+        // The seeded account's IMAP server.
+        assert_eq!(hosts, ["127.0.0.1"]);
+    }
+
+    #[test]
     fn a_certificate_status_names_the_server_of_its_service() {
         let settings = AccountSettings {
             imap: server("imap.example.org"),
