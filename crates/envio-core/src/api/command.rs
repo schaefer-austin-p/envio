@@ -217,7 +217,9 @@ pub enum Command {
     Autocomplete { query: String },
     /// Keep a sender in the contacts ("Add sender to Contacts").
     AddContact { name: String, address: String },
-    /// Replace the settings; the answer is `Settings`.
+    /// Save the settings except the allowed image senders, which the worker
+    /// keeps as they are (they change only by `AllowImagesFrom` and
+    /// `DisallowImagesFrom`); the answer is `Settings`.
     SaveSettings(Settings),
     /// Always load remote images from this sender. Open the message again
     /// to see them.
