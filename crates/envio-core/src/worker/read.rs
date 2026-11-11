@@ -8,9 +8,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use envio_mime::{Message as Mime, RenderOptions};
-use envio_store::{BodyState, FolderId, Message, MessageRowId, Page};
+use envio_store::{BodyState, FolderId, ListRef, Message, MessageRowId};
 
 use super::Worker;
+use crate::api::command::Page;
 use crate::api::event::Event;
 use crate::api::view::{AttachmentRow, FolderRow, MessageRow, MessageView};
 use crate::clock::now_ms;
@@ -185,11 +186,16 @@ impl Worker<'_> {
 
     pub(super) fn list_messages(&self, folder: FolderId, page: Page) {
         let page = clamp_page(page);
-        match self.store.db.messages(folder, page) {
+        let upto = page.offset.saturating_add(page.limit);
+        match self.store.db.list(ListRef::Folder(folder), None, upto) {
             Ok(messages) => self.emit(Event::Messages {
                 folder,
                 page,
-                rows: messages.into_iter().map(row).collect(),
+                rows: messages
+                    .into_iter()
+                    .skip(page.offset as usize)
+                    .map(row)
+                    .collect(),
             }),
             Err(e) => self.read_failed(&e),
         }

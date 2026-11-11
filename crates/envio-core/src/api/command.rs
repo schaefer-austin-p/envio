@@ -3,10 +3,18 @@
 use std::path::PathBuf;
 
 use envio_net::autoconfig::Source;
-use envio_store::{FolderId, MessageRowId, Page};
+use envio_store::{FolderId, MessageRowId};
 use secrecy::SecretString;
 
 use crate::servers::{ServerAddr, Service};
+
+/// A window of a folder's list, newest first: skip `offset` rows, take
+/// `limit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Page {
+    pub offset: u32,
+    pub limit: u32,
+}
 
 /// What the wizard has settled on for a new account.
 #[derive(Debug, Clone, PartialEq, Eq)]

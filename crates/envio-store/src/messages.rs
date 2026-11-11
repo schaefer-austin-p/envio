@@ -1,8 +1,10 @@
 //! Message metadata: envelope, flags, preview, thread references and
 //! whether the body is on disk.
 
+use std::collections::BTreeMap;
 use std::ops::BitOr;
 
+use rusqlite::types::Value;
 use rusqlite::{OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 
@@ -121,11 +123,23 @@ pub struct Message {
     pub body: BodyState,
 }
 
+/// A position in a newest-first list: the next page holds rows strictly
+/// older than this `(date, id)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Page {
-    pub offset: u32,
-    pub limit: u32,
+pub struct Cursor {
+    pub date: i64,
+    pub id: MessageRowId,
 }
+
+/// A list of messages: one folder, or every account's Inbox merged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ListRef {
+    Folder(FolderId),
+    Inboxes,
+}
+
+/// The usual page size of a list.
+pub const PAGE: u32 = 50;
 
 /// The columns `from_row` reads, from `messages` aliased as `m`.
 pub(crate) const COLUMNS: &str = "m.id, m.folder_id, m.uid, m.message_id, m.subject, \
@@ -199,16 +213,51 @@ impl Db {
         )?)
     }
 
-    /// A folder's messages, newest first.
-    pub fn messages(&self, folder: FolderId, page: Page) -> Result<Vec<Message>> {
+    /// Up to `limit` messages of `list`, newest first (`date DESC, id DESC`).
+    /// With `after`, only rows strictly older than the cursor, so new mail
+    /// and deletions between calls never repeat or skip a row.
+    pub fn list(&self, list: ListRef, after: Option<Cursor>, limit: u32) -> Result<Vec<Message>> {
+        let (folder_filter, key): (_, Value) = match list {
+            ListRef::Folder(folder) => ("m.folder_id = ?1", folder.0.into()),
+            ListRef::Inboxes => (
+                "m.folder_id IN (SELECT id FROM folders WHERE role = ?1)",
+                "inbox".to_owned().into(),
+            ),
+        };
+        let (date, id) = after.map_or((i64::MAX, i64::MAX), |c| (c.date, c.id.0));
         let mut stmt = self.conn().prepare(&format!(
-            "SELECT {COLUMNS} FROM messages m WHERE m.folder_id = ?1
-             ORDER BY m.date DESC, m.id DESC LIMIT ?2 OFFSET ?3"
+            "SELECT {COLUMNS} FROM messages m
+             WHERE {folder_filter} AND (m.date < ?2 OR (m.date = ?2 AND m.id < ?3))
+             ORDER BY m.date DESC, m.id DESC LIMIT ?4"
         ))?;
         let messages = stmt
-            .query_map(params![folder.0, page.limit, page.offset], from_row)?
+            .query_map(params![key, date, id, limit], from_row)?
             .collect::<rusqlite::Result<_>>()?;
         Ok(messages)
+    }
+
+    /// The cursor that continues a list after `message`.
+    pub fn cursor_of(message: &Message) -> Cursor {
+        Cursor {
+            date: message.envelope.date,
+            id: message.id,
+        }
+    }
+
+    /// Unseen messages per folder of `account` (folders with none are absent).
+    pub fn unread_counts(&self, account: &str) -> Result<BTreeMap<FolderId, u32>> {
+        let mut stmt = self.conn().prepare(
+            "SELECT m.folder_id, count(*) FROM messages m
+             JOIN folders f ON f.id = m.folder_id
+             WHERE f.account = ?1 AND m.flags & ?2 = 0
+             GROUP BY m.folder_id",
+        )?;
+        let counts = stmt
+            .query_map(params![account, Flags::SEEN.bits()], |row| {
+                Ok((FolderId(row.get(0)?), row.get(1)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(counts)
     }
 
     pub fn message(&self, id: MessageRowId) -> Result<Message> {

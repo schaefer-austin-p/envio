@@ -28,6 +28,7 @@ mod text;
 mod undo;
 mod worker;
 
+pub use api::command::Page;
 pub use api::command::{
     AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, OutboxDecision, StartFrom,
     UndoId, UserAction,
@@ -38,7 +39,7 @@ pub use api::view::{
     OutboxStatus, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink};
-pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId, Page};
+pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId};
 pub use health::AccountStatus;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};

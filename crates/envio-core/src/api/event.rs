@@ -8,7 +8,9 @@ use super::view::{
 };
 use crate::health::AccountStatus;
 use crate::servers::Service;
-use envio_store::{FolderId, MessageRowId, Page};
+use envio_store::{FolderId, MessageRowId};
+
+use super::command::Page;
 
 #[derive(Debug, Clone)]
 pub enum Event {

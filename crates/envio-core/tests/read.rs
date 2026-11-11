@@ -196,11 +196,10 @@ fn opening_without_a_body_offline_is_unavailable() {
     h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let db = Db::open(&h.paths().db()).unwrap();
     let folder = db.folders(&key).unwrap()[0].id;
-    let page = Page {
-        offset: 0,
-        limit: 5,
-    };
-    let id = db.messages(folder, page).unwrap()[0].id;
+    let id = db
+        .list(envio_store::ListRef::Folder(folder), None, 5)
+        .unwrap()[0]
+        .id;
     db.set_body_state(id, BodyState::Missing).unwrap();
     drop(db);
     h.start_core();
@@ -223,11 +222,10 @@ fn removing_an_account_answers_a_pending_open() {
     h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let db = Db::open(&h.paths().db()).unwrap();
     let folder = db.folders(&key).unwrap()[0].id;
-    let page = Page {
-        offset: 0,
-        limit: 5,
-    };
-    let id = db.messages(folder, page).unwrap()[0].id;
+    let id = db
+        .list(envio_store::ListRef::Folder(folder), None, 5)
+        .unwrap()[0]
+        .id;
     db.set_body_state(id, BodyState::Missing).unwrap();
     drop(db);
     h.start_core();

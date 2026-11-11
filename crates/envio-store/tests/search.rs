@@ -111,3 +111,73 @@ fn query_syntax_is_plain_text() {
     }
     assert!(uids(&db, "   ").is_empty());
 }
+
+fn first_id(db: &Db, query: &str) -> envio_store::MessageRowId {
+    db.search("a1", query, 50).unwrap()[0].id
+}
+
+#[test]
+fn body_text_is_found() {
+    let (db, _) = setup();
+    let id = first_id(&db, "lunch");
+    assert!(uids(&db, "umbrella").is_empty());
+    db.index_body(id, "Please bring an umbrella.").unwrap();
+    assert_eq!(uids(&db, "umbrella"), [2]);
+    assert_eq!(uids(&db, "umbr"), [2]);
+    // Re-indexing replaces the earlier text.
+    db.index_body(id, "Never mind.").unwrap();
+    assert!(uids(&db, "umbrella").is_empty());
+    assert_eq!(uids(&db, "never"), [2]);
+}
+
+#[test]
+fn a_message_matching_header_and_body_is_listed_once() {
+    let (db, _) = setup();
+    let id = first_id(&db, "lunch");
+    db.index_body(id, "lunch lunch lunch").unwrap();
+    assert_eq!(uids(&db, "lunch"), [2]);
+}
+
+#[test]
+fn deleting_a_message_drops_its_body_index() {
+    let (db, inbox) = setup();
+    let id = first_id(&db, "lunch");
+    db.index_body(id, "umbrella").unwrap();
+    db.delete_messages(inbox, &[2]).unwrap();
+    assert!(uids(&db, "umbrella").is_empty());
+}
+
+#[test]
+fn body_index_is_truncated_at_a_char_boundary() {
+    let (db, _) = setup();
+    let id = first_id(&db, "lunch");
+    let limit = envio_store::BODY_INDEX_BYTES;
+    // 'é' is two bytes: the limit falls between two of them.
+    let text = format!("head {} tail", "é".repeat(limit));
+    db.index_body(id, &text).unwrap();
+    assert_eq!(uids(&db, "head"), [2]);
+    assert!(uids(&db, "tail").is_empty());
+    // The limit falls inside the 'é' after the word: it is dropped whole.
+    let word = "a".repeat(limit - 1);
+    db.index_body(id, &format!("{word}é tail")).unwrap();
+    assert_eq!(uids(&db, &word), [2]);
+}
+
+#[test]
+fn fts_syntax_in_the_query_is_not_interpreted() {
+    let (db, _) = setup();
+    let id = first_id(&db, "lunch");
+    db.index_body(id, "umbrella").unwrap();
+    for query in [
+        "umbrella OR zzz",
+        "NOT umbrella",
+        "umbrella*)",
+        "text:umbrella",
+        "\"",
+        "-",
+    ] {
+        assert!(db.search("a1", query, 10).is_ok(), "{query}");
+    }
+    assert!(uids(&db, "umbrella OR zzz").is_empty());
+    assert!(uids(&db, "text:umbrella").is_empty());
+}

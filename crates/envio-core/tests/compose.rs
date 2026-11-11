@@ -37,13 +37,7 @@ fn seeded_with(missing: bool) -> Seeded {
     if missing {
         let db = envio_store::Db::open(&h.paths().db()).unwrap();
         let rows = db
-            .messages(
-                folder,
-                Page {
-                    offset: 0,
-                    limit: 10,
-                },
-            )
+            .list(envio_store::ListRef::Folder(folder), None, 10)
             .unwrap();
         db.set_body_state(rows[0].id, envio_store::BodyState::Missing)
             .unwrap();
