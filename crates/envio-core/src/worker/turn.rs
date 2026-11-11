@@ -98,7 +98,7 @@ impl Worker<'_> {
                     if live.listed {
                         live.wants.expand(&folders);
                     }
-                    let todo = steps(&live.wants, &folders, disk_full)
+                    let todo = steps(&live.wants, &folders, disk_full, live.relist)
                         .into_iter()
                         .find(|step| !(live.listed && *step == Step::Folders));
                     if todo.is_some() {

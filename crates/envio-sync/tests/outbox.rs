@@ -255,6 +255,10 @@ async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
     assert_eq!(filed.unfiled, std::slice::from_ref(&accepted));
     assert_eq!(state(&store, &accepted), Some(SendState::Accepted));
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
+    assert!(
+        filed.relist,
+        "a refused Sent means the folder list may be stale"
+    );
 }
 
 #[tokio::test]
@@ -331,6 +335,7 @@ async fn a_refused_sent_select_leaves_maybe_sent_items_unasked() {
         .await
         .unwrap();
     assert!(filed.ask.is_empty(), "the select failed: not asked");
+    assert!(filed.relist);
     assert!(filed.unfiled.is_empty());
     assert_eq!(state(&store, &unsure), Some(SendState::MayHaveBeenSent));
 }
@@ -348,6 +353,7 @@ async fn a_maybe_sent_item_is_asked_only_when_sent_was_searched_and_lacks_it() {
         .await
         .unwrap();
     assert_eq!(filed.ask, std::slice::from_ref(&unsure));
+    assert!(!filed.relist, "Sent was usable");
 }
 
 #[tokio::test]

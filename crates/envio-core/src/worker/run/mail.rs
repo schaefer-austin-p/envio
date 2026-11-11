@@ -57,6 +57,9 @@ pub(super) async fn file(
         worker.asked.remove(id);
         worker.unfiled.remove(id);
     }
+    if let Some(live) = worker.live.get_mut(account) {
+        live.relist = filed.relist;
+    }
     worker.asked.extend(filed.ask.iter().cloned());
     worker.unfiled.extend(filed.unfiled.iter().cloned());
     if !(filed.removed.is_empty() && filed.ask.is_empty() && filed.unfiled.is_empty()) {

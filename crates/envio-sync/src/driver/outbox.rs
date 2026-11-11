@@ -80,6 +80,9 @@ pub struct Filed {
     /// refused something (the Sent folder, the APPEND). Core shows these as
     /// "sent, not yet in Sent".
     pub unfiled: Vec<String>,
+    /// Sent (or an item's filing) was refused: the cached folder list may be
+    /// stale, so the next run should fetch it again.
+    pub relist: bool,
 }
 
 /// Files accepted items in Sent (APPEND, unless the server does it itself
@@ -166,6 +169,7 @@ pub async fn file_sent(
 /// not searched, so "not found" is not known, and asking would invite a
 /// resend of mail that may be there. The check is retried next time.
 fn refused(filed: &mut Filed, step: ItemStep, id: String) {
+    filed.relist = true;
     if step == ItemStep::File {
         filed.unfiled.push(id);
     }

@@ -53,7 +53,9 @@ impl Wants {
 
 /// The steps for `wants`, in order. `full` stands for the folder list,
 /// actions, mail and every folder. With `disk_full` nothing is downloaded.
-pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool) -> Vec<Step> {
+/// `relist` (Sent was refused last time) keeps the folder list even for a
+/// run that only sends.
+pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool, relist: bool) -> Vec<Step> {
     let mut out = Vec::new();
     if !disk_full {
         out.extend(wants.bodies.iter().map(|id| Step::Body(*id)));
@@ -79,7 +81,7 @@ pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool) -> Vec<Step> {
     // Send; Sent is known) goes without it.
     let only_send = out.iter().all(|step| *step == Step::Send);
     let sent_known = folders.iter().any(|f| f.role == FolderRole::Sent);
-    if !out.is_empty() && !(only_send && sent_known) {
+    if !out.is_empty() && !(only_send && sent_known && !relist) {
         out.insert(0, Step::Folders);
     }
     out
@@ -170,7 +172,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false),
+            steps(&wants, &folders(), false, false),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
         );
     }
@@ -184,7 +186,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false),
+            steps(&wants, &folders(), false, false),
             [
                 Step::Folders,
                 Step::Body(MessageRowId(7)),
@@ -202,7 +204,7 @@ mod tests {
             folders: [FolderId(1), FolderId(2)].into(),
             ..Wants::default()
         };
-        let all = steps(&wants, &folders(), false);
+        let all = steps(&wants, &folders(), false, false);
         let synced: Vec<Step> = all
             .iter()
             .copied()
@@ -225,14 +227,22 @@ mod tests {
             send: true,
             ..Wants::default()
         };
-        assert_eq!(steps(&wants, &folders(), false), [Step::Send]);
+        assert_eq!(steps(&wants, &folders(), false, false), [Step::Send]);
+        // Sent was refused last time: the list comes first again.
+        assert_eq!(
+            steps(&wants, &folders(), false, true),
+            [Step::Folders, Step::Send]
+        );
         // Folders not cached yet: the list comes first.
-        assert_eq!(steps(&wants, &[], false), [Step::Folders, Step::Send]);
+        assert_eq!(
+            steps(&wants, &[], false, false),
+            [Step::Folders, Step::Send]
+        );
     }
 
     #[test]
     fn nothing_wanted_is_no_steps() {
-        assert!(steps(&Wants::default(), &folders(), false).is_empty());
+        assert!(steps(&Wants::default(), &folders(), false, false).is_empty());
     }
 
     #[test]
@@ -243,7 +253,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), true),
+            steps(&wants, &folders(), true, false),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
         );
     }

@@ -42,6 +42,9 @@ pub(crate) struct Live {
     pub idle_synced_first: bool,
     /// The folder list was fetched during the current run.
     pub listed: bool,
+    /// Filing in Sent was refused: the next run lists the folders even if it
+    /// only sends, so a renamed or deleted Sent is found again.
+    pub relist: bool,
 }
 
 impl Live {
@@ -54,6 +57,7 @@ impl Live {
             idle_capable: false,
             idle_synced_first: false,
             listed: false,
+            relist: false,
         }
     }
 }

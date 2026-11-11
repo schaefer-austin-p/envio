@@ -121,6 +121,7 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
     match step {
         Step::Folders => {
             live.listed = true;
+            live.relist = false;
             live.wants.expand(&folders);
         }
         Step::Body(id) => live.wants.bodies.retain(|b| *b != id),
