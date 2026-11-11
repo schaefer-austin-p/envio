@@ -4,6 +4,7 @@ mod mail;
 mod sync;
 
 use envio_net::imap::ImapSession;
+use envio_store::FolderId;
 
 use super::Worker;
 use super::conn::Conn;
@@ -71,30 +72,23 @@ pub(crate) async fn run_step(
         Step::Folder(id) => sync::folder(worker, &mut session, id).await,
         Step::Send => Ok(()),
     };
-    keep(worker, account, session, &result);
+    if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
+        let changed = match step {
+            Step::Folder(id) if session.take_changes() => Some(id),
+            _ => None,
+        };
+        keep(worker, account, session, changed);
+    }
     result
 }
 
-/// A session lives on unless the step broke it (a refusal doesn't).
-fn keep(
-    worker: &mut Worker<'_>,
-    account: &str,
-    mut session: ImapSession,
-    result: &Result<(), Problem>,
-) {
-    if matches!(result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
-        return;
-    }
-    let changed = session.take_changes();
-    let inbox = worker.inbox_of(account);
+/// A session lives on unless the step broke it (a refusal doesn't). If the
+/// server reported a change while the step's folder was selected, that
+/// folder is synced again.
+fn keep(worker: &mut Worker<'_>, account: &str, session: ImapSession, changed: Option<FolderId>) {
     if let Some(live) = worker.live.get_mut(account) {
-        if changed {
-            match inbox {
-                Some(id) => {
-                    live.wants.folders.insert(id);
-                }
-                None => live.wants.full = true,
-            }
+        if let Some(id) = changed {
+            live.wants.folders.insert(id);
         }
         live.conn = Conn::Ready(session);
     }

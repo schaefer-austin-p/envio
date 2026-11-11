@@ -153,31 +153,33 @@ impl Worker<'_> {
 
     /// Takes the account into IDLE on its Inbox.
     pub(crate) async fn begin_idle(&mut self, account: &str, until_ms: i64) -> Result<(), Problem> {
-        let Some(path) = self.inbox_path(account)? else {
+        let Some(inbox) = self.inbox(account)? else {
             return Ok(());
         };
         let mut session = self.imap(account).await?;
-        prepare_idle(&mut session, &path)
+        prepare_idle(&mut session, &inbox.path)
             .await
             .map_err(|e| problem::from_net(&e, Service::Imap))?;
         let (future, notify) = start_idle(account.to_owned(), session, until_ms, now_ms());
         self.idles.push(future);
         if let Some(live) = self.live.get_mut(account) {
             live.conn = Conn::Idling(notify);
+            if live.health.failures > 0 {
+                // Back after a failure: mail may have arrived meanwhile.
+                live.health.ok();
+                live.wants.folders.insert(inbox.id);
+            }
         }
         Ok(())
     }
 
-    fn inbox_path(&self, account: &str) -> Result<Option<String>, Problem> {
+    fn inbox(&self, account: &str) -> Result<Option<envio_store::Folder>, Problem> {
         let folders = self
             .store
             .db
             .folders(account)
             .map_err(|e| problem::from_store(&e))?;
-        Ok(folders
-            .into_iter()
-            .find(|f| f.role == FolderRole::Inbox)
-            .map(|f| f.path))
+        Ok(folders.into_iter().find(|f| f.role == FolderRole::Inbox))
     }
 
     /// An IDLE ended: the session comes back, or the connection is lost.

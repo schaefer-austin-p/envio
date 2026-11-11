@@ -3,7 +3,7 @@
 mod support;
 
 use std::net::TcpListener;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use envio_core::{AccountStatus, Command, Event};
 use support::{Harness, now_ms};
@@ -64,11 +64,13 @@ fn resume_retries_at_once() {
     let (mut h, key) = started_online("me@example.org");
     h.start_core();
     let first = h.wait(offline(&key));
-    let asked = Instant::now();
     h.send(Command::AppActive(true));
     let second = h.wait(offline(&key));
-    assert!(asked.elapsed() < Duration::from_millis(700));
-    assert!(second > first - 1_000);
+    let seen = now_ms();
+    // The retry came from the resume: we heard of it before the first retry
+    // time, which is at least 750 ms after the first failure.
+    assert!(seen < first, "heard at {seen}, first retry at {first}");
+    assert!(second >= seen, "{second} vs {seen}");
 }
 
 #[test]
@@ -92,7 +94,7 @@ fn background_makes_no_connection_attempts() {
     h.foreground = false;
     h.seed_account_at("me@example.org", Some("pw"), port);
     h.start_core();
-    std::thread::sleep(Duration::from_millis(500));
+    std::thread::sleep(Duration::from_millis(1_500));
     assert!(
         listener.accept().is_err(),
         "the core connected in the background"

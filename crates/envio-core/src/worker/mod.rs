@@ -5,6 +5,7 @@ mod dispatch;
 mod plan;
 mod run;
 mod store;
+mod turn;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::time::Duration;
@@ -20,12 +21,11 @@ use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
 use crate::health::AccountStatus;
 use crate::text;
-use conn::{Conn, IdleFuture, Live};
+use conn::{IdleFuture, Live};
 use dispatch::{Flow, handle};
 use envio_net::Roots;
 use envio_store::{FolderId, FolderRole};
 use envio_sync::schedule::backoff_ms;
-use plan::{Next, POLL_MS, Step, Timing, Wants, next, steps};
 use store::Store;
 
 pub(crate) struct Worker<'s> {
@@ -191,127 +191,6 @@ impl<'s> Worker<'s> {
             }
             () = sleep => Flow::Continue,
         }
-    }
-
-    /// Timers that are not accounts' own: a retry in the schedule is due.
-    fn on_timers(&mut self, now: i64) {
-        // Undo expiry and draft saves join this with the commands that
-        // create them (Tasks 9 and 12).
-        let Some(due) = self.store.schedule.next_due() else {
-            return;
-        };
-        if due <= now && due > self.handled_due_ms {
-            self.handled_due_ms = due;
-            for live in self.live.values_mut() {
-                live.wants.replay = true;
-                live.wants.send = true;
-            }
-        }
-    }
-
-    fn disk_full(&mut self, now: i64) -> bool {
-        match self.disk_full_until {
-            Some(until) if now < until => true,
-            Some(_) => {
-                self.disk_full_until = None;
-                false
-            }
-            None => false,
-        }
-    }
-
-    /// The next step to run, round robin over the accounts that have one.
-    /// Accounts that should idle are taken into IDLE on the way.
-    async fn pick(&mut self, now: i64) -> Option<(String, Step)> {
-        let disk_full = self.disk_full(now);
-        let mut accounts: Vec<String> = self.live.keys().cloned().collect();
-        let after = self.last_ran.as_ref().map_or(0, |last| {
-            accounts.iter().position(|a| a > last).unwrap_or(0)
-        });
-        accounts.rotate_left(after);
-        for account in accounts {
-            let before = self.status_of(&account);
-            let picked = self.pick_for(&account, now, disk_full).await;
-            self.report(&account, &before);
-            if let Some(step) = picked {
-                return Some((account, step));
-            }
-        }
-        None
-    }
-
-    async fn pick_for(&mut self, account: &str, now: i64, disk_full: bool) -> Option<Step> {
-        loop {
-            let folders = self.store.db.folders(account).unwrap_or_default();
-            let live = self.live.get_mut(account)?;
-            let timing = Timing {
-                foreground: self.foreground,
-                can_run: live.health.can_run(now),
-                paused: live.health.is_paused(),
-                retry_at_ms: live.health.wake_at(),
-                next_full_ms: live.next_full_ms,
-                has_wants: !live.wants.is_empty(),
-                idle_capable: live.idle_capable
-                    && folders.iter().any(|f| f.role == FolderRole::Inbox),
-            };
-            match next(&timing, now) {
-                Next::Sleep { .. } => return None,
-                Next::Idle { until_ms } => {
-                    if !matches!(live.conn, Conn::Idling(_))
-                        && let Err(problem) = self.begin_idle(account, until_ms).await
-                    {
-                        run::failed(self, account, &problem);
-                    }
-                    return None;
-                }
-                Next::Run => {
-                    if let Conn::Idling(stop) = &live.conn {
-                        // Its session comes back through `idle_done`.
-                        stop.notify_one();
-                        return None;
-                    }
-                    if now >= live.next_full_ms {
-                        live.wants.full = true;
-                        live.next_full_ms = now + POLL_MS;
-                    }
-                    if live.listed {
-                        live.wants.expand(&folders);
-                    }
-                    let todo = steps(&live.wants, &folders, disk_full)
-                        .into_iter()
-                        .find(|step| !(live.listed && *step == Step::Folders));
-                    if todo.is_some() {
-                        return todo;
-                    }
-                    // Only downloads were wanted and the disk is full.
-                    live.wants = Wants::default();
-                    live.listed = false;
-                }
-            }
-        }
-    }
-
-    /// When to look again with nothing to do: the earliest timer.
-    fn wake_at(&self, now: i64) -> Option<i64> {
-        let mut wake = self
-            .store
-            .schedule
-            .next_due()
-            .filter(|due| *due > self.handled_due_ms);
-        for live in self.live.values() {
-            let at = if !self.foreground || live.health.is_paused() {
-                None
-            } else if live.health.can_run(now) {
-                Some(live.next_full_ms)
-            } else {
-                live.health.wake_at()
-            };
-            wake = match (wake, at) {
-                (Some(a), Some(b)) => Some(a.min(b)),
-                (a, b) => a.or(b),
-            };
-        }
-        wake.map(|at| at.max(now))
     }
 
     pub(crate) fn emit(&self, event: Event) {
