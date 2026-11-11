@@ -16,6 +16,9 @@ Item {
     property bool busy: false
     // The address `detect` was asked about; an answer for another is stale.
     property string asked: ""
+    // True while an attempt is in flight. `asked` alone cannot say so: manual
+    // setup may go without an address, and then `asked` is "" too.
+    property bool attempting: false
     property string foundText: ""
     property string setupJson: ""
     readonly property var setup: setupJson === "" ? ({}) : JSON.parse(setupJson)
@@ -39,12 +42,13 @@ Item {
     }
     // Drop everything tied to the address being set up: the passwords,
     // the confirmation of its hosts, and interest in any answer still on
-    // its way (`asked` is empty, so late events are ignored).
+    // its way (`attempting` is off, so late events are ignored).
     function forget() {
         clearPasswords()
         serversConfirmed = false
         busy = false
         asked = ""
+        attempting = false
         error = ""
     }
     function back() {
@@ -58,12 +62,13 @@ Item {
     }
     // Is `email` the address of the attempt in flight?
     function current(email) {
-        return asked !== "" && String(email).toLowerCase() === asked.toLowerCase()
+        return attempting && String(email).toLowerCase() === asked.toLowerCase()
     }
     function detect() {
         forget()
         busy = true
         asked = emailStep.email.trim()
+        attempting = true
         core.detect(asked)
     }
     // Only the sign-in and servers steps connect.
@@ -72,6 +77,7 @@ Item {
         if (!connecting) return
         error = ""
         busy = true
+        attempting = true
         if (step === "servers") {
             // The user typed these hosts: their own choice, so confirmed.
             asked = emailStep.email.trim()

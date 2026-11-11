@@ -263,6 +263,22 @@ Item {
             compare(wizard.serversConfirmed, false)
         }
 
+        function test_manual_setup_without_an_address_still_advances() {
+            // #60: no address typed, so `asked` is empty; the reply must still match.
+            mouseClick(find("manualButton"))
+            compare(wizard.step, "servers")
+            find("username").text = "ann"
+            find("imapHost").text = "imap.mine.example"
+            find("smtpHost").text = "smtp.mine.example"
+            find("serversPassword").text = "hunter2"
+            find("connectButton").clicked()
+            compare(connectCalls().length, 1)
+            compare(wizard.busy, true)
+            core.accountAdded("ann", "")
+            compare(wizard.busy, false)
+            compare(wizard.step, "options")
+        }
+
         function test_servers_step_back_clears_its_password() {
             typeEmail()
             mouseClick(find("manualButton"))
