@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use envio_net::imap::IDLE_MAX;
-use envio_store::{Folder, FolderId, MessageRowId};
+use envio_store::{Folder, FolderId, FolderRole, MessageRowId};
 use envio_sync::plan::folders::sync_order;
 
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
@@ -75,7 +75,11 @@ pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool) -> Vec<Step> {
                 .map(Step::Folder),
         );
     }
-    if !out.is_empty() {
+    // A LIST starts every run, so a run that only sends (the user pressed
+    // Send; Sent is known) goes without it.
+    let only_send = out.iter().all(|step| *step == Step::Send);
+    let sent_known = folders.iter().any(|f| f.role == FolderRole::Sent);
+    if !out.is_empty() && !(only_send && sent_known) {
         out.insert(0, Step::Folders);
     }
     out
@@ -213,6 +217,17 @@ mod tests {
             ]
         );
         assert_eq!(all[0], Step::Folders);
+    }
+
+    #[test]
+    fn a_send_alone_skips_the_folder_list_when_sent_is_known() {
+        let wants = Wants {
+            send: true,
+            ..Wants::default()
+        };
+        assert_eq!(steps(&wants, &folders(), false), [Step::Send]);
+        // Folders not cached yet: the list comes first.
+        assert_eq!(steps(&wants, &[], false), [Step::Folders, Step::Send]);
     }
 
     #[test]
