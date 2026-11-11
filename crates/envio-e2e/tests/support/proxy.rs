@@ -1,0 +1,75 @@
+//! A byte-for-byte TCP proxy in front of Stalwart that a test can cut:
+//! every open connection drops, and new ones are refused while it is down.
+//! TLS passes through untouched, so the server's pinned certificate holds.
+
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+#[derive(Default)]
+struct State {
+    open: Mutex<Vec<TcpStream>>,
+    down: AtomicBool,
+}
+
+pub struct Proxy {
+    pub port: u16,
+    state: Arc<State>,
+}
+
+impl Proxy {
+    /// Listens on a free local port and forwards to `host:target`.
+    pub fn start(host: &str, target: u16) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let state = Arc::new(State::default());
+        let shared = Arc::clone(&state);
+        let host = host.to_owned();
+        thread::spawn(move || {
+            for client in listener.incoming().flatten() {
+                if shared.down.load(Ordering::SeqCst) {
+                    continue; // dropped: the client sees a closed connection
+                }
+                let Ok(server) = TcpStream::connect((host.as_str(), target)) else {
+                    continue;
+                };
+                if let (Ok(a), Ok(b)) = (client.try_clone(), server.try_clone())
+                    && let Ok(mut open) = shared.open.lock()
+                {
+                    open.push(a);
+                    open.push(b);
+                }
+                pipe(client.try_clone().unwrap(), server.try_clone().unwrap());
+                pipe(server, client);
+            }
+        });
+        Self { port, state }
+    }
+
+    /// Drops every open connection and refuses new ones until `up`.
+    pub fn cut(&self) {
+        self.state.down.store(true, Ordering::SeqCst);
+        for stream in self.state.open.lock().unwrap().drain(..) {
+            let _ = stream.shutdown(Shutdown::Both);
+        }
+    }
+
+    pub fn up(&self) {
+        self.state.down.store(false, Ordering::SeqCst);
+    }
+}
+
+fn pipe(mut from: TcpStream, mut to: TcpStream) {
+    thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        while let Ok(n) = from.read(&mut buf) {
+            if n == 0 || to.write_all(&buf[..n]).is_err() {
+                break;
+            }
+        }
+        let _ = to.shutdown(Shutdown::Both);
+        let _ = from.shutdown(Shutdown::Both);
+    });
+}

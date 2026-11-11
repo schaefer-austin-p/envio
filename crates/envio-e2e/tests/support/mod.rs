@@ -2,6 +2,9 @@
 //! own, included by path so both crates start and find it the same way.
 #![allow(dead_code)]
 
+pub mod core_run;
+pub mod proxy;
+
 #[path = "../../../envio-net/tests/support/stalwart.rs"]
 pub mod stalwart;
 

@@ -15,8 +15,12 @@ workspace = true
 envio-core = { path = "../envio-core" }
 
 [dev-dependencies]
+envio-core = { path = "../envio-core", features = ["test-hooks"] }
+envio-mime = { path = "../envio-mime" }
 envio-net = { path = "../envio-net" }
 envio-store = { path = "../envio-store" }
 envio-sync = { path = "../envio-sync" }
+log = "0.4"
+secrecy = "0.10"
 tempfile = "3"
 tokio = { version = "1.54", features = ["macros", "rt"] }

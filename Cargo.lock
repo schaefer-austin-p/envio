@@ -509,9 +509,12 @@ name = "envio-e2e"
 version = "0.1.0"
 dependencies = [
  "envio-core",
+ "envio-mime",
  "envio-net",
  "envio-store",
  "envio-sync",
+ "log",
+ "secrecy",
  "tempfile",
  "tokio",
 ]
