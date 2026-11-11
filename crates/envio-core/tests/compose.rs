@@ -290,6 +290,16 @@ fn a_reopened_draft_keeps_its_attachments() {
     );
 }
 
+/// Whether a file can still be written to `dir` (root ignores the mode).
+fn writable_anyway(dir: &std::path::Path) -> bool {
+    let probe = dir.join("probe");
+    let ok = std::fs::write(&probe, b"x").is_ok();
+    if ok {
+        std::fs::remove_file(&probe).unwrap();
+    }
+    ok
+}
+
 #[test]
 fn a_failed_save_stays_pending_and_is_retried() {
     use std::os::unix::fs::PermissionsExt;
@@ -298,6 +308,11 @@ fn a_failed_save_stays_pending_and_is_retried() {
     Drafts::open(&dir).unwrap();
     let mode = |m| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(m)).unwrap();
     mode(0o555);
+    if writable_anyway(&dir) {
+        mode(0o755);
+        eprintln!("skipped: running as root, read-only has no effect");
+        return;
+    }
     s.change(s.draft(&["ada@example.org"]));
     // The failed save tells the user once.
     s.h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
@@ -324,6 +339,11 @@ fn a_failed_save_is_still_saved_when_the_window_closes() {
     Drafts::open(&dir).unwrap();
     let mode = |m| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(m)).unwrap();
     mode(0o555);
+    if writable_anyway(&dir) {
+        mode(0o755);
+        eprintln!("skipped: running as root, read-only has no effect");
+        return;
+    }
     s.change(s.draft(&["ada@example.org"]));
     s.h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
     mode(0o755);
@@ -408,4 +428,19 @@ fn removing_the_account_answers_a_waiting_reply() {
         confirmed: true,
     });
     assert!(!s.refused().is_empty());
+}
+
+#[test]
+fn a_change_after_send_and_close_does_not_bring_the_draft_back() {
+    let s = seeded();
+    let d = s.draft(&["ada@example.org"]);
+    s.send(d.clone());
+    s.queued();
+    s.h.send(Command::CloseCompose {
+        compose: C,
+        discard: false,
+    });
+    s.change(d);
+    std::thread::sleep(Duration::from_millis(1_300));
+    assert!(s.drafts().is_empty());
 }

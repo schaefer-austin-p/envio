@@ -162,12 +162,13 @@ impl Worker<'_> {
                 true
             }
             Err(error) => {
-                log::warn!("saving a draft: {error}");
-                let text = match problem::from_store(&error) {
-                    Problem::DiskFull => text::notice::disk_full(),
-                    _ => text::compose::draft_not_saved(),
-                };
+                // Once per run of failures: it is retried every second.
                 if self.save_failed.insert(compose) {
+                    log::warn!("saving a draft: {error}");
+                    let text = match problem::from_store(&error) {
+                        Problem::DiskFull => text::notice::disk_full(),
+                        _ => text::compose::draft_not_saved(),
+                    };
                     self.emit(Event::Notice { text });
                 }
                 false
@@ -194,7 +195,7 @@ impl Worker<'_> {
             waiting.retain(|(c, _)| *c != compose);
             !waiting.is_empty()
         });
-        let was_sent = self.sent.remove(&compose);
+        let was_sent = self.sent.contains(&compose);
         self.save_failed.remove(&compose);
         if discard {
             self.delete_draft(

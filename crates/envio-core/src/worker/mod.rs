@@ -69,7 +69,8 @@ pub(crate) struct Worker<'s> {
     throttle: SaveThrottle,
     /// The stored draft of each compose window that has one.
     drafts_of: BTreeMap<ComposeId, String>,
-    /// Composes whose message is queued: nothing more is saved for them.
+    /// Composes whose message is queued, for the whole session: nothing more
+    /// is saved or sent for them, even after the window closed.
     sent: BTreeSet<ComposeId>,
     /// Composes whose last save failed (the user was told once).
     save_failed: BTreeSet<ComposeId>,
