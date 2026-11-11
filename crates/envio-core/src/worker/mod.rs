@@ -9,6 +9,8 @@ mod remove;
 mod run;
 mod setup;
 mod store;
+#[cfg(test)]
+mod testing;
 mod trust;
 mod turn;
 

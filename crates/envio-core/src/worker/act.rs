@@ -137,12 +137,15 @@ impl Worker<'_> {
 
     pub(super) fn undo_action(&mut self, undo: UndoId) {
         let now = now_ms();
-        self.expire_undos(now);
+        let just_closed = self.expire_undos(now);
         let Some(offer) = self.undo.take(undo, now) else {
-            self.emit(Event::UndoClosed {
-                undo,
-                undone: false,
-            });
+            // An offer that ended a moment ago has been closed just now.
+            if !just_closed.contains(&undo) {
+                self.emit(Event::UndoClosed {
+                    undo,
+                    undone: false,
+                });
+            }
             self.emit(Event::Notice {
                 text: text::undo::too_late(),
             });
@@ -172,6 +175,8 @@ impl Worker<'_> {
             undone: undone > 0,
         });
         if failed {
+            // Those stay pending: replay them without waiting for a poll.
+            self.want_replay(&offer.accounts);
             self.emit(Event::Notice {
                 text: text::undo::cannot_undo(),
             });
@@ -184,7 +189,7 @@ impl Worker<'_> {
 
     /// Syncs the folders again: an undone flag change leaves the cache
     /// possibly ahead of the server, and only a flag check shows it (#41).
-    fn check_flags_in(&mut self, folders: &BTreeSet<FolderId>) {
+    pub(super) fn check_flags_in(&mut self, folders: &BTreeSet<FolderId>) {
         for id in folders {
             let Ok(folder) = self.store.db.folder(*id) else {
                 continue;
@@ -195,22 +200,29 @@ impl Worker<'_> {
         }
     }
 
+    fn want_replay(&mut self, accounts: &BTreeSet<String>) {
+        for account in accounts {
+            if let Some(live) = self.live.get_mut(account) {
+                live.wants.replay = true;
+            }
+        }
+    }
+
     /// Closes the offers whose window has ended, and has their accounts
-    /// replay what the window held back.
-    pub(super) fn expire_undos(&mut self, now: i64) {
+    /// replay what the window held back. Returns the ids it closed.
+    pub(super) fn expire_undos(&mut self, now: i64) -> Vec<UndoId> {
+        let mut closed = Vec::new();
         for (undo, offer) in self.undo.expire(now) {
+            closed.push(undo);
             if !offer.undos.is_empty() {
                 self.emit(Event::UndoClosed {
                     undo,
                     undone: false,
                 });
             }
-            for account in &offer.accounts {
-                if let Some(live) = self.live.get_mut(account) {
-                    live.wants.replay = true;
-                }
-            }
+            self.want_replay(&offer.accounts);
         }
+        closed
     }
 }
 
@@ -267,5 +279,60 @@ mod tests {
                 remove: Flags::SEEN
             })
         );
+    }
+}
+
+#[cfg(test)]
+mod worker_tests {
+    use super::*;
+    use crate::worker::testing::{Sink, open, seed};
+
+    fn offered(sink: &Sink) -> UndoId {
+        sink.events()
+            .iter()
+            .find_map(|e| match e {
+                Event::UndoOffer { undo, .. } => Some(*undo),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn a_flag_undo_queues_a_flag_check_of_its_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.act(&[seeded.message], UserAction::Flag(true));
+        assert!(worker.live[&seeded.account].wants.folders.is_empty());
+        worker.undo_action(offered(&sink));
+        let wants = &worker.live[&seeded.account].wants;
+        assert!(wants.folders.contains(&seeded.folder));
+    }
+
+    #[test]
+    fn an_undo_just_after_the_window_closes_the_offer_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let kind = ActionKind::SetFlags {
+            add: Flags::SEEN,
+            remove: Flags::empty(),
+        };
+        let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
+        let id = worker.undo.offer(Offer {
+            undos: vec![undo],
+            accounts: BTreeSet::from([seeded.account.clone()]),
+            folders: BTreeSet::from([seeded.folder]),
+            expires_at_ms: now_ms() - 1,
+        });
+        worker.undo_action(id);
+        let closes = sink
+            .events()
+            .iter()
+            .filter(|e| matches!(e, Event::UndoClosed { undo, .. } if *undo == id))
+            .count();
+        assert_eq!(closes, 1);
     }
 }
