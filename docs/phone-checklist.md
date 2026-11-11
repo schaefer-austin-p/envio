@@ -112,7 +112,7 @@ No row reacts to a swipe.
 | Rich text and links (#29) | Pass | Deep-nesting message renders and opens as fast as a plain one (`r12`); newsletter images blocked, quote levels shown (`r06`, `r07`); spoofed userinfo link names the real host (`r08`); punycode link warns (`r09`, bold host is #76). |
 | Search on the server | Pass | Old message: 0 local results, 1 after "Search the servers too" (`q04`); with the server paused it shows progress and Cancel, and Cancel stops it (`q06`, `q07`). |
 | No swipe conflicts with edge gestures | Pass | Left edge opens the launcher, app unchanged after (`e05`). A horizontal drag on a row opens the message like a tap (`e02`); no row action. |
-| Unread count | Fail | Account and unified unread count stay at the startup value (64) after new or read mail: #75. |
+| Unread count | Fail, then pass | On df69b78 the account and unified count stayed at the startup value after new or read mail (#75). On 0cb013c: opening an unread message takes the tab from 66 to 65 (`u02`), new mail brings it back to 66 (`u03`), and the drawer's Unified and Inbox agree (`u04`). |
 
 Screenshots are in `docs/phone-runs/0.1.0/`. Phone: Ubuntu Touch 24.04,
 build df69b78, throwaway Stalwart through `adb reverse`.
