@@ -10,17 +10,24 @@ use envio_core::{
     Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
 };
 use secrecy::SecretString;
+use zeroize::Zeroize;
 
 use crate::convert as cv;
-use crate::core_object::{clock, qobject};
+use crate::core_object::qobject;
+use crate::lifecycle::clock;
 
 fn s(q: &QString) -> String {
     String::from(q)
 }
 
 /// A password never lives as anything but a `SecretString` on the Rust side.
+/// The secret is copied at its exact size (no reallocation that would leave
+/// an unzeroed buffer behind) and the intermediate `String` is zeroized.
 fn secret(q: &QString) -> SecretString {
-    SecretString::from(String::from(q))
+    let mut text = String::from(q);
+    let secret = SecretString::from(text.as_str());
+    text.zeroize();
+    secret
 }
 
 impl qobject::EnvioCore {
@@ -38,7 +45,7 @@ impl qobject::EnvioCore {
     }
 
     pub fn detect(mut self: Pin<&mut Self>, email: &QString) {
-        self.as_mut().rust_mut().accepted.clear();
+        self.as_mut().rust_mut().ui.clear_accepted();
         self.send_command(Command::Detect { email: s(email) });
     }
 
@@ -50,14 +57,14 @@ impl qobject::EnvioCore {
         servers_confirmed: bool,
     ) {
         let password = secret(password);
-        let setup = match cv::setup_from_json(&s(setup_json)) {
+        let setup = match crate::json::setup_from_json(&s(setup_json)) {
             Ok(setup) => setup,
             Err(error) => {
                 log::warn!("ignored a malformed account setup: {error}");
                 return;
             }
         };
-        let accepted = self.rust().accepted.clone();
+        let accepted = self.rust().ui.accepted().to_vec();
         let request = ConnectRequest {
             setup,
             password,
@@ -72,7 +79,12 @@ impl qobject::EnvioCore {
     /// `connect` carries it.
     pub fn accept_setup_certificate(mut self: Pin<&mut Self>, service: &QString, hex: &QString) {
         match cv::service_of(&s(service)) {
-            Some(service) => self.as_mut().rust_mut().accepted.push((service, s(hex))),
+            Some(service) => {
+                self.as_mut()
+                    .rust_mut()
+                    .ui
+                    .accept_setup_certificate(service, s(hex));
+            }
             None => log::warn!("ignored a certificate for an unknown service"),
         }
     }
@@ -183,6 +195,7 @@ impl qobject::EnvioCore {
 
     /// `mailto` is the mailto URL for kind "mailto" and the stored draft id
     /// for kind "draft". Returns the compose id (0 when the kind is unknown).
+    #[allow(clippy::too_many_arguments)] // the QML signature
     pub fn start_compose(
         mut self: Pin<&mut Self>,
         kind: &QString,
@@ -209,7 +222,7 @@ impl qobject::EnvioCore {
     }
 
     pub fn draft_changed(self: Pin<&mut Self>, compose: i64, draft_json: &QString) {
-        match cv::draft_from_json(&s(draft_json)) {
+        match crate::json::draft_from_json(&s(draft_json)) {
             Ok(draft) => self.send_command(Command::DraftChanged {
                 compose: cv::compose_id(compose),
                 draft,
@@ -226,7 +239,7 @@ impl qobject::EnvioCore {
     }
 
     pub fn send(self: Pin<&mut Self>, compose: i64, draft_json: &QString) {
-        match cv::draft_from_json(&s(draft_json)) {
+        match crate::json::draft_from_json(&s(draft_json)) {
             Ok(draft) => self.send_command(Command::Send {
                 compose: cv::compose_id(compose),
                 draft,
@@ -290,6 +303,7 @@ impl qobject::EnvioCore {
         });
     }
 
+    #[allow(clippy::too_many_arguments)] // the QML signature
     pub fn save_settings(
         self: Pin<&mut Self>,
         theme: &QString,
@@ -297,13 +311,13 @@ impl qobject::EnvioCore {
         images_always: bool,
         default_account: &QString,
     ) {
-        let settings = cv::settings_with(
-            &self.rust().settings,
-            &s(theme),
-            &s(dark_mode),
+        let edit = cv::SettingsEdit {
+            theme: &s(theme),
+            dark: &s(dark_mode),
             images_always,
-            &s(default_account),
-        );
+            default_account: &s(default_account),
+        };
+        let settings = cv::settings_with(&self.rust().settings, &edit);
         self.send_command(Command::SaveSettings(settings));
     }
 

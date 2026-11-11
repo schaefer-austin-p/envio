@@ -20,12 +20,22 @@ impl Ui {
         } else {
             self.selection.remove(&id);
         }
-        ops.into_iter()
+        let outs: Vec<Output> = ops
+            .into_iter()
             .filter_map(|(m, op)| op.map(|op| change(m, op)))
-            .collect()
+            .collect();
+        self.mirror.track(&outs);
+        outs
     }
 
     pub fn clear_selection(&mut self) -> Vec<Output> {
+        let outs = self.clear_marks();
+        self.mirror.track(&outs);
+        outs
+    }
+
+    /// `clear_selection` for callers that record the changes themselves.
+    pub(super) fn clear_marks(&mut self) -> Vec<Output> {
         let ids: Vec<i64> = std::mem::take(&mut self.selection).into_iter().collect();
         let mut outs = Vec::new();
         for id in ids {
@@ -50,7 +60,8 @@ impl Ui {
             return None;
         }
         let ids = self.selection.iter().map(|&id| MessageRowId(id)).collect();
-        let outs = self.clear_selection();
+        let outs = self.clear_marks();
+        self.mirror.track(&outs);
         Some((Command::Act { ids, action }, outs))
     }
 

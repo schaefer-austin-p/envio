@@ -34,7 +34,12 @@ pub enum Signal {
         account: String,
         text: String,
     },
-    MessageOpened(Box<MessageView>),
+    /// The opened message, named by its id: a reader that moved on to
+    /// another message must be able to tell a late answer.
+    MessageOpened {
+        id: i64,
+        view: Box<MessageView>,
+    },
     MessageUnavailable {
         id: i64,
         text: String,

@@ -2,6 +2,10 @@
 //! envio-ui produced and applies envio-ui's `Op`s with the matching
 //! begin/end calls; role names and values come from envio-ui.
 
+// Qt's begin/end calls fix the arguments (beginInsertRows takes four,
+// plus self); the argument-count gate does not fit the bridge.
+#![allow(clippy::too_many_arguments)]
+
 use envio_ui::{Model, Row, RowValue};
 
 /// The first role id; role `i` of the model's `role_names` is `FIRST_ROLE + i`
@@ -176,7 +180,11 @@ impl qobject::RowsModel {
         roles
     }
 
-    pub fn row_count(&self, _parent: &QModelIndex) -> i32 {
+    pub fn row_count(&self, parent: &QModelIndex) -> i32 {
+        // A list has no children.
+        if parent.is_valid() {
+            return 0;
+        }
         self.rust().rows.len() as i32
     }
 

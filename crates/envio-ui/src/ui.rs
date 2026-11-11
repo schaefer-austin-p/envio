@@ -9,10 +9,11 @@ mod selection;
 
 use std::collections::{BTreeSet, HashMap};
 
-use envio_core::{Command, Event, FolderRole, ListRef};
+use envio_core::{Command, Event, FolderRole, ListRef, Service};
 
 use crate::convert::{self, signal_of};
 use crate::lists::ShownList;
+use crate::mirror::Mirror;
 use crate::models::{Model, ModelChange, Op};
 use crate::rows::AccountRow;
 use crate::signals::Signal;
@@ -43,6 +44,10 @@ pub struct Ui {
     search: Option<SearchState>,
     found: ShownList,
     selection: BTreeSet<i64>,
+    mirror: Mirror,
+    /// Certificates accepted for the account being set up; the next
+    /// `Connect` carries them.
+    accepted: Vec<(Service, String)>,
     now: i64,
     utc_offset_s: i32,
 }
@@ -50,6 +55,26 @@ pub struct Ui {
 impl Ui {
     pub fn new() -> Ui {
         Ui::default()
+    }
+
+    /// The rows a model shows now (a model attached late starts from them).
+    pub fn rows(&self, model: Model) -> &[crate::rows::Row] {
+        self.mirror.rows(model)
+    }
+
+    /// A certificate the user accepted while setting an account up.
+    pub fn accept_setup_certificate(&mut self, service: Service, hex: String) {
+        self.accepted.push((service, hex));
+    }
+
+    /// The accepted certificates, for the next `Connect`.
+    pub fn accepted(&self) -> &[(Service, String)] {
+        &self.accepted
+    }
+
+    /// A new setup starts: earlier acceptances do not carry over.
+    pub fn clear_accepted(&mut self) {
+        self.accepted.clear();
     }
 
     pub fn apply(&mut self, event: Event, now: i64, utc_offset_s: i32) -> Vec<Output> {
@@ -97,13 +122,15 @@ impl Ui {
             _ => Vec::new(),
         };
         self.prune_selection();
+        self.mirror.track(&outs);
         outs
     }
 
     /// Show a list: its first page replaces what is shown when it arrives.
     /// The outputs clear the selection marks of the rows being left.
     pub fn open_list(&mut self, list: ListRef) -> (Command, Vec<Output>) {
-        let outs = self.clear_selection();
+        let outs = self.clear_marks();
+        self.mirror.track(&outs);
         self.current = Some(Current::new(list));
         (Command::ListMessages { list, after: None }, outs)
     }

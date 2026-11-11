@@ -3,6 +3,11 @@
 //! turns them into model changes and signals, and this file only mirrors
 //! those onto the models and Qt signals. The invokables are in `calls.rs`.
 
+// Signal and invokable signatures are the QML API: flat arguments, so the
+// repo argument-count gate does not fit this module (the only one it is
+// off for).
+#![allow(clippy::too_many_arguments)]
+
 #[cxx_qt::bridge]
 pub mod qobject {
     unsafe extern "C++" {
@@ -117,6 +122,10 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "statusText"]
         fn status_text(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);
+        /// `Core::start` failed; `text` is translated.
+        #[qsignal]
+        #[cxx_name = "startFailed"]
+        fn start_failed(self: Pin<&mut EnvioCore>, text: &QString);
     }
 
     // Invokables (bodies in calls.rs).
@@ -236,8 +245,9 @@ pub mod qobject {
         fn date_bucket(self: &EnvioCore, unix_secs: i64) -> QString;
     }
 
-    // The models are created in QML (`RowsModel { kind: "messages" }`) and
-    // handed over once; see the report for why.
+    // The models are created in QML (`RowsModel { kind: "messages" }`;
+    // cxx-qt cannot construct a QObject from Rust) and handed over with
+    // `attachModel`, which brings them up to date.
     unsafe extern "RustQt" {
         #[qinvokable]
         #[cxx_name = "attachModel"]
@@ -246,267 +256,26 @@ pub mod qobject {
 }
 
 use std::collections::HashMap;
-use std::path::Path;
-use std::pin::Pin;
-use std::sync::Arc;
 
-use cxx_qt::{CxxQtThread, CxxQtType, Threading};
-use cxx_qt_lib::{QDateTime, QString, QTimeZone};
-use envio_core::{Command, Config, Core, Event, Roots, RootsSource, Settings, paths};
-use envio_ui::{Model, ModelChange, Output, Signal, Ui};
+use cxx_qt::CxxQtThread;
+use cxx_qt_lib::QString;
+use envio_core::{Core, Settings};
+use envio_ui::{Model, Ui};
 
-use crate::convert;
 use crate::models::qobject::RowsModel;
-use crate::sink::QtSink;
-use crate::variant::map_of;
 
 #[derive(Default)]
 pub struct EnvioCoreRust {
-    ready: bool,
-    theme: QString,
-    dark_mode: QString,
-    images_always: bool,
-    default_account: QString,
+    pub(crate) ready: bool,
+    pub(crate) theme: QString,
+    pub(crate) dark_mode: QString,
+    pub(crate) images_always: bool,
+    pub(crate) default_account: QString,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
-    models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,
+    pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,
     /// The settings as last received: `saveSettings` changes four fields.
     pub(crate) settings: Settings,
-    /// Certificates accepted for the account being set up; the next
-    /// `connect` carries them.
-    pub(crate) accepted: Vec<(envio_core::Service, String)>,
     pub(crate) next_compose: i64,
-    opened_inboxes: bool,
-}
-
-/// The wall clock and the local UTC offset, for `Ui` (which has no clock).
-pub(crate) fn clock() -> (i64, i32) {
-    let now = QDateTime::current_secs_since_epoch();
-    let zone = QTimeZone::system_time_zone();
-    let offset = zone.as_ref().map_or(0, |z| {
-        z.offset_from_utc(&QDateTime::from_secs_since_epoch(now, z))
-    });
-    (now, offset)
-}
-
-fn log_roots(roots: &Roots) {
-    let source = match roots.source() {
-        RootsSource::System => "system",
-        RootsSource::Bundled => "bundled",
-        RootsSource::Empty => "empty",
-    };
-    log::warn!("CA roots: source {source}, {} certificates", roots.len());
-    for error in roots.load_errors() {
-        log::warn!("CA roots: {error}");
-    }
-}
-
-impl qobject::EnvioCore {
-    /// Start the core: folders, roots, worker. `Started` arrives later.
-    pub fn start(mut self: Pin<&mut Self>) {
-        if self.rust().core.is_some() {
-            return;
-        }
-        let env = |name: &str| std::env::var(name).ok();
-        let (cache_dir, data_dir) = paths::app_dirs(&env);
-        let roots = Roots::system_or_bundled();
-        let config = Config {
-            cache_dir,
-            data_dir,
-            roots: roots.clone(),
-            log_level: log::LevelFilter::Info,
-            foreground: true,
-        };
-        let sink = Arc::new(QtSink::new(self.qt_thread()));
-        match Core::start(config, sink) {
-            Ok(core) => {
-                // After the start: the file logger is up only now (#37).
-                log_roots(&roots);
-                self.as_mut().rust_mut().core = Some(core);
-            }
-            Err(error) => {
-                eprintln!("envio: the core did not start: {error}");
-                log::error!("the core did not start: {error}");
-            }
-        }
-    }
-
-    /// Flush unsent work and stop the worker (also done when QML drops
-    /// the object).
-    pub fn stop(mut self: Pin<&mut Self>) {
-        if let Some(core) = self.as_mut().rust_mut().core.take() {
-            core.shutdown();
-        }
-    }
-
-    /// # Safety
-    ///
-    /// `model` is null or points to a live `RowsModel`.
-    pub unsafe fn attach_model(mut self: Pin<&mut Self>, model: *mut RowsModel) {
-        // SAFETY: by the contract above; QML owns the model.
-        let Some(model) = (unsafe { model.as_mut() }) else {
-            return;
-        };
-        // SAFETY: the model stays where Qt put it.
-        let mut model = unsafe { Pin::new_unchecked(model) };
-        let kind = String::from(model.as_ref().kind());
-        let Some(which) = crate::models::model_of(&kind) else {
-            log::warn!("a RowsModel with unknown kind {kind:?} was not attached");
-            return;
-        };
-        self.as_mut()
-            .rust_mut()
-            .models
-            .insert(which, Box::new(model.as_mut().qt_thread()));
-    }
-
-    /// An event from the core, on the Qt thread.
-    pub(crate) fn apply(mut self: Pin<&mut Self>, event: Event) {
-        let started = matches!(event, Event::Started { .. });
-        let (now, offset) = clock();
-        let outs = self.as_mut().rust_mut().ui.apply(event, now, offset);
-        self.as_mut().run(outs);
-        if started {
-            self.as_mut().started();
-        }
-    }
-
-    /// `Ready`, and what the app asks for at start: the Outbox, and the
-    /// unified inbox once.
-    fn started(mut self: Pin<&mut Self>) {
-        self.as_mut().set_ready(true);
-        self.as_mut().send_command(Command::ListOutbox);
-        if !self.rust().opened_inboxes {
-            self.as_mut().rust_mut().opened_inboxes = true;
-            self.as_mut().open_list(&QString::from("inboxes"), 0);
-        }
-    }
-
-    /// Mirror what `Ui` produced: model changes, signals, commands.
-    pub(crate) fn run(mut self: Pin<&mut Self>, outs: Vec<Output>) {
-        for out in outs {
-            match out {
-                Output::Change(change) => self.as_ref().change_model(change),
-                Output::Signal(signal) => self.as_mut().emit_signal(signal),
-                Output::Send(command) => self.as_mut().send_command(command),
-            }
-        }
-    }
-
-    pub(crate) fn send_command(self: Pin<&mut Self>, command: Command) {
-        match &self.rust().core {
-            Some(core) => core.send(command),
-            None => log::warn!("the core is not running; dropped {}", command.name()),
-        }
-    }
-
-    fn change_model(self: Pin<&Self>, change: ModelChange) {
-        let ModelChange { model, op } = change;
-        let Some(thread) = self.rust().models.get(&model) else {
-            log::warn!("no {model:?} model attached; dropped a change");
-            return;
-        };
-        if thread.queue(move |m| m.apply(op)).is_err() {
-            log::warn!("the {model:?} model is gone; dropped a change");
-        }
-    }
-
-    fn emit_signal(mut self: Pin<&mut Self>, signal: Signal) {
-        let q = |s: &str| QString::from(s);
-        match signal {
-            Signal::Notice(t) => self.notice(&q(&t)),
-            Signal::StoreProblem(t) => self.store_problem(&q(&t)),
-            Signal::WorkerRestarted(t) => self.worker_restarted(&q(&t)),
-            Signal::Detected {
-                email,
-                text,
-                needs_confirm,
-                setup,
-            } => self.detected(
-                &q(&email),
-                &q(&text),
-                needs_confirm,
-                &q(&convert::setup_to_json(&setup)),
-            ),
-            Signal::SetupProblem { email, text } => self.setup_problem(&q(&email), &q(&text)),
-            Signal::TrustPrompt {
-                email,
-                service,
-                host,
-                fingerprint,
-                hex,
-                text,
-            } => self.trust_prompt(
-                &q(&email),
-                &q(convert::service_word(service)),
-                &q(&host),
-                &q(&fingerprint),
-                &q(&hex),
-                &q(&text),
-            ),
-            Signal::AccountAdded(a) => self.account_added(&q(&a)),
-            Signal::ConfirmRemove { account, text } => self.confirm_remove(&q(&account), &q(&text)),
-            Signal::MessageOpened(view) => {
-                let map = map_of(&convert::message_view_value(&view));
-                self.message_opened(&map);
-            }
-            Signal::MessageUnavailable { id, text } => self.message_unavailable(id, &q(&text)),
-            Signal::AttachmentSaved { path } => self.attachment_saved(&q(&lossy(&path))),
-            Signal::UndoOffer { undo, text } => {
-                self.undo_offer(i64::try_from(undo.0).unwrap_or(0), &q(&text));
-            }
-            Signal::UndoClosed => self.undo_closed(),
-            Signal::ComposeReady {
-                compose,
-                draft,
-                quoted,
-            } => {
-                let map = map_of(&convert::draft_value(&draft));
-                self.compose_ready(compose_num(compose), &map, &q(&quoted));
-            }
-            Signal::DraftSaved { compose } => self.draft_saved(compose_num(compose)),
-            Signal::ComposeRefused { compose, text } => {
-                self.compose_refused(compose_num(compose), &q(&text));
-            }
-            Signal::Queued { compose } => self.queued(compose_num(compose)),
-            Signal::Attached {
-                compose,
-                path,
-                name,
-                size,
-            } => self.attached(
-                compose_num(compose),
-                &q(&lossy(&path)),
-                &q(&name),
-                i64::try_from(size).unwrap_or(i64::MAX),
-            ),
-            Signal::AttachFailed { compose, text } => {
-                self.attach_failed(compose_num(compose), &q(&text));
-            }
-            Signal::Settings(settings) => self.as_mut().settings_arrived(settings),
-            Signal::SearchFailed(t) => self.search_failed(&q(&t)),
-            Signal::Status { account, text } => self.status_text(&q(&account), &q(&text)),
-        }
-    }
-
-    fn settings_arrived(mut self: Pin<&mut Self>, settings: Settings) {
-        self.as_mut()
-            .set_theme(QString::from(convert::theme_word(settings.theme)));
-        self.as_mut()
-            .set_dark_mode(QString::from(convert::dark_word(settings.dark)));
-        self.as_mut()
-            .set_images_always(settings.images == envio_core::ImagesDefault::Always);
-        self.as_mut().set_default_account(QString::from(
-            settings.default_account.as_deref().unwrap_or(""),
-        ));
-        self.as_mut().rust_mut().settings = settings;
-    }
-}
-
-fn lossy(path: &Path) -> String {
-    path.to_string_lossy().into_owned()
-}
-
-fn compose_num(id: envio_core::ComposeId) -> i64 {
-    i64::try_from(id.0).unwrap_or(0)
+    pub(crate) opened_inboxes: bool,
 }

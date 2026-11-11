@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 17:28+0100\n"
+"POT-Creation-Date: 2026-11-11 18:16+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -125,40 +125,45 @@ msgstr ""
 msgid "Storage is full. Free some space to keep mail up to date"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:27
+#: crates/envio-core/src/text/notice.rs:28
+msgid ""
+"Envio could not start. Restart it, or free some space if that does not help"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:32
 msgid ""
 "Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:33
+#: crates/envio-core/src/text/notice.rs:38
 msgid "Couldn't update the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:34
+#: crates/envio-core/src/text/notice.rs:39
 msgid "Couldn't move the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:35
+#: crates/envio-core/src/text/notice.rs:40
 msgid "Couldn't delete the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:42
+#: crates/envio-core/src/text/notice.rs:47
 msgid "Gave up updating the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:43
+#: crates/envio-core/src/text/notice.rs:48
 msgid "Gave up moving the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:44
+#: crates/envio-core/src/text/notice.rs:49
 msgid "Gave up deleting the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:49
+#: crates/envio-core/src/text/notice.rs:54
 msgid "Could not save your settings"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:53
+#: crates/envio-core/src/text/notice.rs:58
 msgid "Could not save the contact"
 msgstr ""
 

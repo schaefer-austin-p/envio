@@ -15,5 +15,7 @@ cmake --build "$build" --target envio-qmltest -j "$(nproc)"
 
 home=$(mktemp -d)
 trap 'rm -rf "$home"' EXIT
-export HOME="$home" XDG_CACHE_HOME="$home/cache" XDG_DATA_HOME="$home/data"
+mkdir -m 700 "$home/run"
+export HOME="$home" XDG_CACHE_HOME="$home/cache" XDG_DATA_HOME="$home/data" \
+  XDG_RUNTIME_DIR="$home/run"
 QT_QPA_PLATFORM=${QT_QPA_PLATFORM:-offscreen} "$build/envio-qmltest" -input "$root/tests/qml" "$@"

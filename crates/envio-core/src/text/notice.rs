@@ -23,6 +23,11 @@ pub fn disk_full() -> String {
     tr("Storage is full. Free some space to keep mail up to date")
 }
 
+/// `Core::start` failed (folders or logs could not be opened).
+pub fn start_failed() -> String {
+    tr("Envio could not start. Restart it, or free some space if that does not help")
+}
+
 pub fn worker_restarted() -> String {
     tr("Envio hit a problem and restarted its mail engine. Your unsent mail is safe")
 }

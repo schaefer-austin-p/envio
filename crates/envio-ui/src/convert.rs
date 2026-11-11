@@ -115,7 +115,10 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             text,
         },
         Event::ConfirmRemove { account, text, .. } => Signal::ConfirmRemove { account, text },
-        Event::MessageOpened { view, .. } => Signal::MessageOpened(Box::new(view)),
+        Event::MessageOpened { id, view } => Signal::MessageOpened {
+            id: id.0,
+            view: Box::new(view),
+        },
         Event::MessageUnavailable { id, text } => Signal::MessageUnavailable { id: id.0, text },
         Event::AttachmentSaved { path, .. } => Signal::AttachmentSaved { path },
         Event::UndoOffer { undo, text, .. } => Signal::UndoOffer { undo, text },

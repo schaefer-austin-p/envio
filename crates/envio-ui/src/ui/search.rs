@@ -32,7 +32,8 @@ impl Ui {
         query: String,
         server: bool,
     ) -> (Command, Vec<Output>) {
-        let outs = self.clear_selection();
+        let outs = self.clear_marks();
+        self.mirror.track(&outs);
         self.search = Some(SearchState::new(scope.clone(), query.clone(), server));
         let command = if server {
             Command::SearchServer { scope, query }
