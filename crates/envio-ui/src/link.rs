@@ -28,8 +28,11 @@ pub struct LinkView {
 fn visible(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
-        if matches!(c, '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}'
-            | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}')
+        if matches!(c, '\u{00AD}' | '\u{034F}' | '\u{061C}' | '\u{115F}' | '\u{1160}'
+            | '\u{17B4}' | '\u{17B5}' | '\u{180E}' | '\u{200B}'..='\u{200F}'
+            | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{3164}'
+            | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}' | '\u{FFA0}'
+            | '\u{E0000}'..='\u{E007F}' | '\u{E0100}'..='\u{E01EF}')
         {
             out.push_str(&format!("[U+{:04X}]", u32::from(c)));
         } else {
@@ -169,5 +172,28 @@ mod tests {
         let v = link_view("https://good.example/\u{202E}format.exe");
         assert_eq!(v.after_host, "/[U+202E]format.exe");
         assert!(!v.after_host.contains('\u{202E}'));
+    }
+
+    #[test]
+    fn blank_rendering_characters_are_written_out() {
+        for c in [
+            '\u{115F}',
+            '\u{1160}',
+            '\u{3164}',
+            '\u{FFA0}',
+            '\u{034F}',
+            '\u{17B4}',
+            '\u{17B5}',
+            '\u{FE00}',
+            '\u{FE0F}',
+            '\u{E0100}',
+            '\u{E01EF}',
+            '\u{E0000}',
+            '\u{E0041}',
+            '\u{E007F}',
+        ] {
+            let v = link_view(&format!("https://good.example/a{c}b"));
+            assert_eq!(v.after_host, format!("/a[U+{:04X}]b", u32::from(c)));
+        }
     }
 }
