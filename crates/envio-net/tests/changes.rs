@@ -120,6 +120,50 @@ async fn the_window_search_takes_mail_from_its_first_day_on() {
 }
 
 #[tokio::test]
+async fn search_uids_below_returns_lower_uids() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let first = message_id();
+    let second = message_id();
+    for id in [&first, &second] {
+        session
+            .append("INBOX", &[], &message(id, "Below", 200))
+            .await
+            .unwrap();
+    }
+    session.select("INBOX").await.unwrap();
+    let low = session.search_message_id(&first).await.unwrap()[0];
+    let high = session.search_message_id(&second).await.unwrap()[0];
+    assert!(low < high);
+    let below = session.search_uids_below(high).await.unwrap();
+    assert!(below.contains(&low) && !below.contains(&high));
+    assert!(below.windows(2).all(|w| w[0] < w[1]));
+    assert!(session.search_uids_below(1).await.unwrap().is_empty());
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn search_all_returns_every_uid() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let id = message_id();
+    session
+        .append("INBOX", &[], &message(&id, "All", 200))
+        .await
+        .unwrap();
+    let state = session.select("INBOX").await.unwrap();
+    let uid = session.search_message_id(&id).await.unwrap()[0];
+    let all = session.search_all().await.unwrap();
+    assert!(all.contains(&uid));
+    assert_eq!(all.len() as u32, state.exists);
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
 async fn a_deleted_message_is_gone_for_good() {
     let Some(server) = Stalwart::find().await else {
         return;
