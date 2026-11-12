@@ -10,11 +10,12 @@ pub fn userinfo_decoration(host: &str) -> String {
     )
 }
 
-/// The host is written in another script; this is its ASCII form.
-pub fn written_as(punycode: &str) -> String {
+/// The sheet's bold host is ASCII; this is how the same host would look
+/// in the address bar's Unicode form.
+pub fn looks_like(unicode: &str) -> String {
     fill(
-        &tr("The address is written as {punycode}."),
-        &[("punycode", punycode)],
+        &tr("Displays as {unicode}, which may imitate another site."),
+        &[("unicode", unicode)],
     )
 }
 

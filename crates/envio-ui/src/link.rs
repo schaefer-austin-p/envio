@@ -2,7 +2,7 @@
 //! comes before the `@` is flagged, and invisible characters are written out.
 //! The sheet only shows these parts; Open and Copy use the link as given.
 
-use envio_core::{link_malformed, userinfo_decoration, written_as};
+use envio_core::{link_malformed, looks_like, userinfo_decoration};
 use envio_mime::link_parts;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -12,10 +12,14 @@ pub struct LinkView {
     pub before_host: String,
     /// Text before the @ of an http(s) link, without the @.
     pub userinfo: String,
-    /// The host as people read it (Unicode); empty for other schemes.
+    /// The host the browser will reach, in ASCII (`xn--` for an IDN); empty
+    /// for other schemes. The sheet shows this one in bold.
     pub host: String,
-    /// The ASCII form of the host; empty when it is the same.
-    pub punycode: String,
+    /// The Unicode form, only when it differs from `host`.
+    pub unicode_host: Option<String>,
+    /// Translated: "Displays as ..., which may imitate another site"; empty
+    /// without `unicode_host`.
+    pub unicode_note: String,
     /// `:port` and the path, query and fragment.
     pub after_host: String,
     /// Translated; empty when there is nothing to flag, else one line per
@@ -72,21 +76,27 @@ pub fn link_view(url: &str) -> LinkView {
         (Some(local), true) => (format!("mailto:{}@", visible(local)), String::new()),
         (None, true) => ("mailto:".to_owned(), String::new()),
         (Some(user), false) => {
-            warnings.push(userinfo_decoration(&parts.host));
+            warnings.push(userinfo_decoration(
+                parts.punycode.as_deref().unwrap_or(&parts.host),
+            ));
             (format!("{}://", parts.scheme), visible(user))
         }
         (None, false) => (format!("{}://", parts.scheme), String::new()),
     };
-    let punycode = parts.punycode.unwrap_or_default();
-    if !punycode.is_empty() {
-        warnings.push(written_as(&punycode));
-    }
+    // `link_parts` keeps the Unicode form in `host` and the ASCII one in
+    // `punycode` (only for an IDN); the sheet leads with the ASCII form.
+    let (host, unicode_host) = match parts.punycode {
+        Some(ascii) => (ascii, Some(parts.host)),
+        None => (parts.host, None),
+    };
+    let unicode_note = unicode_host.as_deref().map(looks_like).unwrap_or_default();
     let port = parts.port.map(|p| format!(":{p}")).unwrap_or_default();
     LinkView {
         before_host,
         userinfo,
-        host: parts.host,
-        punycode,
+        host,
+        unicode_host,
+        unicode_note,
         after_host: visible(&format!("{port}{}", parts.rest)),
         warning: warnings.join("\n"),
         openable: true,
@@ -103,7 +113,8 @@ mod tests {
         assert_eq!(v.before_host, "https://");
         assert_eq!(v.host, "example.org");
         assert_eq!(v.after_host, ":8443/a?b=1#c");
-        assert_eq!((v.userinfo.as_str(), v.punycode.as_str()), ("", ""));
+        assert_eq!(v.userinfo, "");
+        assert_eq!(v.unicode_host, None);
         assert_eq!(v.warning, "");
         assert!(v.openable);
     }
@@ -123,20 +134,74 @@ mod tests {
     }
 
     #[test]
-    fn an_idn_host_shows_unicode_and_its_punycode() {
-        let v = link_view("https://xn--bcher-kva.example/");
-        assert_eq!(v.host, "b\u{fc}cher.example");
-        assert_eq!(v.punycode, "xn--bcher-kva.example");
-        assert_eq!(
-            v.warning,
-            "The address is written as xn--bcher-kva.example."
+    fn idn_host_is_shown_in_ascii() {
+        let v = link_view("https://b\u{fc}cher.example/");
+        assert_eq!(v.host, "xn--bcher-kva.example");
+        assert_eq!(v.warning, "");
+        // A mixed-script look-alike never shows as its Unicode form here.
+        let v = link_view("https://p\u{430}ypal.com/");
+        assert!(
+            v.host.starts_with("xn--") && v.host.is_ascii(),
+            "{}",
+            v.host
         );
     }
 
     #[test]
-    fn both_warnings_may_apply_one_per_line() {
+    fn idn_unicode_form_is_secondary() {
+        let v = link_view("https://xn--bcher-kva.example/");
+        assert_eq!(v.host, "xn--bcher-kva.example");
+        assert_eq!(v.unicode_host.as_deref(), Some("b\u{fc}cher.example"));
+        assert_eq!(
+            v.unicode_note,
+            "Displays as b\u{fc}cher.example, which may imitate another site."
+        );
+    }
+
+    #[test]
+    fn ascii_host_has_no_unicode_line() {
+        let v = link_view("https://example.org/");
+        assert_eq!(v.unicode_host, None);
+        assert_eq!(v.unicode_note, "");
+    }
+
+    #[test]
+    fn userinfo_never_stands_for_the_host_and_ports_and_literals_hold() {
+        let v = link_view("https://paypal.com@xn--bcher-kva.example:8080/x");
+        assert_eq!(v.userinfo, "paypal.com");
+        assert_eq!(v.host, "xn--bcher-kva.example");
+        assert_eq!(v.after_host, ":8080/x");
+        assert!(v.warning.contains("xn--bcher-kva.example"), "{}", v.warning);
+        let v = link_view("https://[::1]:8443/");
+        assert_eq!(
+            (v.host.as_str(), v.after_host.as_str()),
+            ("[::1]", ":8443/")
+        );
+        assert_eq!(v.unicode_host, None);
+    }
+
+    #[test]
+    fn an_invalid_idn_or_empty_host_is_malformed_not_a_panic() {
+        for url in [
+            "https://xn--/",
+            "https://xn--a-.example/",
+            "https:///path",
+            "https://@/",
+            "https://:80/",
+            "https://[::1/",
+        ] {
+            let v = link_view(url);
+            assert!(!v.openable, "{url}");
+            assert_eq!(v.host, "", "{url}");
+            assert_eq!(v.warning, "This link looks malformed and can't be opened.");
+        }
+    }
+
+    #[test]
+    fn userinfo_warns_and_the_idn_note_is_its_own_line() {
         let v = link_view("https://a@xn--bcher-kva.example/");
-        assert_eq!(v.warning.lines().count(), 2);
+        assert_eq!(v.warning.lines().count(), 1);
+        assert!(v.unicode_note.starts_with("Displays as"));
     }
 
     #[test]

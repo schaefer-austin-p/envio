@@ -139,6 +139,13 @@ TestCase {
         compare(core.linkView("https://exa mple.org/").openable, false)
     }
 
+    function test_link_view_gives_an_idn_host_in_ascii() {
+        const v = core.linkView("https://xn--bcher-kva.example/")
+        compare(v.host, "xn--bcher-kva.example")
+        compare(v.unicodeHost, "b\u00fccher.example")
+        verify(v.unicodeNote.length > 0)
+    }
+
     // 64-bit values must reach QML as numbers. A QVariant, signal argument or
     // return value of `std::int64_t` is a `long` on LP64 Linux, which Qt 5's
     // QML engine leaves as an opaque object: dates read 0, `===` on ids fails.

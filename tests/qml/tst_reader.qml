@@ -290,7 +290,7 @@ Item {
             open(view([], 0))
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
-                                    "punycode": "", "afterHost": "/login", "openable": true, "warning": "" }
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true, "warning": "" }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
@@ -339,7 +339,7 @@ Item {
             open(view([], 0))
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
-                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens evil.example." }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
@@ -354,13 +354,29 @@ Item {
             compare(root.openedUrls, [url])
         }
 
+        function test_link_sheet_bolds_the_ascii_host() {
+            open(view([], 0))
+            const url = "https://p\u0430ypal.com/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "xn--pypal-4ve.com",
+                                    "unicodeHost": "p\u0430ypal.com",
+                                    "unicodeNote": "Displays as p\u0430ypal.com, which may imitate another site.",
+                                    "afterHost": "/login", "openable": true, "warning": "" }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkHost").text, "xn--pypal-4ve.com")
+            compare(find("linkHost").font.bold, true)
+            compare(find("linkUnicode").visible, true)
+            compare(find("linkUnicode").font.bold, false)
+            compare(find("linkUnicode").text, "Displays as p\u0430ypal.com, which may imitate another site.")
+        }
+
         function test_a_long_host_wraps_and_is_shown_in_full() {
             open(view([], 0))
             const host = "www.bank.example.com.secure-account-verify-now.evil.example"
             const user = "bank.example.com.secure-account-verify-now-please-sign-in"
             const url = "https://" + user + "@" + host + "/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": user, "host": host,
-                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens " + host + "." }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
@@ -375,7 +391,7 @@ Item {
             open(view([], 0))
             const url = "https://example.org/"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "example.org",
-                                    "punycode": "", "afterHost": "/", "openable": true, "warning": "" }
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/", "openable": true, "warning": "" }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkUserinfo").visible, false)
@@ -385,7 +401,7 @@ Item {
         function test_a_malformed_link_cannot_be_opened() {
             open(view([], 0))
             const url = "https://exa mple.org/"
-            mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+            mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                     "afterHost": url, "openable": false,
                                     "warning": "This link looks malformed and can't be opened." }
             find("bodyText").linkActivated(url)

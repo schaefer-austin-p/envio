@@ -109,7 +109,7 @@ Item {
     property var linkViews: ({})
     function linkView(url) {
         record("linkView", [url])
-        return linkViews[url] || { "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+        return linkViews[url] || { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                    "afterHost": url, "warning": "", "openable": true }
     }
     function countText(kind, n) { return kind + " " + n }
