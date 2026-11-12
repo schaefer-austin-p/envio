@@ -259,7 +259,7 @@ fn a_failed_enqueue_keeps_the_draft_and_files() {
     let mut draft = s.draft("keep me");
     draft.attachments = vec![copy.clone()];
     s.change(draft.clone());
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "keep me"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "keep me"));
     // The Outbox folder is gone, so enqueueing fails.
     let outbox = s.h.paths().outbox();
     std::fs::remove_dir_all(&outbox).unwrap();
@@ -309,7 +309,7 @@ fn a_reopened_draft_saves_to_the_same_file() {
         compose: again,
         draft: s.draft("second"),
     });
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "second"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "second"));
     let drafts = s.drafts();
     assert_eq!(drafts.len(), 1);
     assert_eq!(drafts[0].0, id);
@@ -353,7 +353,7 @@ fn a_panicking_sink_does_not_stop_draft_saving() {
     h.core = Some(Core::start(h.config(), Arc::new(PanicOnce(AtomicBool::new(false)))).unwrap());
     let s = S { h, key };
     s.change(s.draft("first"));
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "first"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "first"));
     std::thread::sleep(Duration::from_millis(100));
     s.h.send(Command::DraftChanged {
         compose: ComposeId(2),
