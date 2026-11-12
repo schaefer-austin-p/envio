@@ -2,8 +2,9 @@
 -- Separate from 0003 because databases already ran 0003 without them.
 
 -- A non-inline attachment is present: a header-only guess from sync, exact
--- once the body is downloaded. 0 for rows cached before this (the exact
--- value needs the body file; the next body download sets it).
+-- once the body is parsed. 0 for rows cached before this (the exact value
+-- needs the body file; a body download sets it, and so does opening a
+-- message from its cached body).
 ALTER TABLE messages ADD COLUMN has_attachments INTEGER NOT NULL DEFAULT 0;
 
 -- name lower-cased by Rust (SQLite folds only ASCII); suggest matches it.

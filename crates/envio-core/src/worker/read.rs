@@ -299,6 +299,25 @@ impl Worker<'_> {
         render_view(raw, images, width_px, &ctx)
     }
 
+    /// A body cached before the list had the attachment mark (migration
+    /// 0004 starts every row at 0) is never fetched again, so opening it from
+    /// the cache sets the exact value and tells the list, as a body download
+    /// does.
+    fn correct_attachment_mark(&self, message: &Message, raw: &[u8]) {
+        let exact = envio_mime::envelope(raw)
+            .unwrap_or_default()
+            .has_attachments;
+        if exact == message.envelope.has_attachments {
+            return;
+        }
+        match self.store.db.set_has_attachments(message.id, exact) {
+            Ok(()) => self.emit(Event::MessagesChanged {
+                folders: vec![message.folder],
+            }),
+            Err(e) => log::warn!("storing the attachment mark: {e}"),
+        }
+    }
+
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
@@ -308,6 +327,7 @@ impl Worker<'_> {
                 Ok(raw) => {
                     let view = self.view(&message, &raw, (images, width_px));
                     self.emit(Event::MessageOpened { id, view });
+                    self.correct_attachment_mark(&message, &raw);
                     return self.mark_opened_read(id);
                 }
                 // The file is gone: fetch it again.

@@ -499,3 +499,38 @@ fn a_row_shows_the_attachment_mark_once_the_body_says_so() {
     assert_eq!(rows.len(), 1);
     assert!(rows[0].has_attachments);
 }
+
+#[test]
+fn opening_a_cached_body_sets_the_attachment_mark_a_migration_left_at_zero() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, WITH_ATTACHMENT)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    // The body is stored; the row is as migration 0004 left it.
+    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+    db.set_has_attachments(id, false).unwrap();
+    drop(db);
+    h.start_core();
+    let rows = |h: &Harness| {
+        h.send(Command::ListMessages {
+            list: ListRef::Folder(folder),
+            after: None,
+        });
+        h.wait(|e| match e {
+            Event::Messages { rows, .. } => Some(rows.clone()),
+            _ => None,
+        })
+    };
+    assert!(!rows(&h)[0].has_attachments);
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessagesChanged { folders } if folders.contains(&folder) => Some(()),
+        _ => None,
+    });
+    assert!(rows(&h)[0].has_attachments);
+}
