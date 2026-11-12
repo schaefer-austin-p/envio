@@ -24,16 +24,20 @@ impl Db {
     pub fn remember_addresses(&self, found: &[(String, String)], when: i64) -> Result<()> {
         self.savepoint(|| {
             let mut stmt = self.conn().prepare(
-                "INSERT INTO addresses (address, name, last_seen, count) VALUES (?1, ?2, ?3, 1)
+                "INSERT INTO addresses (address, name, name_key, last_seen, count)
+                 VALUES (?1, ?2, ?3, ?4, 1)
                  ON CONFLICT (address) DO UPDATE SET
                      name = CASE WHEN excluded.name = '' THEN name ELSE excluded.name END,
+                     name_key = CASE WHEN excluded.name = '' THEN name_key
+                                     ELSE excluded.name_key END,
                      last_seen = max(last_seen, excluded.last_seen),
                      count = count + 1",
             )?;
             for (name, address) in found {
                 let address = address.trim().to_lowercase();
                 if !address.is_empty() {
-                    stmt.execute(params![address, name.trim(), when])?;
+                    let name = name.trim();
+                    stmt.execute(params![address, name, name.to_lowercase(), when])?;
                 }
             }
             Ok(())
@@ -41,8 +45,10 @@ impl Db {
     }
 
     /// Up to `limit` addresses whose address, or any word of whose name,
-    /// starts with `prefix` (case-insensitive; ASCII case only), most used
-    /// first, then most recent. An empty prefix suggests nothing.
+    /// starts with `prefix`, most used first, then most recent. Case is
+    /// ignored for whatever `str::to_lowercase` folds: the match runs on
+    /// keys lower-cased in Rust, because SQLite's `LIKE` folds ASCII only.
+    /// An empty prefix suggests nothing.
     pub fn suggest(&self, prefix: &str, limit: u32) -> Result<Vec<SeenAddress>> {
         let prefix = prefix.trim().to_lowercase();
         if prefix.is_empty() {
@@ -57,7 +63,7 @@ impl Db {
         let mut stmt = self.conn().prepare(
             "SELECT address, name, last_seen, count FROM addresses
              WHERE address LIKE ?1 ESCAPE '\\'
-                OR name LIKE ?1 ESCAPE '\\' OR name LIKE ?2 ESCAPE '\\'
+                OR name_key LIKE ?1 ESCAPE '\\' OR name_key LIKE ?2 ESCAPE '\\'
              ORDER BY count DESC, last_seen DESC, address LIMIT ?3",
         )?;
         let found = stmt

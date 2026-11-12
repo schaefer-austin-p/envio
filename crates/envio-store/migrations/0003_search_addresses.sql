@@ -12,6 +12,8 @@ END;
 CREATE TABLE addresses (
     address   TEXT    PRIMARY KEY,
     name      TEXT    NOT NULL DEFAULT '',
+    -- name lower-cased by Rust (SQLite folds only ASCII); suggest matches it.
+    name_key  TEXT    NOT NULL DEFAULT '',
     last_seen INTEGER NOT NULL,
     count     INTEGER NOT NULL DEFAULT 1
 ) STRICT;

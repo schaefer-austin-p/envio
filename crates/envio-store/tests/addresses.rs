@@ -74,3 +74,29 @@ fn an_empty_prefix_suggests_nothing() {
     assert!(db.suggest("", 10).unwrap().is_empty());
     assert!(db.suggest("  ", 10).unwrap().is_empty());
 }
+
+#[test]
+fn suggest_folds_case_beyond_ascii() {
+    let db = Db::open_in_memory().unwrap();
+    db.remember_addresses(
+        &[
+            pair("Émile Zola", "emile@example.org"),
+            pair("", "ÉLISE@Example.org"),
+            pair("Jean Écrin", "jean@example.org"),
+        ],
+        100,
+    )
+    .unwrap();
+    // By name (first word, and a later word) and by address.
+    assert_eq!(
+        addresses(&db, "é"),
+        ["emile@example.org", "jean@example.org", "élise@example.org"]
+    );
+    assert_eq!(addresses(&db, "Éc"), ["jean@example.org"]);
+    assert_eq!(addresses(&db, "ÉLISE@"), ["élise@example.org"]);
+    // A name seen again keeps its key in step.
+    db.remember_addresses(&[pair("Zoë Kain", "emile@example.org")], 200)
+        .unwrap();
+    assert!(addresses(&db, "émile").is_empty());
+    assert_eq!(addresses(&db, "ZOË"), ["emile@example.org"]);
+}
