@@ -3,16 +3,19 @@
 // The path of a transferred file from its `file://` URL (Content Hub hands
 // over URLs). Pure, so it is tested without Lomiri.
 //
-// A name with a bare "%" ("100%.pdf") is not a valid escape and makes
-// decodeURIComponent throw; it is kept as it came rather than dropping the
-// whole import.
+// Each run of valid "%XX" escapes is decoded on its own, so a bare "%"
+// ("100%.pdf"), which makes decodeURIComponent throw on the whole string,
+// stays as it came and the rest of the name is still decoded. A run that is
+// not valid UTF-8 is kept as it came too.
 function pathOfUrl(url) {
     const raw = String(url).replace(/^file:\/\//, "")
-    try {
-        return decodeURIComponent(raw)
-    } catch (e) {
-        return raw
-    }
+    return raw.replace(/(?:%[0-9A-Fa-f]{2})+/g, function (run) {
+        try {
+            return decodeURIComponent(run)
+        } catch (e) {
+            return run
+        }
+    })
 }
 
 // The paths of `urls`, in order.

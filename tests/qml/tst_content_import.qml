@@ -17,6 +17,7 @@ TestCase {
         try { decodeURIComponent("/x/100%.pdf") } catch (e) { threw = true }
         verify(threw, "decodeURIComponent throws on a bare %")
         compare(FileUrl.pathOfUrl("file:///x/100%.pdf"), "/x/100%.pdf")
+        compare(FileUrl.pathOfUrl("file:///a/a%20b%20100%.pdf"), "/a/a b 100%.pdf")
     }
 
     function test_urls_keep_their_order() {
