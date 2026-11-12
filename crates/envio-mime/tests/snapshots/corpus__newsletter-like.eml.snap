@@ -1,0 +1,179 @@
+---
+source: crates/envio-mime/tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("digest-1@example.com")
+subject: "Your weekly digest"
+from: [Digest <digest@example.com>]
+to: [Pat Tester <pat@envio.test>]
+cc: []
+reply_to: []
+date: Some(1794470400)
+in_reply_to: None
+references: []
+thread_root: "digest-1@example.com"
+preview: "Your weekly digest"
+has_attachments: false
+blocked: 14 trackers: 1
+---
+<table cellspacing="0" cellpadding="0" style="background-color:#f3f2ef" width="100%"><tbody><tr><td align="center">
+<table cellspacing="0" cellpadding="0" width="600"><tbody><tr><td>
+<table width="100%"><tbody><tr><td width="24">&nbsp;</td><td style="font-size:20px">Your weekly digest</td><td width="24">&nbsp;</td></tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/0?trk=abc0">Person 0</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/0?trk=def0">Person 0 shared a post about example topic 0</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 0 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/1?trk=abc1">Person 1</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/1?trk=def1">Person 1 shared a post about example topic 1</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 1 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/2?trk=abc2">Person 2</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/2?trk=def2">Person 2 shared a post about example topic 2</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 2 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/3?trk=abc3">Person 3</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/3?trk=def3">Person 3 shared a post about example topic 3</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 3 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/4?trk=abc4">Person 4</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/4?trk=def4">Person 4 shared a post about example topic 4</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 4 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/5?trk=abc5">Person 5</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/5?trk=def5">Person 5 shared a post about example topic 5</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 5 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/6?trk=abc6">Person 6</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/6?trk=def6">Person 6 shared a post about example topic 6</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 6 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/7?trk=abc7">Person 7</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/7?trk=def7">Person 7 shared a post about example topic 7</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 7 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/8?trk=abc8">Person 8</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/8?trk=def8">Person 8 shared a post about example topic 8</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 8 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/9?trk=abc9">Person 9</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/9?trk=def9">Person 9 shared a post about example topic 9</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 9 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/10?trk=abc10">Person 10</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/10?trk=def10">Person 10 shared a post about example topic 10</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 10 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/11?trk=abc11">Person 11</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/11?trk=def11">Person 11 shared a post about example topic 11</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 11 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/12?trk=abc12">Person 12</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/12?trk=def12">Person 12 shared a post about example topic 12</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 12 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="24">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td style="vertical-align:top" width="56"><a href="https://news.example.com/r/13?trk=abc13">Person 13</a></td>
+<td style="vertical-align:top"><table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:16px;font-weight:600"><a href="https://news.example.com/r/13?trk=def13">Person 13 shared a post about example topic 13</a></td></tr>
+<tr><td style="font-size:14px;color:#666666">A short summary line for item 13 that wraps on a narrow screen.</td></tr></tbody></table></td>
+</tr></tbody></table>
+</td>
+<td width="24">&nbsp;</td>
+</tr></tbody></table>
+
+<table width="100%"><tbody><tr><td style="font-size:12px;color:#666666"><a href="https://news.example.com/unsub?t=xyz">Unsubscribe</a> · <a href="https://news.example.com/help">Help</a></td></tr></tbody></table>
+
+</td></tr></tbody></table></td></tr></tbody></table>

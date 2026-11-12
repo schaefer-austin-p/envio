@@ -80,7 +80,8 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
                 return Some(marker.to_owned());
             }
             let allowed = STYLE_PROPS.contains(&prop.as_str())
-                || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()));
+                || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()))
+                || (matches!(element, "table" | "td" | "th" | "col") && prop == "width");
             (allowed && safe_css_value(value) && sane_lengths(&prop, value))
                 .then(|| format!("{prop}:{value}"))
         })

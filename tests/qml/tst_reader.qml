@@ -526,6 +526,15 @@ Item {
             compare(mock.called("open")[0].args[0], 5)
         }
 
+        function test_loading_shows_until_the_view_arrives() {
+            waitForRendering(root.page)
+            verify(shown("loadingText"))
+            verify(!shown("bodyText"))
+            open(view([], 0))
+            verify(!shown("loadingText"))
+            verify(shown("bodyText"))
+        }
+
         function test_another_messages_view_is_ignored() {
             const v = view([], 0)
             v.id = 9

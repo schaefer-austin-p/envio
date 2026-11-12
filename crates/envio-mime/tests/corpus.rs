@@ -136,3 +136,13 @@ fn no_date() {
 fn garbage() {
     snapshot("garbage.eml");
 }
+
+#[test]
+fn receipt_like() {
+    snapshot("receipt-like.eml");
+}
+
+#[test]
+fn newsletter_like() {
+    snapshot("newsletter-like.eml");
+}

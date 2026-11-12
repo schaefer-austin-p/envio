@@ -100,6 +100,29 @@ Item {
             verify(took < 1000, name + " took " + took + " ms")
         }
 
+        // Layout time and height at 360 px for the layout-table look-alikes.
+        // Measured in the CI image (best of 3): receipt 17 ms, 208 px high
+        // (506 px before the width fix); newsletter 106 ms, 1041 px (5007 px
+        // before). The bounds below are 3x the measured heights, rounded up.
+        function layout(name) {
+            let best = 1e9
+            let h = 0
+            for (let i = 0; i < 3; i++) {
+                const start = Date.now()
+                h = height(read(name))
+                best = Math.min(best, Date.now() - start)
+            }
+            console.info("LAYOUT " + name + " ms=" + best + " implicitHeight=" + h)
+            verify(best < 1000, name + " took " + best + " ms")
+            return h
+        }
+        function test_receipt_like_layout() {
+            verify(layout("corpus-receipt-like.html") < 640)
+        }
+        function test_newsletter_like_layout() {
+            verify(layout("corpus-newsletter-like.html") < 3200)
+        }
+
         // envio-mime caps nesting at 256 levels (MAX_DEPTH): a message that
         // deep or deeper is rendered as plain text. The cap is Rust's; here
         // it is asserted, with the time budget (the phone sets the real one).

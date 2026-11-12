@@ -1,0 +1,64 @@
+---
+source: crates/envio-mime/tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("receipt-1234@example.com")
+subject: "Your receipt from Example Co #1234-5678"
+from: [Example Co <billing@example.com>]
+to: [Pat Tester <pat@envio.test>]
+cc: []
+reply_to: []
+date: Some(1794474000)
+in_reply_to: None
+references: []
+thread_root: "receipt-1234@example.com"
+preview: "Receipt from Example Co Receipt #1234-5678 Amount paid: $34.25"
+has_attachments: true
+attachment 0: Some("receipt-1234.pdf") application/pdf 45 bytes cid=None inline=false
+attachment 1: Some("invoice-1234.pdf") application/pdf 45 bytes cid=None inline=false
+blocked: 0 trackers: 0
+---
+
+<table cellspacing="0" cellpadding="0" style="background-color:#f6f9fc" width="100%"><tbody><tr><td align="center">
+<table cellspacing="0" cellpadding="0" width="480"><tbody><tr>
+<td width="32">&nbsp;</td>
+<td>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:20px;font-weight:600;color:#1a1f36">Receipt from Example Co</td></tr>
+<tr><td style="font-size:14px;color:#697386">Receipt #1234-5678</td></tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="100%">
+<table cellspacing="0" cellpadding="0" width="100%"><colgroup><col width="16"><col><col width="80"><col width="16"></colgroup>
+<tbody><tr><td width="16">&nbsp;</td><td style="font-size:12px;color:#697386">AMOUNT PAID</td><td width="80">&nbsp;</td><td width="16">&nbsp;</td></tr>
+<tr><td width="16">&nbsp;</td><td style="font-size:28px;color:#1a1f36">$34.25</td><td width="80">&nbsp;</td><td width="16">&nbsp;</td></tr>
+</tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%">
+<tbody><tr>
+<td width="16">&nbsp;</td>
+<td style="font-size:14px;color:#3c4257">Example Plan, monthly</td>
+<td style="text-align:right;font-size:14px" width="80">$24.00</td>
+<td width="16">&nbsp;</td>
+</tr>
+<tr>
+<td width="16">&nbsp;</td>
+<td style="font-size:14px;color:#3c4257">Extra seats (3)</td>
+<td style="text-align:right;font-size:14px" width="80">$9.00</td>
+<td width="16">&nbsp;</td>
+</tr>
+<tr>
+<td width="16">&nbsp;</td>
+<td style="font-size:14px;color:#3c4257">Usage overage</td>
+<td style="text-align:right;font-size:14px" width="80">$1.25</td>
+<td width="16">&nbsp;</td>
+</tr>
+</tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
+<td width="16">&nbsp;</td>
+<td style="font-size:14px">Total</td>
+<td style="text-align:right;font-size:14px;font-weight:600" width="80">$34.25</td>
+<td width="16">&nbsp;</td></tr></tbody></table>
+</td></tr></tbody></table>
+<table cellspacing="0" cellpadding="0" width="100%"><tbody><tr><td style="font-size:12px;color:#697386">Questions? Contact us at <a href="mailto:billing@example.com">billing@example.com</a> or see <a href="https://example.com/help">our help pages</a>. <a href="https://example.com/terms">Terms</a> · <a href="https://example.com/privacy">Privacy</a></td></tr></tbody></table>
+</td>
+<td width="32">&nbsp;</td>
+</tr></tbody></table>
+</td></tr></tbody></table>

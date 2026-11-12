@@ -53,6 +53,8 @@ pub(crate) const TAGS: &[&str] = &[
     "sub",
     "sup",
     "table",
+    "col",
+    "colgroup",
     "tbody",
     "td",
     "tfoot",
@@ -124,6 +126,7 @@ fn tag_attributes() -> HashMap<&'static str, HashSet<&'static str>> {
             "align",
         ],
     );
+    allow("col", &["width"]);
     allow("td", CELL_ATTRS);
     allow("th", CELL_ATTRS);
     for tag in ["div", "p", "dl", "dt", "h1", "h2", "h3", "h4", "h5", "h6"] {

@@ -198,6 +198,7 @@ Item {
     Text {
         textFormat: Text.PlainText
         anchors.centerIn: parent
+        objectName: "loadingText"
         visible: root.view === null && root.unavailable === ""
         text: qsTr("Loading…")
         color: root.theme.secondary

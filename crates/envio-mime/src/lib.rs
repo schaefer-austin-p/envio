@@ -22,6 +22,7 @@ mod sanitize;
 mod style;
 mod tagnames;
 mod thread;
+mod widths;
 
 pub use address::{Address, same_email};
 pub use attachments::{AttachmentInfo, attachment_bytes};
