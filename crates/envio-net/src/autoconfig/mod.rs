@@ -59,6 +59,11 @@ impl Internet {
             resolver: OnceLock::new(),
         }
     }
+
+    /// The resolver, built on the first call and the same one after.
+    fn resolver(&self) -> Option<&TokioResolver> {
+        self.resolver.get_or_init(srv::resolver).as_ref()
+    }
 }
 
 impl Lookups for Internet {
@@ -70,10 +75,26 @@ impl Lookups for Internet {
     }
 
     async fn srv(&self, name: &str) -> Vec<SrvRecord> {
-        match self.resolver.get_or_init(srv::resolver) {
+        match self.resolver() {
             Some(resolver) => srv::lookup(resolver, name).await,
             None => Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hickory_resolver::config::ResolveHosts;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn one_resolver_serves_every_query_and_skips_the_hosts_file() {
+        let internet = Internet::new(Roots::empty());
+        let first = internet.resolver().expect("resolv.conf readable");
+        let second = internet.resolver().expect("resolv.conf readable");
+        assert!(std::ptr::eq(first, second), "a second resolver was built");
+        assert_eq!(first.options().use_hosts_file, ResolveHosts::Never);
     }
 }
 
