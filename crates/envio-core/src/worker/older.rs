@@ -28,8 +28,8 @@ pub(crate) struct Load {
     exhausted: bool,
     /// At least one folder answered.
     answered: bool,
-    /// At least one folder could not.
-    failed: bool,
+    /// The accounts whose folder could not.
+    failed: BTreeSet<String>,
     changed: Vec<FolderId>,
 }
 
@@ -41,7 +41,7 @@ impl Worker<'_> {
             fetched: 0,
             exhausted: true,
             answered: false,
-            failed: false,
+            failed: BTreeSet::new(),
             changed: Vec::new(),
         };
         let now = now_ms();
@@ -56,7 +56,7 @@ impl Worker<'_> {
                 live.wants.older.insert(folder);
             } else {
                 load.waiting.remove(&folder);
-                load.failed = true;
+                load.failed.insert(account.clone());
             }
         }
         self.loads.insert(list, load);
@@ -148,7 +148,7 @@ impl Worker<'_> {
             let before = load.waiting.len();
             load.waiting.retain(|folder| !mine.contains(folder));
             if load.waiting.len() != before {
-                load.failed = true;
+                load.failed.insert(account.to_owned());
                 lists.push(*list);
             }
         }
@@ -197,8 +197,25 @@ impl Worker<'_> {
         self.emit(Event::OlderLoaded {
             list,
             fetched: load.fetched,
-            exhausted: load.exhausted && !load.failed,
+            exhausted: load.exhausted && load.failed.is_empty(),
         });
+        // The other accounts' batches count, but each tap would fail
+        // silently for these: say which.
+        if !load.failed.is_empty() {
+            let names: Vec<String> = load
+                .failed
+                .iter()
+                .map(|key| {
+                    self.store
+                        .accounts
+                        .get(key)
+                        .map_or_else(|| key.clone(), |a| a.settings.email.clone())
+                })
+                .collect();
+            self.emit(Event::Notice {
+                text: text::read::older_unavailable_for(&names.join(", ")),
+            });
+        }
         if load.fetched > 0 {
             self.emit(Event::MessagesChanged {
                 folders: load.changed,

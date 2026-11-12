@@ -161,6 +161,29 @@ fn load_older_offline_reports_older_unavailable() {
 }
 
 #[test]
+fn an_offline_account_in_the_inboxes_is_reported_by_name() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    // Nothing listens on port 1 for the first account.
+    let down = h.seed_account("down@example.org", Some("pw"));
+    h.seed_folder_with(&down, "INBOX", FolderRole::Inbox, &[(10, EML)]);
+    let _ = seeded(&mut h, "up@example.org");
+    h.start_core();
+    h.send(Command::LoadOlder {
+        list: ListRef::Inboxes,
+    });
+    let (fetched, exhausted) = older_loaded(&h, ListRef::Inboxes);
+    // The other account's batch still counts, but the row is not exhausted.
+    assert_eq!(fetched, 9);
+    assert!(!exhausted);
+    let text = h.wait(|e| match e {
+        Event::Notice { text } if text.contains("down@example.org") => Some(text.clone()),
+        _ => None,
+    });
+    assert!(!text.contains("up@example.org"), "{text}");
+}
+
+#[test]
 fn removing_an_account_does_not_strand_a_load_on_the_inboxes() {
     let mut h = Harness::unstarted();
     h.foreground = true;
