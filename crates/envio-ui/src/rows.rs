@@ -53,6 +53,7 @@ pub struct MessageRowUi {
     pub account: String,
     pub account_name: String,
     pub from: String,
+    pub from_address: String,
     pub subject: String,
     pub preview: String,
     /// Unix seconds, 0 when the message has none.
@@ -124,6 +125,7 @@ const MESSAGE: &[&str] = &[
     "account",
     "accountName",
     "from",
+    "fromAddress",
     "subject",
     "preview",
     "date",
@@ -178,6 +180,7 @@ impl Row {
             (Self::Message(r), "account") => s(&r.account),
             (Self::Message(r), "accountName") => s(&r.account_name),
             (Self::Message(r), "from") => s(&r.from),
+            (Self::Message(r), "fromAddress") => s(&r.from_address),
             (Self::Message(r), "subject") => s(&r.subject),
             (Self::Message(r), "preview") => s(&r.preview),
             (Self::Message(r), "date") => Int(r.date),

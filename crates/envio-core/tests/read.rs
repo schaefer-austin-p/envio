@@ -102,7 +102,8 @@ fn list_folders_and_a_page_of_messages() {
     // The seeded rows' headers named no attachment.
     assert!(!rows[0].has_attachments);
     assert!(rows[0].subject.starts_with("message "));
-    assert_eq!(rows[0].from, "Ada <ada@example.org>");
+    assert_eq!(rows[0].from, "Ada");
+    assert_eq!(rows[0].from_address, "ada@example.org");
 }
 
 #[test]

@@ -22,6 +22,7 @@ pub fn msg_in(id: i64, date: i64, folder: i64, account: &str) -> MessageRow {
         },
         has_attachments: false,
         from: "x".into(),
+        from_address: "x@example.org".into(),
         subject: format!("s{id}"),
         preview: String::new(),
         date: Some(date),
