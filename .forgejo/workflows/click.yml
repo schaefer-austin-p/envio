@@ -25,6 +25,7 @@ concurrency:
 jobs:
   click:
     runs-on: docker
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,4 +40,13 @@ jobs:
         with:
           name: envio-click
           path: build-click/*.click
+          retention-days: 30
+
+      # Also after a failed build or review, so the report is still there.
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: envio-click-review
+          path: build-click/click-review.txt
+          if-no-files-found: ignore
           retention-days: 30

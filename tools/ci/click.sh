@@ -17,7 +17,11 @@ out=build-click
 # shellcheck source=tools/ci/dind.sh
 source tools/ci/dind.sh
 
-c=$(docker create "$image" sleep infinity)
+# A cancelled run never reaches its trap: reap what earlier runs left behind.
+docker ps -aq --filter label=envio-ci=click | xargs -r docker rm -f >/dev/null
+
+c=$(docker create --label envio-ci=click --label "envio-ci-run=${GITHUB_RUN_ID:-local}" \
+  "$image" sleep 7200)
 trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
 docker start "$c" >/dev/null
 git archive --prefix=src/ HEAD | docker cp - "$c:/"
