@@ -251,6 +251,7 @@ fn rebuild(worker: &mut Worker<'_>) {
             for (key, live) in &mut worker.live {
                 // Folder ids did not survive.
                 live.continuing = None;
+                live.prefetch_skip.clear();
                 live.wants = super::plan::Wants {
                     full: true,
                     ..super::plan::Wants::default()
