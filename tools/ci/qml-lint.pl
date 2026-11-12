@@ -200,7 +200,7 @@ for my $file (@ARGV) {
             push @found, [$off, $op ne '' ? "$op= $v" : $v];
         }
         # Bracket assignments: `item["radius"] = v`.
-        while ($nc =~ /\[\s*["']\w*[Rr]adius["']\s*\]\s*([-+*\/%]?)=(?![=>])\s*([^\n;}]*)/g) {
+        while ($nc =~ /\[\s*["']\w*[Rr]adius["']\s*\]\s*((?:[-+*\/%]|\?\?|\|\||&&)?)=(?![=>])\s*([^\n;}]*)/g) {
             my ($op, $v, $off) = ($1, $2, $-[0]);
             push @found, [$off, $op ne '' ? "$op= $v" : $v];
         }
