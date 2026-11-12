@@ -145,12 +145,12 @@ for my $file (@ARGV) {
         $bad = 1;
     }
 
-    # fontMono is for the certificate fingerprint (TrustDialog.qml) and the
-    # theme that defines it; labels use fontLabel, reading text fontBody,
+    # fontMono is read only by qml/platform/Theme.qml, which exposes it as
+    # fontAddress; labels use fontLabel, reading text fontBody,
     # section labels the eyebrow fields (#67).
-    if ($file !~ m{(?:^|/)(?:Theme|TrustDialog)\.qml$}) {
+    if ($file !~ m{(?:^|/)qml/platform/Theme\.qml$}) {
         while ($code =~ /\bfontMono\b/g) {
-            print "$file:" . line_of($code, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody or the eyebrow fields; the mono face is for the fingerprint)\n";
+            print "$file:" . line_of($code, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody, fontAddress or the eyebrow fields; hosts and the fingerprint use fontAddress)\n";
             $bad = 1;
         }
     }

@@ -35,7 +35,7 @@ AppDialog {
         text: root.fingerprint
         wrapMode: Text.WrapAnywhere
         color: root.theme.heading
-        font.family: root.theme.fontMono
+        font.family: root.theme.fontAddress
         font.pixelSize: 13
         lineHeight: 1.3
     }

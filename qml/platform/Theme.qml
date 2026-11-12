@@ -28,8 +28,11 @@ Control {
     readonly property string fontMono: mono.name !== "" ? mono.name : "Ubuntu Mono"
     // Titles: Lora in Airmail, IBM Plex Mono in Carbon.
     readonly property string fontTitle: airmail ? (lora.name !== "" ? lora.name : "Ubuntu") : fontMono
+    // Hosts, link parts and the certificate fingerprint: mono in both themes,
+    // so look-alike characters (I/l, 0/O, rn/m) stay distinct where a real
+    // address is shown. Pages read this, never fontMono (qml-lint).
+    readonly property string fontAddress: fontMono
     // Small labels, meta, dates and sizes: mono in Carbon, Inter in Airmail.
-    // fontMono itself is for the certificate fingerprint only (qml-lint).
     readonly property string fontLabel: airmail ? fontUi : fontMono
     // Reading and writing text (reader body, compose body, quote): Inter in
     // Carbon, Lora in Airmail (Inter while Lora fails to load).

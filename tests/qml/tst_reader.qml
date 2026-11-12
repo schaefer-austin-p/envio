@@ -144,6 +144,19 @@ Item {
             thm.name = "carbon"
         }
 
+        function test_link_parts_keep_mono_under_airmail() {
+            thm.name = "airmail"
+            open(view([], 0))
+            const url = "https://bank.example@evil.example/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
+                                    "punycode": "", "afterHost": "/login", "openable": true, "warning": "" }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
+                compare(find(name).font.family, thm.fontMono, name)
+            thm.name = "carbon"
+        }
+
         function test_images_banner_loads_images() {
             open(view([], 2))
             verify(shown("imagesBanner"))
