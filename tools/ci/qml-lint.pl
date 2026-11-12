@@ -174,6 +174,9 @@ for my $file (@ARGV) {
             return 1;
         };
         my @found;
+        # $code with the strings put back (a Binding's property name is one).
+        my $nc = $code;
+        substr($nc, $_->[0], length $_->[1]) = $_->[1] for @strings;
         # Bindings (and property declarations): `radius: v`, `topLeftRadius: v`.
         while ($code =~ /(?<![\w.])\w*[Rr]adius\s*:\s*([^\n;}]*)/g) {
             push @found, [$-[0], $1];
@@ -183,7 +186,7 @@ for my $file (@ARGV) {
             push @found, [$-[0], $1];
         }
         # Binding { property: "radius"; value: v }, in either order.
-        while ($src =~ /\bBinding\s*\{([^}]*)\}/g) {
+        while ($nc =~ /\bBinding\s*\{([^}]*)\}/g) {
             my ($body, $off) = ($1, $-[0]);
             next unless $body =~ /property\s*:\s*["']\w*[Rr]adius["']/;
             push @found, [$off, $body =~ /\bvalue\s*:\s*([^\n;}]*)/ ? $1 : ''];
