@@ -35,10 +35,12 @@ Item {
     }
 
     ListRow {
+        id: fromRow
         objectName: "fromRow"
         theme: root.theme
         width: parent.width
         enabled: rows.count > 1
+        chevron: "blue"
         onClicked: sheet.open()
         Row {
             objectName: "fromContent"
@@ -59,7 +61,7 @@ Item {
             Text {
                 textFormat: Text.PlainText
                 objectName: "fromValue"
-                width: root.width - root.theme.gu(6.5) - root.theme.gu(2)
+                width: root.width - root.theme.gu(6.5) - fromRow.chevronSpace
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
                 text: root.email

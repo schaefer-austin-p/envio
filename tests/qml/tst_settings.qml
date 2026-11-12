@@ -53,6 +53,27 @@ Item {
             verify(hit.length > 0, "no item named " + name)
             return hit[0]
         }
+        function test_settings_rows_each_show_a_chevron() {
+            settings.visible = true
+            for (const key of ["appearance", "sync", "images", "accounts", "about"]) {
+                const c = find("chevron", find("row-" + key, settings))
+                verify(c.visible, key + " has a chevron")
+                verify(c.width > 0)
+            }
+            settings.visible = false
+        }
+        function test_the_airmail_settings_chevron_is_red() {
+            core.theme = "airmail"
+            compare(find("chevron", find("row-sync", settings)).color, thm.chevron)
+            core.theme = "carbon"
+        }
+        function test_acting_at_once_rows_have_no_chevron() {
+            // Light/Dark/System and the sync mode act at once.
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            verify(all("chevron", find("darkMode-dark", appearance)).length === 0)
+            verify(all("chevron", find("whileOpen-ann", sync)).length === 0)
+        }
+
         function init() {
             core.theme = "carbon"
             core.darkMode = "system"

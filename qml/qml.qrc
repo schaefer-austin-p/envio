@@ -58,6 +58,7 @@
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
         <file>components/AppButton.qml</file>
+        <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>
         <file>components/DateText.qml</file>
         <file>components/FolderLabel.qml</file>

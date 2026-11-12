@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 12:31+0100\n"
+"POT-Creation-Date: 2026-11-12 12:44+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:225
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:228
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -359,12 +359,12 @@ msgstr ""
 msgid "Discard"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:54 qml/pages/reader/HeaderBlock.qml:17
+#: qml/pages/compose/FromRow.qml:56 qml/pages/reader/HeaderBlock.qml:17
 #: crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:77
+#: qml/pages/compose/FromRow.qml:79
 msgid "Send from"
 msgstr ""
 
@@ -416,7 +416,7 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:232 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:235 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 

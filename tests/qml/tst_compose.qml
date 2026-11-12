@@ -360,6 +360,15 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        function test_from_row_shows_a_chevron_when_it_opens_a_picker() {
+            mock.composeReady(1, reply, "")
+            const c = everything(find("fromRow"), []).filter(function(o) { return o.objectName === "chevron" })[0]
+            verify(c !== undefined)
+            verify(c.visible)
+            verify(c.width > 0)
+            compare(c.mapToItem(find("fromRow"), 0, 0).x + c.width <= find("fromRow").width, true)
+        }
+
         // Phone shots: the From label and the suggestion text sat at x=0, and the
         // To row kept a second, empty line below a chip.
         function test_from_and_suggestions_keep_the_page_margin() {

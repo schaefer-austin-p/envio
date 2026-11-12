@@ -89,6 +89,24 @@ Item {
             find("noticeToast", page).hide()
             waitForRendering(page)
         }
+        function test_folder_group_rows_have_a_chevron_but_leaf_rows_do_not() {
+            core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            const bob = find("account-bob", page)
+            tryVerify(function() { return find("chevron", ann).visible })
+            verify(find("chevron", bob).visible)
+            // The open group points down, a closed one right.
+            compare(find("chevron", ann).name, "down")
+            compare(find("chevron", bob).name, "forward")
+            verify(!has("chevron", find("folder-9", page)))
+            verify(!has("chevron", find("outboxRow", page)))
+            // Close the drawer again: it is the ancestor that has a closeRequested signal.
+            let drawer = ann
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            drawer.visible = false
+        }
+
         function test_tab_switch_opens_the_list() {
             mouseClick(find("tab-all", page))
             compare(core.called("openList").pop().args, ["inboxes", 0])

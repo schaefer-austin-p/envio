@@ -40,6 +40,7 @@ Item {
                 objectName: "row-" + modelData.key
                 theme: root.theme
                 width: parent.width
+                chevron: "red"
                 onClicked: {
                     switch (modelData.key) {
                     case "appearance": root.appearanceRequested(); break
@@ -53,7 +54,7 @@ Item {
                     textFormat: Text.PlainText
                     x: root.theme.gu(2.5)
                     y: root.theme.gu(1.75)
-                    width: parent.width - root.theme.gu(5)
+                    width: parent.width - x - row.chevronSpace
                     text: row.modelData.label
                     elide: Text.ElideRight
                     color: root.theme.text

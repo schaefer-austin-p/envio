@@ -21,6 +21,18 @@ Item {
         Text { text: "Plans for the weekend" }
     }
     SignalSpy { id: rowClicked; target: row; signalName: "clicked" }
+    ListRow {
+        id: chevRow
+        theme: thm
+        // Shares the plain row's spot (nothing else is hit-testable lower
+        // down); the tests swap which of the two shows.
+        visible: false
+        width: 300
+        chevron: "red"
+        Text { text: "Appearance" }
+    }
+    SignalSpy { id: chevRowClicked; target: chevRow; signalName: "clicked" }
+    Chevron { id: lone; theme: thm; tone: "blue"; y: 300 }
     SignalSpy { id: rowHeld; target: row; signalName: "pressAndHold" }
 
     Toast { id: toast; theme: thm; width: 300 }
@@ -78,6 +90,65 @@ Item {
             compare(StampTint.isBlue("lucia@example.org"), StampTint.isBlue("LUCIA@example.org"))
             compare(StampTint.isBlue("Lucia"), true)
             compare(StampTint.isBlue("Ann"), false)
+        }
+        function chevronOf(r) {
+            for (let i = 0; i < r.children.length; i++) {
+                const c = r.children[i]
+                if (c.objectName === "chevron") return c
+                for (let j = 0; j < c.children.length; j++)
+                    if (c.children[j].objectName === "chevron") return c.children[j]
+            }
+            return null
+        }
+        function test_chevron_uses_the_small_icon_and_the_tone_roles() {
+            thm.name = "airmail"
+            compare(lone.width, thm.iconSmall)
+            compare(lone.color, thm.chevronBlue)
+            lone.tone = "red"
+            compare(lone.color, thm.chevron)
+            lone.tone = "secondary"
+            compare(lone.color, thm.secondary)
+            lone.tone = "blue"
+            thm.name = "carbon"
+        }
+        function test_chevron_points_right_and_down_when_open() {
+            compare(lone.name, "forward")
+            lone.open = true
+            compare(lone.name, "down")
+            lone.open = false
+        }
+        function test_a_plain_row_has_no_chevron() {
+            compare(chevronOf(row), null)
+        }
+        function test_a_row_with_a_chevron_shows_it_at_the_trailing_edge() {
+            row.visible = false
+            chevRow.visible = true
+            const c = chevronOf(chevRow)
+            verify(c !== null)
+            verify(c.visible)
+            verify(c.width > 0)
+            verify(c.mapToItem(chevRow, 0, 0).x + c.width <= chevRow.width)
+            verify(c.mapToItem(chevRow, 0, 0).x > chevRow.width / 2)
+            compare(c.color, thm.chevron)
+            chevRow.visible = false
+            row.visible = true
+        }
+        function test_the_chevron_is_decoration_the_row_takes_the_tap() {
+            row.visible = false
+            chevRow.visible = true
+            const c = chevronOf(chevRow)
+            verify(c !== null)
+            chevRowClicked.clear()
+            mouseClick(chevRow, 10, 10)
+            compare(chevRowClicked.count, 1, "the row itself takes a tap")
+            chevRowClicked.clear()
+            const p = c.mapToItem(chevRow, c.width / 2, c.height / 2)
+            mouseClick(chevRow, p.x, p.y)
+            compare(chevRowClicked.count, 1)
+            for (let i = 0; i < c.children.length; i++)
+                verify(c.children[i].toString().indexOf("MouseArea") < 0)
+            chevRow.visible = false
+            row.visible = true
         }
         function test_stamp_tint_comes_from_the_address() {
             compare(StampTint.addressOf("Ann <a@x.org>"), "a@x.org")

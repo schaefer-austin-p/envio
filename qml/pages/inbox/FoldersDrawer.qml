@@ -162,16 +162,19 @@ Rectangle {
                     width: column.width
                     Rectangle { width: parent.width; height: 1; color: root.theme.hairline }
                     ListRow {
+                        id: group
                         objectName: "account-" + acct.model.key
                         theme: root.theme
                         width: parent.width
                         separator: false
+                        chevron: "secondary"
+                        chevronOpen: root.expanded === acct.model.key
                         onClicked: root.expand(acct.model.key)
                         Text {
                             textFormat: Text.PlainText
                             x: root.theme.gu(2.5)
                             y: root.theme.gu(1.75)
-                            width: parent.width - x - root.theme.gu(2.5)
+                            width: parent.width - x - group.chevronSpace
                             text: acct.model.name + " · " + acct.model.email
                             elide: Text.ElideRight
                             color: root.theme.heading
