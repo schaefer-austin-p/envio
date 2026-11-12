@@ -131,6 +131,27 @@ Item {
             compare(find("headerSubject").text, "Invoice 0042")
         }
 
+        function test_body_links_use_the_theme_link_colour_data() {
+            return [
+                { tag: "carbon light", airmail: false, dark: false, want: "#B8342C" },
+                { tag: "carbon dark", airmail: false, dark: true, want: "#E36A60" },
+                { tag: "airmail light", airmail: true, dark: false, want: "#1F3A5F" },
+                { tag: "airmail dark", airmail: true, dark: true, want: "#A9C1E3" }
+            ]
+        }
+
+        // #74: no board shows a body link, so Carbon uses accent and Airmail
+        // its heading blue; Qt's default #0000FF must never show.
+        function test_body_links_use_the_theme_link_colour(data) {
+            open(view([], 0))
+            thm.name = data.airmail ? "airmail" : "carbon"
+            thm.darkMode = data.dark ? "dark" : "light"
+            compare(String(thm.link).toUpperCase(), data.want)
+            compare(find("bodyText").linkColor, thm.link)
+            thm.name = "carbon"
+            thm.darkMode = "system"
+        }
+
         function test_header_stamp_is_airmail_only() {
             open(view([], 0))
             compare(find("headerStamp").item, null)

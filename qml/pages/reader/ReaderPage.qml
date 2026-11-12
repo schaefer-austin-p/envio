@@ -178,7 +178,7 @@ Item {
                     text: root.view !== null ? root.view.html : ""
                     textFormat: Text.RichText
                     wrapMode: Text.Wrap
-                    linkColor: root.theme.accent
+                    linkColor: root.theme.link
                     color: root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize

@@ -153,6 +153,9 @@ Control {
     readonly property color hairline: current.hairline
     readonly property color field: current.field
     readonly property color accent: current.accent
+    // Links in a message body: no board shows one, so Carbon takes accent and
+    // Airmail its heading blue (readable on the dark ground too).
+    readonly property color link: airmail ? heading : accent
     readonly property color primary: current.primary
     readonly property color primaryText: current.primaryText
     readonly property color tintA: current.tintA
