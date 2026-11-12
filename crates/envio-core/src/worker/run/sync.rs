@@ -61,6 +61,7 @@ pub(super) async fn folder(
     // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
     if before.is_some() && validity(worker) != before {
         worker.floors.remove(&id);
+        worker.emit(Event::OlderReset);
     }
     if let Some(live) = worker.live.get_mut(account) {
         live.continuing = synced.more.then_some(id);

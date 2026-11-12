@@ -125,6 +125,22 @@ fn changing_the_window_drops_the_floor_and_resyncs() {
 }
 
 #[test]
+fn changing_the_window_announces_that_load_older_was_dropped() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_server, _, inbox) = seeded(&mut h, "me@example.org");
+    h.start_core();
+    let list = ListRef::Folder(inbox);
+    h.send(Command::LoadOlder { list });
+    older_loaded(&h, list);
+    h.send(Command::SaveSettings(Settings {
+        sync_window_days: 7,
+        ..Settings::default()
+    }));
+    h.wait(|e| matches!(e, Event::OlderReset).then_some(()));
+}
+
+#[test]
 fn load_older_offline_reports_older_unavailable() {
     let mut h = Harness::unstarted();
     h.foreground = true;

@@ -153,3 +153,14 @@ fn no_page_is_sent_unasked_while_searching() {
     assert!(asked(&outs).is_empty());
     assert!(asked(&feed(&mut ui, changed())).iter().all(Option::is_none));
 }
+
+#[test]
+fn an_older_reset_brings_the_load_older_row_back_from_done() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
+    // The sync window changed: the older rows go, so more can be loaded.
+    assert_eq!(rows(&feed(&mut ui, Event::OlderReset)), [OlderRow::Ready]);
+    assert!(ui.load_older().is_some());
+}

@@ -136,6 +136,10 @@ pub enum Event {
         fetched: usize,
         exhausted: bool,
     },
+    /// What Load older reached is dropped (the sync window changed, or a
+    /// folder was reset): the next sync removes those rows, so a list that
+    /// said "no older messages" can load older again.
+    OlderReset,
     /// `LoadOlder` could not; `text` says why. Pressing it again retries.
     OlderFailed {
         list: ListRef,

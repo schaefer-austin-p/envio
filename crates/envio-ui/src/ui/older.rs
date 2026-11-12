@@ -35,6 +35,16 @@ impl Ui {
         self.set_older(OlderRow::Hidden)
     }
 
+    /// What Load older reached is dropped: "no older messages" no longer
+    /// holds, so the row can be pressed again.
+    pub(super) fn older_dropped(&mut self) -> Vec<Output> {
+        self.older_done = false;
+        if self.older == OlderRow::Done {
+            return self.set_older(OlderRow::Ready);
+        }
+        Vec::new()
+    }
+
     /// A search is asked: no row for it.
     pub(super) fn older_search(&mut self) -> Vec<Output> {
         self.searching = true;

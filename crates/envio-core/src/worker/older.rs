@@ -210,6 +210,7 @@ impl Worker<'_> {
     /// and every account syncs again under the new window.
     pub(super) fn window_changed(&mut self) {
         self.floors.clear();
+        self.emit(Event::OlderReset);
         for live in self.live.values_mut() {
             live.wants.full = true;
         }
