@@ -66,7 +66,9 @@ Column {
                         text: root.view.from
                         elide: Text.ElideRight
                         color: root.theme.heading
-                        font.family: root.theme.fontLabel
+                        // A bare address (no display name) is mono, so look-alikes stay distinct.
+                        font.family: /^[^<]*@[^<]*$/.test(String(root.view.from))
+                            ? root.theme.fontAddress : root.theme.fontLabel
                         font.pixelSize: 16
                         font.weight: root.theme.unreadWeight
                     }

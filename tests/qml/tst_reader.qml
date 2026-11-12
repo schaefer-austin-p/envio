@@ -160,8 +160,20 @@ Item {
             thm.name = "airmail"
             verify(find("headerStamp").item !== null)
             compare(find("headerSender").text, "Ana Ruiz")
+            compare(find("headerSender").font.family, thm.fontLabel)
             thm.name = "carbon"
             compare(find("headerStamp").item, null)
+        }
+
+        // A sender with no display name is a bare address: mono, so rn/m stay distinct.
+        function test_airmail_bare_address_sender_uses_the_address_font() {
+            const v = view([], 0)
+            v.from = "ceo@acrne-corp.com"
+            open(v)
+            thm.name = "airmail"
+            compare(find("headerSender").font.family, thm.fontAddress)
+            verify(thm.fontAddress !== thm.fontLabel)
+            thm.name = "carbon"
         }
 
         function has(name) {

@@ -194,7 +194,7 @@ for my $file (@ARGV) {
         # JS assignments: `item.radius = v`, `radius += v` (a compound
         # assignment is never a circle or a role, so it always fails). A JS
         # local (`const radius = 4`) is not a radius property.
-        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*([-+*\/%]?)=(?![=>])\s*([^\n;}]*)/g) {
+        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*((?:[-+*\/%]|\?\?|\|\||&&)?)=(?![=>])\s*([^\n;}]*)/g) {
             my ($op, $v, $off) = ($1, $2, $-[0]);
             next if substr($code, 0, $off) =~ /\b(?:const|let|var)\s+$/;
             push @found, [$off, $op ne '' ? "$op= $v" : $v];
