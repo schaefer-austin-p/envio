@@ -127,6 +127,18 @@ pub enum Event {
         query: String,
         text: String,
     },
+    /// `LoadOlder` fetched `fetched` messages; `exhausted`: nothing older is
+    /// left on the server. `MessagesChanged` follows.
+    OlderLoaded {
+        list: ListRef,
+        fetched: usize,
+        exhausted: bool,
+    },
+    /// `LoadOlder` could not; `text` says why. Pressing it again retries.
+    OlderFailed {
+        list: ListRef,
+        text: String,
+    },
     /// The answer to `Autocomplete`, for the same `query`.
     Suggestions {
         query: String,

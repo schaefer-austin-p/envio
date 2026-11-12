@@ -164,7 +164,14 @@ impl Worker<'_> {
     /// the app is told what is now in effect.
     pub(super) fn save_settings(&mut self, settings: Settings) {
         match save_settings(&self.store.paths.settings(), &settings) {
-            Ok(()) => self.store.settings = settings,
+            Ok(()) => {
+                let window_changed =
+                    settings.sync_window_days != self.store.settings.sync_window_days;
+                self.store.settings = settings;
+                if window_changed {
+                    self.window_changed();
+                }
+            }
             Err(e) => {
                 log::warn!("saving the settings: {e}");
                 self.emit(Event::Notice {

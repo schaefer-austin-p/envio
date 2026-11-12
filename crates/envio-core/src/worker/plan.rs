@@ -16,6 +16,8 @@ pub struct Wants {
     pub full: bool,
     pub folders: BTreeSet<FolderId>,
     pub bodies: Vec<MessageRowId>,
+    /// Folders the user asked a batch of older mail for.
+    pub older: BTreeSet<FolderId>,
     /// Server searches the user waits for: folder and query.
     pub searches: Vec<(FolderId, String)>,
     pub replay: bool,
@@ -33,6 +35,8 @@ impl Wants {
 pub enum Step {
     Folders,
     Body(MessageRowId),
+    /// One batch of older mail ("Load older") in a folder.
+    Older(FolderId),
     /// "Search on server" in one folder (the account is the step's).
     SearchServer {
         folder: FolderId,
@@ -50,6 +54,7 @@ impl Step {
         match self {
             Step::Folders => "folders",
             Step::Body(_) => "body",
+            Step::Older(_) => "older",
             Step::SearchServer { .. } => "search",
             Step::Replay => "replay",
             Step::Send => "send",
@@ -91,6 +96,7 @@ pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool, relist: bool) -
     );
     if !disk_full {
         out.extend(wants.bodies.iter().map(|id| Step::Body(*id)));
+        out.extend(wants.older.iter().map(|id| Step::Older(*id)));
     }
     if wants.full || wants.replay {
         out.push(Step::Replay);
@@ -227,6 +233,27 @@ mod tests {
                 Step::Folder(FolderId(1)),
             ]
         );
+    }
+
+    #[test]
+    fn load_older_runs_after_bodies_and_before_replay() {
+        let wants = Wants {
+            bodies: vec![MessageRowId(7)],
+            older: [FolderId(2)].into(),
+            replay: true,
+            ..Wants::default()
+        };
+        assert_eq!(
+            steps(&wants, &folders(), false, false),
+            [
+                Step::Folders,
+                Step::Body(MessageRowId(7)),
+                Step::Older(FolderId(2)),
+                Step::Replay,
+            ]
+        );
+        // Nothing is downloaded while storage is full.
+        assert!(!steps(&wants, &folders(), true, false).contains(&Step::Older(FolderId(2))));
     }
 
     #[test]

@@ -49,9 +49,19 @@ pub(super) async fn folder(
     // One time for the whole step.
     let now = now_ms();
     let window = worker.store.settings.sync_window();
-    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now, window, None)
+    let floor = worker.floors.get(&id).copied();
+    let validity = |worker: &Worker<'_>| {
+        let folder = worker.store.db.folder(id).ok()?;
+        folder.sync.map(|sync| sync.uidvalidity)
+    };
+    let before = validity(worker);
+    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now, window, floor)
         .await
         .map_err(|e| imap_error(&e))?;
+    // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
+    if before.is_some() && validity(worker) != before {
+        worker.floors.remove(&id);
+    }
     if let Some(live) = worker.live.get_mut(account) {
         live.continuing = synced.more.then_some(id);
     }

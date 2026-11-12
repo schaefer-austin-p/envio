@@ -22,3 +22,7 @@ pub fn could_not_read() -> String {
 pub fn search_unavailable() -> String {
     tr("This folder can't be searched on the server right now")
 }
+
+pub fn older_unavailable() -> String {
+    tr("Couldn't load older messages. Try again when you are online.")
+}
