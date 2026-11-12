@@ -7,7 +7,7 @@ mod support;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use envio_net::imap::{ImapSession, Role, Woke};
+use envio_net::imap::{Flag, ImapSession, Role, Woke};
 use support::stalwart::{Stalwart, alice, message, message_id};
 
 async fn folder(session: &mut ImapSession, role: Role) -> String {
@@ -151,15 +151,17 @@ async fn search_all_returns_every_uid() {
     };
     let mut session = server.imap(&alice()).await;
     let id = message_id();
+    // Seen, so a search for unseen mail would miss it. The other tests
+    // append to the same inbox in parallel, so the count only grows.
     session
-        .append("INBOX", &[], &message(&id, "All", 200))
+        .append("INBOX", &[Flag::Seen], &message(&id, "All", 200))
         .await
         .unwrap();
     let state = session.select("INBOX").await.unwrap();
     let uid = session.search_message_id(&id).await.unwrap()[0];
     let all = session.search_all().await.unwrap();
     assert!(all.contains(&uid));
-    assert_eq!(all.len() as u32, state.exists);
+    assert!(all.len() as u32 >= state.exists);
     session.logout().await.unwrap();
 }
 
