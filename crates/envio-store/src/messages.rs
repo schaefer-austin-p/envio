@@ -177,9 +177,10 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
 }
 
 impl Db {
-    /// Adds a message, or updates it by UID. An update keeps the body state,
-    /// and with a downloaded body keeps `has_attachments` too: a header-only
-    /// guess never replaces the exact value.
+    /// Adds a message, or updates it by UID. An update keeps the body state
+    /// and `has_attachments`: a header never changes, so a new row takes the
+    /// header's guess and only [`Db::set_has_attachments`] (the full parse)
+    /// changes it afterwards.
     pub fn upsert_message(&self, folder: FolderId, message: &NewMessage) -> Result<MessageRowId> {
         let envelope = &message.envelope;
         let id = self.conn().query_row(
@@ -191,9 +192,7 @@ impl Db {
                  from_addr = excluded.from_addr, to_addrs = excluded.to_addrs,
                  date = excluded.date, in_reply_to = excluded.in_reply_to,
                  refs = excluded.refs, flags = excluded.flags, preview = excluded.preview,
-                 size = excluded.size,
-                 has_attachments = CASE WHEN messages.body_state = 1
-                     THEN messages.has_attachments ELSE excluded.has_attachments END
+                 size = excluded.size
              RETURNING id",
             params![
                 folder.0,
@@ -333,6 +332,14 @@ impl Db {
             }
             Ok(deleted)
         })
+    }
+
+    /// Stores the exact attachment flag, from the whole message.
+    pub fn set_has_attachments(&self, id: MessageRowId, has: bool) -> Result<()> {
+        found(self.conn().execute(
+            "UPDATE messages SET has_attachments = ?2 WHERE id = ?1",
+            params![id.0, has],
+        )?)
     }
 
     pub fn set_body_state(&self, id: MessageRowId, state: BodyState) -> Result<()> {

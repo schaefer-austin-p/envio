@@ -202,6 +202,7 @@ pub async fn fetch_body(
     let row = with_body(&message, &eml);
     local.db.step(|db| {
         db.upsert_message(folder.id, &row)?;
+        db.set_has_attachments(id, row.envelope.has_attachments)?;
         db.set_body_state(id, BodyState::Downloaded)
     })?;
     Ok(Some(eml))
