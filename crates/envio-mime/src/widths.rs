@@ -42,6 +42,17 @@ pub(crate) fn carry(tag: &mut Tag, max: u32) {
     }
 }
 
+/// Whether a `width` attribute the message set may stay: a percentage in
+/// (0, 100], or whole pixels above 0 and (when `max > 0`) at most `max`.
+/// Anything else is dropped, so the column sizes itself.
+pub(crate) fn attribute_fits(value: &str, max: u32) -> bool {
+    let value = value.trim();
+    if value.ends_with('%') {
+        return attribute_value(value, max).is_some();
+    }
+    pixels(value).is_some_and(|w| w > 0 && (max == 0 || w <= max))
+}
+
 /// The `width` attribute for a CSS width value, `None` when not carried.
 fn attribute_value(css: &str, max: u32) -> Option<String> {
     let css = css.to_ascii_lowercase();

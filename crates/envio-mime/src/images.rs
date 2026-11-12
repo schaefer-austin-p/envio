@@ -287,11 +287,9 @@ fn scale(width: Option<u32>, height: Option<u32>, max: u32) -> (Option<u32>, Opt
     }
 }
 
-/// Drops a pixel `width` wider than `max` from a table or cell.
+/// Drops a `width` the message set on a table, cell or column unless it
+/// is a sane percentage or pixels within `max`.
 fn limit_width(tag: &mut Tag, max: u32) {
-    if max == 0 {
-        return;
-    }
     tag.attrs
-        .retain(|(name, value)| name != "width" || pixels(value).is_none_or(|w| w <= max));
+        .retain(|(name, value)| name != "width" || widths::attribute_fits(value, max));
 }

@@ -82,6 +82,28 @@ fn other_units_are_not_carried() {
 }
 
 #[test]
+fn a_width_attribute_the_message_set_is_kept_only_when_sane() {
+    let cases = [
+        ("20", Some("20")),
+        ("50%", Some("50%")),
+        ("999", None),
+        ("150%", None),
+        ("0", None),
+        ("-5", None),
+        ("calc(100vw)", None),
+    ];
+    for (width, kept) in cases {
+        let html = clean(&format!(
+            r#"<table width="{width}"><colgroup><col width="{width}"></colgroup><tr><td width="{width}">x</td></tr></table>"#
+        ));
+        for tag in ["table", "col", "td"] {
+            let got = tags(&html, tag)[0];
+            assert_eq!(attr(got, "width"), kept, "{tag} {width}: {got}");
+        }
+    }
+}
+
+#[test]
 fn col_keeps_its_width() {
     let html =
         clean(r#"<table><colgroup><col style="width:16px"></colgroup><tr><td>x</td></tr></table>"#);
