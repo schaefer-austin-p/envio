@@ -231,7 +231,6 @@ Item {
 
     ReplyBar {
         id: footer
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
         theme: root.theme
         visible: root.view !== null
         onReplyRequested: root.compose("reply")

@@ -76,6 +76,9 @@ Control {
     readonly property real controlRadius: airmail ? controlHeight / 2 : gu(1)
     // A pill drawn 44 px high (the compose bar's Send).
     readonly property real compactControlRadius: airmail ? 22 : gu(1)
+    // The pinned footer (PageFooter, board): 10 px above its button, 16 below.
+    readonly property real footerPadTop: 10
+    readonly property real footerPadBottom: 16
     // A button's label: Inter 15 semibold in Airmail, as before in Carbon.
     readonly property font controlFont: Qt.font({ "family": fontLabel, "pixelSize": 15,
                                                   "weight": airmail ? Font.DemiBold : Font.Medium })

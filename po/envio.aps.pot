@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 13:01+0100\n"
+"POT-Creation-Date: 2026-11-12 13:20+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:228
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:229
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -157,106 +157,106 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:32
+#: qml/pages/accounts/EmailStep.qml:36
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:43
+#: qml/pages/accounts/EmailStep.qml:47
 msgid "Email address"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:64 qml/pages/accounts/SignInStep.qml:78
-msgid "Continue"
-msgstr ""
-
-#: qml/pages/accounts/EmailStep.qml:83
+#: qml/pages/accounts/EmailStep.qml:77
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:50
+#: qml/pages/accounts/EmailStep.qml:92 qml/pages/accounts/SignInStep.qml:99
+msgid "Continue"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:54
 msgid "Account name"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:60 qml/pages/accounts/OptionsStep.qml:63
+#: qml/pages/accounts/OptionsStep.qml:64 qml/pages/accounts/OptionsStep.qml:67
 msgid "Use as default sender"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:61
+#: qml/pages/accounts/OptionsStep.qml:65
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:68 qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/accounts/OptionsStep.qml:72 qml/pages/settings/SettingsPage.qml:32
 #: qml/pages/settings/SyncPage.qml:20
 msgid "Sync"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SyncPage.qml:53
+#: qml/pages/accounts/OptionsStep.qml:77 qml/pages/settings/SyncPage.qml:53
 msgid "While Envio is open"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:78
+#: qml/pages/accounts/OptionsStep.qml:82
 msgid "Envio checks for new mail while it is open. Push is not available yet."
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:83
+#: qml/pages/accounts/OptionsStep.qml:87
 msgid "Keep mail for"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:88 qml/pages/settings/SyncPage.qml:72
+#: qml/pages/accounts/OptionsStep.qml:92 qml/pages/settings/SyncPage.qml:72
 msgid "Last 30 days"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:99
+#: qml/pages/accounts/OptionsStep.qml:109
 msgid "Done"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:53
+#: qml/pages/accounts/ServersStep.qml:57
 msgid "IMAP server"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:55
+#: qml/pages/accounts/ServersStep.qml:59
 msgid "IMAP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:63 qml/pages/accounts/ServersStep.qml:85
+#: qml/pages/accounts/ServersStep.qml:67 qml/pages/accounts/ServersStep.qml:89
 msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:69
+#: qml/pages/accounts/ServersStep.qml:73
 msgid "IMAP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:72
+#: qml/pages/accounts/ServersStep.qml:76
 msgid "SMTP server"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:74
+#: qml/pages/accounts/ServersStep.qml:78
 msgid "SMTP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:91
+#: qml/pages/accounts/ServersStep.qml:95
 msgid "SMTP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:94
+#: qml/pages/accounts/ServersStep.qml:98
 msgid "User name"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:96 qml/pages/accounts/SignInStep.qml:69
+#: qml/pages/accounts/ServersStep.qml:100 qml/pages/accounts/SignInStep.qml:73
 msgid "Password"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:102
+#: qml/pages/accounts/ServersStep.qml:123
 msgid "Connect"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:56
+#: qml/pages/accounts/SignInStep.qml:60
 msgid ""
 "This provider needs an app password for Envio, not your usual one. Create "
 "one in your account settings."
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:69
+#: qml/pages/accounts/SignInStep.qml:73
 msgid "App password"
 msgstr ""
 
@@ -309,33 +309,33 @@ msgstr ""
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:162
+#: qml/pages/compose/ComposePage.qml:163
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:206 qml/pages/reader/HeaderBlock.qml:18
+#: qml/pages/compose/ComposePage.qml:207 qml/pages/reader/HeaderBlock.qml:18
 #: crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:219 qml/pages/reader/HeaderBlock.qml:19
+#: qml/pages/compose/ComposePage.qml:220 qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:232
+#: qml/pages/compose/ComposePage.qml:233
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:241
+#: qml/pages/compose/ComposePage.qml:242
 msgid "Cc and Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:251
+#: qml/pages/compose/ComposePage.qml:252
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:270
+#: qml/pages/compose/ComposePage.qml:271
 msgid "Write your message"
 msgstr ""
 
@@ -396,27 +396,27 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:64
+#: qml/pages/inbox/FoldersDrawer.qml:65
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:99 qml/pages/search/SearchPage.qml:89
+#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:89
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:110
+#: qml/pages/inbox/FoldersDrawer.qml:111
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:134 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:135 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:142
+#: qml/pages/inbox/FoldersDrawer.qml:143
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:235 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:236 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
@@ -438,11 +438,11 @@ msgstr ""
 msgid "Offline."
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:239
+#: qml/pages/inbox/InboxPage.qml:236
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:285
+#: qml/pages/inbox/InboxPage.qml:282
 msgid "Undo"
 msgstr ""
 
@@ -566,11 +566,11 @@ msgstr ""
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReplyBar.qml:28
+#: qml/pages/reader/ReplyBar.qml:21
 msgid "Reply"
 msgstr ""
 
-#: qml/pages/reader/ReplyBar.qml:35
+#: qml/pages/reader/ReplyBar.qml:28
 msgid "Forward"
 msgstr ""
 
