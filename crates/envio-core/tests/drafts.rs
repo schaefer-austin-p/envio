@@ -359,6 +359,11 @@ fn a_panicking_sink_does_not_stop_draft_saving() {
         compose: ComposeId(2),
         draft: s.draft("second"),
     });
-    let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
+    // This checks the thread survives, not the save's timing. The sink's
+    // panic goes through std's panic hook, which takes the process-wide
+    // backtrace lock; a_worker_panic_keeps_the_draft_id, running alongside,
+    // resolves a worker backtrace under that lock, which took over 1.8 s on
+    // CI's coverage build.
+    let limit = Duration::from_secs(10);
     assert!(s.wait_for_draft(limit, |d| d.body == "second"));
 }
