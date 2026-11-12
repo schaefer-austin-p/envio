@@ -222,6 +222,12 @@ mod tests {
         }
     }
 
+    fn env_with(change: impl FnOnce(&mut Env)) -> Env {
+        let mut env = env();
+        change(&mut env);
+        env
+    }
+
     #[test]
     fn wanted_work_runs_before_idle() {
         let t = Timing {
@@ -285,15 +291,8 @@ mod tests {
         );
         // Nothing is downloaded while storage is full.
         assert!(
-            !steps(
-                &wants,
-                &folders(),
-                &Env {
-                    disk_full: true,
-                    ..env()
-                }
-            )
-            .contains(&Step::Older(FolderId(2)))
+            !steps(&wants, &folders(), &env_with(|e| e.disk_full = true))
+                .contains(&Step::Older(FolderId(2)))
         );
     }
 
@@ -350,14 +349,7 @@ mod tests {
         assert_eq!(steps(&wants, &folders(), &env()), [Step::Send]);
         // Sent was refused last time: the list comes first again.
         assert_eq!(
-            steps(
-                &wants,
-                &folders(),
-                &Env {
-                    relist: true,
-                    ..env()
-                }
-            ),
+            steps(&wants, &folders(), &env_with(|e| e.relist = true)),
             [Step::Folders, Step::Send]
         );
         // Folders not cached yet: the list comes first.
@@ -377,14 +369,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(
-                &wants,
-                &folders(),
-                &Env {
-                    disk_full: true,
-                    ..env()
-                }
-            ),
+            steps(&wants, &folders(), &env_with(|e| e.disk_full = true)),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
         );
     }
