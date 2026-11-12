@@ -215,15 +215,13 @@ Item {
         }
     }
 
-    Text {
-        textFormat: Text.PlainText
-        anchors.centerIn: parent
+    BusyLine {
         objectName: "loadingText"
-        visible: !root.ready && root.unavailable === ""
+        theme: root.theme
+        anchors.centerIn: parent
+        width: Math.min(implicitWidth, parent.width)
+        running: !root.ready && root.unavailable === ""
         text: qsTr("Loading…")
-        color: root.theme.secondary
-        font.family: root.theme.fontUi
-        font.pixelSize: 15
     }
     Column {
         anchors.centerIn: parent

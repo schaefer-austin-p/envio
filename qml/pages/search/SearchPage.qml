@@ -1,5 +1,4 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15 as QC
 import "../../platform"
 import "../../components"
 import "../inbox"
@@ -167,27 +166,12 @@ Item {
         anchors.bottomMargin: root.theme.gu(2)
         spacing: root.theme.gu(1)
         visible: root.query !== ""
-        Row {
-            visible: root.serverBusy
+        BusyLine {
+            objectName: "searchBusy"
+            theme: root.theme
             width: parent.width
-            spacing: root.theme.gu(1.5)
-            QC.BusyIndicator {
-                objectName: "searchBusy"
-                running: root.serverBusy
-                width: root.theme.touch
-                height: root.theme.touch
-            }
-            Text {
-                objectName: "searchingText"
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - root.theme.touch - parent.spacing
-                textFormat: Text.PlainText
-                text: qsTr("Searching the servers…")
-                wrapMode: Text.WordWrap
-                color: root.theme.text
-                font.family: root.theme.fontUi
-                font.pixelSize: 15
-            }
+            running: root.serverBusy
+            text: qsTr("Searching the servers…")
         }
         AppButton {
             objectName: "cancelServerSearch"

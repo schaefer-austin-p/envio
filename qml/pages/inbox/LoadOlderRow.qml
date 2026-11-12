@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../../platform"
+import "../../components"
 
 // The foot of a message list. `state` is envio_ui::OlderRow as the core
 // exposes it: 0 hidden, 1 ready (tap to load a batch), 2 loading, 3 done.
@@ -34,16 +35,13 @@ Item {
             font.weight: Font.Medium
         }
     }
-    // Task 5 swaps this Text for BusyLine.
-    Text {
+    BusyLine {
         objectName: "olderLoading"
+        theme: root.theme
         anchors.centerIn: parent
-        visible: root.state === 2
-        textFormat: Text.PlainText
+        width: Math.min(implicitWidth, parent.width)
+        running: root.state === 2
         text: qsTr("Loading older messages…")
-        color: root.theme.secondary
-        font.family: root.theme.fontUi
-        font.pixelSize: 15
     }
     Text {
         objectName: "olderDone"

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 17:12+0100\n"
+"POT-Creation-Date: 2026-11-12 17:19+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:248
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:246
 msgid "Try again"
 msgstr ""
 
@@ -141,7 +141,7 @@ msgstr ""
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
-#: qml/pages/search/SearchPage.qml:197
+#: qml/pages/search/SearchPage.qml:181
 msgid "Cancel"
 msgstr ""
 
@@ -169,7 +169,11 @@ msgstr ""
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:92 qml/pages/accounts/SignInStep.qml:99
+#: qml/pages/accounts/EmailStep.qml:87
+msgid "Looking up settings…"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:94 qml/pages/accounts/SignInStep.qml:101
 msgid "Continue"
 msgstr ""
 
@@ -246,7 +250,11 @@ msgstr ""
 msgid "Password"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:123
+#: qml/pages/accounts/ServersStep.qml:119
+msgid "Connecting…"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:125
 msgid "Connect"
 msgstr ""
 
@@ -258,6 +266,10 @@ msgstr ""
 
 #: qml/pages/accounts/SignInStep.qml:73
 msgid "App password"
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:94
+msgid "Signing in…"
 msgstr ""
 
 #: qml/pages/accounts/TrustDialog.qml:17
@@ -400,7 +412,7 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:89
+#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:88
 msgid "All accounts"
 msgstr ""
 
@@ -446,15 +458,15 @@ msgstr ""
 msgid "Undo"
 msgstr ""
 
-#: qml/pages/inbox/LoadOlderRow.qml:22
+#: qml/pages/inbox/LoadOlderRow.qml:23
 msgid "Load older messages"
 msgstr ""
 
-#: qml/pages/inbox/LoadOlderRow.qml:43
+#: qml/pages/inbox/LoadOlderRow.qml:44
 msgid "Loading older messages…"
 msgstr ""
 
-#: qml/pages/inbox/LoadOlderRow.qml:53
+#: qml/pages/inbox/LoadOlderRow.qml:51
 msgid "No older messages"
 msgstr ""
 
@@ -574,7 +586,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:223
+#: qml/pages/reader/ReaderPage.qml:224
 msgid "Loading…"
 msgstr ""
 
@@ -586,23 +598,23 @@ msgstr ""
 msgid "Forward"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:72
+#: qml/pages/search/SearchPage.qml:71
 msgid "Search mail"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:108
+#: qml/pages/search/SearchPage.qml:107
 msgid "This folder"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:185
+#: qml/pages/search/SearchPage.qml:174
 msgid "Searching the servers…"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:206
+#: qml/pages/search/SearchPage.qml:190
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:214
+#: qml/pages/search/SearchPage.qml:198
 msgid "Finds mail older than the 30 days kept here"
 msgstr ""
 

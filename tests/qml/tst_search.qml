@@ -145,7 +145,7 @@ Item {
             verify(!shown("searchBusy"))
             mouseClick(find("searchServers"))
             verify(shown("searchBusy"))
-            compare(find("searchingText").text, "Searching the servers…")
+            compare(find("searchBusy").text, "Searching the servers…")
             verify(!shown("searchServers"))
             // The results arrive (or every account failed): the core says done.
             core.searchDone()
