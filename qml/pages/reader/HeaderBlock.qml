@@ -1,5 +1,7 @@
 import QtQuick 2.15
+import "../../components"
 import "../../platform"
+import "../../platform/stampTint.js" as StampTint
 
 // The subject and the From, To, Cc, Date and Account lines of the message
 // being read (boards 2 and 3). `view` is the `messageOpened` map.
@@ -34,6 +36,34 @@ Column {
         font.pixelSize: 22
         font.weight: Font.DemiBold
         lineHeight: 1.2
+    }
+    // Airmail: the sender's stamp beside the name (board: gap 14).
+    Loader {
+        objectName: "headerStamp"
+        active: root.theme.airmail
+        width: parent.width
+        height: item !== null ? item.height : 0
+        sourceComponent: Row {
+            spacing: 14
+            Avatar {
+                theme: root.theme
+                initials: StampTint.initials(root.view.from)
+                blue: StampTint.isBlue(StampTint.addressOf(
+                          root.view.fromAddress !== undefined ? root.view.fromAddress : root.view.from))
+            }
+            Text {
+                textFormat: Text.PlainText
+                objectName: "headerSender"
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - root.theme.stampWidth - parent.spacing
+                text: root.view.from
+                elide: Text.ElideRight
+                color: root.theme.heading
+                font.family: root.theme.fontLabel
+                font.pixelSize: 16
+                font.weight: root.theme.unreadWeight
+            }
+        }
     }
     Column {
         width: parent.width

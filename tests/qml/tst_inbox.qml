@@ -139,7 +139,7 @@ Item {
                 const row = find("row-21", page)
                 compare(thm.showUnreadDot, !air)
                 compare(find("unreadDot", row).visible, !air)
-                compare(find("stamp", row).visible, air)
+                compare(find("stamp", row).item !== null, air)
                 compare(find("rowSender", row).font.weight, thm.unreadWeight)
                 compare(find("rowSender", find("row-22", page)).font.weight, Font.Normal)
             }

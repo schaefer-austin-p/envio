@@ -40,14 +40,17 @@ ListRow {
         }
     }
     // Airmail: the sender's stamp (the checkbox replaces it while selecting).
-    Avatar {
+    Loader {
         objectName: "stamp"
-        visible: root.theme.airmail && !root.selecting
-        theme: root.theme
+        active: root.theme.airmail
+        visible: !root.selecting
         x: root.theme.gu(2)
         y: root.theme.gu(1.75)
-        initials: StampTint.initials(root.model.from)
-        blue: StampTint.isBlue(root.model.from)
+        sourceComponent: Avatar {
+            theme: root.theme
+            initials: StampTint.initials(root.model.from)
+            blue: StampTint.isBlue(StampTint.addressOf(root.model.from))
+        }
     }
     Column {
         id: col

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 11:57+0100\n"
+"POT-Creation-Date: 2026-11-12 12:31+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -313,12 +313,12 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:203 qml/pages/reader/HeaderBlock.qml:16
+#: qml/pages/compose/ComposePage.qml:203 qml/pages/reader/HeaderBlock.qml:18
 #: crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:216 qml/pages/reader/HeaderBlock.qml:17
+#: qml/pages/compose/ComposePage.qml:216 qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
@@ -359,7 +359,7 @@ msgstr ""
 msgid "Discard"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:54 qml/pages/reader/HeaderBlock.qml:15
+#: qml/pages/compose/FromRow.qml:54 qml/pages/reader/HeaderBlock.qml:17
 #: crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
@@ -528,11 +528,11 @@ msgstr ""
 msgid "Send it with another app"
 msgstr ""
 
-#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:42
+#: qml/pages/reader/HeaderBlock.qml:20 crates/envio-core/src/text/compose.rs:42
 msgid "Date"
 msgstr ""
 
-#: qml/pages/reader/HeaderBlock.qml:19
+#: qml/pages/reader/HeaderBlock.qml:21
 msgid "Account"
 msgstr ""
 

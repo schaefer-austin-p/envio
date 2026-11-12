@@ -92,6 +92,8 @@ Control {
     readonly property real avatarSize: gu(5.5)
     readonly property real stampWidth: 40
     readonly property real stampHeight: 48
+    // The initials in an avatar: 17 px in a stamp, 34% of the circle in Carbon.
+    function stampInitialSize(size) { return airmail ? 17 : size * 0.34 }
     // Airmail's stamp stands in for the unread dot; unread rows are semibold.
     readonly property bool showUnreadDot: !airmail
     readonly property int unreadWeight: Font.DemiBold

@@ -79,6 +79,25 @@ Item {
             compare(StampTint.isBlue("Lucia"), true)
             compare(StampTint.isBlue("Ann"), false)
         }
+        function test_stamp_tint_comes_from_the_address() {
+            compare(StampTint.addressOf("Ann <a@x.org>"), "a@x.org")
+            compare(StampTint.addressOf("  A@X.org "), "a@x.org")
+            const t = StampTint.isBlue(StampTint.addressOf("a@x.org"))
+            compare(StampTint.isBlue(StampTint.addressOf("Ann <a@x.org>")), t)
+            compare(StampTint.isBlue(StampTint.addressOf("Ann Lee <A@X.org>")), t)
+            compare(StampTint.initials("Ann Lee <a@x.org>"), "AL")
+        }
+        function test_stamp_mask_has_holes_on_the_edge() {
+            thm.name = "airmail"
+            const canvas = findChild(stamp, "stampCanvas")
+            const alpha = function(x, y) { return canvas.getContext("2d").getImageData(x, y, 1, 1).data[3] }
+            tryVerify(function() { return alpha(20, 24) > 0 })
+            compare(alpha(8, 0), 0)
+            compare(alpha(0, 8), 0)
+            verify(alpha(4, 0) > 0)
+            verify(alpha(4, 4) > 0)
+            thm.name = "carbon"
+        }
         function test_stamp_initials() {
             compare(StampTint.initials("Green Coast Trails"), "GC")
             compare(StampTint.initials("lucia"), "L")

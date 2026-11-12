@@ -9,6 +9,8 @@ Rectangle {
     required property Theme theme
     property string initials: ""
     property bool blue: false
+    // The circle's diameter in Carbon. Ignored in Airmail: the stamp is a
+    // fixed stampWidth x stampHeight.
     property real size: theme.avatarSize
     // The Canvas stamp is drawn only in Airmail.
     readonly property bool stampVisible: theme.airmail
@@ -36,7 +38,7 @@ Rectangle {
             ctx.fillStyle = tint
             ctx.fillRect(0, 0, width, height)
             ctx.globalCompositeOperation = "destination-out"
-            ctx.fillStyle = "#000000"
+            ctx.fillStyle = tint
             for (var x = 0; x <= width; x += 8) {
                 for (var edge = 0; edge < 2; edge++) {
                     ctx.beginPath()
@@ -60,7 +62,7 @@ Rectangle {
         text: root.initials
         color: root.theme.airmail ? (root.blue ? root.theme.heading : root.theme.accent) : root.theme.text
         font.family: root.theme.fontTitle
-        font.pixelSize: root.theme.airmail ? 17 : root.size * 0.34
+        font.pixelSize: root.theme.stampInitialSize(root.size)
         font.weight: Font.DemiBold
     }
 }

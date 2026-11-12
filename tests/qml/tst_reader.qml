@@ -131,6 +131,16 @@ Item {
             compare(find("headerSubject").text, "Invoice 0042")
         }
 
+        function test_header_stamp_is_airmail_only() {
+            open(view([], 0))
+            compare(find("headerStamp").item, null)
+            thm.name = "airmail"
+            verify(find("headerStamp").item !== null)
+            compare(find("headerSender").text, "Ana Ruiz")
+            thm.name = "carbon"
+            compare(find("headerStamp").item, null)
+        }
+
         function test_body_takes_the_body_roles_data() {
             return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
         }
