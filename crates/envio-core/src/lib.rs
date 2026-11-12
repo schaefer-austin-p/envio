@@ -51,7 +51,7 @@ pub use servers::{ServerAddr, Service};
 pub use text::count::{CountKind, count_text};
 pub use text::link::{looks_like, malformed as link_malformed, userinfo_decoration};
 pub use text::notice::start_failed;
-pub use text::setup::ispdb_note;
+pub use text::setup::{ispdb_note, trust_title};
 // What the app's glue names without depending on envio-net.
 pub use envio_net::autoconfig::Source as SetupSource;
 pub use envio_net::{Roots, RootsSource, Security};

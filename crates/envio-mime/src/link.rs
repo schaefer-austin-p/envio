@@ -111,7 +111,8 @@ pub fn link_parts(url: &str) -> Option<LinkParts> {
         _ => return None,
     };
     let (host, port) = split_port(hostport)?;
-    if port.is_some_and(|p| !p.chars().all(|c| c.is_ascii_digit())) {
+    // A port is digits only and at most 65535.
+    if port.is_some_and(|p| p.parse::<u16>().is_err() || !p.chars().all(|c| c.is_ascii_digit())) {
         return None;
     }
     // Browsers percent-decode the host before IDNA, so show that one.
@@ -200,8 +201,83 @@ fn host_forms(host: &str) -> Option<(String, Option<String>)> {
         return Some((host.to_owned(), None));
     }
     let ascii = idna::domain_to_ascii(host).ok()?;
+    // IDNA maps look-alikes (fullwidth @ or /) into characters that end or
+    // split a host; what the browser would parse differently is refused.
+    if ascii.is_empty()
+        || ascii
+            .chars()
+            .any(|c| c.is_control() || c.is_whitespace() || "@/\\:?#%[]<>^|".contains(c))
+    {
+        return None;
+    }
+    if ends_in_number(&ascii) {
+        return Some((ipv4(&ascii)?, None));
+    }
     let (unicode, result) = idna::domain_to_unicode(&ascii);
     result.ok()?;
     let punycode = (unicode != ascii).then_some(ascii);
     Some((unicode, punycode))
+}
+
+/// WHATWG "ends in a number": the browser then reads the host as IPv4.
+fn ends_in_number(host: &str) -> bool {
+    let mut parts: Vec<&str> = host.split('.').collect();
+    if parts.last() == Some(&"") {
+        if parts.len() == 1 {
+            return false;
+        }
+        parts.pop();
+    }
+    let last = parts.last().copied().unwrap_or("");
+    (!last.is_empty() && last.bytes().all(|b| b.is_ascii_digit())) || ipv4_number(last).is_some()
+}
+
+/// One IPv4 part: decimal, `0x` hex or leading-zero octal.
+fn ipv4_number(part: &str) -> Option<u64> {
+    if part.is_empty() {
+        return None;
+    }
+    let (digits, radix) =
+        if let Some(h) = part.strip_prefix("0x").or_else(|| part.strip_prefix("0X")) {
+            (h, 16)
+        } else if part.len() >= 2 && part.starts_with('0') {
+            (&part[1..], 8)
+        } else {
+            (part, 10)
+        };
+    if digits.is_empty() {
+        return Some(0);
+    }
+    u64::from_str_radix(digits, radix).ok()
+}
+
+/// The dotted address a browser reaches for `3232235777`, `0x7f.1`, ...
+fn ipv4(host: &str) -> Option<String> {
+    let mut parts: Vec<&str> = host.split('.').collect();
+    if parts.last() == Some(&"") && parts.len() > 1 {
+        parts.pop();
+    }
+    if parts.len() > 4 {
+        return None;
+    }
+    let numbers: Vec<u64> = parts
+        .iter()
+        .map(|p| ipv4_number(p))
+        .collect::<Option<_>>()?;
+    let (last, head) = numbers.split_last()?;
+    if head.iter().any(|&n| n > 255) || *last >= 256u64.pow(5 - u32::try_from(numbers.len()).ok()?)
+    {
+        return None;
+    }
+    let mut addr = *last;
+    for (i, n) in head.iter().enumerate() {
+        addr += n * 256u64.pow(3 - u32::try_from(i).ok()?);
+    }
+    Some(format!(
+        "{}.{}.{}.{}",
+        addr >> 24,
+        (addr >> 16) & 255,
+        (addr >> 8) & 255,
+        addr & 255
+    ))
 }

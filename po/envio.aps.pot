@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 17:44+0100\n"
+"POT-Creation-Date: 2026-11-12 17:51+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -109,22 +109,22 @@ msgstr ""
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:128
+#: qml/pages/accounts/AccountsPage.qml:129
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:147
-#: qml/pages/accounts/AccountsPage.qml:162
+#: qml/pages/accounts/AccountsPage.qml:148
+#: qml/pages/accounts/AccountsPage.qml:163
 #: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:160
+#: qml/pages/accounts/AccountsPage.qml:161
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:161
+#: qml/pages/accounts/AccountsPage.qml:162
 msgid "Keep account"
 msgstr ""
 

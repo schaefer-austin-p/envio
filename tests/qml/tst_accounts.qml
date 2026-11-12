@@ -57,7 +57,7 @@ Item {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Up to date", state: "ok", unread: 0, unreadText: "",
-                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
             updateClosed.clear()
         }
@@ -161,7 +161,7 @@ Item {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Certificate changed", state: "pin", unread: 0, unreadText: "",
-                                   pinService: "smtp", pinHost: "smtp.example.org", pinFingerprint: "AB:CD", pinHex: "abcd",
+                                   pinService: "smtp", pinHost: "smtp.example.org", pinTitle: "Can't verify the outgoing mail server (SMTP)", pinFingerprint: "AB:CD", pinHex: "abcd",
                                    pinText: "The server's certificate is not the one you trusted." })
             function buttons() { return certButtons() }
             // Rows of the cleared model can linger until they are deleted.
@@ -179,6 +179,7 @@ Item {
             compare(find("fingerprint", dlg.contentItem).text, "AB:CD")
             // The title names the server, not the address.
             compare(dlg.host, "smtp.example.org")
+            compare(dlg.title, "Can't verify the outgoing mail server (SMTP)")
             dlg.close()
         }
         // A certificate problem without details (no fingerprint to look at)
@@ -187,7 +188,7 @@ Item {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "The server certificate needs your attention", state: "pin", unread: 0, unreadText: "",
-                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             tryVerify(function() {
                 return everything(page, []).filter(function(o) { return o.objectName === "status" && o.visible && o.text.indexOf("attention") >= 0 }).length >= 1
             })

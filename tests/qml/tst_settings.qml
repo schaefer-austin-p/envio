@@ -152,7 +152,7 @@ Item {
 
         function test_sync_says_what_checking_means() {
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
-                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             sync.visible = true
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
             verify(find("whileOpen-ann", sync).selected)
@@ -187,7 +187,7 @@ Item {
             mouseClick(find("window-30", sync))
             verify(find("window-30", sync).selected)
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
-                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
             mouseClick(find("whileOpen-ann", sync))
             verify(find("whileOpen-ann", sync).selected)

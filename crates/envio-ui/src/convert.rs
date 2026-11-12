@@ -47,21 +47,30 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
 /// The certificate fields of an account row for a status: filled for a
 /// certificate problem with details, empty otherwise.
 pub fn set_pin(row: &mut AccountRow, status: &AccountStatus, text: &str) {
-    let (service, host, fingerprint, hex, text) = match status {
+    let (service, host, title, fingerprint, hex, text) = match status {
         AccountStatus::Certificate(Some(d)) => (
             match d.service {
                 Service::Imap => "imap",
                 Service::Smtp => "smtp",
             },
             d.host.clone(),
+            envio_core::trust_title(d.service),
             d.presented.display(),
             d.presented.to_hex(),
             text,
         ),
-        _ => ("", String::new(), String::new(), String::new(), ""),
+        _ => (
+            "",
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            "",
+        ),
     };
     service.clone_into(&mut row.pin.service);
     row.pin.host = host;
+    row.pin.title = title;
     row.pin.fingerprint = fingerprint;
     row.pin.hex = hex;
     text.clone_into(&mut row.pin.text);

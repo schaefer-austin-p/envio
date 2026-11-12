@@ -220,3 +220,42 @@ fn the_format_character_set_is_complete() {
         assert!(!out.contains(c), "{c:?}");
     }
 }
+
+#[test]
+fn fullwidth_at_and_slash_do_not_forge_a_host() {
+    assert_eq!(link_parts("https://paypal.com\u{FF20}evil.example/"), None);
+    assert_eq!(link_parts("https://evil.example\u{FF0F}x/"), None);
+}
+
+#[test]
+fn numeric_ipv4_hosts_are_shown_as_the_browser_reaches_them() {
+    for (url, host) in [
+        ("http://3232235777/", "192.168.1.1"),
+        ("http://0x7f.1/", "127.0.0.1"),
+        ("https://0300.0250.1.1/", "192.168.1.1"),
+        ("http://192.168.1.1./", "192.168.1.1"),
+        ("http://10.0.0.1:8080/", "10.0.0.1"),
+    ] {
+        assert_eq!(
+            link_parts(url).unwrap_or_else(|| panic!("{url}")).host,
+            host,
+            "{url}"
+        );
+    }
+    // Looks numeric but is not an address, or does not fit.
+    for url in [
+        "http://4294967296/",
+        "http://1.2.3.4.5/",
+        "http://256.1.1.1/",
+        "http://1.2.3.999999/",
+    ] {
+        assert_eq!(link_parts(url), None, "{url}");
+    }
+    assert_eq!(link_parts("http://1.example/").unwrap().host, "1.example");
+}
+
+#[test]
+fn a_port_above_65535_is_malformed() {
+    assert_eq!(link_parts("https://a.example:65536/"), None);
+    assert!(link_parts("https://a.example:65535/").is_some());
+}

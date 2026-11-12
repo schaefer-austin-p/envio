@@ -28,6 +28,8 @@ pub struct PinRow {
     pub service: String,
     /// The server the certificate came from.
     pub host: String,
+    /// The dialog title, chosen by the core: names the server (IMAP or SMTP).
+    pub title: String,
     /// The presented fingerprint as the dialog shows it.
     pub fingerprint: String,
     /// The presented fingerprint in the form `AcceptCertificate` takes.
@@ -115,6 +117,7 @@ const ACCOUNT: &[&str] = &[
     "unreadText",
     "pinService",
     "pinHost",
+    "pinTitle",
     "pinFingerprint",
     "pinHex",
     "pinText",
@@ -167,6 +170,7 @@ impl Row {
             (Self::Account(r), "unreadText") => s(&r.unread_text),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
+            (Self::Account(r), "pinTitle") => s(&r.pin.title),
             (Self::Account(r), "pinFingerprint") => s(&r.pin.fingerprint),
             (Self::Account(r), "pinHex") => s(&r.pin.hex),
             (Self::Account(r), "pinText") => s(&r.pin.text),
