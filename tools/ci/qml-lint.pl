@@ -35,7 +35,7 @@ for my $file (@ARGV) {
             }
             $code .= '  ';
             $i += 2;
-        } elsif ($c eq '"' || $c eq "'") {
+        } elsif ($c eq '"' || $c eq "'" || $c eq '`') {
             my $q = $c;
             my $start = $i;
             $code .= $q;
@@ -48,7 +48,13 @@ for my $file (@ARGV) {
             }
             $code .= $q;
             $i++;
-            push @strings, [$start, substr($src, $start, $i - $start)];
+            my $text = substr($src, $start, $i - $start);
+            # A template string's ${...} is code this blanking would hide.
+            if ($q eq '`' && $text =~ /\$\{/) {
+                print "$file:" . line_of($src, $start) . ": template string with \${} (blanked, so not checked; use + or .arg())\n";
+                $bad = 1;
+            }
+            push @strings, [$start, $text];
         } else {
             $code .= $c;
             $i++;
@@ -109,7 +115,8 @@ for my $file (@ARGV) {
         $bad = 1;
     }
     my @lines = split /\n/, $src, -1;
-    while ($code =~ /\bText\.(AutoText|StyledText|MarkdownText)\b/g) {
+    # Any enum scope counts: Text., TextEdit. and Qt. all name the same values.
+    while ($code =~ /\b(?:Qt|Text|TextEdit)\.(AutoText|StyledText|MarkdownText)\b/g) {
         my ($kind, $ln) = ($1, line_of($code, $-[0]));
         next if $kind eq 'StyledText'
             && (($lines[$ln - 1] =~ /styled-ok/) || ($ln > 1 && $lines[$ln - 2] =~ /styled-ok/));
@@ -124,6 +131,17 @@ for my $file (@ARGV) {
     # alias or a helper function is not caught.
     while ($code =~ /(?:\+(?!=)\s*[\w.\[\]]*\.(?:unread|count)\b(?![\w(])|[\w.\]]\.(?:unread|count)\b\s*\+(?![+=])|\.arg\(\s*[\w.\[\]]*\b(?:unread|count)\b(?![\w(]))/g) {
         print "$file:" . line_of($code, $-[0]) . ": a count role in text (use the text role from Rust, e.g. unreadText)\n";
+        $bad = 1;
+    }
+
+    # Every textFormat value is a literal enum from a short list, so an alias
+    # or an expression cannot carry AutoText past the checks above. (A
+    # format set from JS, e.g. `item.textFormat = x`, is not caught.)
+    while ($code =~ /(?<![\w.])textFormat\s*:\s*([^\n;}]*)/g) {
+        my $v = $1;
+        $v =~ s/\s+$//;
+        next if $v =~ /^(?:Text|TextEdit|Qt)\.(?:PlainText|RichText|StyledText|AutoText|MarkdownText)$/;
+        print "$file:" . line_of($code, $-[0]) . ": textFormat must be a literal (Text.PlainText or Text.RichText), not '$v'\n";
         $bad = 1;
     }
 
