@@ -184,3 +184,72 @@ async fn a_search_that_runs_out_of_time_gives_the_guess() {
     .unwrap();
     assert_eq!(found.source, Source::Guess);
 }
+
+/// Answers like `Scripted`, each lookup after `delay` and the ISPDB
+/// after `ispdb_delay`.
+struct Slow {
+    script: Scripted,
+    delay: Duration,
+    ispdb_delay: Duration,
+}
+
+impl Lookups for Slow {
+    async fn fetch(&self, url: &str) -> Option<String> {
+        let wait = if url.contains("thunderbird.net") {
+            self.ispdb_delay
+        } else {
+            self.delay
+        };
+        tokio::time::sleep(wait).await;
+        self.script.fetch(url).await
+    }
+
+    async fn srv(&self, name: &str) -> Vec<SrvRecord> {
+        tokio::time::sleep(self.delay).await;
+        self.script.srv(name).await
+    }
+}
+
+#[tokio::test]
+async fn a_slower_ispdb_still_wins_over_the_provider() {
+    let mut script = Scripted::default();
+    script.files.insert(
+        "https://autoconfig.thunderbird.net/v1.1/example.org".into(),
+        config("ispdb.example.org"),
+    );
+    script.files.insert(
+        "https://autoconfig.example.org/mail/config-v1.1.xml".into(),
+        config("provider.example.org"),
+    );
+    let lookups = Slow {
+        script,
+        delay: Duration::ZERO,
+        ispdb_delay: Duration::from_millis(200),
+    };
+    let found = autoconfig::detect("me@example.org", &lookups)
+        .await
+        .unwrap();
+    assert_eq!(found.source, Source::Ispdb);
+}
+
+#[tokio::test]
+async fn slow_lookups_wait_side_by_side_not_one_after_another() {
+    // Three file fetches and four SRV queries of 400 ms each: 2.8 s one
+    // after another, 0.8 s when each step's lookups run at once.
+    let delay = Duration::from_millis(400);
+    let lookups = Slow {
+        script: srv_pair("imap.example.org.", "smtp.example.org."),
+        delay,
+        ispdb_delay: delay,
+    };
+    let started = std::time::Instant::now();
+    let found = autoconfig::detect("me@example.org", &lookups)
+        .await
+        .unwrap();
+    assert_eq!(found.source, Source::Srv);
+    assert!(
+        started.elapsed() < Duration::from_millis(2000),
+        "took {:?}",
+        started.elapsed()
+    );
+}

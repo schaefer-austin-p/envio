@@ -10,7 +10,12 @@ mod srv;
 pub mod xml;
 
 use std::future::Future;
+use std::sync::OnceLock;
 use std::time::Duration;
+
+use futures::StreamExt;
+use futures::stream::FuturesOrdered;
+use hickory_resolver::TokioResolver;
 
 use crate::error::{NetError, Result};
 use crate::tls::Roots;
@@ -32,9 +37,12 @@ pub trait Lookups: Sync {
 }
 
 /// The real thing: HTTPS checked against `roots`, DNS from the system.
+/// Make one per detect: it builds its DNS resolver on the first SRV
+/// query and reuses it for the rest.
 pub struct Internet {
     roots: Roots,
     limit: Duration,
+    resolver: OnceLock<Option<TokioResolver>>,
 }
 
 impl Internet {
@@ -45,7 +53,11 @@ impl Internet {
     /// As `new`, with another limit on each fetch (redirects included).
     /// Tests use a short one.
     pub fn with_fetch_limit(roots: Roots, limit: Duration) -> Self {
-        Self { roots, limit }
+        Self {
+            roots,
+            limit,
+            resolver: OnceLock::new(),
+        }
     }
 }
 
@@ -58,7 +70,10 @@ impl Lookups for Internet {
     }
 
     async fn srv(&self, name: &str) -> Vec<SrvRecord> {
-        srv::lookup(name).await
+        match self.resolver.get_or_init(srv::resolver) {
+            Some(resolver) => srv::lookup(resolver, name).await,
+            None => Vec::new(),
+        }
     }
 }
 
@@ -81,18 +96,28 @@ pub async fn detect_within(email: &str, lookups: &impl Lookups, budget: Duration
 }
 
 /// The config files, then SRV; None when neither settles on a pair.
+/// The lookups of each step run at once, so one that waits on a timeout
+/// doesn't hold up the others; the files still count in their order.
 async fn find(domain: &str, email: &str, lookups: &impl Lookups) -> Option<Found> {
-    for (source, url) in plan::config_urls(domain) {
-        let Some(body) = lookups.fetch(&url).await else {
+    let mut files: FuturesOrdered<_> = plan::config_urls(domain)
+        .into_iter()
+        .map(|(source, url)| async move { (source, lookups.fetch(&url).await) })
+        .collect();
+    while let Some((source, body)) = files.next().await {
+        let Some(body) = body else {
             continue;
         };
         if let Some(found) = xml::parse(&body, email).and_then(|c| plan::best(&c, source, domain)) {
             return Some(found);
         }
     }
+    let answers = futures::future::join_all(plan::srv_queries(domain).into_iter().map(
+        |(name, service, security)| async move { (service, security, lookups.srv(&name).await) },
+    ))
+    .await;
     let mut candidates = Candidates::default();
-    for (name, service, security) in plan::srv_queries(domain) {
-        let settings = plan::srv_candidates(lookups.srv(&name).await, security, email);
+    for (service, security, records) in answers {
+        let settings = plan::srv_candidates(records, security, email);
         match service {
             Service::Imap => candidates.imap.extend(settings),
             Service::Smtp => candidates.smtp.extend(settings),
