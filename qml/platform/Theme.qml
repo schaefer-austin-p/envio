@@ -77,7 +77,11 @@ Control {
     // band is frameInset wide between the outer and inner radius (the inner
     // one is the visible corner of a Sheet or dialog). Carbon has none.
     readonly property real frameInset: airmail ? 10 : 0
+    // The ring's outer radius at the bottom corners, which meet the phone's
+    // rounded display corners.
     readonly property real frameOuterRadius: airmail ? 30 : 0
+    // 0: the top edge meets the system bar (indicator or title bar), straight.
+    readonly property real frameTopOuterRadius: 0
     readonly property real frameInnerRadius: airmail ? 20 : 0
     // Cards (a found-at-host card, the reader's body card) and popup menus.
     readonly property real cardRadius: airmail ? 10 : gu(1)

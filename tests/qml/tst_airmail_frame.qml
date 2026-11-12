@@ -38,6 +38,7 @@ Item {
             thm.name = "airmail"
             compare(thm.frameInset, 10)
             compare(thm.frameOuterRadius, 30)
+            compare(thm.frameTopOuterRadius, 0)
             compare(thm.frameInnerRadius, 20)
         }
 
@@ -72,7 +73,7 @@ Item {
             compare(alpha(c, 4, 150), 255)         // left band
             compare(alpha(c, 195, 150), 255)       // right band
             compare(alpha(c, 100, 150), 0)         // inside the ring
-            compare(alpha(c, 1, 1), 0)             // outside the outer radius
+            compare(alpha(c, 1, 298), 0)           // outside the bottom outer radius
             compare(alpha(c, 12, 12), 255)         // the band covers the content corner
             compare(alpha(c, 17, 17), 0)           // inside the inner arc
             // No seam: the ring is whole along the top and the left edge.
@@ -84,6 +85,26 @@ Item {
             compare(ctx.getImageData(80, 5, 1, 1).data[0], 0xB2)
             compare(ctx.getImageData(30, 5, 1, 1).data[0], 0xFB)
             compare(ctx.getImageData(50, 5, 1, 1).data[0], 0x1F)
+        }
+
+        // The top edge meets the system bar, so the top corners are square;
+        // the bottom ones meet the display's rounded corners.
+        function test_top_corners_are_square_bottom_rounded() {
+            compare(thm.frameTopOuterRadius, 0)
+            thm.name = "airmail"
+            compare(thm.frameTopOuterRadius, 0)
+            thm.darkMode = "dark"
+            compare(thm.frameTopOuterRadius, 0)
+            thm.darkMode = "light"
+            const c = frame.ring
+            tryVerify(function() { return c.available })
+            c.requestPaint()
+            wait(100)
+            tryVerify(function() { return alpha(c, 100, 4) === 255 }, 2000)
+            compare(alpha(c, 2, 2), 255)
+            compare(alpha(c, 197, 2), 255)
+            compare(alpha(c, 2, 297), 0)
+            compare(alpha(c, 197, 297), 0)
         }
 
         function test_shell_page_width() {
