@@ -90,6 +90,27 @@ impl Ui {
         }
     }
 
+    /// A page is not coming: forget that it is outstanding, so refreshes
+    /// and paging work again. A failed refresh page ends the walk.
+    pub(super) fn messages_failed(
+        &mut self,
+        (list, after): (ListRef, Option<Cursor>),
+    ) -> Vec<Output> {
+        let Some(cur) = self.current.as_mut().filter(|c| c.list == list) else {
+            return Vec::new();
+        };
+        match after {
+            None if cur.first != First::Idle => {
+                cur.first = First::Idle;
+            }
+            Some(c) if cur.first == First::Walk(c) => cur.first = First::Idle,
+            Some(c) if cur.more == Some(c) => cur.more = None,
+            _ => {}
+        }
+        cur.refresh_again = false;
+        Vec::new()
+    }
+
     pub(super) fn shown(&self, r: &MessageRow) -> Shown {
         let name = self.names.get(&r.account).cloned().unwrap_or_default();
         Shown {

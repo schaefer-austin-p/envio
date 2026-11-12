@@ -275,3 +275,48 @@ fn a_change_during_the_walk_refreshes_again_after_it() {
     );
     assert_eq!(after_of(&outs), vec![None]);
 }
+
+fn failed(ui: &mut Ui, after: Option<envio_core::Cursor>) {
+    feed(ui, Event::MessagesFailed { list: F1, after });
+}
+
+#[test]
+fn a_failed_first_page_lets_a_refresh_through() {
+    let mut ui = Ui::new();
+    let _ = ui.open_list(F1);
+    failed(&mut ui, None);
+    // The list is empty and idle: new mail is asked for again.
+    assert_eq!(sends(&changed(&mut ui, &[1])), 1);
+    let outs = feed(&mut ui, page(F1, None, vec![msg(2, 20)], true));
+    assert_eq!(changes(&outs, Model::Messages).len(), 1);
+}
+
+#[test]
+fn a_failed_refresh_lets_the_next_one_through() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20)], true);
+    assert_eq!(sends(&changed(&mut ui, &[1])), 1);
+    assert!(changed(&mut ui, &[1]).is_empty(), "outstanding");
+    failed(&mut ui, None);
+    assert_eq!(sends(&changed(&mut ui, &[1])), 1);
+}
+
+#[test]
+fn a_failed_walk_page_lets_the_next_refresh_through() {
+    let mut ui = Ui::new();
+    two_pages(&mut ui);
+    changed(&mut ui, &[1]);
+    feed(&mut ui, page(F1, None, vec![msg(4, 40), msg(3, 30)], false));
+    failed(&mut ui, Some(cursor(3, 30)));
+    assert_eq!(sends(&changed(&mut ui, &[1])), 1);
+}
+
+#[test]
+fn a_failed_next_page_can_be_asked_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], false);
+    assert!(ui.more().is_some());
+    assert!(ui.more().is_none());
+    failed(&mut ui, Some(cursor(1, 10)));
+    assert!(ui.more().is_some());
+}

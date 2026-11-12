@@ -105,6 +105,12 @@ pub enum Event {
         /// This page was the last: it held fewer than `PAGE` rows.
         end: bool,
     },
+    /// `ListMessages` could not read the cache (a `Notice` says so): the
+    /// page is not coming.
+    MessagesFailed {
+        list: ListRef,
+        after: Option<Cursor>,
+    },
     /// The answer to `Search` (`server: false`), or to `SearchServer`
     /// (`server: true`, every match: cached and fetched, newest first).
     SearchResults {

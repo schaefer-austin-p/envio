@@ -262,7 +262,10 @@ impl Worker<'_> {
                     end,
                 });
             }
-            Err(e) => self.read_failed(&e),
+            Err(e) => {
+                self.read_failed(&e);
+                self.emit(Event::MessagesFailed { list, after });
+            }
         }
     }
 

@@ -120,6 +120,7 @@ impl Ui {
                 rows,
                 end,
             } => self.messages((list, after), &rows, end),
+            Event::MessagesFailed { list, after } => self.messages_failed((list, after)),
             Event::SearchResults {
                 scope,
                 query,
