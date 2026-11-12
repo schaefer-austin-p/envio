@@ -219,6 +219,28 @@ Item {
             }
         }
 
+        function test_header_addresses_use_the_address_font_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_header_addresses_use_the_address_font(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            const v = view([], 0)
+            v.to = ["me@example.org", "Bob <bob@example.org>"]
+            v.cc = ["cc@example.org"]
+            open(v)
+            compare(find("header-To").font.family, thm.fontAddress)
+            compare(find("header-Cc").font.family, thm.fontAddress)
+            // A row without an address stays in the label font.
+            compare(find("header-Account").font.family, thm.fontLabel)
+        }
+
+        function test_airmail_header_drops_only_the_from_row() {
+            thm.name = "airmail"
+            open(view([], 0))
+            verify(!shown("header-From"))
+            verify(shown("header-To") && shown("header-Date") && shown("header-Account"))
+        }
+
         function test_carbon_header_is_unchanged() {
             open(view([], 0))
             thm.name = "carbon"

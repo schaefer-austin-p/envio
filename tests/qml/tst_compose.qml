@@ -173,6 +173,19 @@ Item {
             verify(!shown("suggestion-0"), "the list closes")
         }
 
+        function test_suggestion_address_uses_the_address_font_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_suggestion_address_uses_the_address_font(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
+            find("to").input.text = "bo"
+            tryVerify(function() { return shown("suggestion-0") }, 2000)
+            compare(find("suggestionAddress-0").font.family, thm.fontAddress)
+        }
+
         function test_an_answer_to_an_earlier_query_is_not_shown() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
                                    inReplyTo: "", references: [], attachments: [] }, "")

@@ -14,14 +14,14 @@ Column {
     readonly property var lines: {
         const when = view.date > 0 ? new Date(view.date * 1000).toLocaleString(Qt.locale(), Locale.ShortFormat) : ""
         const rows = [
-            { label: qsTr("From"), value: view.from },
-            { label: qsTr("To"), value: view.to.join(", ") },
-            { label: qsTr("Cc"), value: view.cc.join(", ") },
-            { label: qsTr("Date"), value: when },
-            { label: qsTr("Account"), value: accountName !== "" ? accountName : view.account }
+            { key: "from", label: qsTr("From"), value: view.from },
+            { key: "to", label: qsTr("To"), value: view.to.join(", ") },
+            { key: "cc", label: qsTr("Cc"), value: view.cc.join(", ") },
+            { key: "date", label: qsTr("Date"), value: when },
+            { key: "account", label: qsTr("Account"), value: accountName !== "" ? accountName : view.account }
         ]
         // Airmail's stamp row carries the sender, so the table drops From.
-        return rows.filter(function(r) { return r.value !== "" && !(theme.airmail && r.label === rows[0].label) })
+        return rows.filter(function(r) { return r.value !== "" && !(theme.airmail && r.key === "from") })
     }
 
     spacing: theme.gu(1.5)
@@ -116,7 +116,9 @@ Column {
                         text: line.modelData.value
                         wrapMode: Text.Wrap
                         color: root.theme.text
-                        font.family: root.theme.fontLabel
+                        // A value with an address is mono, so look-alikes (rn/m) stay distinct.
+                        font.family: line.modelData.value.indexOf("@") >= 0
+                            ? root.theme.fontAddress : root.theme.fontLabel
                         font.pixelSize: 13
                         lineHeight: 1.4
                     }
