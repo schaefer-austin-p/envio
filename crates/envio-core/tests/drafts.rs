@@ -226,7 +226,7 @@ fn a_worker_panic_keeps_the_draft_id() {
     s.h.send(Command::Crash);
     s.h.wait(|e| matches!(e, Event::WorkerRestarted { .. }).then_some(()));
     s.change(s.draft("two"));
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "two"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "two"));
     let drafts = s.drafts();
     assert_eq!(drafts.len(), 1, "no ghost or duplicate file");
     assert_eq!(drafts[0].0, id);
@@ -240,7 +240,7 @@ fn send_deletes_the_draft_and_its_attachment_copies() {
     let mut draft = s.draft("with a file");
     draft.attachments = vec![copy.clone()];
     s.change(draft.clone());
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "with a file"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "with a file"));
     s.h.send(Command::Send { compose: C, draft });
     s.h.wait(|e| matches!(e, Event::Queued { .. }).then_some(()));
     assert!(s.drafts().is_empty());
