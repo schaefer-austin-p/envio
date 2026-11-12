@@ -14,6 +14,10 @@ Item {
     property string defaultAccount: ""
     // The addresses whose images always load.
     property var allowedSenders: []
+    // envio_ui::OlderRow: 0 hidden, 1 ready, 2 loading, 3 done.
+    property int olderRow: 0
+    // The sync window in days; 0 is all mail.
+    property int syncDays: 30
 
     // What the page called, in order.
     property var calls: []
@@ -75,6 +79,8 @@ Item {
     function listFolders(account) { record("listFolders", [account]) }
     function openList(kind, id) { record("openList", [kind, id]) }
     function more() { record("more", []) }
+    function loadOlder() { record("loadOlder", []) }
+    function setSyncWindow(days) { record("setSyncWindow", [days]) }
     function select(id, on) { record("select", [id, on]) }
     function clearSelection() { record("clearSelection", []) }
     // False: the selected row is gone, nothing was acted on.

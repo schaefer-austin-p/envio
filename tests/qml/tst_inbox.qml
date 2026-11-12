@@ -79,6 +79,8 @@ Item {
             core.folders.clear()
             core.messages.clear()
             core.outbox.clear()
+            core.olderRow = 0
+            thm.name = "carbon"
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Up to date", state: "ok", unread: 3, unreadText: "3" })
             core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
@@ -162,6 +164,71 @@ Item {
                 compare(find("rowSender", find("row-22", page)).font.weight, Font.Normal)
             }
             thm.name = "carbon"
+        }
+
+        function in_each_look(body) {
+            for (const look of ["carbon", "airmail"]) {
+                thm.name = look
+                core.reset()
+                core.olderRow = 0
+                body(look)
+            }
+            thm.name = "carbon"
+        }
+
+        function test_older_row_ready_taps_load_older() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 1
+                const tap = find("olderTap", page)
+                verify(tap.visible, look)
+                compare(tap.height, thm.touch, look)
+                compare(tap.width, find("messageList", page).width, look)
+                mouseClick(tap)
+                compare(core.called("loadOlder").length, 1, look)
+                // The Ui pages the new rows in itself: the view never asks.
+                compare(core.called("more").length, 0, look)
+            })
+        }
+
+        function test_older_row_loading_is_not_tappable() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 2
+                const tap = find("olderTap", page)
+                verify(!tap.visible, look)
+                verify(find("olderLoading", page).visible, look)
+                compare(find("olderLoading", page).text, "Loading older messages…", look)
+                mouseClick(find("olderLoading", page))
+                compare(core.called("loadOlder").length, 0, look)
+            })
+        }
+
+        function test_older_row_done_shows_text() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 3
+                verify(find("olderDone", page).visible, look)
+                compare(find("olderDone", page).text, "No older messages", look)
+                compare(find("olderDone", page).color, thm.secondary, look)
+                verify(!find("olderTap", page).visible, look)
+                mouseClick(find("olderDone", page))
+                compare(core.called("loadOlder").length, 0, look)
+            })
+        }
+
+        function test_older_row_hidden_has_no_height() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 0
+                const row = find("olderTap", page).parent
+                compare(row.height, 0, look)
+                verify(!row.visible, look)
+            })
         }
 
         function test_tap_opens_the_message() {

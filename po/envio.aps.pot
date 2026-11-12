@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 16:54+0100\n"
+"POT-Creation-Date: 2026-11-12 17:12+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -186,11 +186,11 @@ msgid "New messages start from this account"
 msgstr ""
 
 #: qml/pages/accounts/OptionsStep.qml:72 qml/pages/settings/SettingsPage.qml:32
-#: qml/pages/settings/SyncPage.qml:20
+#: qml/pages/settings/SyncPage.qml:21
 msgid "Sync"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:77 qml/pages/settings/SyncPage.qml:53
+#: qml/pages/accounts/OptionsStep.qml:77 qml/pages/settings/SyncPage.qml:82
 msgid "While Envio is open"
 msgstr ""
 
@@ -202,7 +202,7 @@ msgstr ""
 msgid "Keep mail for"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:92 qml/pages/settings/SyncPage.qml:72
+#: qml/pages/accounts/OptionsStep.qml:92 qml/pages/settings/SyncPage.qml:45
 msgid "Last 30 days"
 msgstr ""
 
@@ -446,6 +446,18 @@ msgstr ""
 msgid "Undo"
 msgstr ""
 
+#: qml/pages/inbox/LoadOlderRow.qml:22
+msgid "Load older messages"
+msgstr ""
+
+#: qml/pages/inbox/LoadOlderRow.qml:43
+msgid "Loading older messages…"
+msgstr ""
+
+#: qml/pages/inbox/LoadOlderRow.qml:53
+msgid "No older messages"
+msgstr ""
+
 #: qml/pages/inbox/MoveSheet.qml:16 qml/pages/inbox/SelectionBar.qml:42
 #: qml/pages/reader/ReaderMore.qml:19
 msgid "Move to folder"
@@ -656,14 +668,26 @@ msgstr ""
 msgid "No senders yet. Choose \"Always load from this sender\" in a message."
 msgstr ""
 
-#: qml/pages/settings/SyncPage.qml:54
+#: qml/pages/settings/SyncPage.qml:37
+msgid "Keep mail on this phone for"
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:46
+msgid "Last 90 days"
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:47
+msgid "Last year"
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:48
+msgid "All mail"
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:83
 msgid ""
 "New mail arrives while the app is open. When it is closed, Envio does not "
 "check."
-msgstr ""
-
-#: qml/pages/settings/SyncPage.qml:63
-msgid "Keep mail on this phone for"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:8

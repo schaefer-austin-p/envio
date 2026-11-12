@@ -2,14 +2,15 @@ import QtQuick 2.15
 import "../../platform"
 import "../../components"
 
-// Sync (board 13c): per account, what "checking" means (new mail is
-// fetched while Envio is open) and how long mail stays on this phone. The
-// 30 days are fixed in 0.1.0, so that row only tells.
+// Sync (board 13c): how long mail stays on this phone (one choice for all
+// accounts) and, per account, what "checking" means (new mail is fetched
+// while Envio is open).
 Item {
     id: root
     objectName: "syncPage"
     required property Theme theme
     required property var accounts
+    required property var core
     signal backRequested()
 
     TopBar {
@@ -28,6 +29,34 @@ Item {
         Column {
             id: col
             width: parent.width
+            Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2)
+                topPadding: root.theme.gu(2)
+                width: parent.width - root.theme.gu(4)
+                text: qsTr("Keep mail on this phone for")
+                color: root.theme.heading
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
+            Repeater {
+                model: [
+                    { key: "30", days: 30, label: qsTr("Last 30 days") },
+                    { key: "90", days: 90, label: qsTr("Last 90 days") },
+                    { key: "365", days: 365, label: qsTr("Last year") },
+                    { key: "all", days: 0, label: qsTr("All mail") }
+                ]
+                delegate: RadioRow {
+                    required property var modelData
+                    objectName: "window-" + modelData.key
+                    theme: root.theme
+                    width: col.width
+                    text: modelData.label
+                    checked: root.core.syncDays === modelData.days
+                    onActivated: root.core.setSyncWindow(modelData.days)
+                }
+            }
             Repeater {
                 model: root.accounts
                 delegate: Column {
@@ -53,27 +82,6 @@ Item {
                         text: qsTr("While Envio is open")
                         caption: qsTr("New mail arrives while the app is open. When it is closed, Envio does not check.")
                         checked: true
-                    }
-                    Item {
-                        width: parent.width
-                        height: root.theme.touch
-                        Text {
-                            textFormat: Text.PlainText
-                            anchors { left: parent.left; leftMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
-                            text: qsTr("Keep mail on this phone for")
-                            color: root.theme.text
-                            font.family: root.theme.fontUi
-                            font.pixelSize: 16
-                        }
-                        Text {
-                            objectName: "keepFor-" + acct.model.key
-                            textFormat: Text.PlainText
-                            anchors { right: parent.right; rightMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
-                            text: qsTr("Last 30 days")
-                            color: root.theme.secondary
-                            font.family: root.theme.fontUi
-                            font.pixelSize: 15
-                        }
                     }
                 }
             }

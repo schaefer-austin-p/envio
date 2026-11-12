@@ -208,7 +208,7 @@ Item {
     }
     Component {
         id: syncPage
-        SyncPage { theme: root.theme; accounts: root.accounts; onBackRequested: stack.pop() }
+        SyncPage { theme: root.theme; accounts: root.accounts; core: root.core; onBackRequested: stack.pop() }
     }
     Component {
         id: imagesPage

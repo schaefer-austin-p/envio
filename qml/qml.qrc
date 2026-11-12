@@ -5,6 +5,7 @@
         <file>pages/ProblemPage.qml</file>
         <file>pages/inbox/InboxPage.qml</file>
         <file>pages/inbox/AccountTabs.qml</file>
+        <file>pages/inbox/LoadOlderRow.qml</file>
         <file>pages/inbox/MessageList.qml</file>
         <file>pages/inbox/MessageRow.qml</file>
         <file>pages/inbox/FoldersDrawer.qml</file>

@@ -18,7 +18,7 @@ Item {
     }
     AppearancePage { id: appearance; theme: thm; core: core; anchors.fill: parent; visible: false }
     ImagesPage { id: images; theme: thm; core: core; anchors.fill: parent; visible: false }
-    SyncPage { id: sync; theme: thm; accounts: core.accounts; anchors.fill: parent; visible: false }
+    SyncPage { id: sync; theme: thm; core: core; accounts: core.accounts; anchors.fill: parent; visible: false }
     AboutPage { id: about; theme: thm; anchors.fill: parent; visible: false }
     SettingsPage { id: settings; theme: thm; core: core; anchors.fill: parent; visible: false }
     SignalSpy { id: toAppearance; target: settings; signalName: "appearanceRequested" }
@@ -85,6 +85,7 @@ Item {
             core.darkMode = "system"
             core.imagesAlways = false
             core.defaultAccount = ""
+            core.syncDays = 30
             core.allowedSenders = []
             core.accounts.clear()
             for (const p of [appearance, images, sync, about, settings]) p.visible = false
@@ -155,7 +156,29 @@ Item {
             sync.visible = true
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
             verify(find("whileOpen-ann", sync).checked)
-            compare(find("keepFor-ann", sync).text, "Last 30 days")
+        }
+
+        function test_sync_window_choice_calls_set_sync_window() {
+            sync.visible = true
+            const days = { "window-30": 30, "window-90": 90, "window-365": 365, "window-all": 0 }
+            for (const name in days) {
+                core.reset()
+                mouseClick(find(name, sync))
+                compare(core.called("setSyncWindow").length, 1, name)
+                compare(core.called("setSyncWindow")[0].args, [days[name]], name)
+            }
+            compare(find("window-all", sync).text, "All mail")
+            compare(find("window-365", sync).text, "Last year")
+        }
+
+        function test_sync_window_shows_the_current_choice() {
+            sync.visible = true
+            const days = { "window-30": 30, "window-90": 90, "window-365": 365, "window-all": 0 }
+            for (const current in days) {
+                core.syncDays = -1  // the earlier clicks may have left a row ticked: re-evaluate
+                core.syncDays = days[current]
+                for (const name in days) compare(find(name, sync).checked, name === current, current + " " + name)
+            }
         }
 
         function test_about_shows_version_and_commit() {
