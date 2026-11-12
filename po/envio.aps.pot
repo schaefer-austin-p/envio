@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 22:47+0100\n"
+"POT-Creation-Date: 2026-11-12 08:36+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:101
+#: qml/pages/reader/ReaderPage.qml:106
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:221
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:226
 msgid "Try again"
 msgstr ""
 
@@ -304,7 +304,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:152 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:117
+#: qml/pages/reader/ReaderPage.qml:122
 msgid "More actions"
 msgstr ""
 
@@ -419,29 +419,29 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:125
+#: qml/pages/inbox/InboxPage.qml:136
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:132
+#: qml/pages/inbox/InboxPage.qml:143
 msgid "Open menu"
 msgstr ""
 
 #. TRANSLATORS: %1 is how many messages are waiting to be sent,
 #. e.g. "2 messages waiting"; it is left out when none are.
-#: qml/pages/inbox/InboxPage.qml:170
+#: qml/pages/inbox/InboxPage.qml:181
 msgid "Offline. %1"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:171
+#: qml/pages/inbox/InboxPage.qml:182
 msgid "Offline."
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:208
+#: qml/pages/inbox/InboxPage.qml:219
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:254
+#: qml/pages/inbox/InboxPage.qml:265
 msgid "Undo"
 msgstr ""
 
@@ -463,7 +463,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:90
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:109
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:114
 msgid "Delete"
 msgstr ""
 
@@ -561,7 +561,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:196
+#: qml/pages/reader/ReaderPage.qml:201
 msgid "Loading…"
 msgstr ""
 
