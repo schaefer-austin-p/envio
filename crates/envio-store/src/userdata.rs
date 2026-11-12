@@ -60,8 +60,9 @@ pub struct Contact {
     pub address: String,
 }
 
-/// Missing file: defaults. Unreadable file: moved to `<name>.damaged`, then
-/// defaults. Readable files are never replaced here.
+/// Missing file: defaults. A file that is read but does not parse: moved to
+/// `<name>.damaged` (or `.damaged.1`, … so an earlier one is kept), then
+/// defaults. A read error leaves the file in place and is returned.
 pub fn load_settings(path: &Path) -> Result<Settings> {
     load(path)
 }
@@ -86,7 +87,7 @@ fn load<T: serde::de::DeserializeOwned + Default>(path: &Path) -> Result<T> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(T::default()),
-        Err(_) => return set_aside(path),
+        Err(error) => return Err(error.into()),
     };
     match serde_json::from_slice(&bytes) {
         Ok(value) => Ok(value),
@@ -100,11 +101,21 @@ fn save<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
 }
 
 /// Keeps the unreadable file for a bug report and gives back the defaults.
+/// An earlier damaged copy is never replaced.
 fn set_aside<T: Default>(path: &Path) -> Result<T> {
-    let mut name: OsString = path.as_os_str().to_owned();
-    name.push(".damaged");
-    fs::rename(path, name)?;
-    Ok(T::default())
+    let mut n = 0u32;
+    loop {
+        let mut name: OsString = path.as_os_str().to_owned();
+        name.push(".damaged");
+        if n > 0 {
+            name.push(format!(".{n}"));
+        }
+        if !Path::new(&name).exists() {
+            fs::rename(path, name)?;
+            return Ok(T::default());
+        }
+        n += 1;
+    }
 }
 
 #[cfg(test)]

@@ -81,3 +81,32 @@ fn an_unreadable_settings_file_is_moved_aside() {
     assert!(load_contacts(&contacts).unwrap().is_empty());
     assert!(dir.path().join("contacts.json.damaged").exists());
 }
+
+#[test]
+fn a_second_damaged_file_keeps_the_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("settings.json");
+    fs::write(&path, b"first").unwrap();
+    assert_eq!(load_settings(&path).unwrap(), Settings::default());
+    fs::write(&path, b"second").unwrap();
+    assert_eq!(load_settings(&path).unwrap(), Settings::default());
+    assert_eq!(
+        fs::read(dir.path().join("settings.json.damaged")).unwrap(),
+        b"first"
+    );
+    assert_eq!(
+        fs::read(dir.path().join("settings.json.damaged.1")).unwrap(),
+        b"second"
+    );
+}
+
+#[test]
+fn a_read_error_leaves_the_file_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    // A directory where the file should be: reading fails, not parsing.
+    let path = dir.path().join("settings.json");
+    fs::create_dir(&path).unwrap();
+    assert!(load_settings(&path).is_err());
+    assert!(path.is_dir());
+    assert!(!dir.path().join("settings.json.damaged").exists());
+}
