@@ -3,17 +3,20 @@ import QtQuick.Controls 2.15
 import "../platform"
 
 // One choice of a group: a label, an optional caption and a radio dot.
-// The page owns the group: it sets `checked` on the selected row and
+// The page owns the group: it sets `selected` on the selected row and
 // reacts to `activated`.
 AbstractButton {
     id: root
     required property Theme theme
     property string caption: ""
+    // Not AbstractButton.checked: Qt turns checkable on once that is set, and
+    // every tap would then toggle it off under the page's binding.
+    property bool selected: false
     signal activated()
 
     implicitHeight: Math.max(theme.touch, col.implicitHeight + theme.gu(2))
     Accessible.role: Accessible.RadioButton
-    Accessible.checked: checked
+    Accessible.checked: selected
     onClicked: activated()
 
     contentItem: Item {
@@ -58,7 +61,7 @@ AbstractButton {
             border.width: 2
             border.color: root.theme.primary
             Rectangle {
-                visible: root.checked
+                visible: root.selected
                 anchors.centerIn: parent
                 width: 10
                 height: 10

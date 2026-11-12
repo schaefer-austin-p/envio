@@ -53,7 +53,7 @@ Item {
                     theme: root.theme
                     width: col.width
                     text: modelData.label
-                    checked: root.core.syncDays === modelData.days
+                    selected: root.core.syncDays === modelData.days
                     onActivated: root.core.setSyncWindow(modelData.days)
                 }
             }
@@ -81,7 +81,7 @@ Item {
                         width: parent.width
                         text: qsTr("While Envio is open")
                         caption: qsTr("New mail arrives while the app is open. When it is closed, Envio does not check.")
-                        checked: true
+                        selected: true
                     }
                 }
             }

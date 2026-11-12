@@ -46,16 +46,16 @@ Item {
                     objectName: "themeCard-" + modelData.key
                     width: (parent.width - root.theme.gu(1.5)) / 2
                     implicitHeight: root.theme.gu(14)
-                    checked: root.core.theme === modelData.key
+                    property bool selected: root.core.theme === modelData.key
                     text: modelData.label
                     Accessible.role: Accessible.RadioButton
-                    Accessible.checked: checked
+                    Accessible.checked: selected
                     onClicked: root.save(modelData.key, root.core.darkMode)
                     background: Rectangle {
                         radius: root.theme.optionRadius
                         color: card.preview.ground
-                        border.width: card.checked ? 3 : 1
-                        border.color: card.checked ? root.theme.primary : root.theme.hairline
+                        border.width: card.selected ? 3 : 1
+                        border.color: card.selected ? root.theme.primary : root.theme.hairline
                     }
                     contentItem: Item {
                         Rectangle {
@@ -117,7 +117,7 @@ Item {
                 theme: root.theme
                 width: parent.width
                 text: modelData.label
-                checked: root.core.darkMode === modelData.key
+                selected: root.core.darkMode === modelData.key
                 onActivated: root.save(root.core.theme, modelData.key)
             }
         }

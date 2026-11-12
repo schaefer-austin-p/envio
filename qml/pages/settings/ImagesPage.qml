@@ -37,7 +37,7 @@ Item {
                 width: parent.width
                 text: qsTr("Ask each time")
                 caption: qsTr("Mail shows without pictures until you load them.")
-                checked: !root.core.imagesAlways
+                selected: !root.core.imagesAlways
                 onActivated: root.save(false)
             }
             RadioRow {
@@ -46,7 +46,7 @@ Item {
                 width: parent.width
                 text: qsTr("Always")
                 caption: qsTr("Pictures in every message load at once. The sender can tell you opened it.")
-                checked: root.core.imagesAlways
+                selected: root.core.imagesAlways
                 onActivated: root.save(true)
             }
             Text {

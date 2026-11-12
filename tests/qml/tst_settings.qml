@@ -95,15 +95,15 @@ Item {
 
         function test_theme_card_saves_and_applies() {
             appearance.visible = true
-            verify(find("themeCard-carbon", appearance).checked)
+            verify(find("themeCard-carbon", appearance).selected)
             mouseClick(find("themeCard-airmail", appearance))
             compare(core.called("saveSettings").length, 1)
             compare(core.called("saveSettings")[0].args, ["airmail", "system", false, ""])
             // The core answers with the settings; the look changes at once.
             core.theme = "airmail"
             verify(thm.airmail)
-            verify(find("themeCard-airmail", appearance).checked)
-            verify(!find("themeCard-carbon", appearance).checked)
+            verify(find("themeCard-airmail", appearance).selected)
+            verify(!find("themeCard-carbon", appearance).selected)
         }
 
         function test_dark_mode_choice_saves() {
@@ -112,18 +112,18 @@ Item {
             compare(core.called("saveSettings")[0].args, ["carbon", "dark", false, ""])
             core.darkMode = "dark"
             verify(thm.dark)
-            verify(find("darkMode-dark", appearance).checked)
+            verify(find("darkMode-dark", appearance).selected)
             mouseClick(find("darkMode-light", appearance))
             compare(core.called("saveSettings")[1].args, ["carbon", "light", false, ""])
         }
 
         function test_images_always_saves() {
             images.visible = true
-            verify(find("images-ask", images).checked)
+            verify(find("images-ask", images).selected)
             mouseClick(find("images-always", images))
             compare(core.called("saveSettings")[0].args, ["carbon", "system", true, ""])
             core.imagesAlways = true
-            verify(find("images-always", images).checked)
+            verify(find("images-always", images).selected)
             mouseClick(find("images-ask", images))
             compare(core.called("saveSettings")[1].args, ["carbon", "system", false, ""])
         }
@@ -155,7 +155,7 @@ Item {
                                    pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
             sync.visible = true
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
-            verify(find("whileOpen-ann", sync).checked)
+            verify(find("whileOpen-ann", sync).selected)
         }
 
         function test_sync_window_choice_calls_set_sync_window() {
@@ -175,10 +175,27 @@ Item {
             sync.visible = true
             const days = { "window-30": 30, "window-90": 90, "window-365": 365, "window-all": 0 }
             for (const current in days) {
-                core.syncDays = -1  // the earlier clicks may have left a row ticked: re-evaluate
                 core.syncDays = days[current]
-                for (const name in days) compare(find(name, sync).checked, name === current, current + " " + name)
+                for (const name in days) compare(find(name, sync).selected, name === current, current + " " + name)
             }
+        }
+
+        // Qt turns `checkable` on once `checked` is set, so a tap used to
+        // clear a selected row under its binding.
+        function test_tapping_the_selected_choice_keeps_it_checked() {
+            sync.visible = true
+            mouseClick(find("window-30", sync))
+            verify(find("window-30", sync).selected)
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+                                   pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
+            tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
+            mouseClick(find("whileOpen-ann", sync))
+            verify(find("whileOpen-ann", sync).selected)
+            appearance.visible = true
+            mouseClick(find("darkMode-system", appearance))
+            verify(find("darkMode-system", appearance).selected)
+            mouseClick(find("themeCard-carbon", appearance))
+            verify(find("themeCard-carbon", appearance).selected)
         }
 
         function test_about_shows_version_and_commit() {
