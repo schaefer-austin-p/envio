@@ -1,5 +1,7 @@
 import QtQuick 2.15
+import QtQuick.Window 2.15
 import "../platform"
+import "keyboardRect.js" as KeyboardRect
 
 // The primary action pinned to the bottom of a page (board: a bottom bar):
 // 10 px above the button, 16 below, the button controlHeight high, a hairline
@@ -14,8 +16,9 @@ Item {
     required property Theme theme
     default property alias content: body.data
     // The keyboard in window coordinates. Tests set it; on the phone it is
-    // Qt's.
-    property rect keyboard: Qt.inputMethod.keyboardRectangle
+    // Qt's, in logical pixels (Ubuntu Touch reports device pixels).
+    property rect keyboard: KeyboardRect.logical(Qt.inputMethod.keyboardRectangle,
+        Screen.width, Screen.devicePixelRatio)
     // How far the keyboard covers the bottom of the parent.
     readonly property real lift: {
         if (keyboard.height <= 0 || !parent) return 0
