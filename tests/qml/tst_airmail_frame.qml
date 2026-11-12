@@ -104,29 +104,76 @@ Item {
             c.destroy()
         }
 
-        function test_sheet_has_its_own_frame() {
+        // One ring, the shell's: a Sheet or dialog has no frame of its own,
+        // shows its own background, and lies inside the ring's inner area.
+        function test_sheet_lies_inside_the_one_ring() {
             thm.name = "airmail"
             sheet.open()
             tryVerify(function() { return sheet.opened })
-            verify(sheet.contentItem.ring.visible)
-            compare(sheet.contentItem.area.x, thm.frameInset)
-            sheet.close()
-            thm.name = "carbon"
-            sheet.open()
-            tryVerify(function() { return sheet.opened })
-            verify(!sheet.contentItem.ring.visible)
-            compare(sheet.contentItem.area.x, 0)
+            verify(sheet.background.visible)
+            compare(sheet.background.radius, thm.sheetRadius)
+            verify(!sheet.contentItem.ring)
+            compare(sheet.x, thm.frameInset)
+            compare(sheet.width, 400 - 2 * thm.frameInset)
+            compare(sheet.y + sheet.height, 700 - thm.frameInset)
         }
 
-        function test_dialog_has_its_own_frame() {
+        function test_dialog_lies_inside_the_one_ring() {
             thm.name = "airmail"
             dialog.open()
             tryVerify(function() { return dialog.opened })
-            verify(dialog.contentItem.ring.visible)
-            compare(dialog.padding, 0)
-            thm.name = "carbon"
+            verify(dialog.background.visible)
+            compare(dialog.background.radius, thm.dialogRadius)
+            verify(!dialog.contentItem.ring)
+            verify(dialog.x >= thm.frameInset)
+            verify(dialog.x + dialog.width <= 400 - thm.frameInset)
             compare(dialog.padding, thm.gu(2.5))
-            verify(!dialog.contentItem.ring.visible)
+        }
+
+        function test_carbon_sheet_and_dialog_geometry_is_unchanged() {
+            sheet.open()
+            dialog.open()
+            tryVerify(function() { return sheet.opened && dialog.opened })
+            compare(sheet.x, 0)
+            compare(sheet.width, 400)
+            compare(sheet.y + sheet.height, 700)
+            compare(sheet.background.radius, thm.gu(2))
+            compare(dialog.x, thm.gu(2))
+            compare(dialog.y, thm.gu(15))
+            compare(dialog.width, 400 - thm.gu(4))
+            compare(dialog.padding, thm.gu(2.5))
+            compare(dialog.background.radius, thm.gu(1.5))
+        }
+
+        function test_dark_mode_repaints_the_stripes() {
+            thm.name = "airmail"
+            const c = frame.ring
+            tryVerify(function() { return c.available })
+            c.requestPaint()
+            tryVerify(function() { return c.getContext("2d").getImageData(80, 5, 1, 1).data[0] === 0xB2 }, 2000)
+            thm.darkMode = "dark"
+            // Dark red is #C4473F.
+            tryVerify(function() { return c.getContext("2d").getImageData(80, 5, 1, 1).data[0] === 0xC4 }, 2000)
+        }
+
+        function test_problem_page_sits_inside_the_ring() {
+            thm.name = "airmail"
+            const c = coreComponent.createObject(root)
+            const s = shellComponent.createObject(root, {
+                theme: thm, core: c, accounts: c.accounts, folders: c.folders,
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
+                searchResults: c.searchResults, problem: "The store is locked."
+            })
+            let page = null
+            const area = s.frameArea
+            for (let i = 0; i < area.children.length; i++)
+                if (area.children[i].objectName === "problemPage") page = area.children[i]
+            verify(page !== null)
+            verify(page.visible)
+            compare(page.width, 400 - 2 * thm.frameInset)
+            compare(page.x, 0)
+            s.destroy()
+            c.destroy()
         }
     }
 

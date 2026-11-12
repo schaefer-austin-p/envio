@@ -81,6 +81,8 @@ Item {
     // For tests: the page on top and how many there are.
     readonly property Item currentPage: stack.currentItem
     readonly property int depth: stack.depth
+    // The ring's inside, where pages, sheets, dialogs and the problem page lie.
+    readonly property Item frameArea: frame.area
 
     // Compose pages: the core made the compose, the page follows it.
     function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
@@ -141,6 +143,21 @@ Item {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
             }
             replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+        }
+
+        ProblemPage {
+            anchors.fill: parent
+            z: 10
+            visible: root.problem !== ""
+            theme: root.theme
+            text: root.problem
+            busy: root.retrying
+            // The page stays up, busy, until the core is ready or reports again.
+            onRetry: {
+                root.retrying = true
+                root.core.start()
+                root.core.refresh("")
+            }
         }
     }
 
@@ -283,22 +300,7 @@ Item {
         objectName: "sentToast"
         theme: root.theme
         z: 5
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.gu(2) }
-    }
-
-    ProblemPage {
-        anchors.fill: parent
-        z: 10
-        visible: root.problem !== ""
-        theme: root.theme
-        text: root.problem
-        busy: root.retrying
-        // The page stays up, busy, until the core is ready or reports again.
-        onRetry: {
-            root.retrying = true
-            root.core.start()
-            root.core.refresh("")
-        }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.frameInset + root.theme.gu(2) }
     }
 
     Connections {
