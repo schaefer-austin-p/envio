@@ -35,6 +35,8 @@ pub mod qobject {
         #[qproperty(bool, images_always, cxx_name = "imagesAlways")]
         #[qproperty(QString, default_account, cxx_name = "defaultAccount")]
         #[qproperty(QStringList, allowed_senders, cxx_name = "allowedSenders")]
+        #[qproperty(i32, older_row, cxx_name = "olderRow")]
+        #[qproperty(i32, sync_days, cxx_name = "syncDays")]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -187,6 +189,12 @@ pub mod qobject {
         #[qinvokable]
         fn more(self: Pin<&mut EnvioCore>);
         #[qinvokable]
+        #[cxx_name = "loadOlder"]
+        fn load_older(self: Pin<&mut EnvioCore>);
+        #[qinvokable]
+        #[cxx_name = "setSyncWindow"]
+        fn set_sync_window(self: Pin<&mut EnvioCore>, days: i32);
+        #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]
         #[cxx_name = "clearSelection"]
@@ -288,6 +296,10 @@ pub struct EnvioCoreRust {
     pub(crate) images_always: bool,
     pub(crate) default_account: QString,
     pub(crate) allowed_senders: QStringList,
+    /// `envio_ui::OlderRow` as 0 hidden, 1 ready, 2 loading, 3 done.
+    pub(crate) older_row: i32,
+    /// The sync window in days; 0 is all mail.
+    pub(crate) sync_days: i32,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,

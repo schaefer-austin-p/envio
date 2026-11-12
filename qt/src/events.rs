@@ -162,6 +162,7 @@ impl qobject::EnvioCore {
                 self.attach_failed(compose_num(compose), &q(&text));
             }
             Signal::Settings(settings) => self.as_mut().settings_arrived(settings),
+            Signal::OlderRow(row) => self.set_older_row(convert::older_row_code(row)),
             Signal::SearchFailed(t) => self.search_failed(&q(&t)),
             Signal::SearchDone => self.search_done(),
             Signal::Status { account, text } => self.status_text(&q(&account), &q(&text)),
@@ -173,6 +174,8 @@ impl qobject::EnvioCore {
             .set_theme(QString::from(convert::theme_word(settings.theme)));
         self.as_mut()
             .set_dark_mode(QString::from(convert::dark_word(settings.dark)));
+        self.as_mut()
+            .set_sync_days(i32::try_from(settings.sync_window_days).unwrap_or(30));
         self.as_mut()
             .set_images_always(settings.images == envio_core::ImagesDefault::Always);
         self.as_mut().set_default_account(QString::from(
