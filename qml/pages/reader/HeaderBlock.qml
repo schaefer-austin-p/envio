@@ -53,7 +53,7 @@ Column {
                     theme: root.theme
                     initials: StampTint.initials(root.view.from)
                     blue: StampTint.isBlue(StampTint.addressOf(
-                              root.view.fromAddress !== undefined ? root.view.fromAddress : root.view.from))
+                              root.view.fromAddress ? root.view.fromAddress : root.view.from))
                 }
                 Column {
                     x: root.theme.stampWidth + 14
@@ -76,7 +76,8 @@ Column {
                         visible: text !== ""
                         width: parent.width
                         text: root.view.fromAddress !== undefined ? root.view.fromAddress : ""
-                        elide: Text.ElideRight
+                        // The middle goes, so the @domain end stays visible.
+                        elide: Text.ElideMiddle
                         color: root.theme.secondary
                         font.family: root.theme.fontAddress
                         font.pixelSize: 13

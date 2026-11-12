@@ -159,7 +159,9 @@ Item {
             theme: root.theme
             primary: true
             iconName: "send"
-            visibleHeight: 44
+            visibleHeight: theme.compactControlHeight
+            // The tap target stays inside the bar's button row.
+            implicitHeight: Math.min(theme.controlHeight, theme.touch)
             text: qsTr("Send")
             enabled: root.filled && !root.sending
             onClicked: root.send()

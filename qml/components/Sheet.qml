@@ -29,7 +29,7 @@ QC.Popup {
     // Follow the content as it grows after open (a popup left to itself kept
     // its first height on the phone and rested far too low).
     height: implicitHeight
-    y: parent ? Math.max(0, parent.height - height - keyboardInset - ringInset) : 0
+    y: parent ? Math.max(theme.frameInset, parent.height - height - keyboardInset - ringInset) : 0
     padding: 0
 
     // The scrim covers the inner area only: the ring stays undimmed.

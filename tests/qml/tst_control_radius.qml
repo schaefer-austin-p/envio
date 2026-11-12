@@ -62,6 +62,15 @@ Item {
             }
         }
 
+        function test_compact_control_height_and_radius() {
+            compare(thm.compactControlHeight, 44)
+            compare(thm.compactControlRadius, 8)
+            thm.name = "airmail"
+            compare(thm.compactControlHeight, 44)
+            compare(thm.compactControlRadius, thm.compactControlHeight / 2)
+            compare(thm.compactControlRadius, 22)
+        }
+
         function test_airmail_values() {
             thm.name = "airmail"
             compare(thm.controlHeight, 52)

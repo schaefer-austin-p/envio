@@ -267,8 +267,11 @@ Item {
             verify(close.width >= thm.touch && close.height >= thm.touch)
             const send = find("sendButton")
             compare(send.iconName, "send")
-            compare(send.background.height, 44)
+            compare(send.background.height, thm.compactControlHeight)
             const bar = find("topBar")
+            const top = send.mapToItem(bar, 0, 0).y
+            verify(top >= 0 && top + send.height <= bar.height,
+                   "send target " + top + ".." + (top + send.height) + " in bar " + bar.height)
             verify(send.mapToItem(bar, send.width, 0).x <= bar.width - thm.gu(1.5), "right inset")
             verify(send.width >= thm.touch && send.height >= thm.touch)
             compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)

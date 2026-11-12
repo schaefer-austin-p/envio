@@ -478,6 +478,26 @@ Item {
             phoneAvoider.keyboard = Qt.rect(0, 0, 0, 0)
         }
 
+        // A sheet taller than the window keeps clear of the ring's top band in
+        // Airmail (y >= frameInset); Carbon's inset is 0, so it may reach 0.
+        function test_tall_sheet_keeps_the_ring_top_band_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_tall_sheet_keeps_the_ring_top_band(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            growSheet.open()
+            tryVerify(function() { return growSheet.opened })
+            growBody.height = 3000
+            tryVerify(function() { return growSheet.height > growSheet.parent.height })
+            verify(growSheet.y >= thm.frameInset, "y " + growSheet.y)
+            if (data.airmail) compare(growSheet.y, thm.frameInset)
+            else compare(growSheet.y, 0)
+            growSheet.close()
+            tryVerify(function() { return !growSheet.visible })
+            growBody.height = 0
+            thm.name = "carbon"
+        }
+
         // A sheet whose parent does not start at window y 0 rests on the keyboard's top.
         function test_sheet_inset_is_measured_in_window_coordinates() {
             offsetSheet.keyboard = Qt.rect(0, 400, 400, 200)

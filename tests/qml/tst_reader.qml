@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.2
 import "../../qml/platform"
+import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
 import "../../qml/pages/reader"
 
@@ -10,6 +11,7 @@ Item {
     height: 700
 
     Theme { id: thm }
+    Component { id: metricsComponent; TextMetrics {} }
     MockCore { id: mock }
     property var openedUrls: []
     property var exported: []
@@ -182,6 +184,39 @@ Item {
             const table = find("header-To").parent.parent.parent
             verify(table.mapToItem(title, 0, 0).y >= y + thm.stampHeight)
             thm.name = "carbon"
+        }
+
+        // M1: a long (spoofed) address keeps its domain end visible.
+        function test_long_airmail_address_keeps_its_domain() {
+            const v = view([], 0)
+            v.fromAddress = "paypal.com-account-security-verification-team@evil.ru"
+            open(v)
+            thm.name = "airmail"
+            waitForRendering(root.page)
+            const a = find("headerAddress")
+            compare(a.text, v.fromAddress)
+            const m = createTemporaryObject(metricsComponent, root,
+                { font: a.font, elide: a.elide, elideWidth: 200, text: a.text })
+            verify(m.elidedText !== a.text, "elided: " + m.elidedText)
+            verify(m.elidedText.endsWith("@evil.ru"), "shows " + m.elidedText)
+            thm.name = "carbon"
+        }
+
+        // M3: a sender whose address is empty (bidi-spoofed) gets the row's colour.
+        function test_header_stamp_colour_matches_the_row_for_an_empty_address() {
+            const names = ['"PayPal" <service@lapyap.evil>', "Ana Ruiz <ana@example.org>",
+                           "Bob <bob@example.org>", "Cy <cy@x.org>", "Di <di@y.net>", "Ed <ed@z.io>"]
+            for (let i = 0; i < names.length; i++) {
+                const v = view([], 0)
+                v.from = names[i]
+                v.fromAddress = ""
+                open(v)
+                thm.name = "airmail"
+                waitForRendering(root.page)
+                const avatar = find("headerStamp").item.children[0]
+                compare(avatar.blue, StampTint.isBlue(StampTint.addressOf(v.from)), names[i])
+                thm.name = "carbon"
+            }
         }
 
         function test_carbon_header_is_unchanged() {

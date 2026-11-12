@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 13:20+0100\n"
+"POT-Creation-Date: 2026-11-12 14:10+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:106
+#: qml/pages/reader/ReaderPage.qml:107
 msgid "Archive"
 msgstr ""
 
@@ -305,37 +305,37 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:154 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:122
+#: qml/pages/reader/ReaderPage.qml:123
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:163
+#: qml/pages/compose/ComposePage.qml:165
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:207 qml/pages/reader/HeaderBlock.qml:18
+#: qml/pages/compose/ComposePage.qml:209 qml/pages/reader/HeaderBlock.qml:18
 #: crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:220 qml/pages/reader/HeaderBlock.qml:19
+#: qml/pages/compose/ComposePage.qml:222 qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:233
+#: qml/pages/compose/ComposePage.qml:235
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:242
+#: qml/pages/compose/ComposePage.qml:244
 msgid "Cc and Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:252
+#: qml/pages/compose/ComposePage.qml:254
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:271
+#: qml/pages/compose/ComposePage.qml:273
 msgid "Write your message"
 msgstr ""
 
@@ -464,7 +464,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:114
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:115
 msgid "Delete"
 msgstr ""
 
