@@ -58,6 +58,28 @@ Control {
     readonly property real iconSmall: gu(2)
     readonly property real iconButton: gu(2.5)
 
+    // Shapes (boards: airmail-prompts, airmail-compose, carbon-*). Carbon
+    // keeps what the components drew before; Airmail's controls are pills.
+    // Buttons and the Toast: 52 px high in both themes at gu 8.
+    readonly property real controlHeight: airmail ? Math.max(touch, 52) : gu(6.5)
+    readonly property real controlRadius: airmail ? controlHeight / 2 : gu(1)
+    // A button's label: Inter 15 semibold in Airmail, as before in Carbon.
+    readonly property font controlFont: Qt.font({ "family": fontLabel, "pixelSize": 15,
+                                                  "weight": airmail ? Font.DemiBold : Font.Medium })
+    readonly property real fieldRadius: airmail ? 10 : gu(1)
+    readonly property real chipRadius: airmail ? 16 : 6
+    readonly property real dialogRadius: airmail ? 20 : gu(1.5)
+    readonly property real sheetRadius: airmail ? 20 : gu(2)
+    // Cards (a found-at-host card, the reader's body card) and popup menus.
+    readonly property real cardRadius: airmail ? 10 : gu(1)
+    readonly property real menuRadius: airmail ? 10 : gu(1.5)
+    // The theme choice cards in Settings.
+    readonly property real optionRadius: airmail ? 10 : 6
+    // The selection box in a message row (the unread dot is a circle).
+    readonly property real checkRadius: 4
+    // Avatars: circles in Carbon, a small-cornered square in Airmail.
+    function avatarRadius(size) { return airmail ? 4 : size / 2 }
+
     readonly property var roles: ({
         "carbon": {
             "light": { "ground": "#F8F6F1", "surface": "#FFFFFF", "text": "#1E2A38", "heading": "#1E2A38",

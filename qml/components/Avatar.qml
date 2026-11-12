@@ -12,7 +12,7 @@ Rectangle {
 
     implicitWidth: size
     implicitHeight: size
-    radius: theme.airmail ? 4 : size / 2
+    radius: theme.avatarRadius(size)
     color: theme.airmail ? (blue ? theme.tintB : theme.tintA) : theme.tintB
 
     Text {

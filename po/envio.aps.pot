@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 09:38+0100\n"
+"POT-Creation-Date: 2026-11-12 11:49+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,11 +92,11 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:226
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:227
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:224
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:225
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -115,7 +115,8 @@ msgid "Update password"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:147
-#: qml/pages/accounts/AccountsPage.qml:162 qml/pages/settings/ImagesPage.qml:99
+#: qml/pages/accounts/AccountsPage.qml:162
+#: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
@@ -140,7 +141,7 @@ msgstr ""
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
-#: qml/pages/search/SearchPage.qml:196
+#: qml/pages/search/SearchPage.qml:197
 msgid "Cancel"
 msgstr ""
 
@@ -371,11 +372,11 @@ msgstr ""
 msgid "Show quoted text"
 msgstr ""
 
-#: qml/pages/compose/QuoteFold.qml:44
+#: qml/pages/compose/QuoteFold.qml:45
 msgid "Hide"
 msgstr ""
 
-#: qml/pages/compose/QuoteFold.qml:50
+#: qml/pages/compose/QuoteFold.qml:51
 msgid "Remove quoted text"
 msgstr ""
 
@@ -399,23 +400,23 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:98 qml/pages/search/SearchPage.qml:89
+#: qml/pages/inbox/FoldersDrawer.qml:99 qml/pages/search/SearchPage.qml:89
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:109
+#: qml/pages/inbox/FoldersDrawer.qml:110
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:133 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:134 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:141
+#: qml/pages/inbox/FoldersDrawer.qml:142
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:231 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:232 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
@@ -561,7 +562,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:201
+#: qml/pages/reader/ReaderPage.qml:202
 msgid "Loading…"
 msgstr ""
 
@@ -581,15 +582,15 @@ msgstr ""
 msgid "This folder"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:184
+#: qml/pages/search/SearchPage.qml:185
 msgid "Searching the servers…"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:205
+#: qml/pages/search/SearchPage.qml:206
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:213
+#: qml/pages/search/SearchPage.qml:214
 msgid "Finds mail older than the 30 days kept here"
 msgstr ""
 
@@ -614,15 +615,15 @@ msgstr ""
 msgid "Colour scheme"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:109
+#: qml/pages/settings/AppearancePage.qml:110
 msgid "Light"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:110
+#: qml/pages/settings/AppearancePage.qml:111
 msgid "Dark"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:111
+#: qml/pages/settings/AppearancePage.qml:112
 msgid "System"
 msgstr ""
 
@@ -651,7 +652,7 @@ msgstr ""
 msgid "Always load from"
 msgstr ""
 
-#: qml/pages/settings/ImagesPage.qml:72
+#: qml/pages/settings/ImagesPage.qml:73
 msgid "No senders yet. Choose \"Always load from this sender\" in a message."
 msgstr ""
 

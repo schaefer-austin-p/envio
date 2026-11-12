@@ -30,7 +30,7 @@ QC.Popup {
 
     background: Rectangle {
         color: root.theme.ground
-        radius: root.theme.gu(1.5)
+        radius: root.theme.dialogRadius
         border.width: 1
         border.color: root.theme.hairline
     }

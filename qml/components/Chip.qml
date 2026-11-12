@@ -30,7 +30,7 @@ AbstractButton {
         Rectangle {
             visible: !root.theme.airmail
             anchors.fill: parent
-            radius: 6
+            radius: root.theme.chipRadius
             color: root.selected ? root.theme.primary : "transparent"
             border.width: 1
             border.color: root.selected ? root.theme.primary : root.theme.field

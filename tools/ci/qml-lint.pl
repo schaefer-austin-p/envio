@@ -155,6 +155,27 @@ for my $file (@ARGV) {
         }
     }
 
+    # Shapes come from Theme roles (controlRadius, cardRadius, ...): outside
+    # qml/platform/ a radius is a Theme role read or a circle (width / 2,
+    # height / 2). A number, or a gu() size, fails (#68).
+    if ($file !~ m{(?:^|/)qml/platform/}) {
+        while ($code =~ /(?<![\w.])radius\s*:\s*([^\n;}]*)/g) {
+            my ($v, $ln) = ($1, line_of($code, $-[0]));
+            $v =~ s/\s+$//;
+            # A condition choosing between allowed values is allowed.
+            my @alts = $v =~ /^[^?]+\?\s*([^:]+?)\s*:\s*(.+)$/ ? ($1, $2) : ($v);
+            my $ok = 1;
+            for my $alt (@alts) {
+                next if $alt =~ m{^(?:width|height)\s*/\s*2$};
+                next if $alt =~ /\btheme\.\w*[Rr]adius\b/ && $alt !~ /\bgu\s*\(/ && $alt !~ /(?<![\w.])\d/;
+                $ok = 0;
+            }
+            next if $ok;
+            print "$file:$ln: radius '$v' (use a Theme radius role, or width / 2 for a circle)\n";
+            $bad = 1;
+        }
+    }
+
     # Swipe rows: no SwipeDelegate, leadingActions or trailingActions.
     while ($code =~ /\b(SwipeDelegate|leadingActions|trailingActions)\b/g) {
         print "$file:" . line_of($code, $-[0]) . ": $1 (no swipe actions on rows)\n";

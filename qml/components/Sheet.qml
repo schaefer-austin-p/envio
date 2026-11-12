@@ -30,7 +30,7 @@ QC.Popup {
 
     background: Rectangle {
         color: root.theme.ground
-        radius: root.theme.airmail ? root.theme.gu(3.25) : root.theme.gu(2)
+        radius: root.theme.sheetRadius
         // Square off the bottom corners: the sheet sits on the screen edge.
         Rectangle {
             anchors.bottom: parent.bottom
@@ -48,7 +48,7 @@ QC.Popup {
             anchors.horizontalCenter: parent.horizontalCenter
             width: root.theme.gu(5)
             height: 4
-            radius: 2
+            radius: height / 2
             color: root.theme.field
         }
         Text {

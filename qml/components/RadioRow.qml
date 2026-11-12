@@ -53,7 +53,7 @@ AbstractButton {
             anchors.verticalCenter: parent.verticalCenter
             width: 22
             height: 22
-            radius: 11
+            radius: width / 2
             color: "transparent"
             border.width: 2
             border.color: root.theme.primary
@@ -62,7 +62,7 @@ AbstractButton {
                 anchors.centerIn: parent
                 width: 10
                 height: 10
-                radius: 5
+                radius: width / 2
                 color: root.theme.primary
             }
         }

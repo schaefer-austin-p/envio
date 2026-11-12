@@ -23,7 +23,7 @@ ListRow {
         y: root.theme.gu(1.75) + (root.selecting ? 2 : 7)
         width: root.selecting ? 22 : 8
         height: width
-        radius: 4
+        radius: root.selecting ? root.theme.checkRadius : width / 2
         visible: root.selecting || root.model.unread
         color: root.selecting ? (root.model.selected ? root.theme.primary : "transparent") : root.theme.accent
         border.width: root.selecting ? (root.model.selected ? 0 : 2) : 0

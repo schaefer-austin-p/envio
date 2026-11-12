@@ -165,7 +165,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: body.height + root.theme.gu(3)
-                radius: root.theme.gu(1)
+                radius: root.theme.cardRadius
                 color: root.theme.surface
                 Text {
                     id: body

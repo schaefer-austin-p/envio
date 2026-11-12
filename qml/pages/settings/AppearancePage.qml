@@ -52,7 +52,7 @@ Item {
                     Accessible.checked: checked
                     onClicked: root.save(modelData.key, root.core.darkMode)
                     background: Rectangle {
-                        radius: 6
+                        radius: root.theme.optionRadius
                         color: card.preview.ground
                         border.width: card.checked ? 3 : 1
                         border.color: card.checked ? root.theme.primary : root.theme.hairline

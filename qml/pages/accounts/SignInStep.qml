@@ -30,7 +30,7 @@ Flickable {
         Rectangle {
             width: parent.width
             height: found.implicitHeight + root.theme.gu(3)
-            radius: root.theme.gu(1)
+            radius: root.theme.cardRadius
             color: root.theme.surface
             border.width: 1
             border.color: root.theme.hairline

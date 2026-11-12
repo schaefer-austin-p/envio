@@ -28,7 +28,7 @@ Rectangle {
 
     visible: false
     implicitHeight: theme.touch + theme.gu(1)
-    radius: theme.gu(1)
+    radius: theme.controlRadius
     // Inverted: the primary role is dark in light mode and light in dark mode.
     color: theme.primary
 
