@@ -141,11 +141,17 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         Event::Notice { text } => Signal::Notice(text),
         Event::StoreProblem { text } => Signal::StoreProblem(text),
         Event::WorkerRestarted { text } => Signal::WorkerRestarted(text),
-        Event::Detected { email, setup, text } => Signal::Detected {
+        Event::Detected {
+            email,
+            setup,
+            text,
+            servers,
+        } => Signal::Detected {
             email,
             text,
             needs_confirm: setup.needs_confirm,
             setup,
+            servers,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
         Event::TrustPrompt {

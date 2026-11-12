@@ -29,6 +29,8 @@ pub enum Signal {
         /// SRV hosts outside the email domain: ask before the password goes.
         needs_confirm: bool,
         setup: AccountSetup,
+        /// The two guessed servers, one per line.
+        servers: String,
     },
     SetupProblem {
         email: String,

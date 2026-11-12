@@ -41,7 +41,7 @@ Item {
     signal notice(string text)
     signal storeProblem(string text)
     signal workerRestarted(string text)
-    signal detected(string email, string text, bool needsConfirm, string setupJson)
+    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers)
     signal setupProblem(string email, string text)
     signal trustPrompt(string email, string service, string host, string title, string fingerprint, string hex, string text)
     signal accountAdded(string account, string email)

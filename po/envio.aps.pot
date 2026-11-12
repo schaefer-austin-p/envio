@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 22:04+0100\n"
+"POT-Creation-Date: 2026-11-12 22:17+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -101,7 +101,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:98
+#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:99
 msgid "Add account"
 msgstr ""
 
@@ -173,7 +173,7 @@ msgstr ""
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:94 qml/pages/accounts/SignInStep.qml:101
+#: qml/pages/accounts/EmailStep.qml:94 qml/pages/accounts/SignInStep.qml:124
 msgid "Continue"
 msgstr ""
 
@@ -214,61 +214,65 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:57
+#: qml/pages/accounts/ServersStep.qml:70
 msgid "IMAP server"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:59
+#: qml/pages/accounts/ServersStep.qml:72
 msgid "IMAP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:67 qml/pages/accounts/ServersStep.qml:89
+#: qml/pages/accounts/ServersStep.qml:80 qml/pages/accounts/ServersStep.qml:102
 msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:73
+#: qml/pages/accounts/ServersStep.qml:86
 msgid "IMAP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:76
+#: qml/pages/accounts/ServersStep.qml:89
 msgid "SMTP server"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:78
+#: qml/pages/accounts/ServersStep.qml:91
 msgid "SMTP port"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:95
+#: qml/pages/accounts/ServersStep.qml:108
 msgid "SMTP STARTTLS"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:98
+#: qml/pages/accounts/ServersStep.qml:111
 msgid "User name"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:100 qml/pages/accounts/SignInStep.qml:73
+#: qml/pages/accounts/ServersStep.qml:113 qml/pages/accounts/SignInStep.qml:96
 msgid "Password"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:119
+#: qml/pages/accounts/ServersStep.qml:132
 msgid "Connecting…"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:125
+#: qml/pages/accounts/ServersStep.qml:138
 msgid "Connect"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:60
+#: qml/pages/accounts/SignInStep.qml:74
+msgid "Edit servers"
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:83
 msgid ""
 "This provider needs an app password for Envio, not your usual one. Create "
 "one in your account settings."
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:73
+#: qml/pages/accounts/SignInStep.qml:96
 msgid "App password"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:94
+#: qml/pages/accounts/SignInStep.qml:117
 msgid "Signing in…"
 msgstr ""
 
@@ -288,15 +292,15 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:99
+#: qml/pages/accounts/WizardPage.qml:100
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:100
+#: qml/pages/accounts/WizardPage.qml:101
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:101
+#: qml/pages/accounts/WizardPage.qml:102
 msgid "Account options"
 msgstr ""
 
@@ -962,77 +966,89 @@ msgid ""
 "Your password is sent to them. Only continue if you trust them"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:38
+#: crates/envio-core/src/text/setup.rs:45
+msgid "{label}: {host}:{port}, {security}"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:56
+msgid "Incoming (IMAP)"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:57
+msgid "Outgoing (SMTP)"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:63
 #: crates/envio-core/src/text/status.rs:75
 msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:39
+#: crates/envio-core/src/text/setup.rs:64
 #: crates/envio-core/src/text/status.rs:76
 msgid "outgoing mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:43
+#: crates/envio-core/src/text/setup.rs:68
 msgid ""
 "The certificate of the {service} server {host} is not trusted: {reason}. "
 "Check the fingerprint before you accept it"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:56
+#: crates/envio-core/src/text/setup.rs:81
 msgid "Can't verify the incoming mail server (IMAP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:57
+#: crates/envio-core/src/text/setup.rs:82
 msgid "Can't verify the outgoing mail server (SMTP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:65
+#: crates/envio-core/src/text/setup.rs:90
 msgid ""
 "Envio has no trusted certificate authorities on this device, so it cannot "
 "check the server. Please report this problem"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:70
+#: crates/envio-core/src/text/setup.rs:95
 msgid "Confirm the servers before signing in"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:74
+#: crates/envio-core/src/text/setup.rs:99
 msgid "This account is already added"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:78
+#: crates/envio-core/src/text/setup.rs:103
 msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:82
+#: crates/envio-core/src/text/setup.rs:107
 msgid "That certificate fingerprint is not valid"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:86
+#: crates/envio-core/src/text/setup.rs:111
 msgid "That does not look like an email address"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:90
+#: crates/envio-core/src/text/setup.rs:115
 msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:94
+#: crates/envio-core/src/text/setup.rs:119
 msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:98
+#: crates/envio-core/src/text/setup.rs:123
 msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:102
+#: crates/envio-core/src/text/setup.rs:127
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:110
+#: crates/envio-core/src/text/setup.rs:135
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:129
+#: crates/envio-core/src/text/setup.rs:154
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."

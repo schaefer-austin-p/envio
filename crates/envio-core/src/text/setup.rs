@@ -1,11 +1,11 @@
 //! The words for adding and removing accounts.
 
-use crate::Service;
 use crate::api::view::UnsentCounts;
 use crate::i18n::{fill, tr, tr_n};
 use crate::text::status::untrusted_reason;
-use envio_net::Untrusted;
+use crate::{ServerAddr, Service};
 use envio_net::autoconfig::Source;
+use envio_net::{Security, Untrusted};
 
 /// Said before `Detect`: the domain of the address leaves the phone.
 pub fn ispdb_note() -> String {
@@ -30,6 +30,31 @@ pub fn confirm_servers(imap: &str, smtp: &str) -> String {
             "Your domain DNS records point to these servers:\nIncoming: {imap}\nOutgoing: {smtp}\nYour password is sent to them. Only continue if you trust them",
         ),
         &[("imap", imap), ("smtp", smtp)],
+    )
+}
+
+/// The two servers of a form, one per line. The security names are
+/// protocol names and stay as they are.
+pub fn servers(imap: &ServerAddr, smtp: &ServerAddr) -> String {
+    let security = |s: Security| match s {
+        Security::Tls => "TLS",
+        Security::StartTls => "STARTTLS",
+    };
+    let line = |label: &str, a: &ServerAddr| {
+        fill(
+            &tr("{label}: {host}:{port}, {security}"),
+            &[
+                ("label", label),
+                ("host", &a.host),
+                ("port", &a.port.to_string()),
+                ("security", security(a.security)),
+            ],
+        )
+    };
+    format!(
+        "{}\n{}",
+        line(&tr("Incoming (IMAP)"), imap),
+        line(&tr("Outgoing (SMTP)"), smtp)
     )
 }
 
@@ -146,6 +171,24 @@ mod tests {
         assert!(text.contains("2 drafts"), "{text}");
         assert!(!text.contains("change"), "{text}");
         assert!(text.contains("Sent copies"), "{text}");
+    }
+
+    #[test]
+    fn servers_text_names_both_hosts_ports_and_security() {
+        let imap = ServerAddr {
+            host: "imap.example.org".into(),
+            port: 993,
+            security: Security::Tls,
+        };
+        let smtp = ServerAddr {
+            host: "smtp.example.org".into(),
+            port: 587,
+            security: Security::StartTls,
+        };
+        assert_eq!(
+            servers(&imap, &smtp),
+            "Incoming (IMAP): imap.example.org:993, TLS\nOutgoing (SMTP): smtp.example.org:587, STARTTLS"
+        );
     }
 
     #[test]

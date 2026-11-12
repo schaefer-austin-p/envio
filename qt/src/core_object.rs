@@ -59,6 +59,7 @@ pub mod qobject {
             text: &QString,
             needs_confirm: bool,
             setup_json: &QString,
+            servers: &QString,
         );
         #[qsignal]
         #[cxx_name = "setupProblem"]

@@ -63,6 +63,8 @@ pub enum Event {
         email: String,
         setup: AccountSetup,
         text: String,
+        /// The two servers, one per line, whatever the source.
+        servers: String,
     },
     /// Adding the account did not work.
     SetupProblem {

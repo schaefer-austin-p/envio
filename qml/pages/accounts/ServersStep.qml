@@ -21,6 +21,19 @@ Item {
         const n = Number(text)
         return text !== "" && Number.isInteger(n) && n >= 1 && n <= 65535
     }
+    // The fields from a setup record (the keys `detected` carries);
+    // null puts the defaults back.
+    function prefill(setup) {
+        const s = setup || ({})
+        username.text = s.username !== undefined ? s.username : root.email
+        imapHost.text = s.imapHost !== undefined ? s.imapHost : ""
+        imapPort.text = s.imapPort !== undefined ? String(s.imapPort) : "993"
+        imapStarttls.checked = s.imapSecurity === "starttls"
+        smtpHost.text = s.smtpHost !== undefined ? s.smtpHost : ""
+        smtpPort.text = s.smtpPort !== undefined ? String(s.smtpPort) : "587"
+        // Last: the port's change handler sets the toggle from the port.
+        smtpStarttls.checked = setup ? s.smtpSecurity === "starttls" : true
+    }
     function setupJson() {
         return JSON.stringify({
             name: root.email,

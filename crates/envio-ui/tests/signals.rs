@@ -80,6 +80,24 @@ fn setup(confirm: bool) -> AccountSetup {
 }
 
 #[test]
+fn detected_signal_carries_servers() {
+    let mut ui = Ui::new();
+    let outs = feed(
+        &mut ui,
+        Event::Detected {
+            email: "ada@example.org".into(),
+            setup: setup(false),
+            text: "t".into(),
+            servers: "Incoming (IMAP): a:993, TLS".into(),
+        },
+    );
+    assert!(matches!(
+        &signals(&outs)[0],
+        Signal::Detected { servers, .. } if servers == "Incoming (IMAP): a:993, TLS"
+    ));
+}
+
+#[test]
 fn one_shot_events_become_signals() {
     let mut ui = Ui::new();
     let c = ComposeId(4);
@@ -90,6 +108,7 @@ fn one_shot_events_become_signals() {
             email: "ada@example.org".into(),
             setup: setup(true),
             text: "t".into(),
+            servers: "s".into(),
         },
         Event::UndoOffer {
             undo: UndoId(1),
