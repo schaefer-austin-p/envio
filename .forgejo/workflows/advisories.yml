@@ -11,6 +11,11 @@ on:
         description: Branch whose lock files to audit
         default: master
 
+# One run at a time, so two runs never both create the issue.
+concurrency:
+  group: advisories
+  cancel-in-progress: false
+
 jobs:
   advisories:
     runs-on: rust-ci
@@ -37,6 +42,6 @@ jobs:
           cargo audit --json --file qt/Cargo.lock > ../audit-qt.json || true
 
       - name: Update the advisory issue
-        run: node tool/tools/ci/advisory-issue.mjs audit-root.json audit-qt.json
+        run: node tool/tools/ci/advisory-issue.mjs root=audit-root.json qt=audit-qt.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
