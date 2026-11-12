@@ -154,11 +154,11 @@ Item {
         function test_server_note_names_the_sync_window() {
             typeQuery("train")
             tryVerify(function() { return shown("serverNote") })
-            compare(find("serverNote").text, "Finds mail older than the 30 days kept here")
+            compare(find("serverNote").text, "keptdays 30")
             core.syncDays = 90
-            compare(find("serverNote").text, "Finds mail older than the 90 days kept here")
+            compare(find("serverNote").text, "keptdays 90")
             core.syncDays = 365
-            compare(find("serverNote").text, "Finds mail older than the 365 days kept here")
+            compare(find("serverNote").text, "keptdays 365")
             core.syncDays = 0
             compare(find("serverNote").text, "Also asks the mail servers")
             core.syncDays = 30

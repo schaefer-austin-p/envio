@@ -126,6 +126,7 @@ TestCase {
         verify(core.countText("selected", 1) !== core.countText("selected", 2))
         compare(core.countText("results", 1), "1 result")
         compare(core.countText("results", 2), "2 results")
+        compare(core.countText("keptdays", 90), "Finds mail older than the 90 days kept here")
         compare(core.countText("nonsense", 2), "")
     }
 

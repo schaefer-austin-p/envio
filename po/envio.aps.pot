@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 18:30+0100\n"
+"POT-Creation-Date: 2026-11-12 19:21+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -610,11 +610,6 @@ msgstr ""
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:213
-msgctxt ""
-msgid "Finds mail older than the %n days kept here"
-msgstr ""
-
 #: qml/pages/search/SearchPage.qml:214
 msgid "Also asks the mail servers"
 msgstr ""
@@ -743,27 +738,33 @@ msgstr ""
 msgid "Could not save your draft"
 msgstr ""
 
-#: crates/envio-core/src/text/count.rs:20
+#: crates/envio-core/src/text/count.rs:22
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:24
+#: crates/envio-core/src/text/count.rs:26
 msgid "{n} result"
 msgid_plural "{n} results"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:31
+#: crates/envio-core/src/text/count.rs:33
 msgid "{n} message waiting to send"
 msgid_plural "{n} messages waiting to send"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:40
+#: crates/envio-core/src/text/count.rs:42
 msgid "{n} new message"
 msgid_plural "{n} new messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:49
+msgid "Finds mail older than the {n} day kept here"
+msgid_plural "Finds mail older than the {n} days kept here"
 msgstr[0] ""
 msgstr[1] ""
 

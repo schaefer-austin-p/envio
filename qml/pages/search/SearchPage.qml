@@ -210,7 +210,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             // The window is a setting (Settings, Sync); 0 keeps all mail.
             text: root.core.syncDays > 0
-                  ? qsTr("Finds mail older than the %n days kept here", "", root.core.syncDays)
+                  ? root.core.countText("keptdays", root.core.syncDays)
                   : qsTr("Also asks the mail servers")
             wrapMode: Text.WordWrap
             color: root.theme.secondary
