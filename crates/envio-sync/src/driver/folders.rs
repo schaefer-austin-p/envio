@@ -9,7 +9,7 @@ use crate::error::Result;
 use crate::plan::folders::plan_folders;
 use crate::plan::pending::Pending;
 use crate::plan::sync::{
-    FlagCheck, FolderPlan, FolderView, plan_flags, plan_folder, rows, window_start,
+    FlagCheck, FolderPlan, FolderView, Kept, plan_flags, plan_folder, rows, window_start,
 };
 use crate::server::MailServer;
 
@@ -59,9 +59,8 @@ pub const BATCHES_PER_STEP: usize = 2;
 /// The next call plans again from the cache, so it fetches only what is
 /// missing (`begin` is a no-op then: the stored UIDVALIDITY matches).
 ///
-/// `window_days` is the sync window (`None` = all mail); `floor` is the
-/// lowest UID "Load older" reached in this run: cached rows from it up to
-/// the window are kept.
+/// `window_days` is the sync window (`None` = all mail); `kept` is what
+/// "Load older" fetched in this run: those cached rows are kept.
 #[allow(clippy::too_many_arguments)] // the signature the plan fixes
 pub async fn sync_folder(
     server: &mut impl MailServer,
@@ -69,7 +68,7 @@ pub async fn sync_folder(
     id: FolderId,
     now_ms: i64,
     window_days: Option<u32>,
-    floor: Option<u32>,
+    kept: Option<Kept>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
@@ -90,7 +89,7 @@ pub async fn sync_folder(
             window: &window,
             cached: folder.sync,
             cached_uids: &cached_uids,
-            kept_floor: floor,
+            kept,
             condstore: server.caps().condstore,
         },
         &pending,

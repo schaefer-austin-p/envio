@@ -7,6 +7,7 @@ mod support;
 use envio_net::imap::ImapSession;
 use envio_store::FolderRole;
 use envio_sync::driver::{load_older, sync_folder, sync_folders};
+use envio_sync::plan::sync::Kept;
 use support::stalwart::{Stalwart, message, message_id};
 use support::{Store, User, now_ms};
 
@@ -55,7 +56,7 @@ async fn sync(
     session: &mut ImapSession,
     store: &mut Store,
     inbox: envio_store::FolderId,
-    (window, floor): (Option<u32>, Option<u32>),
+    (window, floor): (Option<u32>, Option<Kept>),
 ) {
     while sync_folder(session, &mut store.local(), inbox, now_ms(), window, floor)
         .await
@@ -95,7 +96,7 @@ async fn load_older_fetches_50_then_the_rest_then_is_exhausted() {
     assert_eq!(first.fetched.len(), 50);
     assert!(!first.exhausted);
     assert_eq!(cached(&store, inbox), INSIDE + 50);
-    let second = load_older(&mut session, &mut store.local(), inbox, Some(first.floor))
+    let second = load_older(&mut session, &mut store.local(), inbox, Some(first.kept()))
         .await
         .unwrap();
     assert_eq!(second.fetched.len(), OUTSIDE - 50);
@@ -119,7 +120,7 @@ async fn a_sync_with_the_floor_keeps_everything() {
         &mut session,
         &mut store,
         inbox,
-        (Some(30), Some(first.floor)),
+        (Some(30), Some(first.kept())),
     )
     .await;
     assert_eq!(cached(&store, inbox), INSIDE + 50);

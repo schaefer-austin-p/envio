@@ -10,6 +10,7 @@ use super::folders::store_summaries;
 use crate::error::{Result, SyncError};
 use crate::plan::older::plan_older;
 use crate::plan::pending::Pending;
+use crate::plan::sync::Kept;
 use crate::server::MailServer;
 
 /// One batch of older mail.
@@ -20,13 +21,26 @@ pub struct Older {
     /// The lowest UID planned in this batch, stored or not: the folder's new
     /// kept floor.
     pub floor: u32,
+    /// The oldest cached UID when the first batch of this run was loaded:
+    /// rows from it up are the window's, not kept.
+    pub ceiling: u32,
     /// Nothing older is left on the server.
     pub exhausted: bool,
 }
 
+impl Older {
+    /// What a sync keeps, and what the next batch passes back in.
+    pub fn kept(&self) -> Kept {
+        Kept {
+            floor: self.floor,
+            ceiling: self.ceiling,
+        }
+    }
+}
+
 /// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages
 /// below the folder's oldest cached UID, newest first, in one transaction.
-/// The caller remembers `floor` (and passes it to the next call and to
+/// The caller remembers `kept()` (and passes it to the next call and to
 /// `sync_folder`) so the next sync keeps these rows and the next batch starts
 /// below this one even if nothing was stored.
 ///
@@ -37,7 +51,7 @@ pub async fn load_older(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     folder: FolderId,
-    floor: Option<u32>,
+    kept: Option<Kept>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
     let state = server.select(&row.path).await?;
@@ -54,7 +68,8 @@ pub async fn load_older(
         .first()
         .copied()
         .unwrap_or(state.uid_next)
-        .min(floor.unwrap_or(u32::MAX));
+        .min(kept.map_or(u32::MAX, |kept| kept.floor));
+    let ceiling = kept.map_or(oldest, |kept| kept.ceiling);
     let below = server.search_uids_below(oldest).await?;
     let cached: BTreeSet<u32> = cached_uids.into_iter().collect();
     let plan = plan_older(&below, &cached);
@@ -73,6 +88,7 @@ pub async fn load_older(
     Ok(Older {
         fetched,
         floor,
+        ceiling,
         exhausted: plan.exhausted,
     })
 }

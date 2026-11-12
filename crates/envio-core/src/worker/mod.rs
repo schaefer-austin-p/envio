@@ -44,6 +44,7 @@ use conn::{IdleFuture, Live};
 use dispatch::{Flow, handle};
 use envio_net::Roots;
 use envio_store::{FolderId, FolderRole, ListRef, MessageRowId};
+use envio_sync::plan::sync::Kept;
 use envio_sync::schedule::backoff_ms;
 use store::Store;
 use trust::with_host;
@@ -90,7 +91,7 @@ pub(crate) struct Worker<'s> {
     unread_sent: RefCell<BTreeMap<String, u32>>,
     /// The lowest UID "Load older" reached in each folder, this session
     /// only: a sync keeps the rows from there up to the window.
-    floors: BTreeMap<FolderId, u32>,
+    floors: BTreeMap<FolderId, Kept>,
     /// The `LoadOlder` commands waiting for their folders.
     loads: HashMap<ListRef, older::Load>,
 }

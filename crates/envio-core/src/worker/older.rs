@@ -92,7 +92,7 @@ impl Worker<'_> {
         let floor = self.floors.get(&folder).copied();
         match driver::load_older(session, &mut self.store.local(), folder, floor).await {
             Ok(older) => {
-                self.floors.insert(folder, older.floor);
+                self.floors.insert(folder, older.kept());
                 self.older_done(folder, older.fetched.len(), older.exhausted);
                 Ok(())
             }

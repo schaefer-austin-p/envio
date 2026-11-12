@@ -54,6 +54,8 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
         .unwrap();
     assert_eq!(first.fetched.len(), 50);
     assert_eq!((first.floor, first.exhausted), (51, false));
+    // The window's oldest row when Load older started stays the ceiling.
+    assert_eq!(first.ceiling, 101);
     // One fetch, so one batch and one transaction.
     assert_eq!(fetches(&server), before + 1);
     assert_eq!(store.uids("INBOX").first(), Some(&51));
@@ -65,7 +67,7 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
         .collect();
     assert_eq!(uids, (51..=100).rev().collect::<Vec<_>>());
 
-    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.floor))
+    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
         .await
         .unwrap();
     assert_eq!(second.fetched.len(), 50);
@@ -111,7 +113,7 @@ async fn a_sync_with_the_floor_keeps_older_rows_and_without_it_drops_them() {
         inbox,
         NOW_MS,
         Some(30),
-        Some(older.floor),
+        Some(older.kept()),
     )
     .await
     .unwrap();
@@ -149,7 +151,7 @@ async fn a_whole_batch_of_deleted_mail_does_not_stall_load_older() {
     // Everything in the batch was \Deleted: nothing is stored.
     assert!(first.fetched.is_empty());
     assert_eq!((first.floor, first.exhausted), (51, false));
-    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.floor))
+    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
         .await
         .unwrap();
     assert_eq!(second.fetched.len(), 50);
