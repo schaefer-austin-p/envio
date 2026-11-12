@@ -11,6 +11,7 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_message_size.sql"),
     include_str!("../migrations/0003_search_addresses.sql"),
+    include_str!("../migrations/0004_attachment_mark_name_key.sql"),
 ];
 
 /// The schema version of a fully migrated database.
@@ -230,5 +231,28 @@ mod tests {
         for (index, name) in names.iter().enumerate() {
             assert!(name.starts_with(&format!("{:04}_", index + 1)), "{name}");
         }
+    }
+
+    #[test]
+    fn a_database_that_ran_0003_gets_the_attachment_mark_and_name_key() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..3]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role, uidvalidity, uidnext)
+                 VALUES ('1700', 'INBOX', 'inbox', 7, 43);
+             INSERT INTO messages (folder_id, uid, message_id, subject, date, flags, preview)
+                 VALUES (1, 42, '<a@example.org>', 'Plans', 1800000000, 0, '');
+             INSERT INTO addresses (address, name, last_seen) VALUES ('ada@example.org', 'ADA L', 5);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let (mark, key): (i64, String) = conn
+            .query_row(
+                "SELECT m.has_attachments, a.name_key FROM messages m, addresses a",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((mark, key.as_str()), (0, "ada l"));
     }
 }
