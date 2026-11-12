@@ -13,6 +13,7 @@ pub fn state_word(status: &AccountStatus) -> &'static str {
     match status {
         AccountStatus::Ready | AccountStatus::Syncing | AccountStatus::Removing => "ok",
         AccountStatus::Offline { .. } => "offline",
+        AccountStatus::LocalError { .. } => "local",
         AccountStatus::SignInFailed => "auth",
         AccountStatus::Certificate(_) => "pin",
         AccountStatus::DiskFull => "diskfull",

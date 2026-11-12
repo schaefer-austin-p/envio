@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 08:36+0100\n"
+"POT-Creation-Date: 2026-11-12 09:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -991,62 +991,66 @@ msgstr ""
 msgid "Offline, retrying"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:23
-msgid "Sign-in failed, update password"
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:25
-msgid "The server certificate needs your attention"
+#: crates/envio-core/src/text/status.rs:24
+msgid "Can't read the saved mail on this phone. Retrying."
 msgstr ""
 
 #: crates/envio-core/src/text/status.rs:26
+msgid "Sign-in failed, update password"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:28
+msgid "The server certificate needs your attention"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:29
 msgid "Storage is full, downloads stopped"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:27
+#: crates/envio-core/src/text/status.rs:30
 msgid "Removing account"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:34
+#: crates/envio-core/src/text/status.rs:37
 msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:35
+#: crates/envio-core/src/text/status.rs:38
 msgid "outgoing mail"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:41
+#: crates/envio-core/src/text/status.rs:44
 msgid ""
 "The certificate of the {service} server changed.\n"
 "Old fingerprint: {old}\n"
 "New fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:51
+#: crates/envio-core/src/text/status.rs:54
 msgid ""
 "The certificate of the {service} server is not trusted: {reason}.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:60
+#: crates/envio-core/src/text/status.rs:63
 msgid ""
 "The certificate of the {service} server is not trusted.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:68
+#: crates/envio-core/src/text/status.rs:71
 msgid "self-signed or from an unknown authority"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:69
+#: crates/envio-core/src/text/status.rs:72
 msgid "expired"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:70
+#: crates/envio-core/src/text/status.rs:73
 msgid "issued for another server name"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:71
+#: crates/envio-core/src/text/status.rs:74
 msgid "not valid"
 msgstr ""
 

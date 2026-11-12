@@ -10,7 +10,7 @@ pub struct AccountRow {
     pub email: String,
     /// The status in words.
     pub status: String,
-    /// "ok", "offline", "auth", "pin", "broken" or "diskfull".
+    /// "ok", "offline", "local", "auth", "pin", "broken" or "diskfull".
     pub state: String,
     pub unread: u32,
     /// The certificate to look at, while the status is a certificate

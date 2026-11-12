@@ -44,6 +44,21 @@ pub enum Step {
     Folder(FolderId),
 }
 
+impl Step {
+    /// The step's kind for the backoff: which sort of work keeps failing.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Step::Folders => "folders",
+            Step::Body(_) => "body",
+            Step::SearchServer { .. } => "search",
+            Step::Replay => "replay",
+            Step::Send => "send",
+            Step::File => "file",
+            Step::Folder(_) => "folder",
+        }
+    }
+}
+
 impl Wants {
     /// After the folder list was fetched: a full run becomes its parts, so
     /// each can be done and cleared on its own.

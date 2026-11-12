@@ -30,7 +30,7 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
             if let Some(live) = worker.live.get_mut(account) {
                 live.continuing = None;
             }
-            let response = failed(worker, account, &problem);
+            let response = failed(worker, account, step.kind(), &problem);
             search_failed(worker, account, &step, &problem);
             if matches!(
                 response,
@@ -135,7 +135,7 @@ fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
     finished(worker, account, step);
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
-        live.health.ok(disk_full);
+        live.health.ok_step(step.kind(), disk_full);
         if live.wants.is_empty() {
             live.listed = false;
         } else if live.health.status == crate::health::AccountStatus::Ready {
@@ -175,12 +175,17 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
 
 /// Applies a problem to the account's health. Any problem but a refusal
 /// loses the connection.
-pub(crate) fn failed(worker: &mut Worker<'_>, account: &str, problem: &Problem) -> Response {
+pub(crate) fn failed(
+    worker: &mut Worker<'_>,
+    account: &str,
+    kind: &'static str,
+    problem: &Problem,
+) -> Response {
     let now = now_ms();
     let Some(live) = worker.live.get_mut(account) else {
         return Response::ItemError;
     };
-    let response = live.health.failed(problem, account, now);
+    let response = live.health.failed_step(kind, problem, (account, now));
     if !matches!(problem, Problem::Refused(_)) {
         live.conn = Conn::Closed;
         live.listed = false;

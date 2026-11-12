@@ -90,7 +90,7 @@ impl Worker<'_> {
                 Next::Idle { until_ms } => {
                     if !matches!(live.conn, Conn::Idling(_)) {
                         if let Err(problem) = self.begin_idle(account, until_ms).await {
-                            super::run::failed(self, account, &problem);
+                            super::run::failed(self, account, "connect", &problem);
                             self.open_failed(Some(account));
                             return None;
                         }

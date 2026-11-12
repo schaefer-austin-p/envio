@@ -275,7 +275,7 @@ impl Worker<'_> {
             Err(error) => {
                 live.conn = Conn::Closed;
                 let problem = problem::from_net(&error, Service::Imap);
-                super::run::failed(self, account, &problem);
+                super::run::failed(self, account, "connect", &problem);
                 // Nobody waiting for a body of this account gets it soon.
                 self.open_failed(Some(account));
             }
