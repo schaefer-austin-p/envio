@@ -253,7 +253,7 @@ Item {
             root.undoId = undo
             undoToast.show(text, qsTr("Undo"))
         }
-        function onUndoClosed() { undoToast.hide() }
+        function onUndoClosed(undo) { if (undo === root.undoId) undoToast.hide() }
         function onNotice(text) { noticeToast.show(text) }
     }
 }

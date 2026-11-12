@@ -201,7 +201,18 @@ Item {
             compare(core.called("undo").pop().args, [5])
             core.undoOffer(6, "Deleted")
             verify(toast.visible)
-            core.undoClosed()
+            core.undoClosed(6)
+            verify(!toast.visible)
+        }
+
+        function test_an_older_offer_closing_leaves_the_newer_toast() {
+            const toast = find("undoToast", page)
+            core.undoOffer(7, "Archived “A”")
+            core.undoOffer(8, "Archived “B”")
+            core.undoClosed(7)
+            verify(toast.visible)
+            compare(toast.text, "Archived “B”")
+            core.undoClosed(8)
             verify(!toast.visible)
         }
 

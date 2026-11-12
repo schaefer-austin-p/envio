@@ -59,7 +59,9 @@ pub enum Signal {
         undo: UndoId,
         text: String,
     },
-    UndoClosed,
+    UndoClosed {
+        undo: UndoId,
+    },
     ComposeReady {
         compose: ComposeId,
         draft: DraftInput,

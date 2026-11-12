@@ -95,7 +95,7 @@ pub mod qobject {
         fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString);
         #[qsignal]
         #[cxx_name = "undoClosed"]
-        fn undo_closed(self: Pin<&mut EnvioCore>);
+        fn undo_closed(self: Pin<&mut EnvioCore>, undo: f64);
         #[qsignal]
         #[cxx_name = "composeReady"]
         fn compose_ready(

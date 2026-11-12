@@ -47,7 +47,7 @@ Item {
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
     signal undoOffer(real undo, string text)
-    signal undoClosed()
+    signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted)
     signal draftSaved(real compose)
     signal composeRefused(real compose, string text)

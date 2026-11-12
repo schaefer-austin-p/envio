@@ -241,3 +241,19 @@ fn a_cancelled_server_search_drops_late_failures() {
     );
     assert!(outs.is_empty());
 }
+
+#[test]
+fn undo_closed_carries_its_id() {
+    let mut ui = Ui::new();
+    let outs = feed(
+        &mut ui,
+        Event::UndoClosed {
+            undo: UndoId(7),
+            undone: false,
+        },
+    );
+    match signals(&outs)[..] {
+        [Signal::UndoClosed { undo }] => assert_eq!(*undo, UndoId(7)),
+        ref other => panic!("{other:?}"),
+    }
+}

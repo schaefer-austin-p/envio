@@ -131,7 +131,9 @@ impl qobject::EnvioCore {
                     &q(&text),
                 );
             }
-            Signal::UndoClosed => self.undo_closed(),
+            Signal::UndoClosed { undo } => {
+                self.undo_closed(crate::variant::js_num(i64::try_from(undo.0).unwrap_or(0)));
+            }
             Signal::ComposeReady {
                 compose,
                 draft,
