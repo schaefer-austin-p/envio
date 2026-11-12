@@ -151,7 +151,9 @@ fn removing_an_account_does_not_strand_a_load_on_the_inboxes() {
     let (_, gone, _) = seeded(&mut h, "one@example.org");
     let (_, _, kept) = seeded(&mut h, "two@example.org");
     h.start_core();
-    // Queued together: the removal is handled before any step runs.
+    // The worker sleeps while both commands queue behind the stall, so the
+    // removal is handled before any Older step can run.
+    h.send(Command::Stall { ms: 500 });
     h.send(Command::LoadOlder {
         list: ListRef::Inboxes,
     });

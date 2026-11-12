@@ -138,3 +138,18 @@ fn the_ui_pages_in_the_rows_load_older_fetched_itself() {
         assert_eq!(rows(&feed(&mut ui, page_in)), [last]);
     }
 }
+
+#[test]
+fn no_page_is_sent_unasked_while_searching() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    // A search starts before the batch is reported.
+    let _ = ui.search(SearchScope::All, "zebra".into(), false);
+    let outs = feed(&mut ui, loaded(9, false));
+    assert!(asked(&outs).is_empty());
+    // Later refreshes of the list behind it ask for nothing extra.
+    let outs = feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], false));
+    assert!(asked(&outs).is_empty());
+    assert!(asked(&feed(&mut ui, changed())).iter().all(Option::is_none));
+}

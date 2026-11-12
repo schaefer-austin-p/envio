@@ -47,6 +47,13 @@ impl Ui {
         if !self.older_paging {
             return Vec::new();
         }
+        let at_end = self.current.as_ref().is_none_or(|c| c.end);
+        if self.searching || at_end {
+            // Nothing to page in (the list ended anyway, or it is not
+            // shown): a later refresh must not send a page nobody asked for.
+            self.older_paging = false;
+            return Vec::new();
+        }
         let Some(command) = self.more() else {
             return Vec::new();
         };
@@ -67,6 +74,7 @@ impl Ui {
         if self.older != OlderRow::Hidden || self.searching || !at_end {
             return Vec::new();
         }
+        self.older_paging = false;
         let row = if self.older_done {
             OlderRow::Done
         } else {
