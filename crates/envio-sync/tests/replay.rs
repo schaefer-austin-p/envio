@@ -21,7 +21,7 @@ async fn synced(server: &mut FakeServer, ids: &[&str]) -> Store {
         .await
         .unwrap();
     let inbox = store.folder("INBOX").id;
-    sync_folder(server, &mut store.local(), inbox, NOW_MS)
+    sync_folder(server, &mut store.local(), inbox, NOW_MS, Some(30), None)
         .await
         .unwrap();
     store
@@ -85,9 +85,16 @@ async fn delete_moves_to_trash_and_deletes_for_good_in_trash() {
     assert!(server.uids("INBOX").is_empty());
     assert_eq!(server.ids("Trash"), ["a@example.org"]);
     let trash = store.folder("Trash").id;
-    sync_folder(&mut server, &mut store.local(), trash, LATER)
-        .await
-        .unwrap();
+    sync_folder(
+        &mut server,
+        &mut store.local(),
+        trash,
+        LATER,
+        Some(30),
+        None,
+    )
+    .await
+    .unwrap();
     let id = store.db.message_at(trash, 1).unwrap().unwrap().id;
     record(&mut store.local(), id, ActionKind::Delete, LATER).unwrap();
     replay(&mut server, &mut store.local(), ACCOUNT, LATER + UNDO_MS)
@@ -219,9 +226,16 @@ async fn moving_back_without_move_or_uidplus_is_not_fooled_by_the_deleted_leftov
         .unwrap();
     assert_eq!(live_ids(&server, "Archive"), 1);
     let archive = store.folder("Archive").id;
-    sync_folder(&mut server, &mut store.local(), archive, LATER)
-        .await
-        .unwrap();
+    sync_folder(
+        &mut server,
+        &mut store.local(),
+        archive,
+        LATER,
+        Some(30),
+        None,
+    )
+    .await
+    .unwrap();
     let id = store.db.message_at(archive, 1).unwrap().unwrap().id;
     let back = ActionKind::Move { to: "INBOX".into() };
     record(&mut store.local(), id, back, LATER).unwrap();

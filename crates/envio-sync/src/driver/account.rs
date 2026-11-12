@@ -45,7 +45,7 @@ pub async fn sync_account(
         return Ok(synced);
     }
     for id in sync_order(&folders) {
-        match sync_folder(server, local, id, now_ms).await {
+        match sync_folder(server, local, id, now_ms, Some(30), None).await {
             Ok(one) => synced.folders.push((id, one)),
             Err(error) => match error.kind() {
                 ErrorKind::Refused => synced.refused.push(id),

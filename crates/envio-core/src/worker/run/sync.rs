@@ -48,7 +48,8 @@ pub(super) async fn folder(
 ) -> Result<(), Problem> {
     // One time for the whole step.
     let now = now_ms();
-    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now)
+    let window = worker.store.settings.sync_window();
+    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now, window, None)
         .await
         .map_err(|e| imap_error(&e))?;
     if let Some(live) = worker.live.get_mut(account) {

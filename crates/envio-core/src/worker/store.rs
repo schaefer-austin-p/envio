@@ -137,8 +137,9 @@ impl Store {
     }
 
     /// Drops bodies outside the sync window, and orphans with no row (#41).
+    /// With window All nothing is pruned by date.
     pub fn sweep_bodies(&self, now_ms: i64) -> envio_store::Result<usize> {
-        let cutoff = window_start(now_ms);
+        let cutoff = window_start(now_ms, self.settings.sync_window()).unwrap_or(i64::MIN);
         self.db.mark_bodies_pruned(cutoff)?;
         self.bodies.retain(&self.db.bodies_to_keep(cutoff)?)
     }

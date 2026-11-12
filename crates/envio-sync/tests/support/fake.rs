@@ -318,6 +318,22 @@ impl MailServer for FakeServer {
             .collect())
     }
 
+    async fn search_all(&mut self) -> Result<Vec<u32>> {
+        self.call("search_all", "")?;
+        Ok(self.selected()?.messages.keys().copied().collect())
+    }
+
+    async fn search_uids_below(&mut self, uid: u32) -> Result<Vec<u32>> {
+        self.call("search_uids_below", &uid.to_string())?;
+        Ok(self
+            .selected()?
+            .messages
+            .keys()
+            .copied()
+            .filter(|found| *found < uid)
+            .collect())
+    }
+
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         self.call("search_message_id", message_id)?;
         let wanted = bare(message_id).to_owned();
