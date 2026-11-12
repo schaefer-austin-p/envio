@@ -203,4 +203,16 @@ mod tests {
         assert!(changed(&sink));
         assert!(worker.live[&account].prefetch_skip.is_empty());
     }
+
+    #[test]
+    fn a_later_good_sync_of_the_folder_turns_prefetch_on_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, folder, ids) = two_candidates(dir.path(), &sink);
+        let refused = SyncError::from(NetError::Refused("no".into()));
+        let _ = settle(&mut worker, (&account, folder), &ids, Err(refused));
+        assert_eq!(next(&worker, &account), None);
+        super::super::sync::folder_synced(&mut worker, &account, (folder, false));
+        assert_eq!(next(&worker, &account), Some(folder));
+    }
 }

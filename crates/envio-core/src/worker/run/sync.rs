@@ -63,13 +63,20 @@ pub(super) async fn folder(
         worker.floors.remove(&id);
         worker.emit(Event::OlderReset);
     }
-    if let Some(live) = worker.live.get_mut(account) {
-        live.continuing = synced.more.then_some(id);
-    }
+    folder_synced(worker, account, (id, synced.more));
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
     }
     Ok(())
+}
+
+/// A sync of the folder worked: it has parts left or not, and a prefetch
+/// the server refused for it is tried again.
+pub(super) fn folder_synced(worker: &mut Worker<'_>, account: &str, (id, more): (FolderId, bool)) {
+    if let Some(live) = worker.live.get_mut(account) {
+        live.continuing = more.then_some(id);
+        live.prefetch_off.remove(&id);
+    }
 }
 
 pub(super) async fn search_server(
