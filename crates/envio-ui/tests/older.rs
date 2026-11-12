@@ -42,17 +42,15 @@ fn older_row_is_ready_at_the_end_of_a_folder() {
 
 #[test]
 fn older_row_is_hidden_for_search() {
+    // Search results are their own page with no row; a search leaves the
+    // row of the list behind it alone, so Back finds it still there.
     let mut ui = Ui::new();
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     let (_, outs) = ui.search(SearchScope::All, "zebra".into(), false);
-    assert_eq!(rows(&outs), [OlderRow::Hidden]);
-    // A late page of the list behind the search does not bring it back.
+    assert!(rows(&outs).is_empty());
     let late = feed(&mut ui, page(F1, None, vec![msg(1, 10)], true));
     assert!(rows(&late).is_empty());
-    assert!(ui.load_older().is_none());
-    // Opening a list again does.
-    let outs = opened(&mut ui, F1, vec![msg(1, 10)], true);
-    assert_eq!(rows(&outs), [OlderRow::Ready]);
+    assert!(ui.load_older().is_some());
 }
 
 #[test]
@@ -140,16 +138,19 @@ fn the_ui_pages_in_the_rows_load_older_fetched_itself() {
 }
 
 #[test]
-fn no_page_is_sent_unasked_while_searching() {
+fn a_batch_loaded_during_a_search_pages_in_once() {
     let mut ui = Ui::new();
     opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
     let _ = ui.load_older().unwrap();
-    // A search starts before the batch is reported.
+    // A search starts before the batch is reported: the list behind it
+    // still takes the batch's rows, once.
     let _ = ui.search(SearchScope::All, "zebra".into(), false);
     let outs = feed(&mut ui, loaded(9, false));
-    assert!(asked(&outs).is_empty());
-    // Later refreshes of the list behind it ask for nothing extra.
-    let outs = feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], false));
+    assert_eq!(asked(&outs), [Some(cursor(1, 10))]);
+    let page_in = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+    assert_eq!(rows(&feed(&mut ui, page_in)), [OlderRow::Ready]);
+    // Later refreshes of the list ask for nothing extra.
+    let outs = feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], true));
     assert!(asked(&outs).is_empty());
     assert!(asked(&feed(&mut ui, changed())).iter().all(Option::is_none));
 }

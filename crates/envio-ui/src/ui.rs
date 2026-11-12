@@ -54,8 +54,6 @@ pub struct Ui {
     /// Rows Load older cached are to be paged in: asked as soon as the
     /// list can take a page.
     older_paging: bool,
-    /// A search is on: there is no "Load older" row.
-    searching: bool,
     mirror: Mirror,
     /// Certificates accepted for the account being set up; the next
     /// `Connect` carries them.

@@ -1,6 +1,7 @@
 //! The "Load older messages" row: shown at the end of a folder or the
-//! unified inbox (never a search), pressed to fetch one batch, and `Done`
-//! once the server has nothing older.
+//! unified inbox, pressed to fetch one batch, and `Done` once the server
+//! has nothing older. Search results are their own page without the row,
+//! so a search leaves it alone: the list behind it keeps its row.
 
 use envio_core::{Command, ListRef};
 
@@ -31,7 +32,6 @@ impl Ui {
     pub(super) fn older_reset(&mut self) -> Vec<Output> {
         self.older_done = false;
         self.older_paging = false;
-        self.searching = false;
         self.set_older(OlderRow::Hidden)
     }
 
@@ -45,12 +45,6 @@ impl Ui {
         Vec::new()
     }
 
-    /// A search is asked: no row for it.
-    pub(super) fn older_search(&mut self) -> Vec<Output> {
-        self.searching = true;
-        self.set_older(OlderRow::Hidden)
-    }
-
     /// Asks for the page below the loaded rows once the list is idle (the
     /// view is not relied on: a short list never scrolls).
     fn older_page_in(&mut self) -> Vec<Output> {
@@ -58,9 +52,9 @@ impl Ui {
             return Vec::new();
         }
         let at_end = self.current.as_ref().is_none_or(|c| c.end);
-        if self.searching || at_end {
-            // Nothing to page in (the list ended anyway, or it is not
-            // shown): a later refresh must not send a page nobody asked for.
+        if at_end {
+            // Nothing to page in (the list ended anyway): a later refresh
+            // must not send a page nobody asked for.
             self.older_paging = false;
             return Vec::new();
         }
@@ -81,7 +75,7 @@ impl Ui {
 
     fn older_ready(&mut self) -> Vec<Output> {
         let at_end = self.current.as_ref().is_some_and(|c| c.end);
-        if self.older != OlderRow::Hidden || self.searching || !at_end {
+        if self.older != OlderRow::Hidden || !at_end {
             return Vec::new();
         }
         self.older_paging = false;
