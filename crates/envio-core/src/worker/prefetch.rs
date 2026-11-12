@@ -34,7 +34,11 @@ impl Worker<'_> {
         let inbox = folders
             .iter()
             .find(|f| f.role == FolderRole::Inbox && f.sync.is_some())?;
-        (!self.prefetch_batch(account, inbox.id, now_ms).is_empty()).then_some(inbox.id)
+        let off = self
+            .live
+            .get(account)
+            .is_some_and(|live| live.prefetch_off.contains(&inbox.id));
+        (!off && !self.prefetch_batch(account, inbox.id, now_ms).is_empty()).then_some(inbox.id)
     }
 
     /// The next messages to download, newest first. Never older than the

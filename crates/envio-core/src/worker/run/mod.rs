@@ -252,6 +252,7 @@ fn rebuild(worker: &mut Worker<'_>) {
                 // Folder ids did not survive.
                 live.continuing = None;
                 live.prefetch_skip.clear();
+                live.prefetch_off.clear();
                 live.wants = super::plan::Wants {
                     full: true,
                     ..super::plan::Wants::default()

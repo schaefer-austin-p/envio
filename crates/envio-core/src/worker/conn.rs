@@ -51,6 +51,9 @@ pub(crate) struct Live {
     /// Messages whose body could not be prefetched: not tried again while
     /// the worker lives.
     pub prefetch_skip: BTreeSet<MessageRowId>,
+    /// Folders the server refused to select for a prefetch: not prefetched
+    /// again while the worker lives.
+    pub prefetch_off: BTreeSet<FolderId>,
 }
 
 impl Live {
@@ -66,6 +69,7 @@ impl Live {
             relist: false,
             continuing: None,
             prefetch_skip: BTreeSet::new(),
+            prefetch_off: BTreeSet::new(),
         }
     }
 }
