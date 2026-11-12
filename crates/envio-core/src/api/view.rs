@@ -58,7 +58,10 @@ pub struct MessageRow {
     /// Whether the message has attachments. The cache keeps no
     /// BODYSTRUCTURE yet, so this is `false` for now.
     pub has_attachments: bool,
+    /// The sender's name, else the address, else a placeholder.
     pub from: String,
+    /// The bare sender address; empty when there is none.
+    pub from_address: String,
     pub subject: String,
     pub preview: String,
     /// Unix seconds; `None` when the message has no usable date.

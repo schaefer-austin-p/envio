@@ -8,13 +8,14 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use envio_mime::{Address, Message as Mime, RenderOptions};
-use envio_store::{BodyState, Cursor, Db, FolderId, ListRef, Message, MessageRowId, PAGE};
+use envio_store::{BodyState, Cursor, ListRef, Message, MessageRowId, PAGE};
 
 use super::Worker;
+use super::rows::rows;
 use super::userdata::{is_known, loads_images};
 use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
-use crate::api::view::{AttachmentRow, FolderRow, MessageHeader, MessageRow, MessageView};
+use crate::api::view::{AttachmentRow, FolderRow, MessageHeader, MessageView};
 use crate::clock::now_ms;
 use crate::text;
 
@@ -185,36 +186,6 @@ fn folder_name(path: &str) -> String {
         Some(last) if !last.is_empty() => last.to_owned(),
         _ => path.to_owned(),
     }
-}
-
-/// The rows for `messages`; `account_of` names the account of a folder.
-pub(super) fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
-    let mut accounts: HashMap<FolderId, String> = HashMap::new();
-    messages
-        .into_iter()
-        .map(|message| {
-            let account = accounts
-                .entry(message.folder)
-                .or_insert_with(|| {
-                    db.folder(message.folder)
-                        .map(|f| f.account)
-                        .unwrap_or_default()
-                })
-                .clone();
-            MessageRow {
-                id: message.id,
-                folder: message.folder,
-                account,
-                cursor: Db::cursor_of(&message),
-                has_attachments: message.envelope.has_attachments,
-                from: message.envelope.from,
-                subject: message.envelope.subject,
-                preview: message.preview,
-                date: (message.envelope.date != 0).then_some(message.envelope.date),
-                flags: message.flags,
-            }
-        })
-        .collect()
 }
 
 impl Worker<'_> {

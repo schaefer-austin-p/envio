@@ -26,3 +26,13 @@ pub fn search_unavailable() -> String {
 pub fn older_unavailable() -> String {
     tr("Couldn't load older messages. Try again when you are online.")
 }
+
+/// Shown in a list row whose message has no usable From.
+pub fn no_sender() -> String {
+    tr("(no sender)")
+}
+
+/// Shown in a list row whose message has a blank subject.
+pub fn no_subject() -> String {
+    tr("(no subject)")
+}

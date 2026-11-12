@@ -9,6 +9,7 @@ mod outbox;
 mod plan;
 mod read;
 mod remove;
+mod rows;
 mod run;
 mod search;
 mod setup;
