@@ -60,14 +60,17 @@ Control {
 
     // Shapes (boards: airmail-prompts, airmail-compose, carbon-*). Carbon
     // keeps what the components drew before; Airmail's controls are pills.
-    // Buttons and the Toast: 52 px high in both themes at gu 8.
+    // Buttons: 52 px high in both themes at gu 8. The Toast is a pill in
+    // Airmail by its own height / 2 (it is touch + gu(1) high).
     readonly property real controlHeight: airmail ? Math.max(touch, 52) : gu(6.5)
     readonly property real controlRadius: airmail ? controlHeight / 2 : gu(1)
     // A button's label: Inter 15 semibold in Airmail, as before in Carbon.
     readonly property font controlFont: Qt.font({ "family": fontLabel, "pixelSize": 15,
                                                   "weight": airmail ? Font.DemiBold : Font.Medium })
     readonly property real fieldRadius: airmail ? 10 : gu(1)
-    readonly property real chipRadius: airmail ? 16 : 6
+    // Chip is an underline tab in Airmail (no rounded box), so the Carbon
+    // value stays; the board's 16 is the recipient chip, already a pill.
+    readonly property real chipRadius: 6
     readonly property real dialogRadius: airmail ? 20 : gu(1.5)
     readonly property real sheetRadius: airmail ? 20 : gu(2)
     // Cards (a found-at-host card, the reader's body card) and popup menus.

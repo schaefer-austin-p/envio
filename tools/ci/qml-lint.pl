@@ -156,22 +156,43 @@ for my $file (@ARGV) {
     }
 
     # Shapes come from Theme roles (controlRadius, cardRadius, ...): outside
-    # qml/platform/ a radius is a Theme role read or a circle (width / 2,
-    # height / 2). A number, or a gu() size, fails (#68).
-    if ($file !~ m{(?:^|/)qml/platform/}) {
-        while ($code =~ /(?<![\w.])radius\s*:\s*([^\n;}]*)/g) {
-            my ($v, $ln) = ($1, line_of($code, $-[0]));
-            $v =~ s/\s+$//;
+    # qml/platform/Theme.qml a radius (radius, topLeftRadius, ... as a
+    # binding, a JS assignment or a Binding { property: "radius" }) is a Theme
+    # role read or a circle (width / 2, height / 2). A number, or a gu()
+    # size, fails (#68).
+    if ($file !~ m{(?:^|/)qml/platform/Theme\.qml$}) {
+        my $radius_ok = sub {
+            my ($v) = @_;
+            $v =~ s/^\s+|\s+$//g;
             # A condition choosing between allowed values is allowed.
             my @alts = $v =~ /^[^?]+\?\s*([^:]+?)\s*:\s*(.+)$/ ? ($1, $2) : ($v);
-            my $ok = 1;
             for my $alt (@alts) {
                 next if $alt =~ m{^(?:width|height)\s*/\s*2$};
                 next if $alt =~ /\btheme\.\w*[Rr]adius\b/ && $alt !~ /\bgu\s*\(/ && $alt !~ /(?<![\w.])\d/;
-                $ok = 0;
+                return 0;
             }
-            next if $ok;
-            print "$file:$ln: radius '$v' (use a Theme radius role, or width / 2 for a circle)\n";
+            return 1;
+        };
+        my @found;
+        # Bindings (and property declarations): `radius: v`, `topLeftRadius: v`.
+        while ($code =~ /(?<![\w.])\w*[Rr]adius\s*:\s*([^\n;}]*)/g) {
+            push @found, [$-[0], $1];
+        }
+        # JS assignments: `item.radius = v`.
+        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*=(?![=>])\s*([^\n;}]*)/g) {
+            push @found, [$-[0], $1];
+        }
+        # Binding { property: "radius"; value: v }, in either order.
+        while ($src =~ /\bBinding\s*\{([^}]*)\}/g) {
+            my ($body, $off) = ($1, $-[0]);
+            next unless $body =~ /property\s*:\s*["']\w*[Rr]adius["']/;
+            push @found, [$off, $body =~ /\bvalue\s*:\s*([^\n;}]*)/ ? $1 : ''];
+        }
+        for my $f (sort { $a->[0] <=> $b->[0] } @found) {
+            my ($off, $v) = @$f;
+            $v =~ s/\s+$//;
+            next if $radius_ok->($v);
+            print "$file:" . line_of($src, $off) . ": radius '$v' (use a Theme radius role, or width / 2 for a circle)\n";
             $bad = 1;
         }
     }
