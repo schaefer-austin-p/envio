@@ -42,15 +42,17 @@ pub(crate) fn carry(tag: &mut Tag, max: u32) {
     }
 }
 
-/// Whether a `width` attribute the message set may stay: a percentage in
-/// (0, 100], or whole pixels above 0 and (when `max > 0`) at most `max`.
-/// Anything else is dropped, so the column sizes itself.
-pub(crate) fn attribute_fits(value: &str, max: u32) -> bool {
+/// A `width` attribute the message set, as it may stay: a percentage in
+/// (0, 100], or whole pixels above 0 and (when `max > 0`) at most `max`,
+/// written as bare digits. `None` drops it, so the column sizes itself.
+pub(crate) fn sane_attribute(value: &str, max: u32) -> Option<String> {
     let value = value.trim();
     if value.ends_with('%') {
-        return attribute_value(value, max).is_some();
+        return attribute_value(value, max);
     }
-    pixels(value).is_some_and(|w| w > 0 && (max == 0 || w <= max))
+    pixels(value)
+        .filter(|&w| w > 0 && (max == 0 || w <= max))
+        .map(|w| w.to_string())
 }
 
 /// The `width` attribute for a CSS width value, `None` when not carried.

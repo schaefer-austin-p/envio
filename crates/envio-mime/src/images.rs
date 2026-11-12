@@ -290,6 +290,11 @@ fn scale(width: Option<u32>, height: Option<u32>, max: u32) -> (Option<u32>, Opt
 /// Drops a `width` the message set on a table, cell or column unless it
 /// is a sane percentage or pixels within `max`.
 fn limit_width(tag: &mut Tag, max: u32) {
-    tag.attrs
-        .retain(|(name, value)| name != "width" || widths::attribute_fits(value, max));
+    tag.attrs = std::mem::take(&mut tag.attrs)
+        .into_iter()
+        .filter_map(|(name, value)| match name.as_str() {
+            "width" => widths::sane_attribute(&value, max).map(|w| (name, w)),
+            _ => Some((name, value)),
+        })
+        .collect();
 }

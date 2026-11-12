@@ -85,6 +85,9 @@ fn other_units_are_not_carried() {
 fn a_width_attribute_the_message_set_is_kept_only_when_sane() {
     let cases = [
         ("20", Some("20")),
+        ("20px", Some("20")),
+        ("12pt", Some("16")),
+        (" 20px!important", Some("20")),
         ("50%", Some("50%")),
         ("999", None),
         ("150%", None),
