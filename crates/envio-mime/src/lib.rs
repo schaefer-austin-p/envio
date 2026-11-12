@@ -9,6 +9,7 @@ mod build;
 mod envelope;
 mod hidden;
 mod images;
+mod linear;
 mod link;
 mod mail;
 mod mailto;

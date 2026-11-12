@@ -141,6 +141,42 @@ Item {
             check("corpus-newsletter-like.html", 6600)
         }
 
+        // The x-extent (px) of the first 80 characters of the paragraph that holds
+        // `marker` (x of the first to x of the last), as laid out
+        // in the reader's read-only TextEdit at width 360. A text column that
+        // Qt squeezes beside a fixed cell shows up as an extent of a few
+        // characters (#90).
+        function columnWidth(name, marker) {
+            const edit = createTemporaryObject(editComponent, root, { text: read(name) })
+            const text = edit.getText(0, edit.length)
+            const from = text.indexOf(marker)
+            verify(from >= 0, marker + " is not in " + name)
+            let to = text.indexOf("\n", from)
+            if (to < 0 || to > from + 80) to = Math.min(text.length, from + 80)
+            let left = 1e9
+            let right = 0
+            for (let i = from; i < to; i++) {
+                const r = edit.positionToRectangle(i)
+                left = Math.min(left, r.x)
+                right = Math.max(right, r.x)
+            }
+            console.info("COLUMN " + name + " " + marker + " width=" + (right - left))
+            return right - left
+        }
+        function test_notice_like_text_column_uses_most_of_the_width() {
+            // #90 passes at 0.6 x 360 px = 216 px.
+            const w = columnWidth("corpus-notice-like.html", "NOTICE-BODY")
+            verify(w >= 216, "the notice's text column is " + w + " px wide")
+            // Measured in the CI image at 360 px: the NOTICE-BODY paragraph's
+            // extent was 41 px and the page 1737 px high before #90, and is
+            // 238 px and 317 px high after. The height bound is 3x that.
+            check("corpus-notice-like.html", 951)
+        }
+        function test_receipt_like_text_column_uses_most_of_the_width() {
+            const w = columnWidth("corpus-receipt-like.html", "Example Plan, monthly")
+            verify(w >= 216, "the receipt's text column is " + w + " px wide")
+        }
+
         // envio-mime caps nesting at 256 levels (MAX_DEPTH): a message that
         // deep or deeper is rendered as plain text. The cap is Rust's; here
         // it is asserted, with the time budget (the phone sets the real one).

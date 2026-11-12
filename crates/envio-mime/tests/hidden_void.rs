@@ -15,7 +15,7 @@ fn hidden_input_keeps_the_rest() {
 #[test]
 fn hidden_col_keeps_the_rest() {
     let out = clean(
-        r#"<table><colgroup><col style="visibility:hidden"></colgroup><tr><td>x</td></tr></table><p>after</p>"#,
+        r#"<table><colgroup><col style="visibility:hidden"></colgroup><tr><td>x</td><td>y</td></tr></table><p>after</p>"#,
     );
     assert!(
         out.contains("<td>x</td>") && out.ends_with("<p>after</p>"),

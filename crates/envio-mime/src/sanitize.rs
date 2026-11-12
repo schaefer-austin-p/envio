@@ -205,7 +205,9 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
         cleaner(&extra).clean(html)
     };
     let clean = clean.to_string();
-    crate::images::fit(&clean, options)
+    let mut rendered = crate::images::fit(&clean, options);
+    rendered.html = crate::linear::linearise(&rendered.html);
+    rendered
 }
 
 /// Runs on every attribute ammonia kept. Links keep their exact address
