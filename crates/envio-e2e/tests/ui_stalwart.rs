@@ -125,8 +125,11 @@ async fn a_draft_survives_a_slow_first_sync() {
     run.core.send(Command::DraftChanged { compose, draft });
     while !draft_texts(&run).iter().any(|t| t.contains(&body)) {
         assert!(
-            start.elapsed() < Duration::from_millis(1_200),
-            "the draft was not on disk within 1.2 s"
+            // The proxy holds each batch for 3 s, so a save that waited
+            // for the sync misses this; the rest is slack for a slow
+            // runner's file sync (#80).
+            start.elapsed() < Duration::from_millis(1_800),
+            "the draft was not on disk within 1.8 s"
         );
         std::thread::sleep(Duration::from_millis(25));
     }

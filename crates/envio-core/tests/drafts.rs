@@ -15,6 +15,10 @@ use support::Harness;
 const ME: &str = "me@example.org";
 const C: ComposeId = ComposeId(1);
 const SAVE_MS: u64 = 1_000;
+/// Time a save may take past its due time. Tests here run in parallel and
+/// each save syncs a file, which on a CI runner has taken over 200 ms
+/// (#80). A save held up by the 3 s stall or a copy still misses it.
+const SLACK_MS: u64 = 800;
 
 struct S {
     h: Harness,
@@ -174,7 +178,7 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     std::thread::sleep(Duration::from_millis(300));
     let start = Instant::now();
     s.change(s.draft("typed while copying"));
-    let limit = Duration::from_millis(SAVE_MS + 300);
+    let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
     let saved = s.wait_for_draft(limit, |d| d.body == "typed while copying");
     s.change(s.draft("typed again"));
     let flush_start = Instant::now();
@@ -199,7 +203,7 @@ fn a_change_is_saved_while_the_worker_is_stalled() {
     s.stall(3_000);
     let start = Instant::now();
     s.change(s.draft("typed"));
-    let limit = Duration::from_millis(SAVE_MS + 200);
+    let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
     assert!(s.wait_for_draft(limit, |d| d.body == "typed"));
     assert!(start.elapsed() < limit + Duration::from_millis(100));
 }
@@ -355,6 +359,11 @@ fn a_panicking_sink_does_not_stop_draft_saving() {
         compose: ComposeId(2),
         draft: s.draft("second"),
     });
-    let limit = Duration::from_millis(SAVE_MS + 200);
+    // This checks the thread survives, not the save's timing. The sink's
+    // panic goes through std's panic hook, which takes the process-wide
+    // backtrace lock; a_worker_panic_keeps_the_draft_id, running alongside,
+    // resolves a worker backtrace under that lock, which took over 1.8 s on
+    // CI's coverage build.
+    let limit = Duration::from_secs(10);
     assert!(s.wait_for_draft(limit, |d| d.body == "second"));
 }
