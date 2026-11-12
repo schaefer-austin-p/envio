@@ -12,6 +12,7 @@ fn message(uid: u32, subject: &str, from: &str, date: i64) -> NewMessage {
             date,
             in_reply_to: None,
             references: Vec::new(),
+            has_attachments: false,
         },
         flags: Flags::empty(),
         preview: String::new(),

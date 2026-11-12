@@ -14,6 +14,7 @@ fn message(uid: u32, subject: &str, date: i64) -> NewMessage {
             date,
             in_reply_to: None,
             references: Vec::new(),
+            has_attachments: false,
         },
         flags: Flags::empty(),
         preview: format!("preview of {subject}"),
@@ -68,6 +69,27 @@ fn upsert_updates_by_uid_and_keeps_the_body_state() {
         db.list(ListRef::Folder(folder), None, 100).unwrap().len(),
         1
     );
+}
+
+#[test]
+fn the_attachment_mark_round_trips_and_a_guess_never_replaces_a_downloaded_value() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = inbox(&db, "a1");
+    let mut guess = message(5, "Plans", 1);
+    guess.envelope.has_attachments = true;
+    let id = db.upsert_message(folder, &guess).unwrap();
+    assert!(db.message(id).unwrap().envelope.has_attachments);
+    // Until the body is downloaded the newest header guess wins.
+    guess.envelope.has_attachments = false;
+    db.upsert_message(folder, &guess).unwrap();
+    assert!(!db.message(id).unwrap().envelope.has_attachments);
+    // The body's exact value is stored, and a later header guess keeps off it.
+    let mut exact = guess.clone();
+    exact.envelope.has_attachments = true;
+    db.upsert_message(folder, &exact).unwrap();
+    db.set_body_state(id, BodyState::Downloaded).unwrap();
+    db.upsert_message(folder, &guess).unwrap();
+    assert!(db.message(id).unwrap().envelope.has_attachments);
 }
 
 #[test]

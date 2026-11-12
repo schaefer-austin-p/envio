@@ -92,6 +92,9 @@ pub struct Envelope {
     pub in_reply_to: Option<String>,
     /// The References header's Message-IDs, oldest first.
     pub references: Vec<String>,
+    /// A non-inline attachment is present. A guess from the headers until
+    /// the body is downloaded, then exact.
+    pub has_attachments: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,7 +146,7 @@ pub const PAGE: u32 = 50;
 
 /// The columns `from_row` reads, from `messages` aliased as `m`.
 pub(crate) const COLUMNS: &str = "m.id, m.folder_id, m.uid, m.message_id, m.subject, \
-     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state, m.size";
+     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state, m.size, m.has_attachments";
 
 pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
     let refs: String = row.get(9)?;
@@ -161,6 +164,7 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
             date: row.get(7)?,
             in_reply_to: row.get(8)?,
             references: refs.split_whitespace().map(str::to_owned).collect(),
+            has_attachments: row.get(14)?,
         },
         flags: Flags::from_bits(row.get(10)?),
         preview: row.get(11)?,
@@ -173,19 +177,23 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
 }
 
 impl Db {
-    /// Adds a message, or updates it by UID. An update keeps the body state.
+    /// Adds a message, or updates it by UID. An update keeps the body state,
+    /// and with a downloaded body keeps `has_attachments` too: a header-only
+    /// guess never replaces the exact value.
     pub fn upsert_message(&self, folder: FolderId, message: &NewMessage) -> Result<MessageRowId> {
         let envelope = &message.envelope;
         let id = self.conn().query_row(
             "INSERT INTO messages (folder_id, uid, message_id, subject, from_addr, to_addrs,
-                                   date, in_reply_to, refs, flags, preview, size)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                                   date, in_reply_to, refs, flags, preview, size, has_attachments)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
              ON CONFLICT (folder_id, uid) DO UPDATE SET
                  message_id = excluded.message_id, subject = excluded.subject,
                  from_addr = excluded.from_addr, to_addrs = excluded.to_addrs,
                  date = excluded.date, in_reply_to = excluded.in_reply_to,
                  refs = excluded.refs, flags = excluded.flags, preview = excluded.preview,
-                 size = excluded.size
+                 size = excluded.size,
+                 has_attachments = CASE WHEN messages.body_state = 1
+                     THEN messages.has_attachments ELSE excluded.has_attachments END
              RETURNING id",
             params![
                 folder.0,
@@ -200,6 +208,7 @@ impl Db {
                 message.flags.bits(),
                 message.preview,
                 message.size,
+                envelope.has_attachments,
             ],
             |row| row.get(0),
         )?;

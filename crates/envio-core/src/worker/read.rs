@@ -206,7 +206,7 @@ pub(super) fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
                 folder: message.folder,
                 account,
                 cursor: Db::cursor_of(&message),
-                has_attachments: false,
+                has_attachments: message.envelope.has_attachments,
                 from: message.envelope.from,
                 subject: message.envelope.subject,
                 preview: message.preview,

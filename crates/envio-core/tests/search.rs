@@ -83,19 +83,6 @@ fn scope_folder_limits_results() {
     assert!(local(&h, SearchScope::Account(two), "zebra").len() == 1);
 }
 
-/// Sets the IMAP pin of an account in the accounts file (before start).
-fn pin_imap(h: &Harness, key: &str, pin: &str) {
-    let path = h.paths().accounts();
-    let text = std::fs::read_to_string(&path).unwrap();
-    let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
-    for entry in json["accounts"].as_array_mut().unwrap() {
-        if entry["key"] == key {
-            entry["settings"]["imap"]["pin"] = pin.into();
-        }
-    }
-    std::fs::write(&path, json.to_string()).unwrap();
-}
-
 /// The search lines a server was sent, with the folder selected before each.
 fn searches(server: &TlsServer) -> Vec<(String, String)> {
     let log = server.log.lock().unwrap();
@@ -139,8 +126,8 @@ fn server_search_of_all_searches_each_inbox() {
     h.foreground = true;
     let one = h.seed_account_at("one@example.org", Some("pw"), a.port);
     let two = h.seed_account_at("two@example.org", Some("pw"), b.port);
-    pin_imap(&h, &one, &a.hex);
-    pin_imap(&h, &two, &b.hex);
+    h.pin_imap(&one, &a.hex);
+    h.pin_imap(&two, &b.hex);
     let body = mail("s", "zebra");
     h.seed_folder_with(&one, "INBOX", FolderRole::Inbox, &[(1, &body)]);
     h.seed_folder_with(&one, "Archive", FolderRole::Archive, &[(1, &body)]);
@@ -167,7 +154,7 @@ fn an_offline_account_reports_search_failed() {
     let mut h = Harness::unstarted();
     h.foreground = true;
     let up = h.seed_account_at("up@example.org", Some("pw"), good.port);
-    pin_imap(&h, &up, &good.hex);
+    h.pin_imap(&up, &good.hex);
     // Nothing listens on port 1.
     let down = h.seed_account("down@example.org", Some("pw"));
     let body = mail("s", "zebra");
@@ -192,7 +179,7 @@ fn a_broken_account_is_never_connected_for_a_search() {
     let mut h = Harness::unstarted();
     h.foreground = true;
     let broken = h.seed_account_at("broken@example.org", Some("pw"), port);
-    pin_imap(&h, &broken, "not-a-pin");
+    h.pin_imap(&broken, "not-a-pin");
     h.start_core();
     let scope = SearchScope::Account(broken);
     h.send(Command::SearchServer {

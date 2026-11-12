@@ -14,6 +14,7 @@ fn message(uid: u32, date: i64, flags: Flags) -> NewMessage {
             date,
             in_reply_to: None,
             references: Vec::new(),
+            has_attachments: false,
         },
         flags,
         preview: String::new(),

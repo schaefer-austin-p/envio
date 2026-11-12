@@ -8,6 +8,7 @@ use envio_core::{
 };
 use envio_store::{BodyState, Db};
 use support::Harness;
+use support::fake::{Kind, serve};
 
 const ME: &str = "me@example.org";
 
@@ -98,6 +99,7 @@ fn list_folders_and_a_page_of_messages() {
     assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].folder, s.folder);
     assert_eq!(rows[0].account, s.key);
+    // The seeded rows' headers named no attachment.
     assert!(!rows[0].has_attachments);
     assert!(rows[0].subject.starts_with("message "));
     assert_eq!(rows[0].from, "Ada <ada@example.org>");
@@ -455,4 +457,45 @@ fn opening_a_message_marks_it_read_without_an_undo_offer() {
         _ => None,
     });
     assert!(!again, "a second open sent no change");
+}
+
+#[test]
+fn a_row_shows_the_attachment_mark_once_the_body_says_so() {
+    let server = serve(Kind::Message);
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let key = h.seed_account_at(ME, Some("pw"), server.port);
+    h.pin_imap(&key, &server.hex);
+    // Cached from the header alone: no mark, and no body yet.
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let folder = db.folders(&key).unwrap()[0].id;
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    db.set_body_state(id, BodyState::Missing).unwrap();
+    drop(db);
+    h.start_core();
+    let rows = |h: &Harness| {
+        h.send(Command::ListMessages {
+            list: ListRef::Folder(folder),
+            after: None,
+        });
+        h.wait(|e| match e {
+            Event::Messages { rows, .. } => Some(rows.clone()),
+            _ => None,
+        })
+    };
+    assert!(!rows(&h)[0].has_attachments);
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessageOpened { id: i, .. } if *i == id => Some(()),
+        _ => None,
+    });
+    // The body is stored before MessageOpened, so the list now has the mark.
+    let rows = rows(&h);
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].has_attachments);
 }

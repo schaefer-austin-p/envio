@@ -19,9 +19,21 @@ pub enum Kind {
     /// Like `Imap`, with an INBOX that holds no mail: LIST, SELECT and
     /// SEARCH answer for it, and every command line is kept in `log`.
     Mailbox,
+    /// Like `Mailbox`, with one message in the INBOX (UID 1, no flags)
+    /// whose whole text is [`MESSAGE`].
+    Message,
     /// Greets, then accepts any AUTH.
     Smtp,
 }
+
+/// What a `Message` server returns for the body of UID 1: text/plain with
+/// one real attachment.
+pub const MESSAGE: &str = "From: Ada <ada@example.org>\r\nSubject: file\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/plain\r\n\r\nsee attached\r\n\
+--XX\r\nContent-Type: text/plain; name=\"x.txt\"\r\n\
+Content-Disposition: attachment; filename=\"x.txt\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
 
 pub struct TlsServer {
     pub port: u16,
@@ -82,6 +94,10 @@ fn handle(
         Kind::Mailbox => {
             tls.write_all(b"* OK fake ready\r\n")?;
             talk(tls, mailbox_reply, log)
+        }
+        Kind::Message => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, message_reply, log)
         }
         Kind::Smtp => {
             tls.write_all(b"220 fake ESMTP\r\n")?;
@@ -149,6 +165,26 @@ fn mailbox_reply(line: &str) -> (String, bool) {
             format!("* SEARCH\r\n{tag} OK done\r\n")
         }
         _ => return imap_reply(line),
+    };
+    (text, false)
+}
+
+fn message_reply(line: &str) -> (String, bool) {
+    let (tag, command) = line.split_once(' ').unwrap_or((line, ""));
+    let upper = command.to_ascii_uppercase();
+    let text = if upper.starts_with("SELECT") {
+        format!(
+            "* 1 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 2] ok\r\n{tag} OK [READ-WRITE] done\r\n"
+        )
+    } else if upper.starts_with("UID FETCH") && upper.contains("BODY.PEEK[]") {
+        format!(
+            "* 1 FETCH (UID 1 BODY[] {{{}}}\r\n{MESSAGE})\r\n{tag} OK done\r\n",
+            MESSAGE.len()
+        )
+    } else if upper.starts_with("UID FETCH") {
+        format!("* 1 FETCH (UID 1 FLAGS ())\r\n{tag} OK done\r\n")
+    } else {
+        return mailbox_reply(line);
     };
     (text, false)
 }

@@ -146,6 +146,19 @@ impl Harness {
         key
     }
 
+    /// Sets the IMAP pin of an account in the accounts file (before start).
+    pub fn pin_imap(&self, key: &str, pin: &str) {
+        let path = self.paths().accounts();
+        let text = std::fs::read_to_string(&path).unwrap();
+        let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        for entry in json["accounts"].as_array_mut().unwrap() {
+            if entry["key"] == key {
+                entry["settings"]["imap"]["pin"] = pin.into();
+            }
+        }
+        std::fs::write(&path, json.to_string()).unwrap();
+    }
+
     /// A folder with messages (uid, eml) and their bodies, in the cache.
     #[allow(clippy::too_many_arguments)] // the signature the plan fixes
     pub fn seed_folder_with(

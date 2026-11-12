@@ -54,7 +54,10 @@ pub fn new_message(summary: &Summary) -> NewMessage {
     NewMessage {
         uid: summary.uid,
         size: summary.size,
-        envelope: store_envelope(&parsed, summary.internal_date.unwrap_or(0)),
+        envelope: Envelope {
+            has_attachments: envio_mime::header_suggests_attachments(&summary.header),
+            ..store_envelope(&parsed, summary.internal_date.unwrap_or(0))
+        },
         flags: store_flags(&summary.flags),
         preview: parsed.preview,
     }
@@ -85,15 +88,14 @@ pub fn row_of(message: &Message) -> NewMessage {
     }
 }
 
-/// `message`'s row again with what the whole message adds: the preview.
+/// `message`'s row again with what the whole message adds: the preview and
+/// the exact attachment flag (sync only guessed it from the header).
 pub fn with_body(message: &Message, eml: &[u8]) -> NewMessage {
-    let preview = envio_mime::envelope(eml)
-        .map(|parsed| parsed.preview)
-        .unwrap_or_default();
-    NewMessage {
-        preview,
-        ..row_of(message)
-    }
+    let parsed = envio_mime::envelope(eml).unwrap_or_default();
+    let mut row = row_of(message);
+    row.preview = parsed.preview;
+    row.envelope.has_attachments = parsed.has_attachments;
+    row
 }
 
 /// The Message-ID as the store and the journal keep it: in angle brackets.
@@ -116,6 +118,7 @@ fn store_envelope(parsed: &envio_mime::Envelope, arrived: i64) -> Envelope {
         date: parsed.date.unwrap_or(arrived),
         in_reply_to: parsed.in_reply_to.as_deref().map(bracketed),
         references: parsed.references.iter().map(|id| bracketed(id)).collect(),
+        has_attachments: false,
     }
 }
 
@@ -182,6 +185,48 @@ mod tests {
         assert_eq!(row.envelope.subject, "");
         assert_eq!(row.envelope.message_id, None);
         assert_eq!(row.envelope.date, 1_800_000_000);
+    }
+
+    #[test]
+    fn a_mixed_header_guesses_an_attachment_and_a_full_parse_corrects_it() {
+        let mixed = b"Subject: Files\r\nMessage-ID: <f@example.org>\r\n\
+            Content-Type: multipart/mixed; boundary=b\r\n\r\n";
+        let plain = b"Subject: Hi\r\nMessage-ID: <p@example.org>\r\n\
+            Content-Type: multipart/alternative; boundary=b\r\n\r\n";
+        assert!(new_message(&summary(mixed)).envelope.has_attachments);
+        assert!(!new_message(&summary(plain)).envelope.has_attachments);
+        assert!(
+            !new_message(&summary(b"Subject: x\r\n\r\n"))
+                .envelope
+                .has_attachments
+        );
+
+        // The mixed guess was wrong: the body has only text.
+        let db = envio_store::Db::open_in_memory().unwrap();
+        let folder = db.upsert_folder("1", "INBOX", FolderRole::Inbox).unwrap();
+        let id = db
+            .upsert_message(folder, &new_message(&summary(mixed)))
+            .unwrap();
+        let cached = db.message(id).unwrap();
+        assert!(cached.envelope.has_attachments);
+        let eml = b"Subject: Files\r\nMessage-ID: <f@example.org>\r\n\
+            Content-Type: multipart/mixed; boundary=b\r\n\r\n\
+            --b\r\nContent-Type: text/plain\r\n\r\nJust text\r\n--b--\r\n";
+        assert!(!with_body(&cached, eml).envelope.has_attachments);
+        // And a body with an attachment where the header said nothing.
+        let cached = db
+            .message(
+                db.upsert_message(folder, &new_message(&summary(plain)))
+                    .unwrap(),
+            )
+            .unwrap();
+        let eml = b"Subject: Hi\r\nMessage-ID: <p@example.org>\r\n\
+            Content-Type: multipart/mixed; boundary=b\r\n\r\n\
+            --b\r\nContent-Type: text/plain\r\n\r\nSee file\r\n--b\r\n\
+            Content-Type: application/pdf; name=a.pdf\r\n\
+            Content-Disposition: attachment; filename=a.pdf\r\n\
+            Content-Transfer-Encoding: base64\r\n\r\nJVBERi0=\r\n--b--\r\n";
+        assert!(with_body(&cached, eml).envelope.has_attachments);
     }
 
     #[test]

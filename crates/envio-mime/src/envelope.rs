@@ -1,6 +1,6 @@
 //! The envelope: what the message list and the store keep for each message.
 
-use mail_parser::HeaderValue;
+use mail_parser::{HeaderValue, MimeHeaders};
 
 use crate::address::{Address, from_header};
 use crate::attachments::{AttachmentInfo, list};
@@ -27,8 +27,8 @@ pub struct Envelope {
     pub references: Vec<String>,
     pub preview: String,
     /// A non-inline attachment is present. Always false for a header-only
-    /// blob, which has no parts to look at: sync must take this flag from
-    /// the IMAP BODYSTRUCTURE instead.
+    /// blob, which has no parts to look at: see
+    /// [`header_suggests_attachments`] for a guess from its headers.
     pub has_attachments: bool,
 }
 
@@ -47,6 +47,23 @@ impl Envelope {
 /// empty). `None` when the bytes don't look like mail.
 pub fn envelope(raw: &[u8]) -> Option<Envelope> {
     parse_mail(raw).map(|message| from_parsed(&message, &list(&message)))
+}
+
+/// A guess from the headers alone, for a header-only blob that has no parts
+/// to look at: `Content-Type: multipart/mixed` usually carries attachments
+/// (multipart/related, alternative and signed usually do not). The full
+/// message's [`Envelope::has_attachments`] is exact and replaces the guess.
+pub fn header_suggests_attachments(header: &[u8]) -> bool {
+    parse_mail(header)
+        .and_then(|message| {
+            message.content_type().map(|ct| {
+                ct.c_type.eq_ignore_ascii_case("multipart")
+                    && ct
+                        .subtype()
+                        .is_some_and(|s| s.eq_ignore_ascii_case("mixed"))
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// `attachments` is [`list`] of `message`, passed in because
