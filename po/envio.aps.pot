@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 09:25+0100\n"
+"POT-Creation-Date: 2026-11-12 09:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,7 +35,7 @@ msgid "Select all"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:42 qml/pages/inbox/InboxPage.qml:60
+#: qml/pages/inbox/InboxPage.qml:44 qml/pages/inbox/InboxPage.qml:62
 msgid "Inbox"
 msgstr ""
 
@@ -419,29 +419,29 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:136
+#: qml/pages/inbox/InboxPage.qml:156
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:143
+#: qml/pages/inbox/InboxPage.qml:163
 msgid "Open menu"
 msgstr ""
 
 #. TRANSLATORS: %1 is how many messages are waiting to be sent,
 #. e.g. "2 messages waiting"; it is left out when none are.
-#: qml/pages/inbox/InboxPage.qml:181
+#: qml/pages/inbox/InboxPage.qml:201
 msgid "Offline. %1"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:182
+#: qml/pages/inbox/InboxPage.qml:202
 msgid "Offline."
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:219
+#: qml/pages/inbox/InboxPage.qml:239
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:265
+#: qml/pages/inbox/InboxPage.qml:285
 msgid "Undo"
 msgstr ""
 
@@ -462,24 +462,24 @@ msgstr ""
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:90
+#: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
 #: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:114
 msgid "Delete"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:63
+#: qml/pages/inbox/OutboxRow.qml:64
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:70
+#: qml/pages/inbox/OutboxRow.qml:71
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:77
+#: qml/pages/inbox/OutboxRow.qml:78
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:84
+#: qml/pages/inbox/OutboxRow.qml:85
 msgid "Edit"
 msgstr ""
 
