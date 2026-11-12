@@ -139,23 +139,20 @@ impl Worker<'_> {
         for info in attachments.iter().filter(|a| !a.inline) {
             let staged = std::fs::create_dir_all(&stage)
                 .and_then(|()| self.write_attachment(id, info.index, &stage));
-            let events = match staged {
+            match staged {
                 Ok(path) => {
-                    let events = self.book.attach(compose, &path);
+                    self.book
+                        .attach_emit(compose, &path, &mut |event| self.emit(event));
                     let _ = std::fs::remove_file(&path);
-                    events
                 }
                 Err(e) => {
                     log::warn!("reading an attachment to forward: {e}");
                     let name = info.filename.clone().unwrap_or_default();
-                    vec![Event::AttachFailed {
+                    self.emit(Event::AttachFailed {
                         compose,
                         text: text::compose::attachment_unreadable(&name),
-                    }]
+                    });
                 }
-            };
-            for event in events {
-                self.emit(event);
             }
         }
         let _ = std::fs::remove_dir(&stage);

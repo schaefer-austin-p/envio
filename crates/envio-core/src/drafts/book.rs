@@ -205,19 +205,28 @@ impl DraftBook {
     /// partial file in the draft's folder; the next start's sweep only
     /// removes folders of drafts that are gone, so that file stays until
     /// the draft is deleted.)
-    pub fn attach(&self, compose: ComposeId, path: &Path) -> Vec<Event> {
+    ///
+    /// The events go to `emit`. The alive check and the final event are one
+    /// critical section under the state lock, and `close` and `sent` take
+    /// that lock too: a draft deleted after the check has `Attached` emitted
+    /// before its delete (which removes the copy), and one deleted before it
+    /// never gets `Attached`. `emit` must not block (the sinks queue).
+    pub fn attach_emit(&self, compose: ComposeId, path: &Path, emit: &mut dyn FnMut(Event)) {
         let failed = |text: String| Event::AttachFailed { compose, text };
-        let (id, mut events) = {
+        let id = {
             let mut st = self.lock();
-            let mut events = Vec::new();
             if st.sent.contains(&compose) {
-                return vec![failed(text::compose::draft_not_saved())];
+                emit(failed(text::compose::draft_not_saved()));
+                return;
             }
-            match self.draft_for(&mut st, compose, &mut events) {
-                Ok(id) => (id, events),
+            let mut events = Vec::new();
+            let drafted = self.draft_for(&mut st, compose, &mut events);
+            events.into_iter().for_each(&mut *emit);
+            match drafted {
+                Ok(id) => id,
                 Err(text) => {
-                    events.push(failed(text));
-                    return events;
+                    emit(failed(text));
+                    return;
                 }
             }
         };
@@ -231,18 +240,17 @@ impl DraftBook {
                 e.to_string(),
             ))),
         };
-        let alive = {
-            let st = self.lock();
-            !st.sent.contains(&compose) && st.id_for(compose).as_deref() == Some(id.as_str())
-        };
+        let st = self.lock();
+        let alive =
+            !st.sent.contains(&compose) && st.id_for(compose).as_deref() == Some(id.as_str());
         if !alive {
             if let Ok(drafts) = &drafts {
                 drafts.forget_copy(&id, copy.as_ref().ok().map(PathBuf::as_path));
             }
-            events.push(failed(text::compose::draft_not_saved()));
-            return events;
+            emit(failed(text::compose::draft_not_saved()));
+            return;
         }
-        events.push(match copy {
+        emit(match copy {
             Ok(copy) => Event::Attached {
                 compose,
                 name: copy
@@ -256,6 +264,14 @@ impl DraftBook {
                 failed(text::compose::attachment_unreadable(&name))
             }
         });
+        drop(st);
+    }
+
+    /// `attach_emit`, the events collected.
+    #[cfg(test)]
+    pub fn attach(&self, compose: ComposeId, path: &Path) -> Vec<Event> {
+        let mut events = Vec::new();
+        self.attach_emit(compose, path, &mut |e| events.push(e));
         events
     }
 
@@ -653,5 +669,32 @@ mod tests {
         assert_eq!(std::fs::read_dir(files).map_or(0, Iterator::count), 0);
         // Only the other compose's draft is left.
         assert_eq!(book.drafts().unwrap().list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_delete_waits_for_the_attached_event_so_it_removes_the_copy() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let dir = tempfile::tempdir().unwrap();
+        let book = Arc::new(book(dir.path()));
+        let source = dir.path().join("a.txt");
+        std::fs::write(&source, b"x").unwrap();
+        book.opened(A, "acct");
+        let closed = Arc::new(AtomicBool::new(false));
+        let (mut closer, mut blocked_during_emit) = (None, false);
+        book.attach_emit(A, &source, &mut |event| {
+            if matches!(event, Event::Attached { .. }) {
+                let (book, flag) = (Arc::clone(&book), Arc::clone(&closed));
+                closer = Some(std::thread::spawn(move || {
+                    book.close(A, true);
+                    flag.store(true, Ordering::SeqCst);
+                }));
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                blocked_during_emit = !closed.load(Ordering::SeqCst);
+            }
+        });
+        closer.expect("Attached was emitted").join().unwrap();
+        assert!(blocked_during_emit, "the delete ran between check and emit");
+        let files = dir.path().join("drafts").join("files");
+        assert_eq!(std::fs::read_dir(files).map_or(0, Iterator::count), 0);
     }
 }

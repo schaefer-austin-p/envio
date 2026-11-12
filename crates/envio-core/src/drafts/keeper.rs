@@ -131,7 +131,7 @@ fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) {
 fn run_attach(book: &DraftBook, rx: &Receiver<(ComposeId, PathBuf)>, sink: &dyn EventSink) {
     while let Ok((compose, path)) = rx.recv() {
         let done = panic::catch_unwind(AssertUnwindSafe(|| {
-            emit_all(sink, book.attach(compose, &path));
+            book.attach_emit(compose, &path, &mut |event| sink.emit(event));
         }));
         if done.is_err() {
             log::error!("the attach thread panicked; going on");
