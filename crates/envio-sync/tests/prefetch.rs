@@ -120,7 +120,7 @@ async fn a_connection_error_comes_back_with_what_was_stored() {
 async fn a_refused_select_is_the_calls_error() {
     let (mut server, mut store, ids) = synced(1).await;
     let inbox = store.folder("INBOX").id;
-    server.fail_on("select", NetError::Timeout);
+    server.fail_on("select", NetError::Refused("no".into()));
     assert!(
         prefetch_bodies(&mut server, &mut store.local(), inbox, &ids)
             .await
