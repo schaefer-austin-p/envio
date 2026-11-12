@@ -19,7 +19,7 @@
 - QML never formats a count (lint #3). User-facing text is `qsTr()`; run `cargo make pot` after changing strings (this plan should add none).
 - No swipe actions on list rows.
 - Files around 300 lines; a new visual piece is its own file under `qml/components/`.
-- `TrustDialog`'s fingerprint stays monospace in both themes.
+- Hosts, link parts and the fingerprint stay monospace in both themes, through `Theme.fontAddress`; screens never read `fontMono`.
 - Each task runs `cargo make qml-test` and `cargo make app-docker`; `cargo make ci` still passes at every commit.
 - Each must task ends with a phone screenshot pair (Carbon, Airmail) of a screen it changed, taken with `tmp/u.sh shot`, kept in `docs/phone-runs/airmail/` and named in the task report. Never hand a visual check back to the user.
 
@@ -36,17 +36,17 @@
 **Produces (Theme):**
 - `fontLabel: string`: Carbon `fontMono`, Airmail `fontUi`.
 - `fontBody: string`: Carbon `fontUi`, Airmail Lora (fallback `fontUi` if Lora fails to load).
-- `bodySize: real` (Carbon 16, Airmail 16) and `bodyLineHeight: real` (Carbon 1.5, Airmail 1.7, the Airmail reading board).
+- `bodySize: real` (Carbon 16, Airmail 16) and `bodyLineHeight: real` (Carbon 1.0, Airmail 1.6).
 - `eyebrowFont: font`, or the fields `eyebrowFamily`, `eyebrowSize`, `eyebrowWeight`, `eyebrowCaps: bool` and `eyebrowSpacing: real`: Airmail Inter 12 semibold, capitals, letter-spacing 1.2 px; Carbon the current label style (mono, as now).
-- `fontMono` stays, for the fingerprint only.
+- `fontMono` stays, read by `Theme.qml` only; `fontAddress` (= `fontMono`) is what screens use for addresses, hosts, link parts and the fingerprint.
 
-**Invariants:** after this task no file under `qml/` except `Theme.qml` and `TrustDialog.qml` reads `fontMono`. Reader body, compose body and the quote fold use `fontBody`, `bodySize` and `bodyLineHeight`.
+**Invariants:** after this task no file under `qml/` except `Theme.qml` reads `fontMono`; screens use `fontAddress` for addresses and `fontLabel` for labels. Reader body, compose body and the quote fold use `fontBody`, `bodySize` and `bodyLineHeight`.
 
 **Tests (tst_theme / tst_reader / tst_compose):**
 - In Airmail, `fontLabel` is not `fontMono` and `fontBody` is Lora's family. In Carbon, `fontLabel === fontMono` and `fontBody === fontUi`.
-- A tree walk: build MessageRow, HeaderBlock, AttachmentList, Toast and DateText under an Airmail theme and check that no visible `Text` has `font.family === theme.fontMono`. Build TrustDialog and check that its fingerprint `Text` does.
+- A tree walk: build MessageRow, HeaderBlock, AttachmentList, Toast and DateText under an Airmail theme and check that no visible `Text` has `font.family === theme.fontMono`. Build TrustDialog and check that its fingerprint `Text` uses `fontAddress`.
 - The reader body `Text` takes `theme.fontBody` and its `lineHeight` from `bodyLineHeight`.
-- Lint: `fontMono` outside `Theme.qml` and `TrustDialog.qml` fails. Show the lint failing on a scratch copy that keeps one old use.
+- Lint: `fontMono` (dotted or `theme["fontMono"]`) outside `Theme.qml` fails. Show the lint failing on a scratch copy that keeps one old use.
 
 ### Task 2: Control radius (#68)
 
@@ -64,7 +64,7 @@
 
 ### Task 3: The airmail ring (#65)
 
-**Files:** new `qml/components/AirmailFrame.qml`; `Theme.qml`; `AppShell.qml` (around the page stack), `Sheet.qml`, `AppDialog.qml`; `tst_components.qml`, `tst_shell.qml`.
+**Files:** new `qml/components/AirmailFrame.qml`; `Theme.qml`; `AppShell.qml` (around the page stack); `tst_components.qml`, `tst_shell.qml`.
 
 **Produces:**
 - Theme: `frameInset: real` (Airmail 10, Carbon 0), `frameOuterRadius` (30), `frameInnerRadius` (20). The stripe colours are the existing `chevron` (red) and `chevronBlue` roles, with `ground` as the paper.
@@ -72,9 +72,9 @@
 
 **Tricky part, the stripes.** The board's ring is `repeating-linear-gradient(135deg, red 0–14, paper 14–28, blue 28–42, paper 42–56)` in a 10 px band between radius 30 and 20. QML 2.15 has no repeating gradient. Draw it with a `Canvas` (`onPaint`: clip to the rounded ring path, outer rounded rect minus inner, then fill diagonal stripes 14 px wide at 135° in the order red, paper, blue, paper across the bounding box). Repaint on `width`, `height` and theme colour changes. Set `renderTarget: Canvas.FramebufferObject` only if the phone shows tearing. Keep the content in a separate Item above the Canvas, clipped to the inner radius, so pages scroll under nothing.
 
-**Invariants:** in Airmail every page, Sheet and AppDialog sits inside one ring (never a ring inside a ring: a Sheet over a page draws its own ring, and the page's ring stays behind the scrim). Content is never clipped by the band: the page's area is `frameInset` smaller on each side. Carbon layout is pixel-identical to before (inset 0, no Canvas visible).
+**Invariants:** in Airmail the ring is drawn once, in `AppShell`, around the page stack; `Sheet` and `AppDialog` draw none (never a ring inside a ring), so a Sheet or dialog opens inside the shell's ring. Content is never clipped by the band: the page's area is `frameInset` smaller on each side. Carbon layout is pixel-identical to before (inset 0, no Canvas visible).
 
-**Tests:** Airmail: the frame's Canvas is visible, and the content item's `x` and `y` equal `frameInset`. Carbon: the Canvas is not visible and the content fills the frame (`x === 0`). The shell's current page width equals the window width minus `2 * frameInset`. A Sheet opened in Airmail has its own visible frame. Phone shots of the inbox and a sheet in Airmail light and dark.
+**Tests:** Airmail: the frame's Canvas is visible, and the content item's `x` and `y` equal `frameInset`. Carbon: the Canvas is not visible and the content fills the frame (`x === 0`). The shell's current page width equals the window width minus `2 * frameInset`. A Sheet opened in Airmail draws no frame of its own. Phone shots of the inbox and a sheet in Airmail light and dark.
 
 ### Task 4: Stamp avatars, no unread dot in Airmail (#66)
 
