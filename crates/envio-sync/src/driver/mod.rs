@@ -8,6 +8,7 @@ mod actions;
 mod folders;
 mod older;
 mod outbox;
+mod prefetch;
 mod replay;
 mod search;
 
@@ -16,6 +17,7 @@ pub use actions::{Undo, record, undo};
 pub use folders::{BATCHES_PER_STEP, Synced, fetch_body, sync_folder, sync_folders};
 pub use older::{Older, load_older};
 pub use outbox::{Filed, Sent, file_sent, send_outbox};
+pub use prefetch::prefetch_bodies;
 pub use replay::{Replayed, replay};
 pub use search::search_server;
 

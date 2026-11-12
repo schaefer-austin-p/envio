@@ -1,7 +1,7 @@
 //! Folder list and folder sync, and fetching one body on open.
 
 use envio_net::imap::{FlagUpdate, Summary};
-use envio_store::{BodyState, Folder, FolderId, MessageRowId};
+use envio_store::{BodyState, Folder, FolderId, Message, MessageRowId};
 
 use super::Local;
 use crate::convert::with_body;
@@ -208,12 +208,19 @@ pub async fn fetch_body(
             .step(|db| db.delete_messages(folder.id, &[message.uid]))?;
         return Ok(None);
     };
-    local.bodies.write(folder.id, message.uid, &eml)?;
-    let row = with_body(&message, &eml);
-    local.db.step(|db| {
-        db.upsert_message(folder.id, &row)?;
-        db.set_has_attachments(id, row.envelope.has_attachments)?;
-        db.set_body_state(id, BodyState::Downloaded)
-    })?;
+    store_body(local, &message, &eml)?;
     Ok(Some(eml))
+}
+
+/// Writes a downloaded body to disk, then gives the row its preview and
+/// marks it downloaded.
+pub(super) fn store_body(local: &Local<'_>, message: &Message, eml: &[u8]) -> Result<()> {
+    local.bodies.write(message.folder, message.uid, eml)?;
+    let row = with_body(message, eml);
+    local.db.step(|db| {
+        db.upsert_message(message.folder, &row)?;
+        db.set_has_attachments(message.id, row.envelope.has_attachments)?;
+        db.set_body_state(message.id, BodyState::Downloaded)
+    })?;
+    Ok(())
 }
