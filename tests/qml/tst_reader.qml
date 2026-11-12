@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.2
+import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
@@ -30,6 +31,9 @@ Item {
             exportFile: function(path, mode) { root.exported.push({ path: path, mode: mode }) }
         }
     }
+    Component { id: coverComponent; Item {} }
+    Component { id: spyComponent; SignalSpy { signalName: "contentHeightChanged" } }
+    StackView { id: coverStack; width: 400; height: 700; visible: false }
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
     SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
@@ -547,6 +551,35 @@ Item {
             verify(heightSpy.count <= 2, "contentHeight changed " + heightSpy.count + " times")
             compare(body.text.length > 0, true)
             heightSpy.target = null
+        }
+
+        // Reply and forward push the compose page over the reader: the body
+        // stays as it was, and Back does not lay it out again.
+        function test_a_page_pushed_over_the_reader_keeps_the_body() {
+            coverStack.visible = true
+            coverStack.push(readerComponent, { messageId: 5, width: 400, height: 700 })
+            const reader = coverStack.currentItem
+            mock.messageOpened(view([], 0))
+            tryCompare(reader.StackView, "status", StackView.Active)
+            const body = everything(reader, []).filter(function(o) { return o.objectName === "bodyText" })[0]
+            tryVerify(function() { return body.visible && body.contentHeight > 0 })
+            const html = reader.bodyHtml
+            const height = body.contentHeight
+            const spy = createTemporaryObject(spyComponent, root, { target: body })
+            coverStack.push(coverComponent)
+            tryCompare(reader.StackView, "status", StackView.Inactive)
+            wait(50)
+            compare(reader.bodyHtml, html)
+            verify(reader.ready)
+            compare(body.contentHeight, height)
+            coverStack.pop()
+            tryCompare(reader.StackView, "status", StackView.Active)
+            wait(50)
+            compare(reader.bodyHtml, html)
+            compare(body.contentHeight, height)
+            compare(spy.count, 0)
+            coverStack.clear()
+            coverStack.visible = false
         }
 
         function test_body_is_read_only_and_links_open_the_sheet() {

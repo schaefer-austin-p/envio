@@ -37,7 +37,12 @@ Item {
     // that is not in a StackView, as in the tests, is settled at once): a
     // rich-text relayout costs hundreds of ms on a big message.
     readonly property bool settled: StackView.view === null || StackView.status === StackView.Active
-    readonly property bool ready: view !== null && settled
+    // Once settled it stays so: a page pushed over the reader (reply,
+    // forward) makes the status Inactive, and the body must not go away
+    // and lay out again on Back.
+    property bool everSettled: false
+    onSettledChanged: if (settled) everSettled = true
+    readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
     // HTML, so this is the value to read).
     readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(theme.link)) : ""
@@ -61,7 +66,7 @@ Item {
     }
     onWidthChanged: start()
     onMessageIdChanged: { started = false; view = null; start() }
-    Component.onCompleted: start()
+    Component.onCompleted: { if (settled) everSettled = true; start() }
 
     // Archive and Delete leave the page (the inbox offers the Undo); the
     // other actions go to the core the way the inbox's selection bar does:
