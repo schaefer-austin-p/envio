@@ -125,7 +125,7 @@ Item {
 
         function test_shows_the_header_and_body() {
             open(view([], 0))
-            compare(find("bodyText").text, "<p>Hello</p>")
+            compare(find("bodyText").text, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
             compare(find("bodyText").textFormat, Text.RichText)
             verify(!shown("imagesBanner"))
             compare(find("headerSubject").text, "Invoice 0042")
@@ -147,7 +147,7 @@ Item {
             thm.name = data.airmail ? "airmail" : "carbon"
             thm.darkMode = data.dark ? "dark" : "light"
             compare(String(thm.link).toUpperCase(), data.want)
-            compare(find("bodyText").linkColor, thm.link)
+            verify(find("bodyText").text.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
             thm.name = "carbon"
             thm.darkMode = "system"
         }

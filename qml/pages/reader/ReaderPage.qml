@@ -2,6 +2,7 @@ import QtQuick 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
+import "../../components/richText.js" as RichText
 
 // Reading one message (boards 2, 3, 4): header, the body as rich text with
 // remote images blocked until the user allows them, attachments, and the
@@ -175,10 +176,9 @@ Item {
                     width: parent.width - root.theme.gu(3)
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    text: root.view !== null ? root.view.html : ""
+                    text: RichText.withLinkColor(root.view !== null ? root.view.html : "", String(root.theme.link))
                     textFormat: Text.RichText
                     wrapMode: Text.Wrap
-                    linkColor: root.theme.link
                     color: root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize

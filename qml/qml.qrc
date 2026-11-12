@@ -70,6 +70,7 @@
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>
         <file>components/keyboardRect.js</file>
+        <file>components/richText.js</file>
         <file>components/IconButton.qml</file>
         <file>components/KeyboardAvoider.qml</file>
         <file>components/ListRow.qml</file>
