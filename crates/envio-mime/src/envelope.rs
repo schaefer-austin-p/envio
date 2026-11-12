@@ -54,7 +54,8 @@ pub fn envelope(raw: &[u8]) -> Option<Envelope> {
 pub(crate) fn from_parsed(message: &Parsed<'_>, attachments: &[AttachmentInfo]) -> Envelope {
     Envelope {
         message_id: message.message_id().and_then(normalize_id),
-        subject: message.subject().unwrap_or_default().trim().to_owned(),
+        // Bidi controls could reorder the subject on screen ("fdp.exe").
+        subject: crate::link::strip_bidi_controls(message.subject().unwrap_or_default().trim()),
         from: from_header(message.from()),
         to: from_header(message.to()),
         cc: from_header(message.cc()),

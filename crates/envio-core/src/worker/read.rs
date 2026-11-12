@@ -46,7 +46,7 @@ fn stored_header(stored: &envio_store::Envelope, account: &str) -> MessageHeader
         from_address: from.map(|a| a.email).unwrap_or_default(),
         to: Vec::new(),
         cc: Vec::new(),
-        subject: stored.subject.clone(),
+        subject: envio_mime::strip_bidi_controls(&stored.subject),
         date: (stored.date != 0).then_some(stored.date),
         account: account.to_owned(),
         sender_known: false,
@@ -449,10 +449,12 @@ mod tests {
     fn the_stored_from_fallback_has_no_bidi_controls() {
         let stored = envio_store::Envelope {
             from: "\"PayPal\" <service@\u{202E}lapyap.evil>".into(),
+            subject: "Invoice \u{202E}fdp.exe".into(),
             ..Default::default()
         };
         let header = stored_header(&stored, "me");
         assert!(!header.from.contains('\u{202E}'), "{}", header.from);
+        assert_eq!(header.subject, "Invoice fdp.exe");
         assert_eq!(header.from_address, "");
     }
 

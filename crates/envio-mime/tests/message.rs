@@ -237,3 +237,12 @@ fn quote_text_unflows_inside_quotes_by_depth() {
         "> quoted one quoted two\n>> deeper still\nreply\n"
     );
 }
+
+#[test]
+fn the_subject_has_no_bidi_controls() {
+    let raw = "From: a@example.org\r\nSubject: Invoice \u{202E}fdp.exe\r\n\r\nhi".as_bytes();
+    assert_eq!(
+        envio_mime::envelope(raw).unwrap().subject,
+        "Invoice fdp.exe"
+    );
+}
