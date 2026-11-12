@@ -55,8 +55,14 @@ Canvas {
             if (start) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1])
             start = false
         }
-        if (root.name === "search") ctx.arc(11, 11, 6.5, 0, 2 * Math.PI)
-        if (root.name === "alert" || root.name === "info") ctx.arc(12, 12, 9.5, 0, 2 * Math.PI)
+        // A ring starts its own subpath; arc() alone would join it to the
+        // last point with a stray line.
+        function ring(cx, cy, r) {
+            ctx.moveTo(cx + r, cy)
+            ctx.arc(cx, cy, r, 0, 2 * Math.PI)
+        }
+        if (root.name === "search") ring(11, 11, 6.5)
+        if (root.name === "alert" || root.name === "info") ring(12, 12, 9.5)
         ctx.stroke()
     }
 }
