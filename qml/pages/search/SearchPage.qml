@@ -203,11 +203,15 @@ Item {
             onClicked: root.ask(true)
         }
         Text {
+            objectName: "serverNote"
             visible: !root.serverBusy
             width: parent.width
             textFormat: Text.PlainText
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Finds mail older than the 30 days kept here")
+            // The window is a setting (Settings, Sync); 0 keeps all mail.
+            text: root.core.syncDays > 0
+                  ? qsTr("Finds mail older than the %n days kept here", "", root.core.syncDays)
+                  : qsTr("Also asks the mail servers")
             wrapMode: Text.WordWrap
             color: root.theme.secondary
             font.family: root.theme.fontUi

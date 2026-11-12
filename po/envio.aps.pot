@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 18:15+0100\n"
+"POT-Creation-Date: 2026-11-12 18:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -610,8 +610,13 @@ msgstr ""
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:210
-msgid "Finds mail older than the 30 days kept here"
+#: qml/pages/search/SearchPage.qml:213
+msgctxt ""
+msgid "Finds mail older than the %n days kept here"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:214
+msgid "Also asks the mail servers"
 msgstr ""
 
 #: qml/pages/settings/AboutPage.qml:18 qml/pages/settings/SettingsPage.qml:35

@@ -151,6 +151,19 @@ Item {
             compare(searches()[searches().length - 1].args, ["all", "train", true])
         }
 
+        function test_server_note_names_the_sync_window() {
+            typeQuery("train")
+            tryVerify(function() { return shown("serverNote") })
+            compare(find("serverNote").text, "Finds mail older than the 30 days kept here")
+            core.syncDays = 90
+            compare(find("serverNote").text, "Finds mail older than the 90 days kept here")
+            core.syncDays = 365
+            compare(find("serverNote").text, "Finds mail older than the 365 days kept here")
+            core.syncDays = 0
+            compare(find("serverNote").text, "Also asks the mail servers")
+            core.syncDays = 30
+        }
+
         function test_search_failed_lists_accounts() {
             typeQuery("train")
             tryVerify(function() { return shown("searchServers") })
