@@ -82,22 +82,6 @@ impl Lookups for Internet {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use hickory_resolver::config::ResolveHosts;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn one_resolver_serves_every_query_and_skips_the_hosts_file() {
-        let internet = Internet::new(Roots::empty());
-        let first = internet.resolver().expect("resolv.conf readable");
-        let second = internet.resolver().expect("resolv.conf readable");
-        assert!(std::ptr::eq(first, second), "a second resolver was built");
-        assert_eq!(first.options().use_hosts_file, ResolveHosts::Never);
-    }
-}
-
 /// The settings for `email`, within [`DETECT_TIMEOUT`]. Only an address
 /// without a domain is an error; when every lookup comes up empty or
 /// runs out of time, the answer is the guess.
@@ -145,4 +129,20 @@ async fn find(domain: &str, email: &str, lookups: &impl Lookups) -> Option<Found
         }
     }
     plan::best(&candidates, Source::Srv, domain)
+}
+
+#[cfg(test)]
+mod tests {
+    use hickory_resolver::config::ResolveHosts;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn one_resolver_serves_every_query_and_skips_the_hosts_file() {
+        let internet = Internet::new(Roots::empty());
+        let first = internet.resolver().expect("resolv.conf readable");
+        let second = internet.resolver().expect("resolv.conf readable");
+        assert!(std::ptr::eq(first, second), "a second resolver was built");
+        assert_eq!(first.options().use_hosts_file, ResolveHosts::Never);
+    }
 }
