@@ -9,12 +9,14 @@ use crate::models::Model;
 use crate::rows::MessageRowUi;
 
 /// The first page of the shown list: not asked, asked for the first
-/// time, or asked again to merge.
+/// time, or asked again to merge. A refresh walks down the loaded pages:
+/// `Walk(after)` waits for the page after that cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum First {
     Idle,
     Initial,
     Refresh,
+    Walk(Cursor),
 }
 
 #[derive(Debug)]
@@ -46,7 +48,7 @@ impl Ui {
     /// The next page, unless one is on its way or the list is at its end.
     pub fn more(&mut self) -> Option<Command> {
         let cur = self.current.as_mut()?;
-        if cur.end || cur.more.is_some() || cur.first == First::Initial {
+        if cur.end || cur.more.is_some() || matches!(cur.first, First::Initial | First::Walk(_)) {
             return None;
         }
         let after = cur.shown.last_cursor()?;
@@ -57,8 +59,9 @@ impl Ui {
         })
     }
 
-    /// Mail changed in these folders: reload the first page, unless the
-    /// shown list does not hold them. The unified inbox reloads for a
+    /// Mail changed in these folders: reload the first page and then each
+    /// further loaded page (so a row changed or gone past page one follows),
+    /// unless the shown list does not hold them. The unified inbox reloads for a
     /// known Inbox and for a folder never seen (it may be a new Inbox).
     pub(super) fn messages_changed(&mut self, folders: &[FolderId]) -> Vec<Output> {
         let Some(cur) = self.current.as_mut() else {
@@ -129,23 +132,29 @@ impl Ui {
         match after {
             None => {
                 let ops = match cur.first {
-                    First::Idle => return outs,
+                    First::Idle | First::Walk(_) => return outs,
                     First::Initial => {
                         cur.end = end;
                         vec![cur.shown.reset(page)]
                     }
                     First::Refresh => {
                         cur.end |= end;
-                        cur.shown.merge_first(page, end)
+                        let last = page.last().map(|s| s.cursor);
+                        let ops = cur.shown.merge_first(page, end);
+                        outs.extend(ops.into_iter().map(|op| change(Model::Messages, op)));
+                        outs.extend(walk_on(cur, list, last, end));
+                        return outs;
                     }
                 };
                 outs.extend(ops.into_iter().map(|op| change(Model::Messages, op)));
-                if std::mem::take(&mut cur.refresh_again) {
-                    cur.first = First::Refresh;
-                    outs.push(Output::Send(Command::ListMessages { list, after: None }));
-                } else {
-                    cur.first = First::Idle;
-                }
+                outs.extend(finish(cur, list));
+            }
+            Some(c) if cur.first == First::Walk(c) => {
+                cur.end |= end;
+                let last = page.last().map(|s| s.cursor);
+                let ops = cur.shown.merge_page(Some(c), page, end);
+                outs.extend(ops.into_iter().map(|op| change(Model::Messages, op)));
+                outs.extend(walk_on(cur, list, last, end));
             }
             Some(c) if cur.more == Some(c) => {
                 cur.more = None;
@@ -155,5 +164,31 @@ impl Ui {
             Some(_) => {}
         }
         outs
+    }
+}
+
+/// A refresh page is merged: read the next one down while loaded rows lie
+/// below it, else finish.
+fn walk_on(cur: &mut Current, list: ListRef, last: Option<Cursor>, end: bool) -> Option<Output> {
+    match last {
+        Some(c) if !end && cur.shown.has_older_than(c) => {
+            cur.first = First::Walk(c);
+            Some(Output::Send(Command::ListMessages {
+                list,
+                after: Some(c),
+            }))
+        }
+        _ => finish(cur, list),
+    }
+}
+
+/// The refresh is done: go again if mail changed meanwhile.
+fn finish(cur: &mut Current, list: ListRef) -> Option<Output> {
+    if std::mem::take(&mut cur.refresh_again) {
+        cur.first = First::Refresh;
+        Some(Output::Send(Command::ListMessages { list, after: None }))
+    } else {
+        cur.first = First::Idle;
+        None
     }
 }

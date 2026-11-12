@@ -63,6 +63,12 @@ fn a_refresh_inserts_new_mail_at_the_top_without_reset() {
     assert_eq!(ops.len(), 1, "{ops:?}");
     assert!(matches!(ops[0], Op::Insert { at: 0, .. }));
     assert_eq!(ids(ops[0]), vec![3]);
+    // The walk reads the page below (row 1) and finds it unchanged.
+    let outs = feed(
+        &mut ui,
+        page(F1, Some(cursor(2, 20)), vec![msg(1, 10)], true),
+    );
+    assert!(changes(&outs, Model::Messages).is_empty());
     // A changed row is an update in place.
     changed(&mut ui, &[1]);
     let mut flagged = msg(2, 20);
@@ -184,4 +190,88 @@ fn a_refresh_inserts_in_the_middle() {
     let ops = changes(&outs, Model::Messages);
     assert!(matches!(ops[..], [Op::Insert { at: 1, .. }]), "{ops:?}");
     assert_eq!(ids(ops[0]), vec![3]);
+}
+
+/// Page one (4, 3) and the page after it (2, 1) are loaded.
+fn two_pages(ui: &mut Ui) {
+    opened(ui, F1, vec![msg(4, 40), msg(3, 30)], false);
+    let _ = ui.more();
+    feed(
+        ui,
+        page(F1, Some(cursor(3, 30)), vec![msg(2, 20), msg(1, 10)], true),
+    );
+}
+
+fn after_of(outs: &[envio_ui::Output]) -> Vec<Option<envio_core::Cursor>> {
+    outs.iter()
+        .filter_map(|o| match o {
+            envio_ui::Output::Send(Command::ListMessages { after, .. }) => Some(*after),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_row_gone_past_the_first_page_is_removed_by_a_refresh() {
+    let mut ui = Ui::new();
+    two_pages(&mut ui);
+    changed(&mut ui, &[1]);
+    // Page one is unchanged; the refresh walks on to the page below it.
+    let outs = feed(&mut ui, page(F1, None, vec![msg(4, 40), msg(3, 30)], false));
+    assert!(changes(&outs, Model::Messages).is_empty());
+    assert_eq!(after_of(&outs), vec![Some(cursor(3, 30))]);
+    // Row 2 was archived: it goes, as a row operation.
+    let outs = feed(
+        &mut ui,
+        page(F1, Some(cursor(3, 30)), vec![msg(1, 10)], true),
+    );
+    let ops = changes(&outs, Model::Messages);
+    assert!(
+        matches!(ops[..], [Op::Remove { at: 2, count: 1 }]),
+        "{ops:?}"
+    );
+    assert!(after_of(&outs).is_empty());
+}
+
+#[test]
+fn a_row_changed_past_the_first_page_is_updated_by_a_refresh() {
+    let mut ui = Ui::new();
+    two_pages(&mut ui);
+    changed(&mut ui, &[1]);
+    feed(&mut ui, page(F1, None, vec![msg(4, 40), msg(3, 30)], false));
+    let mut read = msg(1, 10);
+    read.flags = envio_core::Flags::SEEN;
+    let outs = feed(
+        &mut ui,
+        page(F1, Some(cursor(3, 30)), vec![msg(2, 20), read], true),
+    );
+    let ops = changes(&outs, Model::Messages);
+    assert!(matches!(ops[..], [Op::Update { at: 3, .. }]), "{ops:?}");
+}
+
+#[test]
+fn a_refresh_walk_reads_only_the_loaded_pages() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(4, 40), msg(3, 30)], false);
+    changed(&mut ui, &[1]);
+    let outs = feed(&mut ui, page(F1, None, vec![msg(4, 40), msg(3, 30)], false));
+    assert!(
+        after_of(&outs).is_empty(),
+        "nothing is loaded below page one"
+    );
+}
+
+#[test]
+fn a_change_during_the_walk_refreshes_again_after_it() {
+    let mut ui = Ui::new();
+    two_pages(&mut ui);
+    changed(&mut ui, &[1]);
+    feed(&mut ui, page(F1, None, vec![msg(4, 40), msg(3, 30)], false));
+    assert!(changed(&mut ui, &[1]).is_empty());
+    assert!(ui.more().is_none(), "paging waits for the walk");
+    let outs = feed(
+        &mut ui,
+        page(F1, Some(cursor(3, 30)), vec![msg(2, 20), msg(1, 10)], true),
+    );
+    assert_eq!(after_of(&outs), vec![None]);
 }

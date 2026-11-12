@@ -62,20 +62,43 @@ impl ShownList {
         Some(op)
     }
 
-    /// Merge a fresh first page: new rows go in at their sorted place,
-    /// changed rows are updated, rows gone from the range the page covers
-    /// are removed; rows beyond that range stay. `end`: the page was the
-    /// last, so it covers the whole list.
+    /// Merge a fresh first page; see `merge_page`.
     pub fn merge_first(&mut self, first: Vec<Shown>, end: bool) -> Vec<Op> {
+        self.merge_page(None, first, end)
+    }
+
+    /// Whether a shown row is older than `cursor`, so a refresh must read
+    /// further down.
+    pub fn has_older_than(&self, cursor: Cursor) -> bool {
+        let key = (cursor.date, cursor.id.0);
+        self.rows.iter().any(|s| s.key() < key)
+    }
+
+    /// Merge a fresh page that starts after `upper` (`None`: the first
+    /// page): new rows go in at their sorted place, changed rows are
+    /// updated, rows gone from the range the page covers are removed; rows
+    /// beyond that range stay. `end`: the page was the last, so it covers
+    /// everything older than `upper`.
+    pub fn merge_page(&mut self, upper: Option<Cursor>, page: Vec<Shown>, end: bool) -> Vec<Op> {
+        let upper = upper.map(|c| (c.date, c.id.0));
         let bound = if end {
             None
         } else {
-            first.last().map(Shown::key)
+            page.last().map(Shown::key)
         };
-        let mut ops = self.remove_gone(&first, end, bound);
-        let (mut i, mut p, mut insert_at) = (0, 0, None::<usize>);
+        let covers = |s: &Shown| {
+            upper.is_none_or(|u| s.key() < u) && (end || bound.is_some_and(|b| s.key() >= b))
+        };
+        let mut ops = self.remove_gone(&page, covers);
+        let start = upper.map_or(0, |u| {
+            self.rows
+                .iter()
+                .position(|s| s.key() < u)
+                .unwrap_or(self.rows.len())
+        });
+        let (mut i, mut p, mut insert_at) = (start, start, None::<usize>);
         let mut pending: Vec<Shown> = Vec::new();
-        for new in first {
+        for new in page {
             if self.rows.get(i).is_some_and(|s| s.key() == new.key()) {
                 flush(&mut ops, &mut insert_at, &mut pending);
                 if self.rows[i].row != new.row {
@@ -100,11 +123,8 @@ impl ShownList {
 
     /// Remove the shown rows in the page's range that the page lacks, as
     /// runs from the back so earlier positions stay valid.
-    fn remove_gone(&mut self, first: &[Shown], end: bool, bound: Option<(i64, i64)>) -> Vec<Op> {
-        let gone = |s: &Shown| {
-            let in_range = end || bound.is_some_and(|b| s.key() >= b);
-            in_range && !first.iter().any(|f| f.key() == s.key())
-        };
+    fn remove_gone(&mut self, page: &[Shown], covers: impl Fn(&Shown) -> bool) -> Vec<Op> {
+        let gone = |s: &Shown| covers(s) && !page.iter().any(|f| f.key() == s.key());
         let mut ops = Vec::new();
         let mut i = self.rows.len();
         while i > 0 {
