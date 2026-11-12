@@ -216,6 +216,23 @@ Item {
             verify(!toast.visible)
         }
 
+        function test_removing_the_selected_accounts_tab_shows_the_unified_inbox() {
+            page.showAccount("bob")
+            core.reset()
+            core.accounts.remove(1)
+            compare(page.tab, "")
+            compare(page.unified, true)
+            compare(core.called("openList").pop().args, ["inboxes", 0])
+        }
+
+        function test_removing_another_account_keeps_the_tab() {
+            page.showAccount("ann")
+            core.reset()
+            core.accounts.remove(1)
+            compare(page.tab, "ann")
+            compare(core.called("openList").length, 0)
+        }
+
         function test_notice_shows_without_an_action() {
             const toast = find("noticeToast", page)
             core.notice("Could not reach the server")

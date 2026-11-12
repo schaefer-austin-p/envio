@@ -93,6 +93,17 @@ Item {
         function onRowsInserted() { Qt.callLater(root.stopWaiting) }
     }
     function stopWaiting() { pendingInbox = "" }
+    // The account whose Inbox tab is shown was removed: back to the
+    // unified inbox, which loads its list.
+    Repeater {
+        model: root.accounts
+        delegate: Item {
+            visible: false
+            required property var model
+            readonly property string key: model.key
+        }
+        onItemRemoved: (index, item) => { if (root.tab !== "" && root.tab !== "folder" && item.key === root.tab) root.showUnified() }
+    }
     Repeater {
         id: offlineProbe
         property int offline: 0
