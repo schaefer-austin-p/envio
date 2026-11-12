@@ -103,6 +103,9 @@ pub async fn detect_within(email: &str, lookups: &impl Lookups, budget: Duration
 /// The config files, then SRV; None when neither settles on a pair.
 /// The lookups of each step run at once, so one that waits on a timeout
 /// doesn't hold up the others; the files still count in their order.
+/// The cost: when the ISPDB answers, the provider and well-known hosts
+/// have been asked too (only the domain goes out either way), and their
+/// answers are dropped.
 async fn find(domain: &str, email: &str, lookups: &impl Lookups) -> Option<Found> {
     let mut files: FuturesOrdered<_> = plan::config_urls(domain)
         .into_iter()
