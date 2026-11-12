@@ -66,6 +66,7 @@
         <file>components/AppDialog.qml</file>
         <file>components/EditMenu.qml</file>
         <file>components/Field.qml</file>
+        <file>components/BusyLine.qml</file>
         <file>components/PageFooter.qml</file>
         <file>components/HoldSelection.qml</file>
         <file>components/Icon.qml</file>
