@@ -180,6 +180,14 @@ fn a_broken_account_is_never_connected_for_a_search() {
     h.foreground = true;
     let broken = h.seed_account_at("broken@example.org", Some("pw"), port);
     h.pin_imap(&broken, "not-a-pin");
+    // With an Inbox to search, only the broken-account guard stops the
+    // search from being queued (and so left unanswered).
+    h.seed_folder_with(
+        &broken,
+        "INBOX",
+        FolderRole::Inbox,
+        &[(1, &mail("s", "zebra"))],
+    );
     h.start_core();
     let scope = SearchScope::Account(broken);
     h.send(Command::SearchServer {
@@ -196,5 +204,9 @@ fn a_broken_account_is_never_connected_for_a_search() {
         }
     };
     assert!(!failed.is_empty());
+    assert!(
+        !failed.contains("can't be searched"),
+        "failed for lack of an inbox, not as a broken account: {failed}"
+    );
     assert!(listener.accept().is_err(), "connected a broken account");
 }

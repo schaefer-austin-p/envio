@@ -264,10 +264,20 @@ fn err_before_the_journal_push_keeps_nothing() {
     let (h, _, _, raw) = with_unsynced();
     let rows = rows_of(&h, raw);
     act_on(&h, &rows, UserAction::Delete);
-    let text = h.wait(|e| match e {
-        Event::Notice { text } => Some(text.clone()),
-        _ => None,
-    });
+    // Every event up to the Notice, so an earlier UndoOffer is not lost.
+    let end = Instant::now() + Duration::from_secs(10);
+    let mut seen = Vec::new();
+    let text = loop {
+        let left = end.saturating_duration_since(Instant::now());
+        match h.events.recv_timeout(left).expect("no Notice") {
+            Event::Notice { text } => break text,
+            other => seen.push(other),
+        }
+    };
+    assert!(
+        !seen.iter().any(|e| matches!(e, Event::UndoOffer { .. })),
+        "an Undo was offered before the Notice"
+    );
     assert!(text.contains("Could not"), "{text}");
     assert_eq!(journal_adds(&h), 0);
     assert_eq!(rows_of(&h, raw).len(), 1);
