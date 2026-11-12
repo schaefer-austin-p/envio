@@ -133,6 +133,10 @@ async fn a_draft_survives_a_slow_first_sync() {
         );
         std::thread::sleep(Duration::from_millis(25));
     }
+    eprintln!(
+        "draft on disk {} ms after the change",
+        start.elapsed().as_millis()
+    );
 
     // The sync really was stalled: the proxy is holding a batch, and the
     // cache (deleted before the start) shows none of the Inbox's mail.
