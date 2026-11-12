@@ -4,6 +4,7 @@
 #    through EnvioCore.countText. Fails on a qsTr/qsTranslate/qsTrId call
 #    with a count argument (also across lines, or `qsTr (`) and on %n inside
 #    one of their strings. Comments are ignored.
+#  - fontMono is read only by Theme.qml and TrustDialog.qml (#67).
 #  - No swipe actions on list rows: fails on SwipeDelegate, leadingActions
 #    and trailingActions.
 #

@@ -145,6 +145,16 @@ for my $file (@ARGV) {
         $bad = 1;
     }
 
+    # fontMono is for the certificate fingerprint (TrustDialog.qml) and the
+    # theme that defines it; labels use fontLabel, reading text fontBody,
+    # section labels the eyebrow fields (#67).
+    if ($file !~ m{(?:^|/)(?:Theme|TrustDialog)\.qml$}) {
+        while ($code =~ /\bfontMono\b/g) {
+            print "$file:" . line_of($code, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody or the eyebrow fields; the mono face is for the fingerprint)\n";
+            $bad = 1;
+        }
+    }
+
     # Swipe rows: no SwipeDelegate, leadingActions or trailingActions.
     while ($code =~ /\b(SwipeDelegate|leadingActions|trailingActions)\b/g) {
         print "$file:" . line_of($code, $-[0]) . ": $1 (no swipe actions on rows)\n";
