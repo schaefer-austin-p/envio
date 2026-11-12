@@ -20,7 +20,8 @@ Column {
             { label: qsTr("Date"), value: when },
             { label: qsTr("Account"), value: accountName !== "" ? accountName : view.account }
         ]
-        return rows.filter(function(r) { return r.value !== "" })
+        // Airmail's stamp row carries the sender, so the table drops From.
+        return rows.filter(function(r) { return r.value !== "" && !(theme.airmail && r.label === rows[0].label) })
     }
 
     spacing: theme.gu(1.5)
@@ -37,31 +38,50 @@ Column {
         font.weight: Font.DemiBold
         lineHeight: 1.2
     }
-    // Airmail: the sender's stamp beside the name (board: gap 14).
-    Loader {
-        objectName: "headerStamp"
-        active: root.theme.airmail
+    // Airmail: the sender's stamp, name and address under the title (board:
+    // gap 14). Invisible in Carbon, so the Column adds no spacing there.
+    Item {
+        visible: root.theme.airmail
         width: parent.width
-        height: item !== null ? item.height : 0
-        sourceComponent: Row {
-            spacing: 14
-            Avatar {
-                theme: root.theme
-                initials: StampTint.initials(root.view.from)
-                blue: StampTint.isBlue(StampTint.addressOf(
-                          root.view.fromAddress !== undefined ? root.view.fromAddress : root.view.from))
-            }
-            Text {
-                textFormat: Text.PlainText
-                objectName: "headerSender"
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - root.theme.stampWidth - parent.spacing
-                text: root.view.from
-                elide: Text.ElideRight
-                color: root.theme.heading
-                font.family: root.theme.fontLabel
-                font.pixelSize: 16
-                font.weight: root.theme.unreadWeight
+        height: root.theme.stampHeight
+        Loader {
+            objectName: "headerStamp"
+            anchors.fill: parent
+            active: root.theme.airmail
+            sourceComponent: Item {
+                Avatar {
+                    theme: root.theme
+                    initials: StampTint.initials(root.view.from)
+                    blue: StampTint.isBlue(StampTint.addressOf(
+                              root.view.fromAddress !== undefined ? root.view.fromAddress : root.view.from))
+                }
+                Column {
+                    x: root.theme.stampWidth + 14
+                    width: parent.width - x
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        textFormat: Text.PlainText
+                        objectName: "headerSender"
+                        width: parent.width
+                        text: root.view.from
+                        elide: Text.ElideRight
+                        color: root.theme.heading
+                        font.family: root.theme.fontLabel
+                        font.pixelSize: 16
+                        font.weight: root.theme.unreadWeight
+                    }
+                    Text {
+                        textFormat: Text.PlainText
+                        objectName: "headerAddress"
+                        visible: text !== ""
+                        width: parent.width
+                        text: root.view.fromAddress !== undefined ? root.view.fromAddress : ""
+                        elide: Text.ElideRight
+                        color: root.theme.secondary
+                        font.family: root.theme.fontAddress
+                        font.pixelSize: 13
+                    }
+                }
             }
         }
     }

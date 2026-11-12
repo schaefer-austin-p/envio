@@ -141,6 +141,43 @@ Item {
             compare(find("headerStamp").item, null)
         }
 
+        function has(name) {
+            return everything(root.page, []).some(function(o) { return o.objectName === name })
+        }
+
+        function test_airmail_header_stamp_row_sits_below_the_title() {
+            open(view([], 0))
+            thm.name = "airmail"
+            waitForRendering(root.page)
+            const title = find("headerSubject")
+            const stampRow = find("headerStamp")
+            const y = stampRow.mapToItem(title, 0, 0).y
+            verify(y >= title.height, "the stamp row at " + y + " overlaps the title of height " + title.height)
+            // The table starts below the stamp row, and its From row is gone.
+            verify(!has("header-From"))
+            verify(has("header-To"))
+            compare(find("headerAddress").text, "ana@example.org")
+            compare(find("headerAddress").font.family, thm.fontAddress)
+            const table = find("header-To").parent.parent.parent
+            verify(table.mapToItem(title, 0, 0).y >= y + thm.stampHeight)
+            thm.name = "carbon"
+        }
+
+        function test_carbon_header_is_unchanged() {
+            open(view([], 0))
+            thm.name = "carbon"
+            waitForRendering(root.page)
+            const title = find("headerSubject")
+            compare(title.y, 0)
+            const from = find("header-From")
+            verify(from.visible)
+            // The title, then gu(1.5), then the table: hairline, gu(1), rows.
+            const table = from.parent.parent.parent
+            compare(table.y, title.height + thm.gu(1.5))
+            compare(from.parent.y, thm.gu(1))
+            verify(!has("headerAddress"))
+        }
+
         function test_body_takes_the_body_roles_data() {
             return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
         }
