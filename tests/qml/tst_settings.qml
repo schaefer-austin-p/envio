@@ -62,10 +62,16 @@ Item {
             }
             settings.visible = false
         }
-        function test_the_airmail_settings_chevron_is_red() {
-            core.theme = "airmail"
-            compare(find("chevron", find("row-sync", settings)).color, thm.chevron)
-            core.theme = "carbon"
+        function test_settings_chevron_is_secondary_in_every_look() {
+            settings.visible = true
+            for (const look of ["carbon", "airmail"]) {
+                for (const dark of ["light", "dark"]) {
+                    core.theme = look
+                    core.darkMode = dark
+                    compare(find("chevron", find("row-sync", settings)).color, thm.secondary, look + " " + dark)
+                }
+            }
+            settings.visible = false
         }
         function test_acting_at_once_rows_have_no_chevron() {
             // Light/Dark/System and the sync mode act at once.

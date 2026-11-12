@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 12:44+0100\n"
+"POT-Creation-Date: 2026-11-12 12:51+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -359,12 +359,12 @@ msgstr ""
 msgid "Discard"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:56 qml/pages/reader/HeaderBlock.qml:17
+#: qml/pages/compose/FromRow.qml:57 qml/pages/reader/HeaderBlock.qml:17
 #: crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:79
+#: qml/pages/compose/FromRow.qml:80
 msgid "Send from"
 msgstr ""
 

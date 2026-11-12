@@ -1,19 +1,16 @@
 import QtQuick 2.15
 import "../platform"
 
-// A disclosure chevron: decoration only (no touch handling), the row it sits
-// in takes the tap. `tone` picks the Theme role: "red" and "blue" are the
-// Airmail stamp colours (both read as secondary in Carbon), "secondary" the
-// plain text-secondary grey. `open` turns it down, for a group that is open.
+// A disclosure chevron in the secondary text colour (both themes): decoration
+// only, with no touch handling, so the row it sits in takes the tap.
+// `direction` is "forward" (opens a page, or a closed group) or "down" (opens
+// a picker, or an open group).
 Icon {
     id: root
     objectName: "chevron"
-    property string tone: "red"
-    property bool open: false
+    property string direction: "forward"
 
-    name: open ? "down" : "forward"
+    name: direction
     size: theme.iconSmall
-    color: tone === "blue" ? theme.chevronBlue
-         : tone === "secondary" ? theme.secondary
-         : theme.chevron
+    color: theme.secondary
 }

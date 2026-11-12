@@ -40,7 +40,7 @@ Item {
                 objectName: "row-" + modelData.key
                 theme: root.theme
                 width: parent.width
-                chevron: "red"
+                chevron: true
                 onClicked: {
                     switch (modelData.key) {
                     case "appearance": root.appearanceRequested(); break

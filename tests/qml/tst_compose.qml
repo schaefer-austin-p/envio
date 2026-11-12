@@ -360,13 +360,24 @@ Item {
             compare(lastDraft().account, "work")
         }
 
-        function test_from_row_shows_a_chevron_when_it_opens_a_picker() {
+        function chevronIn(item) {
+            return everything(item, []).filter(function(o) { return o.objectName === "chevron" })[0]
+        }
+        function test_from_row_shows_a_down_chevron_when_it_opens_a_picker() {
             mock.composeReady(1, reply, "")
-            const c = everything(find("fromRow"), []).filter(function(o) { return o.objectName === "chevron" })[0]
+            const row = find("fromRow")
+            const c = chevronIn(row)
             verify(c !== undefined)
             verify(c.visible)
             verify(c.width > 0)
-            compare(c.mapToItem(find("fromRow"), 0, 0).x + c.width <= find("fromRow").width, true)
+            compare(c.name, "down")
+            compare(c.color, thm.secondary)
+            verify(c.mapToItem(row, 0, 0).x + c.width <= row.width)
+        }
+        function test_from_row_has_no_chevron_with_one_account() {
+            mock.accounts.remove(1)
+            mock.composeReady(1, reply, "")
+            tryVerify(function() { return chevronIn(find("fromRow")) === undefined })
         }
 
         // Phone shots: the From label and the suggestion text sat at x=0, and the

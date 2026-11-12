@@ -40,7 +40,8 @@ Item {
         theme: root.theme
         width: parent.width
         enabled: rows.count > 1
-        chevron: "blue"
+        chevron: rows.count > 1
+        chevronDirection: "down"
         onClicked: sheet.open()
         Row {
             objectName: "fromContent"

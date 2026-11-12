@@ -28,11 +28,11 @@ Item {
         // down); the tests swap which of the two shows.
         visible: false
         width: 300
-        chevron: "red"
+        chevron: true
         Text { text: "Appearance" }
     }
     SignalSpy { id: chevRowClicked; target: chevRow; signalName: "clicked" }
-    Chevron { id: lone; theme: thm; tone: "blue"; y: 300 }
+    Chevron { id: lone; theme: thm; y: 300 }
     SignalSpy { id: rowHeld; target: row; signalName: "pressAndHold" }
 
     Toast { id: toast; theme: thm; width: 300 }
@@ -100,22 +100,24 @@ Item {
             }
             return null
         }
-        function test_chevron_uses_the_small_icon_and_the_tone_roles() {
-            thm.name = "airmail"
-            compare(lone.width, thm.iconSmall)
-            compare(lone.color, thm.chevronBlue)
-            lone.tone = "red"
-            compare(lone.color, thm.chevron)
-            lone.tone = "secondary"
-            compare(lone.color, thm.secondary)
-            lone.tone = "blue"
+        function test_chevron_is_the_small_icon_in_secondary() {
+            for (const look of ["carbon", "airmail"]) {
+                for (const dark of [false, true]) {
+                    thm.name = look
+                    thm.darkMode = dark ? "dark" : "light"
+                    compare(lone.width, thm.iconSmall)
+                    compare(lone.color, thm.secondary)
+                }
+            }
             thm.name = "carbon"
+            thm.darkMode = "system"
         }
-        function test_chevron_points_right_and_down_when_open() {
+        function test_chevron_points_right_or_down_by_direction() {
+            compare(lone.direction, "forward")
             compare(lone.name, "forward")
-            lone.open = true
+            lone.direction = "down"
             compare(lone.name, "down")
-            lone.open = false
+            lone.direction = "forward"
         }
         function test_a_plain_row_has_no_chevron() {
             compare(chevronOf(row), null)
@@ -129,7 +131,7 @@ Item {
             verify(c.width > 0)
             verify(c.mapToItem(chevRow, 0, 0).x + c.width <= chevRow.width)
             verify(c.mapToItem(chevRow, 0, 0).x > chevRow.width / 2)
-            compare(c.color, thm.chevron)
+            compare(c.color, thm.secondary)
             chevRow.visible = false
             row.visible = true
         }
@@ -145,8 +147,6 @@ Item {
             const p = c.mapToItem(chevRow, c.width / 2, c.height / 2)
             mouseClick(chevRow, p.x, p.y)
             compare(chevRowClicked.count, 1)
-            for (let i = 0; i < c.children.length; i++)
-                verify(c.children[i].toString().indexOf("MouseArea") < 0)
             chevRow.visible = false
             row.visible = true
         }

@@ -167,8 +167,8 @@ Rectangle {
                         theme: root.theme
                         width: parent.width
                         separator: false
-                        chevron: "secondary"
-                        chevronOpen: root.expanded === acct.model.key
+                        chevron: true
+                        chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
                         Text {
                             textFormat: Text.PlainText
