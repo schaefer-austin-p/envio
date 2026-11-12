@@ -53,6 +53,7 @@
         <file>platform/Uri.qml</file>
         <file>platform/fileUrl.js</file>
         <file>components/qmldir</file>
+        <file>components/AirmailFrame.qml</file>
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
         <file>components/AppButton.qml</file>

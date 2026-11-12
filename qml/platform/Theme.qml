@@ -73,6 +73,12 @@ Control {
     readonly property real chipRadius: 6
     readonly property real dialogRadius: airmail ? 20 : gu(1.5)
     readonly property real sheetRadius: airmail ? 20 : gu(2)
+    // Airmail's red and blue ring around every page, Sheet and dialog: its
+    // band is frameInset wide between the outer and inner radius (the inner
+    // one is the visible corner of a Sheet or dialog). Carbon has none.
+    readonly property real frameInset: airmail ? 10 : 0
+    readonly property real frameOuterRadius: airmail ? 30 : 0
+    readonly property real frameInnerRadius: airmail ? 20 : 0
     // Cards (a found-at-host card, the reader's body card) and popup menus.
     readonly property real cardRadius: airmail ? 10 : gu(1)
     readonly property real menuRadius: airmail ? 10 : gu(1.5)

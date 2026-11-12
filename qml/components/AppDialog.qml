@@ -24,57 +24,63 @@ QC.Popup {
     x: theme.gu(2)
     y: theme.gu(15)
     width: parent ? parent.width - theme.gu(4) : 0
-    padding: theme.gu(2.5)
+    // In Airmail the ring is the dialog's edge and the padding moves inside it.
+    padding: theme.airmail ? 0 : theme.gu(2.5)
 
     QC.Overlay.modal: Rectangle { color: root.theme.scrim }
 
     background: Rectangle {
+        visible: !root.theme.airmail
         color: root.theme.ground
         radius: root.theme.dialogRadius
         border.width: 1
         border.color: root.theme.hairline
     }
 
-    contentItem: Column {
-        spacing: root.theme.gu(1.75)
-        Text {
-            textFormat: Text.PlainText
+    contentItem: AirmailFrame {
+        theme: root.theme
+        padding: root.theme.airmail ? root.theme.gu(2.5) : 0
+        Column {
             width: parent.width
-            visible: root.title !== ""
-            text: root.title
-            wrapMode: Text.WordWrap
-            color: root.theme.heading
-            font.family: root.theme.fontTitle
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
-        }
-        Text {
-            textFormat: Text.PlainText
-            width: parent.width
-            visible: root.message !== ""
-            text: root.message
-            wrapMode: Text.WordWrap
-            color: root.theme.text
-            font.family: root.theme.fontUi
-            font.pixelSize: 15
-            lineHeight: 1.3
-        }
-        Column { id: extra; width: parent.width; spacing: root.theme.gu(1) }
-        AppButton {
-            objectName: "primaryAction"
-            width: parent.width
-            theme: root.theme
-            primary: true
-            text: root.primaryText
-            onClicked: { root.primaryActivated(); root.close() }
-        }
-        AppButton {
-            objectName: "secondaryAction"
-            width: parent.width
-            visible: root.secondaryText !== ""
-            theme: root.theme
-            text: root.secondaryText
-            onClicked: { root.secondaryActivated(); root.close() }
-        }
-    }
+            spacing: root.theme.gu(1.75)
+            Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                visible: root.title !== ""
+                text: root.title
+                wrapMode: Text.WordWrap
+                color: root.theme.heading
+                font.family: root.theme.fontTitle
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+            }
+            Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                visible: root.message !== ""
+                text: root.message
+                wrapMode: Text.WordWrap
+                color: root.theme.text
+                font.family: root.theme.fontUi
+                font.pixelSize: 15
+                lineHeight: 1.3
+            }
+            Column { id: extra; width: parent.width; spacing: root.theme.gu(1) }
+            AppButton {
+                objectName: "primaryAction"
+                width: parent.width
+                theme: root.theme
+                primary: true
+                text: root.primaryText
+                onClicked: { root.primaryActivated(); root.close() }
+            }
+            AppButton {
+                objectName: "secondaryAction"
+                width: parent.width
+                visible: root.secondaryText !== ""
+                theme: root.theme
+                text: root.secondaryText
+                onClicked: { root.secondaryActivated(); root.close() }
+            }
+        }    }
 }

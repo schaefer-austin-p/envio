@@ -28,7 +28,10 @@ QC.Popup {
 
     QC.Overlay.modal: Rectangle { color: root.theme.scrim }
 
+    // In Airmail the frame draws the paper and the ring; the Carbon sheet
+    // is as it was.
     background: Rectangle {
+        visible: !root.theme.airmail
         color: root.theme.ground
         radius: root.theme.sheetRadius
         // Square off the bottom corners: the sheet sits on the screen edge.
@@ -40,29 +43,32 @@ QC.Popup {
         }
     }
 
-    contentItem: Column {
-        spacing: root.theme.gu(1)
-        topPadding: root.theme.gu(1.25)
-        bottomPadding: root.theme.gu(2)
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: root.theme.gu(5)
-            height: 4
-            radius: height / 2
-            color: root.theme.field
-        }
-        Text {
-            textFormat: Text.PlainText
-            visible: root.title !== ""
-            x: root.theme.gu(2.5)
-            width: parent.width - root.theme.gu(5)
-            text: root.title
-            elide: Text.ElideRight
-            color: root.theme.heading
-            font.family: root.theme.fontTitle
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
-        }
-        Column { id: body; width: parent.width }
-    }
+    contentItem: AirmailFrame {
+        theme: root.theme
+        Column {
+            width: parent.width
+            spacing: root.theme.gu(1)
+            topPadding: root.theme.gu(1.25)
+            bottomPadding: root.theme.gu(2)
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: root.theme.gu(5)
+                height: 4
+                radius: height / 2
+                color: root.theme.field
+            }
+            Text {
+                textFormat: Text.PlainText
+                visible: root.title !== ""
+                x: root.theme.gu(2.5)
+                width: parent.width - root.theme.gu(5)
+                text: root.title
+                elide: Text.ElideRight
+                color: root.theme.heading
+                font.family: root.theme.fontTitle
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+            }
+            Column { id: body; width: parent.width }
+        }    }
 }
