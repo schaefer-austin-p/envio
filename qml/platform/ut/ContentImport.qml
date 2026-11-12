@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import Lomiri.Content 1.3
+import "../fileUrl.js" as FileUrl
 
 // Asks the user for files through Content Hub (Ubuntu Touch only; with
 // ContentExport the only file that imports Lomiri.Content). The picker lists
@@ -38,15 +39,10 @@ Rectangle {
         ignoreUnknownSignals: true
         function onStateChanged() {
             if (root.transfer.state === ContentTransfer.Charged) {
-                const paths = []
-                for (let i = 0; i < root.transfer.items.length; i++) {
-                    const raw = root.transfer.items[i].url.toString().replace(/^file:\/\//, "")
-                    // A name with a bare "%" ("100%.pdf") is not a valid
-                    // escape; keep it as it came rather than drop the import.
-                    let path = raw
-                    try { path = decodeURIComponent(raw) } catch (e) {}
-                    paths.push(path)
-                }
+                const urls = []
+                for (let i = 0; i < root.transfer.items.length; i++)
+                    urls.push(root.transfer.items[i].url.toString())
+                const paths = FileUrl.pathsOfUrls(urls)
                 root.imported(paths)
                 root.done()
             } else if (root.transfer.state === ContentTransfer.Aborted) {
