@@ -1,6 +1,7 @@
 //! Running one step of one account, and what a failure does to the account.
 
 mod mail;
+mod prefetch;
 mod sync;
 
 use envio_net::imap::ImapSession;
@@ -110,9 +111,21 @@ pub(crate) async fn run_step(
         Step::Replay => sync::replay(worker, account, &mut session).await,
         Step::File => mail::file(worker, account, &mut session).await,
         Step::Folder(id) => sync::folder(worker, account, &mut session, *id).await,
+        Step::Prefetch(id) => prefetch::run(worker, account, &mut session, *id).await,
         Step::Send => Ok(()),
     };
-    if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
+    keep_after(worker, (account, step), session, &result);
+    result
+}
+
+/// Keeps the session after a step unless the step broke it.
+fn keep_after(
+    worker: &mut Worker<'_>,
+    (account, step): (&str, &Step),
+    mut session: ImapSession,
+    result: &Result<(), Problem>,
+) {
+    if !matches!(result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
         let changed = changed_folder(step, &mut session);
         let open = worker
             .live
@@ -120,7 +133,6 @@ pub(crate) async fn run_step(
             .is_some_and(|live| keep_open(worker.foreground, step, &live.wants));
         keep(worker, account, session, (changed, open));
     }
-    result
 }
 
 /// The folder to sync again: the step's, if the server reported a change.
@@ -196,6 +208,7 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
         Step::Replay => live.wants.replay = false,
         Step::Send => live.wants.send = false,
         Step::File => live.wants.file = false,
+        Step::Prefetch(_) => {}
         Step::Folder(id) => {
             // Parts remain: the same folder runs again, ahead of the others.
             if live.continuing != Some(*id) {

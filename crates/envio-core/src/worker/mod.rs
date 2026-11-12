@@ -7,6 +7,7 @@ mod dispatch;
 mod older;
 mod outbox;
 mod plan;
+mod prefetch;
 mod read;
 mod remove;
 mod rows;

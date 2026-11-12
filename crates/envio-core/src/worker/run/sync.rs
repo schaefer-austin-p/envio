@@ -11,7 +11,7 @@ use crate::servers::Service;
 use crate::text;
 use crate::worker::Worker;
 
-fn imap_error(error: &envio_sync::SyncError) -> Problem {
+pub(super) fn imap_error(error: &envio_sync::SyncError) -> Problem {
     problem::from_sync(error, Service::Imap)
 }
 
@@ -89,6 +89,14 @@ pub(super) async fn search_server(
     Ok(())
 }
 
+/// Local search finds words in bodies: the text of the message, an HTML one
+/// through its text conversion. A failure only costs that.
+pub(super) fn index_body(worker: &Worker<'_>, id: MessageRowId, eml: &[u8]) {
+    if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
+        log::warn!("indexing a body: {e}");
+    }
+}
+
 pub(super) async fn body(
     worker: &mut Worker<'_>,
     session: &mut ImapSession,
@@ -108,11 +116,7 @@ pub(super) async fn body(
         .await
         .map_err(|e| imap_error(&e))?;
     if let Some(eml) = &eml {
-        // Local search finds words in bodies: the text of the message, an
-        // HTML one through its text conversion. A failure only costs that.
-        if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
-            log::warn!("indexing a body: {e}");
-        }
+        index_body(worker, id, eml);
     }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
