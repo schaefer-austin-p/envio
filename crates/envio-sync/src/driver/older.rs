@@ -17,7 +17,8 @@ use crate::server::MailServer;
 pub struct Older {
     /// The rows cached by this call, newest first.
     pub fetched: Vec<MessageRowId>,
-    /// The lowest UID this call reached: the folder's new kept floor.
+    /// The lowest UID planned in this batch, stored or not: the folder's new
+    /// kept floor.
     pub floor: u32,
     /// Nothing older is left on the server.
     pub exhausted: bool,
@@ -25,7 +26,9 @@ pub struct Older {
 
 /// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages
 /// below the folder's oldest cached UID, newest first, in one transaction.
-/// The caller remembers `floor` so the next folder sync keeps these rows.
+/// The caller remembers `floor` (and passes it to the next call and to
+/// `sync_folder`) so the next sync keeps these rows and the next batch starts
+/// below this one even if nothing was stored.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
@@ -34,6 +37,7 @@ pub async fn load_older(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     folder: FolderId,
+    floor: Option<u32>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
     let state = server.select(&row.path).await?;
@@ -44,7 +48,13 @@ pub async fn load_older(
         return Err(SyncError::Net(NetError::Refused(String::new())));
     }
     let cached_uids = local.db.uids(folder)?;
-    let oldest = cached_uids.first().copied().unwrap_or(state.uid_next);
+    // Below the oldest cached UID and below the last floor, so a batch that
+    // stored nothing (all \Deleted or hidden) is not planned again.
+    let oldest = cached_uids
+        .first()
+        .copied()
+        .unwrap_or(state.uid_next)
+        .min(floor.unwrap_or(u32::MAX));
     let below = server.search_uids_below(oldest).await?;
     let cached: BTreeSet<u32> = cached_uids.into_iter().collect();
     let plan = plan_older(&below, &cached);

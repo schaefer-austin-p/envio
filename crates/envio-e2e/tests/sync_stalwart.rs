@@ -43,9 +43,15 @@ async fn synced(
     let ids = deliver(&mut session, subjects).await;
     let mut store = Store::new(user.name);
     clean(
-        sync_account(&mut session, &mut store.local(), user.name, now_ms())
-            .await
-            .unwrap(),
+        sync_account(
+            &mut session,
+            &mut store.local(),
+            user.name,
+            now_ms(),
+            Some(30),
+        )
+        .await
+        .unwrap(),
     );
     (session, store, ids)
 }
@@ -64,9 +70,15 @@ async fn a_first_sync_caches_the_inbox_and_a_second_fetches_nothing() {
         store.folder(role);
     }
     let again = clean(
-        sync_account(&mut session, &mut store.local(), carol.name, now_ms())
-            .await
-            .unwrap(),
+        sync_account(
+            &mut session,
+            &mut store.local(),
+            carol.name,
+            now_ms(),
+            Some(30),
+        )
+        .await
+        .unwrap(),
     );
     assert!(!again.folders.is_empty());
     assert!(again.folders.iter().all(|(_, synced)| synced.fetched == 0));
@@ -93,9 +105,15 @@ async fn a_flag_change_reaches_the_server_after_the_undo_window() {
     let now = now_ms();
     record(&mut store.local(), message.id, kind, now).unwrap();
     let run = clean(
-        sync_account(&mut session, &mut store.local(), dave.name, now + UNDO_MS)
-            .await
-            .unwrap(),
+        sync_account(
+            &mut session,
+            &mut store.local(),
+            dave.name,
+            now + UNDO_MS,
+            Some(30),
+        )
+        .await
+        .unwrap(),
     );
     assert_eq!(run.replayed.done, 1);
     session.logout().await.unwrap();
@@ -130,9 +148,15 @@ async fn delete_with_undo_then_delete_for_real_moves_to_trash() {
     assert!(undo(&mut store.local(), &taken).unwrap());
     record(&mut store.local(), pick("Bin"), ActionKind::Delete, now).unwrap();
     let run = clean(
-        sync_account(&mut session, &mut store.local(), erin.name, now + UNDO_MS)
-            .await
-            .unwrap(),
+        sync_account(
+            &mut session,
+            &mut store.local(),
+            erin.name,
+            now + UNDO_MS,
+            Some(30),
+        )
+        .await
+        .unwrap(),
     );
     assert_eq!(run.replayed.done, 1);
     assert!(run.replayed.reverted.is_empty());

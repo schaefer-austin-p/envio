@@ -30,11 +30,13 @@ pub struct AccountSynced {
 /// gone or the account is paused. A folder the server refuses is recorded
 /// in `refused` and skipped; any other network error in a folder ends the
 /// run with `stopped` set (the session is unusable). Store errors are `Err`.
+#[allow(clippy::too_many_arguments)] // one more than the plan fixed: the sync window
 pub async fn sync_account(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     account: &str,
     now_ms: i64,
+    window: Option<u32>,
 ) -> Result<AccountSynced> {
     let folders = sync_folders(server, local, account).await?;
     let mut synced = AccountSynced {
@@ -45,7 +47,7 @@ pub async fn sync_account(
         return Ok(synced);
     }
     for id in sync_order(&folders) {
-        match sync_folder(server, local, id, now_ms, Some(30), None).await {
+        match sync_folder(server, local, id, now_ms, window, None).await {
             Ok(one) => synced.folders.push((id, one)),
             Err(error) => match error.kind() {
                 ErrorKind::Refused => synced.refused.push(id),

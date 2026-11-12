@@ -89,13 +89,13 @@ async fn load_older_fetches_50_then_the_rest_then_is_exhausted() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("karl")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    let first = load_older(&mut session, &mut store.local(), inbox)
+    let first = load_older(&mut session, &mut store.local(), inbox, None)
         .await
         .unwrap();
     assert_eq!(first.fetched.len(), 50);
     assert!(!first.exhausted);
     assert_eq!(cached(&store, inbox), INSIDE + 50);
-    let second = load_older(&mut session, &mut store.local(), inbox)
+    let second = load_older(&mut session, &mut store.local(), inbox, Some(first.floor))
         .await
         .unwrap();
     assert_eq!(second.fetched.len(), OUTSIDE - 50);
@@ -112,7 +112,7 @@ async fn a_sync_with_the_floor_keeps_everything() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("liam")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    let first = load_older(&mut session, &mut store.local(), inbox)
+    let first = load_older(&mut session, &mut store.local(), inbox, None)
         .await
         .unwrap();
     sync(
@@ -133,7 +133,7 @@ async fn a_sync_without_the_floor_goes_back_to_the_window() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("mona")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    load_older(&mut session, &mut store.local(), inbox)
+    load_older(&mut session, &mut store.local(), inbox, None)
         .await
         .unwrap();
     assert_eq!(cached(&store, inbox), INSIDE + 50);
