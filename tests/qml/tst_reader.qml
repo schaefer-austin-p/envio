@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.2
+import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
@@ -30,7 +31,11 @@ Item {
             exportFile: function(path, mode) { root.exported.push({ path: path, mode: mode }) }
         }
     }
+    Component { id: coverComponent; Item {} }
+    Component { id: spyComponent; SignalSpy { signalName: "contentHeightChanged" } }
+    StackView { id: coverStack; width: 400; height: 700; visible: false }
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
+    SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
 
     MockCore { id: shellCore }
@@ -127,8 +132,8 @@ Item {
 
         function test_shows_the_header_and_body() {
             open(view([], 0))
-            compare(find("bodyText").text, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
-            compare(find("bodyText").textFormat, Text.RichText)
+            compare(root.page.bodyHtml, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
+            compare(find("bodyText").textFormat, TextEdit.RichText)
             verify(!shown("imagesBanner"))
             compare(find("headerSubject").text, "Invoice 0042")
         }
@@ -149,7 +154,7 @@ Item {
             thm.name = data.airmail ? "airmail" : "carbon"
             thm.darkMode = data.dark ? "dark" : "light"
             compare(String(thm.link).toUpperCase(), data.want)
-            verify(find("bodyText").text.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.link) + "}") === 0)
             thm.name = "carbon"
             thm.darkMode = "system"
         }
@@ -277,7 +282,6 @@ Item {
             const body = find("bodyText")
             compare(body.font.family, thm.fontBody)
             compare(body.font.pixelSize, thm.bodySize)
-            compare(body.lineHeight, thm.bodyLineHeight)
             thm.name = "carbon"
         }
 
@@ -286,7 +290,7 @@ Item {
             open(view([], 0))
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
-                                    "punycode": "", "afterHost": "/login", "openable": true, "warning": "" }
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true, "warning": "" }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
@@ -335,7 +339,7 @@ Item {
             open(view([], 0))
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
-                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens evil.example." }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
@@ -350,13 +354,29 @@ Item {
             compare(root.openedUrls, [url])
         }
 
+        function test_link_sheet_bolds_the_ascii_host() {
+            open(view([], 0))
+            const url = "https://p\u0430ypal.com/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "xn--pypal-4ve.com",
+                                    "unicodeHost": "p\u0430ypal.com",
+                                    "unicodeNote": "Displays as p\u0430ypal.com, which may imitate another site.",
+                                    "afterHost": "/login", "openable": true, "warning": "" }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkHost").text, "xn--pypal-4ve.com")
+            compare(find("linkHost").font.bold, true)
+            compare(find("linkUnicode").visible, true)
+            compare(find("linkUnicode").font.bold, false)
+            compare(find("linkUnicode").text, "Displays as p\u0430ypal.com, which may imitate another site.")
+        }
+
         function test_a_long_host_wraps_and_is_shown_in_full() {
             open(view([], 0))
             const host = "www.bank.example.com.secure-account-verify-now.evil.example"
             const user = "bank.example.com.secure-account-verify-now-please-sign-in"
             const url = "https://" + user + "@" + host + "/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": user, "host": host,
-                                    "punycode": "", "afterHost": "/login", "openable": true,
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens " + host + "." }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
@@ -371,7 +391,7 @@ Item {
             open(view([], 0))
             const url = "https://example.org/"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "example.org",
-                                    "punycode": "", "afterHost": "/", "openable": true, "warning": "" }
+                                    "unicodeHost": "", "unicodeNote": "", "afterHost": "/", "openable": true, "warning": "" }
             find("bodyText").linkActivated(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkUserinfo").visible, false)
@@ -381,7 +401,7 @@ Item {
         function test_a_malformed_link_cannot_be_opened() {
             open(view([], 0))
             const url = "https://exa mple.org/"
-            mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+            mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                     "afterHost": url, "openable": false,
                                     "warning": "This link looks malformed and can't be opened." }
             find("bodyText").linkActivated(url)
@@ -524,6 +544,102 @@ Item {
             mouseClick(find("retry"))
             compare(mock.called("open").length, 1)
             compare(mock.called("open")[0].args[0], 5)
+        }
+
+        function test_loading_shows_until_the_view_arrives() {
+            waitForRendering(root.page)
+            verify(shown("loadingText"))
+            verify(!shown("bodyText"))
+            open(view([], 0))
+            verify(!shown("loadingText"))
+            verify(shown("bodyText"))
+        }
+
+        // A rich-text relayout costs hundreds of ms on a big message, so the
+        // body gets its height once (empty, then the text) while the view
+        // arrives and the page settles.
+        function test_body_lays_out_once() {
+            const body = find("bodyText")
+            heightSpy.target = body
+            heightSpy.clear()
+            open(view(pdf(), 0))
+            wait(100)
+            verify(heightSpy.count <= 2, "contentHeight changed " + heightSpy.count + " times")
+            compare(body.text.length > 0, true)
+            heightSpy.target = null
+        }
+
+        // The body waits for the push transition: while the status is not
+        // Active, the page shows Loading and no body, even with the view in.
+        function test_body_waits_for_the_push_transition() {
+            coverStack.visible = true
+            // The first page of a stack is not animated; the reader is the second.
+            coverStack.push(coverComponent)
+            coverStack.push(readerComponent, { messageId: 5, width: 400, height: 700 })
+            const reader = coverStack.currentItem
+            mock.messageOpened(view([], 0))
+            verify(reader.StackView.status !== StackView.Active,
+                   "no window to check: status is " + reader.StackView.status)
+            compare(reader.ready, false)
+            compare(reader.bodyHtml, "")
+            tryCompare(reader.StackView, "status", StackView.Active)
+            tryCompare(reader, "ready", true)
+            verify(reader.bodyHtml.length > 0)
+            coverStack.clear()
+            coverStack.visible = false
+        }
+
+        // Reply and forward push the compose page over the reader: the body
+        // stays as it was, and Back does not lay it out again.
+        function test_a_page_pushed_over_the_reader_keeps_the_body() {
+            coverStack.visible = true
+            coverStack.push(readerComponent, { messageId: 5, width: 400, height: 700 })
+            const reader = coverStack.currentItem
+            mock.messageOpened(view([], 0))
+            tryCompare(reader.StackView, "status", StackView.Active)
+            const body = everything(reader, []).filter(function(o) { return o.objectName === "bodyText" })[0]
+            tryVerify(function() { return body.visible && body.contentHeight > 0 })
+            const html = reader.bodyHtml
+            const height = body.contentHeight
+            const spy = createTemporaryObject(spyComponent, root, { target: body })
+            coverStack.push(coverComponent)
+            tryCompare(reader.StackView, "status", StackView.Inactive)
+            wait(50)
+            compare(reader.bodyHtml, html)
+            verify(reader.ready)
+            compare(body.contentHeight, height)
+            coverStack.pop()
+            tryCompare(reader.StackView, "status", StackView.Active)
+            wait(50)
+            compare(reader.bodyHtml, html)
+            compare(body.contentHeight, height)
+            compare(spy.count, 0)
+            coverStack.clear()
+            coverStack.visible = false
+        }
+
+        // The reader keeps the board's body line height now that TextEdit
+        // has no lineHeight of its own.
+        function test_body_line_height_follows_the_theme() {
+            open(view([], 0))
+            thm.name = "airmail"
+            compare(thm.bodyLineHeight, 1.6)
+            verify(root.page.bodyHtml.indexOf("p,li,div{line-height:160%}") > 0, root.page.bodyHtml)
+            thm.name = "carbon"
+            compare(thm.bodyLineHeight, 1.0)
+            compare(root.page.bodyHtml.indexOf("line-height"), -1)
+        }
+
+        function test_body_is_read_only_and_links_open_the_sheet() {
+            open(view([], 0))
+            const body = find("bodyText")
+            compare(body.readOnly, true)
+            compare(body.activeFocusOnPress, false)
+            compare(body.selectByMouse, false)
+            compare(body.cursorVisible, false)
+            body.linkActivated("https://example.org/")
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(root.openedUrls.length, 0)
         }
 
         function test_another_messages_view_is_ignored() {

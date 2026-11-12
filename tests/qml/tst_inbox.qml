@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.2
 import "../../qml/platform"
+import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
 import "../../qml/pages/inbox"
 
@@ -69,7 +70,7 @@ Item {
             return hit[0]
         }
         function message(id, selected) {
-            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", subject: "Plans " + id,
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train…", date: 0, dateBucket: "time", unread: true,
                      flagged: false, hasAttachments: false, selected: selected === true }
         }
@@ -79,6 +80,8 @@ Item {
             core.folders.clear()
             core.messages.clear()
             core.outbox.clear()
+            core.olderRow = 0
+            thm.name = "carbon"
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
                                    status: "Up to date", state: "ok", unread: 3, unreadText: "3" })
             core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
@@ -144,9 +147,31 @@ Item {
             compare(netRequests.count(), 0)
         }
 
+        function test_stamp_tint_uses_from_address() {
+            const a = "ann@example.org"
+            let b = "bob@example.org"
+            for (let i = 0; StampTint.isBlue(b) === StampTint.isBlue(a) && i < 50; i++)
+                b = "bob" + i + "@example.org"
+            verify(StampTint.isBlue(b) !== StampTint.isBlue(a))
+            const rows = [{ id: 31, addr: a }, { id: 32, addr: b }]
+            for (const r of rows) {
+                const m = message(r.id)
+                m.fromAddress = r.addr
+                core.messages.append(m)
+            }
+            thm.name = "airmail"
+            waitForRendering(page)
+            for (const r of rows) {
+                const stamp = find("stamp", find("row-" + r.id, page)).item
+                verify(stamp !== null)
+                compare(stamp.blue, StampTint.isBlue(r.addr))
+            }
+            thm.name = "carbon"
+        }
+
         function test_rows_follow_the_theme() {
             core.messages.append(message(21))
-            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", subject: "Read",
+            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", fromAddress: "ann@example.org", subject: "Read",
                                    preview: "", date: 0, dateBucket: "time", unread: false,
                                    flagged: false, hasAttachments: false, selected: false })
             waitForRendering(page)
@@ -162,6 +187,71 @@ Item {
                 compare(find("rowSender", find("row-22", page)).font.weight, Font.Normal)
             }
             thm.name = "carbon"
+        }
+
+        function in_each_look(body) {
+            for (const look of ["carbon", "airmail"]) {
+                thm.name = look
+                core.reset()
+                core.olderRow = 0
+                body(look)
+            }
+            thm.name = "carbon"
+        }
+
+        function test_older_row_ready_taps_load_older() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 1
+                const tap = find("olderTap", page)
+                verify(tap.visible, look)
+                compare(tap.height, thm.touch, look)
+                compare(tap.width, find("messageList", page).width, look)
+                mouseClick(tap)
+                compare(core.called("loadOlder").length, 1, look)
+                // The Ui pages the new rows in itself: the view never asks.
+                compare(core.called("more").length, 0, look)
+            })
+        }
+
+        function test_older_row_loading_is_not_tappable() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 2
+                const tap = find("olderTap", page)
+                verify(!tap.visible, look)
+                verify(find("olderLoading", page).visible, look)
+                compare(find("olderLoading", page).text, "Loading older messages…", look)
+                mouseClick(find("olderLoading", page))
+                compare(core.called("loadOlder").length, 0, look)
+            })
+        }
+
+        function test_older_row_done_shows_text() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 3
+                verify(find("olderDone", page).visible, look)
+                compare(find("olderDone", page).text, "No older messages", look)
+                compare(find("olderDone", page).color, thm.secondary, look)
+                verify(!find("olderTap", page).visible, look)
+                mouseClick(find("olderDone", page))
+                compare(core.called("loadOlder").length, 0, look)
+            })
+        }
+
+        function test_older_row_hidden_has_no_height() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            in_each_look(function(look) {
+                core.olderRow = 0
+                const row = find("olderTap", page).parent
+                compare(row.height, 0, look)
+                verify(!row.visible, look)
+            })
         }
 
         function test_tap_opens_the_message() {
@@ -448,7 +538,7 @@ Item {
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })
             tryVerify(function() { return !has("trustDialog") })
-            shellCore.trustPrompt("ann@example.org", "imap", "imap.example.org", "SHA-256 AB", "ab", "The server changed.")
+            shellCore.trustPrompt("ann@example.org", "imap", "imap.example.org", "T", "SHA-256 AB", "ab", "The server changed.")
             wait(50)
             verify(!has("trustDialog"))
             compare(shellCore.called("acceptCertificate").length, 0)

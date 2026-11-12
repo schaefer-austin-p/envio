@@ -10,6 +10,8 @@ pub enum CountKind {
     Results,
     Waiting,
     NewMail,
+    /// Search's note on the sync window: mail older than this is on the server only.
+    KeptDays,
 }
 
 fn with_count(template: &str, n: u64) -> String {
@@ -40,12 +42,25 @@ pub fn new_mail(n: u64) -> String {
     with_count(&tr_n("{n} new message", "{n} new messages", n), n)
 }
 
+/// Search's note when only the last `n` days are kept on the phone.
+pub fn kept_days(n: u64) -> String {
+    with_count(
+        &tr_n(
+            "Finds mail older than the {n} day kept here",
+            "Finds mail older than the {n} days kept here",
+            n,
+        ),
+        n,
+    )
+}
+
 pub fn count_text(kind: CountKind, n: u64) -> String {
     match kind {
         CountKind::Selected => selected(n),
         CountKind::Results => results(n),
         CountKind::Waiting => waiting(n),
         CountKind::NewMail => new_mail(n),
+        CountKind::KeptDays => kept_days(n),
     }
 }
 
@@ -60,6 +75,7 @@ mod tests {
             CountKind::Results,
             CountKind::Waiting,
             CountKind::NewMail,
+            CountKind::KeptDays,
         ];
         for kind in all {
             let one = count_text(kind, 1);
@@ -75,5 +91,6 @@ mod tests {
         assert_eq!(waiting(2), "2 messages waiting to send");
         assert_eq!(new_mail(1), "1 new message");
         assert_eq!(selected(4), "4 selected");
+        assert_eq!(kept_days(90), "Finds mail older than the 90 days kept here");
     }
 }

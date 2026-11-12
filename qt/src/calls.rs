@@ -319,22 +319,13 @@ impl qobject::EnvioCore {
         });
     }
 
-    #[allow(clippy::too_many_arguments)] // the QML signature
-    pub fn save_settings(
-        self: Pin<&mut Self>,
-        theme: &QString,
-        dark_mode: &QString,
-        images_always: bool,
-        default_account: &QString,
-    ) {
-        let edit = cv::SettingsEdit {
-            theme: &s(theme),
-            dark: &s(dark_mode),
-            images_always,
-            default_account: &s(default_account),
+    /// The "Load older messages" row was tapped.
+    pub fn load_older(mut self: Pin<&mut Self>) {
+        let Some((command, outs)) = self.as_mut().rust_mut().ui.load_older() else {
+            return;
         };
-        let settings = cv::settings_with(&self.rust().settings, &edit);
-        self.send_command(Command::SaveSettings(settings));
+        self.as_mut().run(outs);
+        self.send_command(command);
     }
 
     /// `kind` is "selected", "results", "waiting" or "newmail".
@@ -352,7 +343,8 @@ impl qobject::EnvioCore {
             "beforeHost": v.before_host,
             "userinfo": v.userinfo,
             "host": v.host,
-            "punycode": v.punycode,
+            "unicodeHost": v.unicode_host.unwrap_or_default(),
+            "unicodeNote": v.unicode_note,
             "afterHost": v.after_host,
             "warning": v.warning,
             "openable": v.openable,

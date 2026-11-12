@@ -156,6 +156,10 @@ fn a_pin_status_fills_the_row_and_clears_after() {
     assert_eq!(row.state, "pin");
     assert_eq!(row.pin.service, "smtp");
     assert_eq!(row.pin.host, "smtp.example.org");
+    assert_eq!(
+        row.pin.title,
+        "Can't verify the outgoing mail server (SMTP)"
+    );
     assert_eq!(row.pin.fingerprint, presented.display());
     assert_eq!(row.pin.hex, presented.to_hex());
     assert_eq!(row.pin.text, "The certificate changed");
@@ -173,6 +177,7 @@ fn a_pin_status_fills_the_row_and_clears_after() {
     for field in [
         &row.pin.service,
         &row.pin.host,
+        &row.pin.title,
         &row.pin.fingerprint,
         &row.pin.hex,
         &row.pin.text,

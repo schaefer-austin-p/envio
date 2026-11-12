@@ -7,6 +7,7 @@
 # Stalwart 1.0 starts in bootstrap mode without a config file, so: bootstrap
 # through its JMAP API, restart, add the STARTTLS listeners and the test users (alice and bob for envio-net,
 # carol to frank for envio-e2e's sync tests, grace to ivan for its core tests,
+# judy to nina for its older-mail tests,
 # one per test),
 # restart again. The container removes itself after 2 hours, a backstop for
 # runs that never reach their cleanup step.
@@ -91,7 +92,7 @@ jmap '{'"$using"',"methodCalls":[
  ["x:NetworkListener/set",{"accountId":"d333333","create":{
    "imap":{"name":"imap","bind":{"[::]:143":true},"protocol":"imap","useTls":true,"implicitTls":false},
    "submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","useTls":true,"implicitTls":false}}},"l"],
- ["x:Account/set",{"accountId":"d333333","create":{'"$(user alice alice-secret-1),$(user bob bob-secret-1),$(user carol carol-secret-1),$(user dave dave-secret-1),$(user erin erin-secret-1),$(user frank frank-secret-1),$(user grace grace-secret-1),$(user heidi heidi-secret-1),$(user ivan pässwort-ivan-1)"'}},"a"]]}'
+ ["x:Account/set",{"accountId":"d333333","create":{'"$(user alice alice-secret-1),$(user bob bob-secret-1),$(user carol carol-secret-1),$(user dave dave-secret-1),$(user erin erin-secret-1),$(user frank frank-secret-1),$(user grace grace-secret-1),$(user heidi heidi-secret-1),$(user ivan pässwort-ivan-1),$(user judy judy-secret-1),$(user karl karl-secret-1),$(user liam liam-secret-1),$(user mona mona-secret-1),$(user nina nina-secret-1)"'}},"a"]]}'
 restart
 wait_ports
 log "ready"

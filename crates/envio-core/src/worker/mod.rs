@@ -4,10 +4,12 @@ mod act;
 mod compose;
 mod conn;
 mod dispatch;
+mod older;
 mod outbox;
 mod plan;
 mod read;
 mod remove;
+mod rows;
 mod run;
 mod search;
 mod setup;
@@ -20,7 +22,7 @@ mod turn;
 mod userdata;
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,7 +43,8 @@ use crate::undo::UndoBook;
 use conn::{IdleFuture, Live};
 use dispatch::{Flow, handle};
 use envio_net::Roots;
-use envio_store::{FolderId, FolderRole, MessageRowId};
+use envio_store::{FolderId, FolderRole, ListRef, MessageRowId};
+use envio_sync::plan::sync::Kept;
 use envio_sync::schedule::backoff_ms;
 use store::Store;
 use trust::with_host;
@@ -86,6 +89,11 @@ pub(crate) struct Worker<'s> {
     server_search: Option<search::ServerSearch>,
     /// The Inbox unread count each account's tab last showed.
     unread_sent: RefCell<BTreeMap<String, u32>>,
+    /// The lowest UID "Load older" reached in each folder, this session
+    /// only: a sync keeps the rows from there up to the window.
+    floors: BTreeMap<FolderId, Kept>,
+    /// The `LoadOlder` commands waiting for their folders.
+    loads: HashMap<ListRef, older::Load>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -201,6 +209,8 @@ impl<'s> Worker<'s> {
             probing: BTreeMap::new(),
             server_search: None,
             unread_sent: RefCell::new(BTreeMap::new()),
+            floors: BTreeMap::new(),
+            loads: HashMap::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

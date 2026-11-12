@@ -224,6 +224,12 @@ pub fn search_since(unix_secs: i64) -> String {
     format!("SINCE {day}-{}-{year}", MONTHS[month as usize - 1])
 }
 
+/// The search key for every UID below `uid`: `UID 1:<uid-1>`; `None` when
+/// there are none (`uid <= 1`), so no round trip is needed.
+pub fn search_uids_below(uid: u32) -> Option<String> {
+    (uid > 1).then(|| format!("UID 1:{}", uid - 1))
+}
+
 /// An IMAP date-time (UTC) for `unix_secs`: `8-Nov-2026 09:05:00 +0000`,
 /// as APPEND takes it for the message's internal date.
 pub fn internal_date(unix_secs: i64) -> String {
@@ -283,6 +289,14 @@ mod tests {
         // 2024-02-29, a leap day.
         assert_eq!(search_since(1_709_164_800), "SINCE 29-Feb-2024");
         assert_eq!(search_since(-1), "SINCE 31-Dec-1969");
+    }
+
+    #[test]
+    fn uids_below_names_the_range_or_nothing() {
+        assert_eq!(search_uids_below(500).as_deref(), Some("UID 1:499"));
+        assert_eq!(search_uids_below(2).as_deref(), Some("UID 1:1"));
+        assert_eq!(search_uids_below(1), None);
+        assert_eq!(search_uids_below(0), None);
     }
 
     #[test]

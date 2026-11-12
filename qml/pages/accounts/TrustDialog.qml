@@ -8,13 +8,15 @@ import "../../components"
 AppDialog {
     id: root
     property string host: ""
+    // The core's title, as given: it names the server (IMAP or SMTP).
+    property string heading: ""
     property string service: ""
     property string fingerprint: ""
     property string hex: ""
     property string body: ""
     signal trusted()
 
-    title: qsTr("Can't verify %1").arg(host)
+    title: heading
     message: body
     primaryText: qsTr("Cancel")
     secondaryText: qsTr("Trust this certificate")

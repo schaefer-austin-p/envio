@@ -5,6 +5,7 @@
         <file>pages/ProblemPage.qml</file>
         <file>pages/inbox/InboxPage.qml</file>
         <file>pages/inbox/AccountTabs.qml</file>
+        <file>pages/inbox/LoadOlderRow.qml</file>
         <file>pages/inbox/MessageList.qml</file>
         <file>pages/inbox/MessageRow.qml</file>
         <file>pages/inbox/FoldersDrawer.qml</file>
@@ -65,6 +66,7 @@
         <file>components/AppDialog.qml</file>
         <file>components/EditMenu.qml</file>
         <file>components/Field.qml</file>
+        <file>components/BusyLine.qml</file>
         <file>components/PageFooter.qml</file>
         <file>components/HoldSelection.qml</file>
         <file>components/Icon.qml</file>

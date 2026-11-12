@@ -116,13 +116,14 @@ pub fn decision(word: &str) -> Option<OutboxDecision> {
     }
 }
 
-/// "selected", "results", "waiting" or "newmail".
+/// "selected", "results", "waiting", "newmail" or "keptdays".
 pub fn count_kind(word: &str) -> Option<CountKind> {
     match word {
         "selected" => Some(CountKind::Selected),
         "results" => Some(CountKind::Results),
         "waiting" => Some(CountKind::Waiting),
         "newmail" => Some(CountKind::NewMail),
+        "keptdays" => Some(CountKind::KeptDays),
         _ => None,
     }
 }
@@ -146,12 +147,13 @@ pub fn dark_word(d: DarkMode) -> &'static str {
     }
 }
 
-/// The four values the Settings page edits.
+/// The values the Settings pages edit.
 pub struct SettingsEdit<'a> {
     pub theme: &'a str,
     pub dark: &'a str,
     pub images_always: bool,
     pub default_account: &'a str,
+    pub sync_window_days: u32,
 }
 
 /// The settings with the edited values replaced; unknown words keep what
@@ -176,8 +178,25 @@ pub fn settings_with(current: &Settings, edit: &SettingsEdit) -> Settings {
         },
         default_account: (!edit.default_account.is_empty())
             .then(|| edit.default_account.to_owned()),
+        sync_window_days: edit.sync_window_days,
         ..current.clone()
     }
+}
+
+/// The `olderRow` property: 0 hidden, 1 ready, 2 loading, 3 done.
+pub fn older_row_code(row: envio_ui::OlderRow) -> i32 {
+    match row {
+        envio_ui::OlderRow::Hidden => 0,
+        envio_ui::OlderRow::Ready => 1,
+        envio_ui::OlderRow::Loading => 2,
+        envio_ui::OlderRow::Done => 3,
+    }
+}
+
+/// The sync window choices, in days (0 is all mail); anything else is
+/// refused.
+pub fn sync_window_choice(days: i32) -> Option<u32> {
+    matches!(days, 0 | 30 | 90 | 365).then(|| u32::try_from(days).unwrap_or(30))
 }
 
 #[cfg(test)]
@@ -197,5 +216,14 @@ mod tests {
         assert_eq!(list_ref("sideways", 1), None);
         assert_eq!(decision("shrug"), None);
         assert_eq!(search_scope("folder:x"), None);
+    }
+
+    #[test]
+    fn sync_window_takes_only_the_four_choices() {
+        for days in [0, 30, 90, 365] {
+            assert_eq!(sync_window_choice(days), Some(days as u32));
+        }
+        assert_eq!(sync_window_choice(7), None);
+        assert_eq!(sync_window_choice(-1), None);
     }
 }

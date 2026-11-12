@@ -32,6 +32,7 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
             }
             let response = failed(worker, account, step.kind(), &problem);
             search_failed(worker, account, &step, &problem);
+            older_failed(worker, account, &step, &problem);
             if matches!(
                 response,
                 Response::ItemError | Response::StopDownloads | Response::Rebuild
@@ -78,6 +79,18 @@ fn search_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &
     }
 }
 
+/// The user waits for a batch of older mail: no retry. A step before it
+/// (the folder list) that can't connect fails it too.
+fn older_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Problem) {
+    let own = matches!(step, Step::Older(_));
+    if worker.older_waiting(account) && (own || !matches!(problem, Problem::Refused(_))) {
+        if own {
+            finished(worker, account, step);
+        }
+        worker.older_account_failed(account);
+    }
+}
+
 pub(crate) async fn run_step(
     worker: &mut Worker<'_>,
     account: &str,
@@ -90,6 +103,7 @@ pub(crate) async fn run_step(
     let result = match step {
         Step::Folders => sync::folders(worker, account, &mut session).await,
         Step::Body(id) => sync::body(worker, &mut session, *id).await,
+        Step::Older(id) => worker.older_step(&mut session, *id).await,
         Step::SearchServer { folder, query } => {
             sync::search_server(worker, account, &mut session, (*folder, query)).await
         }
@@ -172,6 +186,9 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
             live.wants.expand(&folders);
         }
         Step::Body(id) => live.wants.bodies.retain(|b| b != id),
+        Step::Older(id) => {
+            live.wants.older.remove(id);
+        }
         Step::SearchServer { folder, query } => live
             .wants
             .searches

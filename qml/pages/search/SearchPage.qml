@@ -1,5 +1,5 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15 as QC
+import QtQuick.Controls 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
@@ -24,6 +24,17 @@ Item {
     property bool serverBusy: false
     property var failures: []
     readonly property string query: field.text.trim()
+
+    // Opening search puts the cursor in the field and raises the keyboard.
+    StackView.onActivated: {
+        // After the page's children exist (a first push activates it at once).
+        // Not if the page was popped meanwhile.
+        Qt.callLater(function() {
+            if (root.StackView.status !== StackView.Active) return
+            field.input.forceActiveFocus()
+            Qt.inputMethod.show()
+        })
+    }
 
     signal backRequested()
     signal messageRequested(var message)
@@ -167,27 +178,12 @@ Item {
         anchors.bottomMargin: root.theme.gu(2)
         spacing: root.theme.gu(1)
         visible: root.query !== ""
-        Row {
-            visible: root.serverBusy
+        BusyLine {
+            objectName: "searchBusy"
+            theme: root.theme
             width: parent.width
-            spacing: root.theme.gu(1.5)
-            QC.BusyIndicator {
-                objectName: "searchBusy"
-                running: root.serverBusy
-                width: root.theme.touch
-                height: root.theme.touch
-            }
-            Text {
-                objectName: "searchingText"
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - root.theme.touch - parent.spacing
-                textFormat: Text.PlainText
-                text: qsTr("Searching the servers…")
-                wrapMode: Text.WordWrap
-                color: root.theme.text
-                font.family: root.theme.fontUi
-                font.pixelSize: 15
-            }
+            running: root.serverBusy
+            text: qsTr("Searching the servers…")
         }
         AppButton {
             objectName: "cancelServerSearch"
@@ -207,11 +203,15 @@ Item {
             onClicked: root.ask(true)
         }
         Text {
+            objectName: "serverNote"
             visible: !root.serverBusy
             width: parent.width
             textFormat: Text.PlainText
             horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Finds mail older than the 30 days kept here")
+            // The window is a setting (Settings, Sync); 0 keeps all mail.
+            text: root.core.syncDays > 0
+                  ? root.core.countText("keptdays", root.core.syncDays)
+                  : qsTr("Also asks the mail servers")
             wrapMode: Text.WordWrap
             color: root.theme.secondary
             font.family: root.theme.fontUi

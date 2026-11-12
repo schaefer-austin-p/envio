@@ -7,6 +7,7 @@ use crate::hidden::{Ends, is_unwrapped};
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
+use crate::widths;
 
 /// Hosts that serve tracking pixels; subdomains match too.
 const TRACKER_HOSTS: &[&str] = &[
@@ -82,7 +83,8 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
             }
             _ if is_unwrapped(raw) => {}
             Some(tag) if tag.name == "img" => image(&tag, options, &mut out),
-            Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th") => {
+            Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
+                widths::carry(&mut tag, options.max_image_width);
                 limit_width(&mut tag, options.max_image_width);
                 tag.write(&mut out.html);
             }
@@ -253,7 +255,7 @@ fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
 /// A length as whole pixels: `20`, `20px`, `1.0PX`, `0.5`, ` 20 px`,
 /// `15pt` (pt x 4/3) and a trailing `!important`. Percentages, negatives
 /// and the like are `None`; a number too large for `u32` is `u32::MAX`.
-fn pixels(value: &str) -> Option<u32> {
+pub(crate) fn pixels(value: &str) -> Option<u32> {
     let value = value.trim().to_ascii_lowercase();
     let value = value.strip_suffix("!important").unwrap_or(&value).trim();
     let (number, factor) = match value.strip_suffix("pt") {
@@ -285,11 +287,14 @@ fn scale(width: Option<u32>, height: Option<u32>, max: u32) -> (Option<u32>, Opt
     }
 }
 
-/// Drops a pixel `width` wider than `max` from a table or cell.
+/// Drops a `width` the message set on a table, cell or column unless it
+/// is a sane percentage or pixels within `max`.
 fn limit_width(tag: &mut Tag, max: u32) {
-    if max == 0 {
-        return;
-    }
-    tag.attrs
-        .retain(|(name, value)| name != "width" || pixels(value).is_none_or(|w| w <= max));
+    tag.attrs = std::mem::take(&mut tag.attrs)
+        .into_iter()
+        .filter_map(|(name, value)| match name.as_str() {
+            "width" => widths::sane_attribute(&value, max).map(|w| (name, w)),
+            _ => Some((name, value)),
+        })
+        .collect();
 }

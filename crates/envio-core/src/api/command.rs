@@ -155,6 +155,10 @@ pub enum Command {
     /// Ask the server too: the folder of `scope` (an account's or the
     /// unified Inbox: each account's Inbox), found mail is cached.
     SearchServer { scope: SearchScope, query: String },
+    /// Fetch the next batch of mail older than what the list holds (for
+    /// `Inboxes`: one batch per account's Inbox). The answer is
+    /// `OlderLoaded` or `OlderFailed`.
+    LoadOlder { list: ListRef },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,
@@ -250,6 +254,7 @@ impl Command {
             Self::ListMessages { .. } => "ListMessages",
             Self::Search { .. } => "Search",
             Self::SearchServer { .. } => "SearchServer",
+            Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",

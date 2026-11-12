@@ -4,6 +4,7 @@
 
 mod accounts;
 mod messages;
+mod older;
 mod search;
 mod selection;
 
@@ -16,7 +17,7 @@ use crate::lists::ShownList;
 use crate::mirror::Mirror;
 use crate::models::{Model, ModelChange, Op};
 use crate::rows::AccountRow;
-use crate::signals::Signal;
+use crate::signals::{OlderRow, Signal};
 use messages::Current;
 use search::SearchState;
 
@@ -46,6 +47,13 @@ pub struct Ui {
     /// Accounts that could not answer the current server search.
     server_failed: usize,
     selection: BTreeSet<i64>,
+    /// The "Load older" row's state, as last announced.
+    older: OlderRow,
+    /// Load older found nothing more on the server for the shown list.
+    older_done: bool,
+    /// Rows Load older cached are to be paged in: asked as soon as the
+    /// list can take a page.
+    older_paging: bool,
     mirror: Mirror,
     /// Certificates accepted for the account being set up; the next
     /// `Connect` carries them.
@@ -119,7 +127,18 @@ impl Ui {
                 after,
                 rows,
                 end,
-            } => self.messages((list, after), &rows, end),
+            } => {
+                let mut outs = self.messages((list, after), &rows, end);
+                outs.extend(self.older_shown());
+                outs
+            }
+            Event::OlderLoaded {
+                list,
+                fetched,
+                exhausted,
+            } => self.older_loaded(list, fetched, exhausted),
+            Event::OlderReset => self.older_dropped(),
+            Event::OlderFailed { list, text } => self.older_failed(list, text),
             Event::MessagesFailed { list, after } => self.messages_failed((list, after)),
             Event::SearchResults {
                 scope,
@@ -150,7 +169,8 @@ impl Ui {
     /// Show a list: its first page replaces what is shown when it arrives.
     /// The outputs clear the selection marks of the rows being left.
     pub fn open_list(&mut self, list: ListRef) -> (Command, Vec<Output>) {
-        let outs = self.clear_marks();
+        let mut outs = self.clear_marks();
+        outs.extend(self.older_reset());
         self.mirror.track(&outs);
         self.current = Some(Current::new(list));
         (Command::ListMessages { list, after: None }, outs)

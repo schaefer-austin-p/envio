@@ -42,7 +42,7 @@ pub enum ImagesDefault {
     Always,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub version: u32,
@@ -52,6 +52,50 @@ pub struct Settings {
     /// Senders whose remote images always load.
     pub images_from: BTreeSet<String>,
     pub default_account: Option<String>,
+    /// How many days back sync caches: 30, 90, 365, or 0 for all. Any other
+    /// number read from the file snaps to 30, so an odd value never moves
+    /// the whole file to `.damaged`.
+    #[serde(default = "thirty", deserialize_with = "snap_window")]
+    pub sync_window_days: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            version: 0,
+            theme: ThemeName::default(),
+            dark: DarkMode::default(),
+            images: ImagesDefault::default(),
+            images_from: BTreeSet::new(),
+            default_account: None,
+            sync_window_days: thirty(),
+        }
+    }
+}
+
+impl Settings {
+    /// The sync window in days; `None` means all mail.
+    pub fn sync_window(&self) -> Option<u32> {
+        match self.sync_window_days {
+            0 => None,
+            days => Some(days),
+        }
+    }
+}
+
+fn thirty() -> u32 {
+    30
+}
+
+fn snap_window<'de, D: serde::Deserializer<'de>>(de: D) -> std::result::Result<u32, D::Error> {
+    // A wrong type (not a number) is still an error; an odd number is not.
+    let days = i64::deserialize(de)?;
+    Ok(match days {
+        0 => 0,
+        90 => 90,
+        365 => 365,
+        _ => 30,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,5 +172,38 @@ mod tests {
         assert!(json.contains(r#""theme":"carbon""#), "{json}");
         assert!(json.contains(r#""dark":"system""#), "{json}");
         assert!(json.contains(r#""images":"ask""#), "{json}");
+    }
+
+    #[test]
+    fn sync_window_defaults_to_thirty() {
+        let settings = Settings::default();
+        assert_eq!(settings.sync_window_days, 30);
+        assert_eq!(settings.sync_window(), Some(30));
+        let all = Settings {
+            sync_window_days: 0,
+            ..Settings::default()
+        };
+        assert_eq!(all.sync_window(), None);
+    }
+
+    #[test]
+    fn odd_sync_window_snaps_to_thirty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        for (text, want) in [("45", 30), ("-1", 30), ("90", 90), ("365", 365), ("0", 0)] {
+            fs::write(&path, format!(r#"{{"sync_window_days": {text}}}"#)).unwrap();
+            assert_eq!(load_settings(&path).unwrap().sync_window_days, want);
+        }
+        assert!(!dir.path().join("settings.json.damaged").exists());
+    }
+
+    #[test]
+    fn settings_without_the_field_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, r#"{"version": 1, "theme": "airmail"}"#).unwrap();
+        let settings = load_settings(&path).unwrap();
+        assert_eq!(settings.theme, ThemeName::Airmail);
+        assert_eq!(settings.sync_window_days, 30);
     }
 }

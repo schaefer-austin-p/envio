@@ -15,7 +15,7 @@ async fn sync_inbox(
 ) -> Result<Synced, envio_sync::SyncError> {
     sync_folders(server, &mut store.local(), ACCOUNT).await?;
     let inbox = store.folder("INBOX").id;
-    sync_folder(server, &mut store.local(), inbox, NOW_MS).await
+    sync_folder(server, &mut store.local(), inbox, NOW_MS, Some(30), None).await
 }
 
 #[tokio::test]

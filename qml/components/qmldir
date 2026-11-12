@@ -6,6 +6,7 @@ Chevron 1.0 Chevron.qml
 Chip 1.0 Chip.qml
 AppDialog 1.0 AppDialog.qml
 Field 1.0 Field.qml
+BusyLine 1.0 BusyLine.qml
 PageFooter 1.0 PageFooter.qml
 Icon 1.0 Icon.qml
 IconButton 1.0 IconButton.qml

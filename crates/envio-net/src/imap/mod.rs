@@ -10,6 +10,7 @@ pub mod names;
 mod ops;
 pub mod query;
 mod sign_in;
+mod window;
 
 use async_imap::Session;
 

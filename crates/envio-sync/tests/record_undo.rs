@@ -22,7 +22,7 @@ async fn sync(server: &mut FakeServer, store: &mut Store) {
         .await
         .unwrap();
     let inbox = store.folder("INBOX").id;
-    sync_folder(server, &mut store.local(), inbox, NOW_MS)
+    sync_folder(server, &mut store.local(), inbox, NOW_MS, Some(30), None)
         .await
         .unwrap();
 }
@@ -124,7 +124,7 @@ async fn undo_into_a_folder_that_has_gone_still_succeeds() {
         .await
         .unwrap();
     let old = store.folder("Old").id;
-    sync_folder(&mut server, &mut store.local(), old, NOW_MS)
+    sync_folder(&mut server, &mut store.local(), old, NOW_MS, Some(30), None)
         .await
         .unwrap();
     let id = store.db.message_at(old, 1).unwrap().unwrap().id;

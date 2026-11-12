@@ -98,6 +98,7 @@ Item {
                         trust.account = row.model.key
                         trust.host = row.model.pinHost
                         trust.service = row.model.pinService
+                        trust.heading = row.model.pinTitle
                         trust.fingerprint = row.model.pinFingerprint
                         trust.hex = row.model.pinHex
                         trust.body = row.model.pinText

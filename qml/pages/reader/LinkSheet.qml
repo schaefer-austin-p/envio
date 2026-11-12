@@ -14,7 +14,7 @@ Sheet {
     // The address in parts, from the core (`linkView`): the real host apart,
     // the decoration before an @ flagged, invisible characters written out.
     // Display only; Open and Copy use `address` as it came.
-    property var parts: ({ "beforeHost": "", "userinfo": "", "host": "", "punycode": "",
+    property var parts: ({ "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                            "afterHost": "", "warning": "", "openable": false })
     signal openRequested(string url)
 
@@ -80,6 +80,18 @@ Sheet {
                 font.family: root.theme.fontAddress
                 font.pixelSize: 13
             }
+        }
+        Text {
+            objectName: "linkUnicode"
+            visible: root.parts.unicodeHost !== ""
+            width: parent.width
+            // Secondary: the bold host above is what the browser reaches.
+            text: root.parts.unicodeNote
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            color: root.theme.secondary
+            font.family: root.theme.fontUi
+            font.pixelSize: 13
         }
         Text {
             objectName: "linkWarning"

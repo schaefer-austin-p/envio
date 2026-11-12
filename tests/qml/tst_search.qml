@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import QtTest 1.2
 import "../../qml/platform"
 import "../../qml/pages/search"
@@ -10,6 +11,7 @@ Item {
 
     Theme { id: thm }
     MockCore { id: core }
+    readonly property var mock: core
     SearchPage {
         id: page
         theme: thm
@@ -19,6 +21,16 @@ Item {
         folderId: 7
         anchors.fill: parent
     }
+    Component {
+        id: pageC
+        SearchPage {
+            theme: thm
+            core: root.mock
+            accounts: root.mock.accounts
+            results: root.mock.searchResults
+        }
+    }
+    Component { id: stackC; StackView {} }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
 
     TestCase {
@@ -48,13 +60,13 @@ Item {
             return all(name).filter(function(o) { return o.visible }).length > 0
         }
         function message(id) {
-            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", subject: "Plans " + id,
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train…", date: 0, dateBucket: "time", unread: false,
                      flagged: false, hasAttachments: false, selected: false }
         }
         function account(key, name) {
             return { key: key, name: name, email: key + "@example.org", status: "", state: "ok", unread: 0, unreadText: "",
-                     pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" }
+                     pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" }
         }
         function init() {
             find("searchField").input.text = ""
@@ -101,6 +113,20 @@ Item {
             compare(opened.signalArguments[0][0], 5)
         }
 
+        function test_search_field_has_focus_when_opened() {
+            const holder = createTemporaryObject(stackC, root, { width: 400, height: 700 })
+            holder.push(Qt.createQmlObject("import QtQuick 2.15; Item {}", holder))
+            holder.push(pageC)
+            tryVerify(function() {
+                return holder.currentItem && holder.currentItem.objectName === "searchPage"
+                    && holder.currentItem.StackView.status === StackView.Active
+            })
+            const fields = everything(holder.currentItem, []).filter(function(o) {
+                return o.objectName === "searchField" })
+            compare(fields.length, 1)
+            tryVerify(function() { return fields[0].input.activeFocus })
+        }
+
         function test_rows_show_the_stamp_in_airmail_and_the_dot_in_carbon() {
             typeQuery("train")
             const m = message(6)
@@ -125,6 +151,19 @@ Item {
             compare(searches()[searches().length - 1].args, ["all", "train", true])
         }
 
+        function test_server_note_names_the_sync_window() {
+            typeQuery("train")
+            tryVerify(function() { return shown("serverNote") })
+            compare(find("serverNote").text, "keptdays 30")
+            core.syncDays = 90
+            compare(find("serverNote").text, "keptdays 90")
+            core.syncDays = 365
+            compare(find("serverNote").text, "keptdays 365")
+            core.syncDays = 0
+            compare(find("serverNote").text, "Also asks the mail servers")
+            core.syncDays = 30
+        }
+
         function test_search_failed_lists_accounts() {
             typeQuery("train")
             tryVerify(function() { return shown("searchServers") })
@@ -145,7 +184,7 @@ Item {
             verify(!shown("searchBusy"))
             mouseClick(find("searchServers"))
             verify(shown("searchBusy"))
-            compare(find("searchingText").text, "Searching the servers…")
+            compare(find("searchBusy").text, "Searching the servers…")
             verify(!shown("searchServers"))
             // The results arrive (or every account failed): the core says done.
             core.searchDone()

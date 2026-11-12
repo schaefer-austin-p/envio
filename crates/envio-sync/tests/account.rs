@@ -43,7 +43,7 @@ async fn synced(server: &mut FakeServer) -> Store {
     server.deliver_id("Archive", "old");
     server.deliver_id("INBOX", "a");
     let mut store = Store::new();
-    sync_account(server, &mut store.local(), ACCOUNT, NOW_MS)
+    sync_account(server, &mut store.local(), ACCOUNT, NOW_MS, Some(30))
         .await
         .unwrap();
     store
@@ -55,7 +55,7 @@ async fn a_run_replays_first_then_syncs_inbox_first() {
     let mut store = synced(&mut server).await;
     assert_eq!(store.subjects("Archive"), ["About old"]);
     take(&mut store, 1, read());
-    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER)
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER, Some(30))
         .await
         .unwrap();
     assert_eq!(run.replayed.done, 1);
@@ -82,7 +82,7 @@ async fn a_replay_that_stops_ends_the_run() {
     let mut store = synced(&mut server).await;
     take(&mut store, 1, read());
     server.fail_on("store_flags", NetError::Timeout);
-    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER)
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER, Some(30))
         .await
         .unwrap();
     assert_eq!(run.replayed.stopped, Some(ErrorKind::Temporary));
@@ -159,7 +159,7 @@ async fn a_refused_folder_does_not_block_the_ones_after_it() {
     server.deliver_id("Beta", "late");
     let mut store = Store::new();
     server.fail_on_detail("select", "Alpha", NetError::Refused("no".into()));
-    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, NOW_MS)
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, NOW_MS, Some(30))
         .await
         .unwrap();
     assert_eq!(run.refused, [store.folder("Alpha").id]);
@@ -173,7 +173,7 @@ async fn a_timeout_in_a_folder_ends_the_run_and_keeps_the_replay() {
     let mut store = synced(&mut server).await;
     take(&mut store, 1, read());
     server.fail_on_detail("select", "Archive", NetError::Timeout);
-    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER)
+    let run = sync_account(&mut server, &mut store.local(), ACCOUNT, LATER, Some(30))
         .await
         .unwrap();
     assert_eq!(run.stopped, Some(ErrorKind::Temporary));

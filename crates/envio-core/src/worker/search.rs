@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use envio_store::{FolderId, MessageRowId, Within};
 
 use super::Worker;
-use super::read::rows;
+use super::rows::rows;
 use crate::api::command::SearchScope;
 use crate::api::event::Event;
 use crate::api::view::MessageRow;

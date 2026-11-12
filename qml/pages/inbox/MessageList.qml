@@ -5,7 +5,8 @@ import "../../components"
 // The list over `core.messages`. Rust owns the rows and the selection; this
 // reads the `selected` role to know whether selection mode is on. Near the
 // end it asks for the next page (the model merges it in, so the list never
-// resets under the finger); pulling past the top refreshes.
+// resets under the finger); pulling past the top refreshes. At the end the
+// footer offers older mail from the server.
 Item {
     id: root
     required property Theme theme
@@ -59,6 +60,12 @@ Item {
         boundsBehavior: Flickable.DragOverBounds
         onAtYEndChanged: if (atYEnd && count > 0) root.core.more()
         onDragEnded: if (contentY < -root.theme.gu(10)) root.core.refresh("")
+        footer: LoadOlderRow {
+            theme: root.theme
+            width: list.width
+            state: root.core.olderRow
+            onLoadRequested: root.core.loadOlder()
+        }
         delegate: MessageRow {
             id: row
             theme: root.theme

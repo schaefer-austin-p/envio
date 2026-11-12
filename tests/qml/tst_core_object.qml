@@ -126,6 +126,7 @@ TestCase {
         verify(core.countText("selected", 1) !== core.countText("selected", 2))
         compare(core.countText("results", 1), "1 result")
         compare(core.countText("results", 2), "2 results")
+        compare(core.countText("keptdays", 90), "Finds mail older than the 90 days kept here")
         compare(core.countText("nonsense", 2), "")
     }
 
@@ -137,6 +138,13 @@ TestCase {
         compare(v.openable, true)
         verify(v.warning.indexOf("evil.example") >= 0)
         compare(core.linkView("https://exa mple.org/").openable, false)
+    }
+
+    function test_link_view_gives_an_idn_host_in_ascii() {
+        const v = core.linkView("https://xn--bcher-kva.example/")
+        compare(v.host, "xn--bcher-kva.example")
+        compare(v.unicodeHost, "b\u00fccher.example")
+        verify(v.unicodeNote.length > 0)
     }
 
     // 64-bit values must reach QML as numbers. A QVariant, signal argument or

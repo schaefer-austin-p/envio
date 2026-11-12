@@ -83,6 +83,8 @@ Item {
     PageFooter {
         id: footer
         theme: root.theme
+        busy: root.busy
+        busyText: qsTr("Looking up settings…")
     AppButton {
         id: continueButton
         objectName: "continueButton"

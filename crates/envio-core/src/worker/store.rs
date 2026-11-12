@@ -137,8 +137,9 @@ impl Store {
     }
 
     /// Drops bodies outside the sync window, and orphans with no row (#41).
+    /// With window All nothing is pruned by date.
     pub fn sweep_bodies(&self, now_ms: i64) -> envio_store::Result<usize> {
-        let cutoff = window_start(now_ms);
+        let cutoff = window_start(now_ms, self.settings.sync_window()).unwrap_or(i64::MIN);
         self.db.mark_bodies_pruned(cutoff)?;
         self.bodies.retain(&self.db.bodies_to_keep(cutoff)?)
     }
@@ -150,6 +151,38 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     use super::super::testing::{Sink, open, seed};
+
+    /// The seeded message is dated 0 (decades old) and has a body on disk.
+    fn body_survives_sweep(days: u32) -> bool {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let uid = worker.store.db.message(seeded.message).unwrap().uid;
+        worker
+            .store
+            .bodies
+            .write(seeded.folder, uid, b"Subject: hi\r\n\r\nbody")
+            .unwrap();
+        worker
+            .store
+            .db
+            .set_body_state(seeded.message, envio_store::BodyState::Downloaded)
+            .unwrap();
+        worker.store.settings.sync_window_days = days;
+        worker.store.sweep_bodies(1_800_000_000_000).unwrap();
+        worker.store.bodies.read(seeded.folder, uid).is_ok()
+    }
+
+    #[test]
+    fn the_body_sweep_prunes_by_date_only_inside_a_window() {
+        assert!(!body_survives_sweep(30));
+    }
+
+    #[test]
+    fn the_all_window_prunes_no_body_by_date() {
+        assert!(body_survives_sweep(0));
+    }
 
     #[test]
     fn a_failed_rebuild_keeps_the_open_database() {

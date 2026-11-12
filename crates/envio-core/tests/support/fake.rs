@@ -22,6 +22,10 @@ pub enum Kind {
     /// Like `Mailbox`, with one message in the INBOX (UID 1, no flags)
     /// whose whole text is [`MESSAGE`].
     Message,
+    /// Like `Mailbox`, with an INBOX of UIDs 1 to 10 (UIDNEXT 11): UID 10
+    /// is new, 1 to 9 are dated 2020. SEARCH, FETCH of summaries and flags
+    /// answer for them; every command line is kept in `log`.
+    Older,
     /// Greets, then accepts any AUTH.
     Smtp,
 }
@@ -98,6 +102,10 @@ fn handle(
         Kind::Message => {
             tls.write_all(b"* OK fake ready\r\n")?;
             talk(tls, message_reply, log)
+        }
+        Kind::Older => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, older_reply, log)
         }
         Kind::Smtp => {
             tls.write_all(b"220 fake ESMTP\r\n")?;
@@ -183,6 +191,68 @@ fn message_reply(line: &str) -> (String, bool) {
         )
     } else if upper.starts_with("UID FETCH") {
         format!("* 1 FETCH (UID 1 FLAGS ())\r\n{tag} OK done\r\n")
+    } else {
+        return mailbox_reply(line);
+    };
+    (text, false)
+}
+
+/// The UIDs a set like `9:1,10` names.
+fn uids_of(set: &str) -> Vec<u32> {
+    let mut out = Vec::new();
+    for part in set.split(',') {
+        let (a, b) = part.split_once(':').unwrap_or((part, part));
+        let (a, b): (u32, u32) = (a.parse().unwrap(), b.parse().unwrap());
+        out.extend(a.min(b)..=a.max(b));
+    }
+    out
+}
+
+fn older_reply(line: &str) -> (String, bool) {
+    let (tag, command) = line.split_once(' ').unwrap_or((line, ""));
+    let upper = command.to_ascii_uppercase();
+    let words: Vec<&str> = command.split(' ').collect();
+    let text = if upper.starts_with("SELECT") {
+        format!(
+            "* 10 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 11] ok\r\n{tag} OK [READ-WRITE] done\r\n"
+        )
+    } else if upper.starts_with("UID SEARCH") {
+        let found: Vec<u32> = if upper.contains("SINCE") {
+            vec![10]
+        } else if let Some(range) = words
+            .get(3)
+            .filter(|_| upper.starts_with("UID SEARCH UID "))
+        {
+            uids_of(range)
+        } else {
+            (1..=10).collect()
+        };
+        let list: String = found.iter().map(|u| format!(" {u}")).collect();
+        format!("* SEARCH{list}\r\n{tag} OK done\r\n")
+    } else if upper.starts_with("UID FETCH") {
+        let mut out = String::new();
+        for uid in uids_of(words[2]) {
+            if upper.contains("BODY.PEEK[HEADER]") {
+                let (date, header) = if uid == 10 {
+                    (
+                        "01-Jan-2099 00:00:00 +0000",
+                        "Subject: new\r\n\r\n".to_owned(),
+                    )
+                } else {
+                    (
+                        "01-Jan-2020 00:00:00 +0000",
+                        format!("Subject: old {uid}\r\n\r\n"),
+                    )
+                };
+                out += &format!(
+                    "* {uid} FETCH (UID {uid} FLAGS () RFC822.SIZE 50 INTERNALDATE \"{date}\" BODY[HEADER] {{{}}}\r\n{header})\r\n",
+                    header.len()
+                );
+            } else {
+                out += &format!("* {uid} FETCH (UID {uid} FLAGS ())\r\n");
+            }
+        }
+        format!("{out}{tag} OK done\r\n")
     } else {
         return mailbox_reply(line);
     };

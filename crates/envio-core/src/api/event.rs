@@ -75,6 +75,8 @@ pub enum Event {
         email: String,
         service: Service,
         host: String,
+        /// Names the server (IMAP or SMTP) the prompt is about.
+        title: String,
         fingerprint: String,
         hex: String,
         text: String,
@@ -125,6 +127,22 @@ pub enum Event {
     SearchFailed {
         scope: SearchScope,
         query: String,
+        text: String,
+    },
+    /// `LoadOlder` fetched `fetched` messages; `exhausted`: nothing older is
+    /// left on the server. `MessagesChanged` follows.
+    OlderLoaded {
+        list: ListRef,
+        fetched: usize,
+        exhausted: bool,
+    },
+    /// What Load older reached is dropped (the sync window changed, or a
+    /// folder was reset): the next sync removes those rows, so a list that
+    /// said "no older messages" can load older again.
+    OlderReset,
+    /// `LoadOlder` could not; `text` says why. Pressing it again retries.
+    OlderFailed {
+        list: ListRef,
         text: String,
     },
     /// The answer to `Autocomplete`, for the same `query`.

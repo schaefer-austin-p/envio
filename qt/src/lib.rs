@@ -9,5 +9,6 @@ mod events;
 mod json;
 mod lifecycle;
 mod models;
+mod settings_calls;
 mod sink;
 mod variant;

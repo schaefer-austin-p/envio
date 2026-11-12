@@ -28,6 +28,8 @@ pub struct PinRow {
     pub service: String,
     /// The server the certificate came from.
     pub host: String,
+    /// The dialog title, chosen by the core: names the server (IMAP or SMTP).
+    pub title: String,
     /// The presented fingerprint as the dialog shows it.
     pub fingerprint: String,
     /// The presented fingerprint in the form `AcceptCertificate` takes.
@@ -53,6 +55,7 @@ pub struct MessageRowUi {
     pub account: String,
     pub account_name: String,
     pub from: String,
+    pub from_address: String,
     pub subject: String,
     pub preview: String,
     /// Unix seconds, 0 when the message has none.
@@ -114,6 +117,7 @@ const ACCOUNT: &[&str] = &[
     "unreadText",
     "pinService",
     "pinHost",
+    "pinTitle",
     "pinFingerprint",
     "pinHex",
     "pinText",
@@ -124,6 +128,7 @@ const MESSAGE: &[&str] = &[
     "account",
     "accountName",
     "from",
+    "fromAddress",
     "subject",
     "preview",
     "date",
@@ -165,6 +170,7 @@ impl Row {
             (Self::Account(r), "unreadText") => s(&r.unread_text),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
+            (Self::Account(r), "pinTitle") => s(&r.pin.title),
             (Self::Account(r), "pinFingerprint") => s(&r.pin.fingerprint),
             (Self::Account(r), "pinHex") => s(&r.pin.hex),
             (Self::Account(r), "pinText") => s(&r.pin.text),
@@ -178,6 +184,7 @@ impl Row {
             (Self::Message(r), "account") => s(&r.account),
             (Self::Message(r), "accountName") => s(&r.account_name),
             (Self::Message(r), "from") => s(&r.from),
+            (Self::Message(r), "fromAddress") => s(&r.from_address),
             (Self::Message(r), "subject") => s(&r.subject),
             (Self::Message(r), "preview") => s(&r.preview),
             (Self::Message(r), "date") => Int(r.date),

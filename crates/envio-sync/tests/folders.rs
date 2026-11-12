@@ -11,7 +11,7 @@ async fn step(server: &mut FakeServer, store: &mut Store) -> Synced {
         .await
         .unwrap();
     let inbox = store.folder("INBOX").id;
-    sync_folder(server, &mut store.local(), inbox, NOW_MS)
+    sync_folder(server, &mut store.local(), inbox, NOW_MS, Some(30), None)
         .await
         .unwrap()
 }

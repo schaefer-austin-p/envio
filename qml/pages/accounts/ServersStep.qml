@@ -115,6 +115,8 @@ Item {
     PageFooter {
         id: footer
         theme: root.theme
+        busy: root.busy
+        busyText: qsTr("Connecting…")
     AppButton {
         objectName: "connectButton"
         width: parent.width

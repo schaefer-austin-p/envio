@@ -120,6 +120,7 @@ impl Ui {
                 account: r.account.clone(),
                 account_name: name,
                 from: r.from.clone(),
+                from_address: r.from_address.clone(),
                 subject: r.subject.clone(),
                 preview: r.preview.clone(),
                 date: r.date.unwrap_or(0),

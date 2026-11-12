@@ -15,7 +15,7 @@ async fn synced_inbox(server: &mut FakeServer, store: &mut Store) -> FolderId {
         .await
         .unwrap();
     let id = store.folder("INBOX").id;
-    sync_folder(server, &mut store.local(), id, NOW_MS)
+    sync_folder(server, &mut store.local(), id, NOW_MS, Some(30), None)
         .await
         .unwrap();
     id

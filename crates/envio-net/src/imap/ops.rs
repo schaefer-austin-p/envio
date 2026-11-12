@@ -307,7 +307,7 @@ impl ImapSession {
         self.search(&query::search_since(unix_secs)).await
     }
 
-    async fn search(&mut self, key: &str) -> Result<Vec<u32>> {
+    pub(super) async fn search(&mut self, key: &str) -> Result<Vec<u32>> {
         connect::within(async {
             let found = self.session.uid_search(key).await.map_err(map_error)?;
             let mut uids: Vec<u32> = found.into_iter().collect();

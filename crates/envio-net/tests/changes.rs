@@ -7,7 +7,7 @@ mod support;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use envio_net::imap::{ImapSession, Role, Woke};
+use envio_net::imap::{Flag, ImapSession, Role, Woke};
 use support::stalwart::{Stalwart, alice, message, message_id};
 
 async fn folder(session: &mut ImapSession, role: Role) -> String {
@@ -116,6 +116,52 @@ async fn the_window_search_takes_mail_from_its_first_day_on() {
     assert!(session.search_since(week_ago).await.unwrap().contains(&uid));
     let tomorrow = now() + 86_400;
     assert!(!session.search_since(tomorrow).await.unwrap().contains(&uid));
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn search_uids_below_returns_lower_uids() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let first = message_id();
+    let second = message_id();
+    for id in [&first, &second] {
+        session
+            .append("INBOX", &[], &message(id, "Below", 200))
+            .await
+            .unwrap();
+    }
+    session.select("INBOX").await.unwrap();
+    let low = session.search_message_id(&first).await.unwrap()[0];
+    let high = session.search_message_id(&second).await.unwrap()[0];
+    assert!(low < high);
+    let below = session.search_uids_below(high).await.unwrap();
+    assert!(below.contains(&low) && !below.contains(&high));
+    assert!(below.windows(2).all(|w| w[0] < w[1]));
+    assert!(session.search_uids_below(1).await.unwrap().is_empty());
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn search_all_returns_every_uid() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let id = message_id();
+    // Seen, so a search for unseen mail would miss it. The other tests
+    // append to the same inbox in parallel, so the count only grows.
+    session
+        .append("INBOX", &[Flag::Seen], &message(&id, "All", 200))
+        .await
+        .unwrap();
+    let state = session.select("INBOX").await.unwrap();
+    let uid = session.search_message_id(&id).await.unwrap()[0];
+    let all = session.search_all().await.unwrap();
+    assert!(all.contains(&uid));
+    assert!(all.len() as u32 >= state.exists);
     session.logout().await.unwrap();
 }
 

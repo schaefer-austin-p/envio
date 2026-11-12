@@ -4,6 +4,20 @@ use std::path::PathBuf;
 
 use envio_core::{AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId};
 
+/// The "Load older messages" row at the foot of a list.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OlderRow {
+    /// Not shown: the list is not at its end, or it is a search.
+    #[default]
+    Hidden,
+    /// Shown, pressing it loads a batch.
+    Ready,
+    /// A batch is on its way.
+    Loading,
+    /// Nothing older is left on the server.
+    Done,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Signal {
     Notice(String),
@@ -24,6 +38,7 @@ pub enum Signal {
         email: String,
         service: Service,
         host: String,
+        title: String,
         fingerprint: String,
         /// The fingerprint as `Connect` takes it in `accepted`.
         hex: String,
@@ -89,6 +104,8 @@ pub enum Signal {
         text: String,
     },
     Settings(Settings),
+    /// The state of the "Load older messages" row changed.
+    OlderRow(OlderRow),
     SearchFailed(String),
     /// The server search is over: its results came, or every account
     /// asked failed.

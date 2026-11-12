@@ -3,6 +3,7 @@
 
 pub mod folders;
 pub mod message_id;
+pub mod older;
 pub mod outbox;
 pub mod pending;
 pub mod replay;

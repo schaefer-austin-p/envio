@@ -193,11 +193,12 @@ Item {
             root.busy = false
             root.error = text
         }
-        function onTrustPrompt(email, service, host, fingerprint, hex, text) {
+        function onTrustPrompt(email, service, host, title, fingerprint, hex, text) {
             if (!root.current(email) || !root.busy || !root.connecting) return
             root.busy = false
             trust.service = service
             trust.host = host
+            trust.heading = title
             trust.fingerprint = fingerprint
             trust.hex = hex
             trust.body = text

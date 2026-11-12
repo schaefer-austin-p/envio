@@ -1,5 +1,6 @@
 //! One folder's sync, planned from what the server and the cache hold.
-//! The cache keeps the last 30 days (by arrival date). New messages are
+//! The cache keeps the chosen window (30 days by default, by arrival date)
+//! and, in this run, whatever "Load older" fetched below it. New messages are
 //! fetched newest first in batches, one transaction each, and the folder's
 //! final state is stored last, so a cut connection resumes with nothing
 //! lost and nothing fetched twice. Pure.
@@ -12,14 +13,29 @@ use envio_store::{Flags, NewMessage, SyncState};
 use crate::convert::{new_message, store_flags};
 use crate::plan::pending::Pending;
 
-/// How far back the cache reaches.
-pub const WINDOW_SECS: i64 = 30 * 86_400;
 /// Messages per fetch and per transaction.
 pub const BATCH: usize = 50;
 
-/// The `SEARCH SINCE` argument for the window at `now_ms`.
-pub fn window_start(now_ms: i64) -> i64 {
-    now_ms / 1_000 - WINDOW_SECS
+/// The `SEARCH SINCE` argument for a window of `days` at `now_ms`; `None`
+/// (window All) means no SINCE: search everything.
+pub fn window_start(now_ms: i64, days: Option<u32>) -> Option<i64> {
+    days.map(|days| now_ms / 1_000 - i64::from(days) * 86_400)
+}
+
+/// The UIDs "Load older" fetched in this run: `floor` up to (not including)
+/// `ceiling`, the oldest cached UID when the first "Load older" ran. Rows
+/// from `ceiling` up are the window's, so a server-side deletion there goes
+/// even when the UID is below the window's oldest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Kept {
+    pub floor: u32,
+    pub ceiling: u32,
+}
+
+impl Kept {
+    fn holds(self, uid: u32) -> bool {
+        self.floor <= uid && uid < self.ceiling
+    }
 }
 
 /// What sync knows about a folder before planning.
@@ -33,6 +49,9 @@ pub struct FolderView<'a> {
     pub cached: Option<SyncState>,
     /// The cache's UIDs for the folder.
     pub cached_uids: &'a [u32],
+    /// What "Load older" fetched in this run: those cached rows are kept
+    /// outside the window. `None` after a restart.
+    pub kept: Option<Kept>,
     pub condstore: bool,
 }
 
@@ -92,7 +111,11 @@ pub fn plan_folder(view: &FolderView<'_>, pending: &Pending) -> FolderPlan {
             uidnext: 0,
             highestmodseq: None,
         }),
-        remove: cached.difference(&window).copied().collect(),
+        remove: cached
+            .difference(&window)
+            .copied()
+            .filter(|uid| !view.kept.is_some_and(|kept| kept.holds(*uid)))
+            .collect(),
         flags: flag_check(view, check.is_empty()),
         check,
         fetch: new.chunks(BATCH).map(<[u32]>::to_vec).collect(),
@@ -196,8 +219,14 @@ mod tests {
             window,
             cached,
             cached_uids,
+            kept: None,
             condstore: true,
         }
+    }
+
+    fn with_floor<'a>(mut view: FolderView<'a>, floor: u32) -> FolderView<'a> {
+        view.kept = Some(Kept { floor, ceiling: 30 });
+        view
     }
 
     #[test]
@@ -441,7 +470,92 @@ mod tests {
     }
 
     #[test]
-    fn the_window_starts_thirty_days_back() {
-        assert_eq!(window_start(1_800_000_000_000), 1_800_000_000 - 2_592_000);
+    fn the_window_starts_the_chosen_days_back() {
+        assert_eq!(
+            window_start(1_800_000_000_000, Some(30)),
+            Some(1_800_000_000 - 2_592_000)
+        );
+        assert_eq!(
+            window_start(1_800_000_000_000, Some(365)),
+            Some(1_800_000_000 - 365 * 86_400)
+        );
+    }
+
+    #[test]
+    fn window_all_searches_everything() {
+        assert_eq!(window_start(1_800_000_000_000, None), None);
+    }
+
+    fn floor_view<'a>(cached_uids: &'a [u32], floor: u32) -> FolderView<'a> {
+        with_floor(
+            view(
+                server(7, 40, None),
+                &[30, 31, 33],
+                Some(state(7, 34, None)),
+                cached_uids,
+            ),
+            floor,
+        )
+    }
+
+    #[test]
+    fn rows_above_the_floor_survive_the_window() {
+        let plan = plan_folder(&floor_view(&[10, 20, 25, 30], 20), &Pending::default());
+        // 20 and 25 are older than the window but at or above the floor.
+        assert_eq!(plan.remove, [10]);
+    }
+
+    #[test]
+    fn rows_below_the_floor_are_removed() {
+        let plan = plan_folder(&floor_view(&[5, 19, 20], 20), &Pending::default());
+        assert_eq!(plan.remove, [5, 19]);
+    }
+
+    #[test]
+    fn in_window_deletions_are_removed_with_a_floor() {
+        // 32 is inside the window's range but gone from the server.
+        let plan = plan_folder(&floor_view(&[25, 30, 32], 20), &Pending::default());
+        assert_eq!(plan.remove, [32]);
+    }
+
+    #[test]
+    fn a_window_deletion_below_the_windows_oldest_uid_is_removed_with_a_floor() {
+        // Window [30, 31, 33] lost 30 in webmail: it is now [31, 33].
+        let plan = plan_folder(
+            &with_floor(
+                view(
+                    server(7, 40, None),
+                    &[31, 33],
+                    Some(state(7, 34, None)),
+                    &[25, 30, 31, 33],
+                ),
+                20,
+            ),
+            &Pending::default(),
+        );
+        assert_eq!(plan.remove, [30]);
+    }
+
+    #[test]
+    fn an_emptied_window_removes_every_window_row_with_a_floor() {
+        let plan = plan_folder(
+            &with_floor(
+                view(
+                    server(7, 40, None),
+                    &[],
+                    Some(state(7, 34, None)),
+                    &[25, 30, 31, 33],
+                ),
+                20,
+            ),
+            &Pending::default(),
+        );
+        assert_eq!(plan.remove, [30, 31, 33]);
+    }
+
+    #[test]
+    fn kept_rows_are_not_flag_checked() {
+        let plan = plan_folder(&floor_view(&[25, 30], 20), &Pending::default());
+        assert_eq!(plan.check, [30]);
     }
 }
