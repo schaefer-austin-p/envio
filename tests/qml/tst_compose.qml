@@ -86,6 +86,22 @@ Item {
             page.reset()
         }
 
+        function test_body_and_quote_take_the_body_roles_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_body_and_quote_take_the_body_roles(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
+            const input = find("textBlockInput")
+            compare(input.font.family, thm.fontBody)
+            compare(input.font.pixelSize, thm.bodySize)
+            const quote = find("quoteText")
+            compare(quote.font.family, thm.fontBody)
+            compare(quote.font.pixelSize, thm.bodySize - 2)
+            compare(quote.lineHeight, thm.bodyLineHeight)
+            thm.name = "carbon"
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
             compare(find("to").entries, ["Bob <bob@example.org>"])

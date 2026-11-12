@@ -79,10 +79,11 @@ Rectangle {
                 topPadding: root.theme.gu(1.5)
                 bottomPadding: root.theme.gu(0.75)
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
-                font.pixelSize: 11
-                font.letterSpacing: 0.6
-                font.capitalization: Font.AllUppercase
+                font.family: root.theme.eyebrowFamily
+                font.pixelSize: root.theme.eyebrowSize
+                font.weight: root.theme.eyebrowWeight
+                font.letterSpacing: root.theme.eyebrowSpacing
+                font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
             }
             component CountText: Text {
                 textFormat: Text.PlainText
@@ -90,7 +91,7 @@ Rectangle {
                 visible: n > 0
                 text: n
                 color: root.theme.accent
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }

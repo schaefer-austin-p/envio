@@ -38,7 +38,7 @@ AbstractButton {
             objectName: "buttonLabel"
             text: root.text
             color: root.primary ? root.theme.primaryText : root.theme.primary
-            font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 15
             font.weight: Font.Medium
             anchors.verticalCenter: parent.verticalCenter

@@ -53,7 +53,7 @@ ListRow {
                 text: root.model.from
                 elide: Text.ElideRight
                 color: root.theme.heading
-                font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 14
                 font.weight: root.model.unread ? Font.DemiBold : Font.Normal
             }
@@ -114,7 +114,7 @@ ListRow {
             text: root.model.accountName.toUpperCase()
             elide: Text.ElideRight
             color: root.theme.secondary
-            font.family: root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 11
             font.letterSpacing: 0.5
         }

@@ -24,6 +24,6 @@ Text {
     }
     visible: text !== ""
     color: theme.secondary
-    font.family: theme.fontMono
+    font.family: theme.fontLabel
     font.pixelSize: 12
 }

@@ -28,6 +28,21 @@ Control {
     readonly property string fontMono: mono.name !== "" ? mono.name : "Ubuntu Mono"
     // Titles: Lora in Airmail, IBM Plex Mono in Carbon.
     readonly property string fontTitle: airmail ? (lora.name !== "" ? lora.name : "Ubuntu") : fontMono
+    // Small labels, meta, dates and sizes: mono in Carbon, Inter in Airmail.
+    // fontMono itself is for the certificate fingerprint only (qml-lint).
+    readonly property string fontLabel: airmail ? fontUi : fontMono
+    // Reading and writing text (reader body, compose body, quote): Inter in
+    // Carbon, Lora in Airmail (Inter while Lora fails to load).
+    readonly property string fontBody: airmail ? (lora.name !== "" ? lora.name : fontUi) : fontUi
+    readonly property real bodySize: 16
+    readonly property real bodyLineHeight: airmail ? 1.6 : 1.0
+    // Section labels ("ATTACHMENTS"): separate fields, as a QML font has no
+    // case or spacing in a value of its own.
+    readonly property string eyebrowFamily: airmail ? fontUi : fontMono
+    readonly property real eyebrowSize: airmail ? 12 : 11
+    readonly property int eyebrowWeight: airmail ? Font.DemiBold : Font.Normal
+    readonly property bool eyebrowCaps: true
+    readonly property real eyebrowSpacing: airmail ? 1.2 : 0.6
 
     // Grid unit in px: Suru's on Ubuntu Touch, 8 elsewhere.
     readonly property real gridUnit: grid.item ? grid.item.px : 8

@@ -101,7 +101,7 @@ Item {
                         text: pick.model.email
                         elide: Text.ElideRight
                         color: root.theme.secondary
-                        font.family: root.theme.fontMono
+                        font.family: root.theme.fontLabel
                         font.pixelSize: 13
                     }
                 }

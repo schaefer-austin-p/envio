@@ -43,7 +43,7 @@ Sheet {
                 text: root.parts.beforeHost
                 textFormat: Text.PlainText
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
             }
             Text {
@@ -56,7 +56,7 @@ Sheet {
                 // Struck through and in the caution colour: it is decoration.
                 font.strikeout: true
                 color: root.theme.accent
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
             }
             Text {
@@ -66,7 +66,7 @@ Sheet {
                 text: root.parts.host
                 textFormat: Text.PlainText
                 color: root.theme.text
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
                 font.bold: true
             }
@@ -77,7 +77,7 @@ Sheet {
                 wrapMode: Text.WrapAnywhere
                 width: Math.min(implicitWidth, parent.width)
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
             }
         }

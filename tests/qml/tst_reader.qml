@@ -131,6 +131,19 @@ Item {
             compare(find("headerSubject").text, "Invoice 0042")
         }
 
+        function test_body_takes_the_body_roles_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_body_takes_the_body_roles(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            open(view([], 0))
+            const body = find("bodyText")
+            compare(body.font.family, thm.fontBody)
+            compare(body.font.pixelSize, thm.bodySize)
+            compare(body.lineHeight, thm.bodyLineHeight)
+            thm.name = "carbon"
+        }
+
         function test_images_banner_loads_images() {
             open(view([], 2))
             verify(shown("imagesBanner"))

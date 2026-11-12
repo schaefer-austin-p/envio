@@ -180,8 +180,9 @@ Item {
                     wrapMode: Text.Wrap
                     linkColor: root.theme.accent
                     color: root.theme.text
-                    font.family: root.theme.fontUi
-                    font.pixelSize: 16
+                    font.family: root.theme.fontBody
+                    font.pixelSize: root.theme.bodySize
+                    lineHeight: root.theme.bodyLineHeight
                     onLinkActivated: linkSheet.show(link)
                 }
             }

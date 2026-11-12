@@ -27,7 +27,7 @@ AppDialog {
         width: parent.width
         text: qsTr("IMAP: %1, port %2").arg(root.imapHost).arg(root.imapPort)
         color: root.theme.heading
-        font.family: root.theme.fontMono
+        font.family: root.theme.fontLabel
         font.pixelSize: 14
         wrapMode: Text.WrapAnywhere
     }
@@ -37,7 +37,7 @@ AppDialog {
         width: parent.width
         text: qsTr("SMTP: %1, port %2").arg(root.smtpHost).arg(root.smtpPort)
         color: root.theme.heading
-        font.family: root.theme.fontMono
+        font.family: root.theme.fontLabel
         font.pixelSize: 14
         wrapMode: Text.WrapAnywhere
     }

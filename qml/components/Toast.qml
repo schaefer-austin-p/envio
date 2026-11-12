@@ -67,7 +67,7 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             color: root.theme.primaryText
-            font.family: root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 15
             font.weight: Font.Bold
         }

@@ -55,7 +55,7 @@ Column {
                         width: root.theme.gu(8)
                         text: line.modelData.label
                         color: root.theme.secondary
-                        font.family: root.theme.fontMono
+                        font.family: root.theme.fontLabel
                         font.pixelSize: 13
                     }
                     Text {
@@ -65,7 +65,7 @@ Column {
                         text: line.modelData.value
                         wrapMode: Text.Wrap
                         color: root.theme.text
-                        font.family: root.theme.fontMono
+                        font.family: root.theme.fontLabel
                         font.pixelSize: 13
                         lineHeight: 1.4
                     }

@@ -56,10 +56,11 @@ Item {
                 width: parent.width - root.theme.gu(4)
                 text: qsTr("Always load from")
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
-                font.pixelSize: 11
-                font.letterSpacing: 0.6
-                font.capitalization: Font.AllUppercase
+                font.family: root.theme.eyebrowFamily
+                font.pixelSize: root.theme.eyebrowSize
+                font.weight: root.theme.eyebrowWeight
+                font.letterSpacing: root.theme.eyebrowSpacing
+                font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
             }
             Text {
                 objectName: "noSenders"
