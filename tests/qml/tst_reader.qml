@@ -31,6 +31,7 @@ Item {
         }
     }
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
+    SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
 
     MockCore { id: shellCore }
@@ -127,8 +128,8 @@ Item {
 
         function test_shows_the_header_and_body() {
             open(view([], 0))
-            compare(find("bodyText").text, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
-            compare(find("bodyText").textFormat, Text.RichText)
+            compare(root.page.bodyHtml, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
+            compare(find("bodyText").textFormat, TextEdit.RichText)
             verify(!shown("imagesBanner"))
             compare(find("headerSubject").text, "Invoice 0042")
         }
@@ -149,7 +150,7 @@ Item {
             thm.name = data.airmail ? "airmail" : "carbon"
             thm.darkMode = data.dark ? "dark" : "light"
             compare(String(thm.link).toUpperCase(), data.want)
-            verify(find("bodyText").text.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
             thm.name = "carbon"
             thm.darkMode = "system"
         }
@@ -277,7 +278,6 @@ Item {
             const body = find("bodyText")
             compare(body.font.family, thm.fontBody)
             compare(body.font.pixelSize, thm.bodySize)
-            compare(body.lineHeight, thm.bodyLineHeight)
             thm.name = "carbon"
         }
 
@@ -533,6 +533,32 @@ Item {
             open(view([], 0))
             verify(!shown("loadingText"))
             verify(shown("bodyText"))
+        }
+
+        // A rich-text relayout costs hundreds of ms on a big message, so the
+        // body gets its height once (empty, then the text) while the view
+        // arrives and the page settles.
+        function test_body_lays_out_once() {
+            const body = find("bodyText")
+            heightSpy.target = body
+            heightSpy.clear()
+            open(view(pdf(), 0))
+            wait(100)
+            verify(heightSpy.count <= 2, "contentHeight changed " + heightSpy.count + " times")
+            compare(body.text.length > 0, true)
+            heightSpy.target = null
+        }
+
+        function test_body_is_read_only_and_links_open_the_sheet() {
+            open(view([], 0))
+            const body = find("bodyText")
+            compare(body.readOnly, true)
+            compare(body.activeFocusOnPress, false)
+            compare(body.selectByMouse, false)
+            compare(body.cursorVisible, false)
+            body.linkActivated("https://example.org/")
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(root.openedUrls.length, 0)
         }
 
         function test_another_messages_view_is_ignored() {

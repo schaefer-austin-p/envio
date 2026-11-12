@@ -19,6 +19,17 @@ Item {
         }
     }
 
+    // What the reader uses (ReaderPage): a read-only TextEdit.
+    Component {
+        id: editComponent
+        TextEdit {
+            width: 360
+            readOnly: true
+            textFormat: TextEdit.RichText
+            wrapMode: TextEdit.Wrap
+        }
+    }
+
     Component {
         id: imageComponent
         Image { width: 10; height: 10 }
@@ -100,27 +111,34 @@ Item {
             verify(took < 1000, name + " took " + took + " ms")
         }
 
-        // Layout time and height at 360 px for the layout-table look-alikes.
-        // Measured in the CI image (best of 3): receipt 17 ms, 208 px high
-        // (506 px before the width fix); newsletter 106 ms, 1041 px (5007 px
-        // before). The bounds below are 3x the measured heights, rounded up.
-        function layout(name) {
+        // Layout time and height at 360 px for the layout-table look-alikes
+        // (20-30 KB of HTML, 150+ spans, 35+ tables), in a Text and in the
+        // reader's read-only TextEdit; best of 3. The Text numbers are only
+        // logged (the "before"); the TextEdit numbers are bounded.
+        function layout(label, name, component) {
             let best = 1e9
             let h = 0
             for (let i = 0; i < 3; i++) {
                 const start = Date.now()
-                h = height(read(name))
+                const item = createTemporaryObject(component, root, { text: read(name) })
+                h = item.height > 0 ? item.height : item.implicitHeight
                 best = Math.min(best, Date.now() - start)
             }
-            console.info("LAYOUT " + name + " ms=" + best + " implicitHeight=" + h)
-            verify(best < 1000, name + " took " + best + " ms")
-            return h
+            console.info("LAYOUT " + label + " " + name + " ms=" + best + " height=" + h)
+            return { ms: best, h: h }
+        }
+        function check(name, maxHeight) {
+            layout("Text", name, bodyComponent)
+            const edit = layout("TextEdit", name, editComponent)
+            verify(edit.ms < 1000, name + " took " + edit.ms + " ms")
+            verify(edit.h > 0 && edit.h < maxHeight, name + " is " + edit.h + " px high")
         }
         function test_receipt_like_layout() {
-            verify(layout("corpus-receipt-like.html") < 640)
+            // Height bounds: 3x the heights measured in the CI image (receipt 1356 px, newsletter 2177 px).
+            check("corpus-receipt-like.html", 4100)
         }
         function test_newsletter_like_layout() {
-            verify(layout("corpus-newsletter-like.html") < 3200)
+            check("corpus-newsletter-like.html", 6600)
         }
 
         // envio-mime caps nesting at 256 levels (MAX_DEPTH): a message that

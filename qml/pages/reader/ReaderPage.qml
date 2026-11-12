@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
@@ -31,6 +32,15 @@ Item {
     // replace them (neither has a visible effect on the desktop).
     property var openUrl: function(url) { Qt.openUrlExternally(url) }
     property var exportFile: function(path, mode) { content.exportFile(path, mode) }
+
+    // The body is laid out once, after the push transition ends (a page
+    // that is not in a StackView, as in the tests, is settled at once): a
+    // rich-text relayout costs hundreds of ms on a big message.
+    readonly property bool settled: StackView.view === null || StackView.status === StackView.Active
+    readonly property bool ready: view !== null && settled
+    // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
+    // HTML, so this is the value to read).
+    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(theme.link)) : ""
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
@@ -145,7 +155,7 @@ Item {
     Flickable {
         id: flick
         anchors { top: banner.bottom; bottom: footer.top; left: parent.left; right: parent.right }
-        visible: root.view !== null
+        visible: root.ready
         clip: true
         contentHeight: page.height + root.theme.gu(3)
         boundsBehavior: Flickable.StopAtBounds
@@ -168,21 +178,26 @@ Item {
                 height: body.height + root.theme.gu(3)
                 radius: root.theme.cardRadius
                 color: root.theme.surface
-                Text {
+                // A read-only TextEdit: Qt 5 lays rich text out about 6x
+                // faster there than in a Text. No cursor, focus or editing.
+                TextEdit {
                     id: body
                     objectName: "bodyText"
                     x: root.theme.gu(1.5)
                     y: root.theme.gu(1.5)
                     width: parent.width - root.theme.gu(3)
+                    readOnly: true
+                    activeFocusOnPress: false
+                    selectByMouse: false
+                    cursorVisible: false
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    text: RichText.withLinkColor(root.view !== null ? root.view.html : "", String(root.theme.link))
-                    textFormat: Text.RichText
-                    wrapMode: Text.Wrap
+                    text: root.bodyHtml
+                    textFormat: TextEdit.RichText
+                    wrapMode: TextEdit.Wrap
                     color: root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize
-                    lineHeight: root.theme.bodyLineHeight
                     onLinkActivated: linkSheet.show(link)
                 }
             }
@@ -199,7 +214,7 @@ Item {
         textFormat: Text.PlainText
         anchors.centerIn: parent
         objectName: "loadingText"
-        visible: root.view === null && root.unavailable === ""
+        visible: !root.ready && root.unavailable === ""
         text: qsTr("Loading…")
         color: root.theme.secondary
         font.family: root.theme.fontUi
