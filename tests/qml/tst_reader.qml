@@ -154,7 +154,7 @@ Item {
             thm.name = data.airmail ? "airmail" : "carbon"
             thm.darkMode = data.dark ? "dark" : "light"
             compare(String(thm.link).toUpperCase(), data.want)
-            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.link) + "}") === 0)
             thm.name = "carbon"
             thm.darkMode = "system"
         }
@@ -580,6 +580,18 @@ Item {
             compare(spy.count, 0)
             coverStack.clear()
             coverStack.visible = false
+        }
+
+        // The reader keeps the board's body line height now that TextEdit
+        // has no lineHeight of its own.
+        function test_body_line_height_follows_the_theme() {
+            open(view([], 0))
+            thm.name = "airmail"
+            compare(thm.bodyLineHeight, 1.6)
+            verify(root.page.bodyHtml.indexOf("p,li,div{line-height:160%}") > 0, root.page.bodyHtml)
+            thm.name = "carbon"
+            compare(thm.bodyLineHeight, 1.0)
+            compare(root.page.bodyHtml.indexOf("line-height"), -1)
         }
 
         function test_body_is_read_only_and_links_open_the_sheet() {

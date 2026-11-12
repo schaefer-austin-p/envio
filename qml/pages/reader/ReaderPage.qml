@@ -45,7 +45,7 @@ Item {
     readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
     // HTML, so this is the value to read).
-    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(theme.link)) : ""
+    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(theme.link), theme.bodyLineHeight) : ""
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))

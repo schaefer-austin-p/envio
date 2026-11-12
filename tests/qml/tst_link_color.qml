@@ -91,5 +91,28 @@ Item {
                     "<style>a{color:#112233}</style><p>x</p>")
             compare(RichText.withLinkColor("", "#112233"), "<style>a{color:#112233}</style>")
         }
+
+        // The Airmail board's body line height (1.6) goes in the same
+        // stylesheet; 1.0 adds nothing.
+        function test_with_line_height_string() {
+            compare(RichText.withLinkColor("<p>x</p>", "#112233", 1.6),
+                    "<style>a{color:#112233}p,li,div{line-height:160%}</style><p>x</p>")
+            compare(RichText.withLinkColor("<p>x</p>", "#112233", 1.0),
+                    "<style>a{color:#112233}</style><p>x</p>")
+        }
+
+        function test_with_line_height_makes_a_paragraph_taller() {
+            const text = "<p>" + "word ".repeat(60) + "</p>"
+            const a = createTemporaryObject(linkComponent, root)
+            a.label.width = 300
+            a.label.wrapMode = Text.Wrap
+            a.label.text = RichText.withLinkColor(text, "#112233", 1.0)
+            const b = createTemporaryObject(linkComponent, root)
+            b.label.width = 300
+            b.label.wrapMode = Text.Wrap
+            b.label.text = RichText.withLinkColor(text, "#112233", 1.6)
+            verify(b.label.contentHeight > a.label.contentHeight * 1.3,
+                   a.label.contentHeight + " vs " + b.label.contentHeight)
+        }
     }
 }
