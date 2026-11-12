@@ -267,6 +267,9 @@ Item {
             verify(close.width >= thm.touch && close.height >= thm.touch)
             const send = find("sendButton")
             compare(send.iconName, "send")
+            compare(send.background.height, 44)
+            const bar = find("topBar")
+            verify(send.mapToItem(bar, send.width, 0).x <= bar.width - thm.gu(1.5), "right inset")
             verify(send.width >= thm.touch && send.height >= thm.touch)
             compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)
         }

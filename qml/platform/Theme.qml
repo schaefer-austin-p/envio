@@ -74,6 +74,8 @@ Control {
     // Airmail by its own height / 2 (it is touch + gu(1) high).
     readonly property real controlHeight: airmail ? Math.max(touch, 52) : gu(6.5)
     readonly property real controlRadius: airmail ? controlHeight / 2 : gu(1)
+    // A pill drawn 44 px high (the compose bar's Send).
+    readonly property real compactControlRadius: airmail ? 22 : gu(1)
     // A button's label: Inter 15 semibold in Airmail, as before in Carbon.
     readonly property font controlFont: Qt.font({ "family": fontLabel, "pixelSize": 15,
                                                   "weight": airmail ? Font.DemiBold : Font.Medium })

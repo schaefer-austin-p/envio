@@ -10,6 +10,8 @@ AbstractButton {
     property bool primary: false
     // Optional leading icon name (see Icon.qml).
     property string iconName: ""
+    // The drawn pill's height; the tap target stays implicitHeight.
+    property real visibleHeight: theme.controlHeight
 
     implicitHeight: theme.controlHeight
     implicitWidth: Math.max(theme.gu(6), row.implicitWidth + theme.gu(4))
@@ -45,7 +47,9 @@ AbstractButton {
     }
 
     background: Rectangle {
-        radius: root.theme.controlRadius
+        height: root.visibleHeight
+        y: (parent.height - height) / 2
+        radius: root.visibleHeight < root.theme.controlHeight ? root.theme.compactControlRadius : root.theme.controlRadius
         color: root.primary ? root.theme.primary : (root.down ? root.theme.selected : "transparent")
         border.width: root.primary ? 0 : 1
         border.color: root.theme.primary

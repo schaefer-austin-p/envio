@@ -159,6 +159,7 @@ Item {
             theme: root.theme
             primary: true
             iconName: "send"
+            visibleHeight: 44
             text: qsTr("Send")
             enabled: root.filled && !root.sending
             onClicked: root.send()

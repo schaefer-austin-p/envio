@@ -49,7 +49,7 @@ Rectangle {
     Row {
         id: actionRow
         anchors.right: parent.right
-        anchors.rightMargin: root.theme.gu(0.5)
+        anchors.rightMargin: root.theme.gu(1.5)
         anchors.verticalCenter: parent.verticalCenter
         anchors.verticalCenterOffset: root.theme.barPadTop / 2
     }

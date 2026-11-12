@@ -61,6 +61,7 @@ Rectangle {
         theme: root.theme
         width: parent.width
         showBack: true
+        compact: true
         title: qsTr("Mail")
         onBackClicked: root.closeRequested()
     }

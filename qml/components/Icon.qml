@@ -3,8 +3,8 @@ import "../platform"
 
 // A line icon drawn on a canvas in a theme colour, so no icon set (and no
 // Suru) is needed. `name` is one of: back, forward, down, close, check,
-// plus, send, search, menu, alert, info, archive, trash, move, more, flag, clip,
-// mail, pencil.
+// plus, send, search, menu, alert, info, archive, trash, move, more, flag,
+// clip, mail, pencil.
 Canvas {
     id: root
     required property Theme theme
