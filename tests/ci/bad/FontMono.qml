@@ -1,8 +1,8 @@
 // expect: fontMono
 import QtQuick 2.15
 
-// Fixture: the monospace font is for the certificate fingerprint only
-// (TrustDialog.qml); a label takes Theme.fontLabel.
+// Fixture: fontMono is banned outside qml/platform/Theme.qml; screens use
+// Theme.fontAddress for hosts, links and the fingerprint, fontLabel for labels.
 Text {
     required property var theme
     textFormat: Text.PlainText

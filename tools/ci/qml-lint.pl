@@ -153,6 +153,14 @@ for my $file (@ARGV) {
             print "$file:" . line_of($code, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody, fontAddress or the eyebrow fields; hosts and the fingerprint use fontAddress)\n";
             $bad = 1;
         }
+        # theme["fontMono"]: the string is blanked in $code, so look at it
+        # with the strings put back.
+        my $fm = $code;
+        substr($fm, $_->[0], length $_->[1]) = $_->[1] for @strings;
+        while ($fm =~ /\[\s*["']fontMono["']\s*\]/g) {
+            print "$file:" . line_of($fm, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody, fontAddress or the eyebrow fields; hosts and the fingerprint use fontAddress)\n";
+            $bad = 1;
+        }
     }
 
     # Shapes come from Theme roles (controlRadius, cardRadius, ...): outside
@@ -167,7 +175,9 @@ for my $file (@ARGV) {
             # A condition choosing between allowed values is allowed.
             my @alts = $v =~ /^[^?]+\?\s*([^:]+?)\s*:\s*(.+)$/ ? ($1, $2) : ($v);
             for my $alt (@alts) {
-                next if $alt =~ m{^(?:width|height)\s*/\s*2$};
+                # Circle forms: width / 2, parent.height / 2, width / 2 - 1,
+                # Math.min(width, height) / 2.
+                next if $alt =~ m{^(?:[\w.]*\b(?:width|height)|Math\.min\(\s*[\w.]+\s*,\s*[\w.]+\s*\))\s*/\s*2(?:\s*-\s*\d+(?:\.\d+)?)?$};
                 next if $alt =~ /\btheme\.\w*[Rr]adius\b/ && $alt !~ /\bgu\s*\(/ && $alt !~ /(?<![\w.])\d/;
                 return 0;
             }
@@ -181,9 +191,18 @@ for my $file (@ARGV) {
         while ($code =~ /(?<![\w.])\w*[Rr]adius\s*:\s*([^\n;}]*)/g) {
             push @found, [$-[0], $1];
         }
-        # JS assignments: `item.radius = v`.
-        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*=(?![=>])\s*([^\n;}]*)/g) {
-            push @found, [$-[0], $1];
+        # JS assignments: `item.radius = v`, `radius += v` (a compound
+        # assignment is never a circle or a role, so it always fails). A JS
+        # local (`const radius = 4`) is not a radius property.
+        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*([-+*\/%]?)=(?![=>])\s*([^\n;}]*)/g) {
+            my ($op, $v, $off) = ($1, $2, $-[0]);
+            next if substr($code, 0, $off) =~ /\b(?:const|let|var)\s+$/;
+            push @found, [$off, $op ne '' ? "$op= $v" : $v];
+        }
+        # Bracket assignments: `item["radius"] = v`.
+        while ($nc =~ /\[\s*["']\w*[Rr]adius["']\s*\]\s*([-+*\/%]?)=(?![=>])\s*([^\n;}]*)/g) {
+            my ($op, $v, $off) = ($1, $2, $-[0]);
+            push @found, [$off, $op ne '' ? "$op= $v" : $v];
         }
         # Binding { property: "radius"; value: v }, in either order.
         while ($nc =~ /\bBinding\s*\{([^}]*)\}/g) {
