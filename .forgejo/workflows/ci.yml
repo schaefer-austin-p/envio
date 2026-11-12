@@ -149,3 +149,6 @@ jobs:
         run: |
           cargo audit
           cargo audit --file qt/Cargo.lock
+
+      - name: Advisory issue script tests
+        run: node --test tools/ci/advisory-issue.test.mjs

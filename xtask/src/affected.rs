@@ -23,8 +23,8 @@ pub enum Selection {
 
 /// Files that change how every crate is built, linted or tested.
 /// manifest.json carries the version, which envio-core's tests check
-/// against the workspace version; tools/ci/stalwart.sh is the server
-/// envio-net's integration tests run against.
+/// against the workspace version; tools/ci/stalwart.sh (with tools/ci/dind.sh,
+/// which it sources) is the server envio-net's integration tests run against.
 fn runs_everything(file: &Path) -> bool {
     const FILES: &[&str] = &[
         "Cargo.lock",
@@ -36,6 +36,7 @@ fn runs_everything(file: &Path) -> bool {
         "rust-toolchain.toml",
         "Makefile.toml",
         "tools/ci/stalwart.sh",
+        "tools/ci/dind.sh",
     ];
     FILES.iter().any(|f| file == Path::new(f))
         || file.starts_with(".cargo")
@@ -168,6 +169,7 @@ mod tests {
             "rust-toolchain.toml",
             "Makefile.toml",
             "tools/ci/stalwart.sh",
+            "tools/ci/dind.sh",
             ".cargo/config.toml",
             ".forgejo/workflows/ci.yml",
         ] {

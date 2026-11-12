@@ -36,7 +36,9 @@ run() {
 # for the `click` library clickable needs.
 run "apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version"
 
-run 'clickable build --arch arm64 --container-mode'
+# --skip-review: the review below decides (errors fail, warnings print);
+# the build's own review would fail on a warning and skip the report.
+run 'clickable build --arch arm64 --container-mode --skip-review'
 
 rm -rf "$out"
 mkdir -p "$out"
@@ -45,5 +47,5 @@ click=$(docker exec "$c" bash -c 'find /src/build -name "*.click" | head -n1')
 docker cp "$c:$click" "$out/"
 
 # click-review: errors fail the script, warnings are printed only.
-run 'clickable review --arch arm64 --container-mode --accept-warnings' | tee "$out/click-review.txt"
+run 'clickable review --arch arm64 --container-mode --accept-warnings' 2>&1 | tee "$out/click-review.txt"
 ls -l "$out"

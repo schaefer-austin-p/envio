@@ -11,6 +11,9 @@ on:
     paths:
       - clickable.yaml
       - manifest.json
+      - envio.desktop
+      - envio.url-dispatcher
+      - "assets/**"
       - envio.apparmor
       - CMakeLists.txt
       - "qt/**"
