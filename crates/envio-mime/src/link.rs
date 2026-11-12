@@ -248,6 +248,10 @@ fn ipv4_number(part: &str) -> Option<u64> {
     if digits.is_empty() {
         return Some(0);
     }
+    // `from_str_radix` also takes a sign; WHATWG numbers are digits only.
+    if !digits.chars().all(|c| c.is_digit(radix)) {
+        return None;
+    }
     u64::from_str_radix(digits, radix).ok()
 }
 

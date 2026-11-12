@@ -259,3 +259,14 @@ fn a_port_above_65535_is_malformed() {
     assert_eq!(link_parts("https://a.example:65536/"), None);
     assert!(link_parts("https://a.example:65535/").is_some());
 }
+
+#[test]
+fn a_signed_number_is_a_domain_not_an_ipv4_part() {
+    for url in ["http://+1/", "http://+1.+2.+3.+4/", "http://-1/"] {
+        let host = link_parts(url).map(|p| p.host);
+        assert!(
+            host.as_deref().is_none_or(|h| h.starts_with(['+', '-'])),
+            "{url}: {host:?}"
+        );
+    }
+}
