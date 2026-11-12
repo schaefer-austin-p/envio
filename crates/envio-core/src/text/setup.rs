@@ -1,5 +1,6 @@
 //! The words for adding and removing accounts.
 
+use crate::Service;
 use crate::api::view::UnsentCounts;
 use crate::i18n::{fill, tr, tr_n};
 use crate::text::status::untrusted_reason;
@@ -32,13 +33,29 @@ pub fn confirm_servers(imap: &str, smtp: &str) -> String {
     )
 }
 
-pub fn trust(host: &str, reason: Untrusted) -> String {
+pub fn trust(service: Service, host: &str, reason: Untrusted) -> String {
+    let which = match service {
+        Service::Imap => tr("incoming mail"),
+        Service::Smtp => tr("outgoing mail"),
+    };
     fill(
         &tr(
-            "The certificate of {host} is not trusted: {reason}. Check the fingerprint before you accept it",
+            "The certificate of the {service} server {host} is not trusted: {reason}. Check the fingerprint before you accept it",
         ),
-        &[("host", host), ("reason", &untrusted_reason(reason))],
+        &[
+            ("service", &which),
+            ("host", host),
+            ("reason", &untrusted_reason(reason)),
+        ],
     )
+}
+
+/// The trust dialog's title: which server it is about.
+pub fn trust_title(service: Service) -> String {
+    match service {
+        Service::Imap => tr("Can't verify the incoming mail server (IMAP)"),
+        Service::Smtp => tr("Can't verify the outgoing mail server (SMTP)"),
+    }
 }
 
 /// Said instead of the trust prompt when no root certificates loaded: a
@@ -129,5 +146,41 @@ mod tests {
         assert!(text.contains("2 drafts"), "{text}");
         assert!(!text.contains("change"), "{text}");
         assert!(text.contains("Sent copies"), "{text}");
+    }
+
+    #[test]
+    fn trust_text_names_imap() {
+        let text = trust(Service::Imap, "mail.example.net", Untrusted::Expired);
+        assert!(
+            text.contains("incoming mail server mail.example.net"),
+            "{text}"
+        );
+        assert_eq!(
+            trust_title(Service::Imap),
+            "Can't verify the incoming mail server (IMAP)"
+        );
+    }
+
+    #[test]
+    fn trust_text_names_smtp() {
+        let text = trust(Service::Smtp, "mail.example.net", Untrusted::Expired);
+        assert!(
+            text.contains("outgoing mail server mail.example.net"),
+            "{text}"
+        );
+        assert_eq!(
+            trust_title(Service::Smtp),
+            "Can't verify the outgoing mail server (SMTP)"
+        );
+    }
+
+    #[test]
+    fn two_prompts_for_one_host_differ() {
+        let (imap, smtp) = (Service::Imap, Service::Smtp);
+        assert_ne!(trust_title(imap), trust_title(smtp));
+        assert_ne!(
+            trust(imap, "mail.example.net", Untrusted::UnknownIssuer),
+            trust(smtp, "mail.example.net", Untrusted::UnknownIssuer)
+        );
     }
 }

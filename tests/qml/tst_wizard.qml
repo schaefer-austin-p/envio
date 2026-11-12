@@ -129,11 +129,11 @@ Item {
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
-            core.trustPrompt("ann@example.org", "imap", "mail.example.net",
+            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server",
                              "4F:2A:91", "4f2a91", "No authority signed it.")
             const dlg = find("trustDialog")
             tryVerify(function() { return dlg.opened })
-            compare(dlg.title, "Can't verify mail.example.net")
+            compare(dlg.title, "Can't verify the imap server")
             compare(dlg.primaryText, "Cancel")
             compare(dlg.secondaryText, "Trust this certificate")
             const primary = dialogButton("trustDialog", "primaryAction")
@@ -148,12 +148,24 @@ Item {
             compare(connectCalls().length, 1)
         }
 
+        function test_trust_dialog_shows_the_core_title() {
+            toSignIn(plainJson, false)
+            find("passwordField").text = "hunter2"
+            mouseClick(find("signInContinue"))
+            core.trustPrompt("ann@example.org", "smtp", "mail.example.net",
+                             "Can't verify the outgoing mail server (SMTP)",
+                             "4F:2A:91", "4f2a91", "No authority signed it.")
+            const dlg = find("trustDialog")
+            tryVerify(function() { return dlg.opened })
+            compare(dlg.title, "Can't verify the outgoing mail server (SMTP)")
+        }
+
         function test_trust_accept_reconnects_with_hex() {
             toSignIn(plainJson, false)
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
             compare(connectCalls().length, 1)
-            core.trustPrompt("ann@example.org", "smtp", "mail.example.net",
+            core.trustPrompt("ann@example.org", "smtp", "mail.example.net", "Can't verify the smtp server",
                              "4F:2A:91", "4f2a91", "No authority signed it.")
             mouseClick(dialogButton("trustDialog", "secondaryAction"))
             tryVerify(function() { return !find("trustDialog").visible })
@@ -295,7 +307,7 @@ Item {
             compare(wizard.busy, true)
             back()
             compare(wizard.busy, false)
-            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "4F", "4f", "Late.")
+            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server", "4F", "4f", "Late.")
             core.setupProblem("ann@example.org", "Late problem.")
             core.accountAdded("ann", "ann@example.org")
             core.detected("ann@example.org", "Late", false, plainJson)
@@ -333,7 +345,7 @@ Item {
             typeEmail()
             mouseClick(find("continueButton"))
             compare(wizard.busy, true)
-            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "4F", "4f", "Early.")
+            core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server", "4F", "4f", "Early.")
             wait(50)
             verify(!find("trustDialog").visible)
             compare(wizard.step, "email")
@@ -345,7 +357,7 @@ Item {
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
             core.setupProblem("someone@else.example", "Not ours.")
-            core.trustPrompt("someone@else.example", "imap", "x", "4F", "4f", "Not ours.")
+            core.trustPrompt("someone@else.example", "imap", "x", "Can't verify the imap server", "4F", "4f", "Not ours.")
             wait(50)
             compare(wizard.error, "")
             verify(!find("trustDialog").visible)

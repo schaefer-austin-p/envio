@@ -278,7 +278,8 @@ fn setup_event(
         host: host.clone(),
         fingerprint: presented.display(),
         hex: presented.to_hex(),
-        text: text::setup::trust(host, reason),
+        title: text::setup::trust_title(service),
+        text: text::setup::trust(service, host, reason),
     }
 }
 

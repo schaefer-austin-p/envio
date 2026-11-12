@@ -38,6 +38,7 @@ pub enum Signal {
         email: String,
         service: Service,
         host: String,
+        title: String,
         fingerprint: String,
         /// The fingerprint as `Connect` takes it in `accepted`.
         hex: String,

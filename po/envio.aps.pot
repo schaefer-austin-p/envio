@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 17:36+0100\n"
+"POT-Creation-Date: 2026-11-12 17:42+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -139,9 +139,9 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
+#: qml/pages/accounts/TrustDialog.qml:21 qml/pages/inbox/OutboxPage.qml:58
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
-#: qml/pages/search/SearchPage.qml:191
+#: qml/pages/search/SearchPage.qml:193
 msgid "Cancel"
 msgstr ""
 
@@ -272,15 +272,11 @@ msgstr ""
 msgid "Signing in…"
 msgstr ""
 
-#: qml/pages/accounts/TrustDialog.qml:17
-msgid "Can't verify %1"
-msgstr ""
-
-#: qml/pages/accounts/TrustDialog.qml:20
+#: qml/pages/accounts/TrustDialog.qml:22
 msgid "Trust this certificate"
 msgstr ""
 
-#: qml/pages/accounts/TrustDialog.qml:26
+#: qml/pages/accounts/TrustDialog.qml:28
 msgid "SHA-256"
 msgstr ""
 
@@ -412,7 +408,7 @@ msgstr ""
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:98
+#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:100
 msgid "All accounts"
 msgstr ""
 
@@ -598,23 +594,23 @@ msgstr ""
 msgid "Forward"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:81
+#: qml/pages/search/SearchPage.qml:83
 msgid "Search mail"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:117
+#: qml/pages/search/SearchPage.qml:119
 msgid "This folder"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:184
+#: qml/pages/search/SearchPage.qml:186
 msgid "Searching the servers…"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:200
+#: qml/pages/search/SearchPage.qml:202
 msgid "Search the servers too"
 msgstr ""
 
-#: qml/pages/search/SearchPage.qml:208
+#: qml/pages/search/SearchPage.qml:210
 msgid "Finds mail older than the 30 days kept here"
 msgstr ""
 
@@ -931,33 +927,33 @@ msgstr ""
 msgid "(no subject)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:12
+#: crates/envio-core/src/text/setup.rs:13
 msgid ""
 "To find your mail servers, Envio asks the Thunderbird configuration database "
 "and your mail provider. Only the part of your address after the @ is sent."
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:18
+#: crates/envio-core/src/text/setup.rs:19
 msgid "Settings found in the Thunderbird configuration database"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:19
+#: crates/envio-core/src/text/setup.rs:20
 msgid "Settings found at your mail provider"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:20
+#: crates/envio-core/src/text/setup.rs:21
 msgid "Settings found on your mail domain"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:21
+#: crates/envio-core/src/text/setup.rs:22
 msgid "Settings found in your domain DNS records"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:22
+#: crates/envio-core/src/text/setup.rs:23
 msgid "No settings found. These are a guess, please check them"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:29
+#: crates/envio-core/src/text/setup.rs:30
 msgid ""
 "Your domain DNS records point to these servers:\n"
 "Incoming: {imap}\n"
@@ -966,58 +962,76 @@ msgid ""
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:38
-msgid ""
-"The certificate of {host} is not trusted: {reason}. Check the fingerprint "
-"before you accept it"
+#: crates/envio-core/src/text/status.rs:37
+msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:48
+#: crates/envio-core/src/text/setup.rs:39
+#: crates/envio-core/src/text/status.rs:38
+msgid "outgoing mail"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:43
+msgid ""
+"The certificate of the {service} server {host} is not trusted: {reason}. "
+"Check the fingerprint before you accept it"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:56
+msgid "Can't verify the incoming mail server (IMAP)"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:57
+msgid "Can't verify the outgoing mail server (SMTP)"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:65
 msgid ""
 "Envio has no trusted certificate authorities on this device, so it cannot "
 "check the server. Please report this problem"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:53
+#: crates/envio-core/src/text/setup.rs:70
 msgid "Confirm the servers before signing in"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:57
+#: crates/envio-core/src/text/setup.rs:74
 msgid "This account is already added"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:61
+#: crates/envio-core/src/text/setup.rs:78
 msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:65
+#: crates/envio-core/src/text/setup.rs:82
 msgid "That certificate fingerprint is not valid"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:69
+#: crates/envio-core/src/text/setup.rs:86
 msgid "That does not look like an email address"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:73
+#: crates/envio-core/src/text/setup.rs:90
 msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:77
+#: crates/envio-core/src/text/setup.rs:94
 msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:81
+#: crates/envio-core/src/text/setup.rs:98
 msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:85
+#: crates/envio-core/src/text/setup.rs:102
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:93
+#: crates/envio-core/src/text/setup.rs:110
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:112
+#: crates/envio-core/src/text/setup.rs:129
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."
@@ -1058,14 +1072,6 @@ msgstr ""
 
 #: crates/envio-core/src/text/status.rs:30
 msgid "Removing account"
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:37
-msgid "incoming mail"
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:38
-msgid "outgoing mail"
 msgstr ""
 
 #: crates/envio-core/src/text/status.rs:44

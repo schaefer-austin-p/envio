@@ -538,7 +538,7 @@ Item {
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })
             tryVerify(function() { return !has("trustDialog") })
-            shellCore.trustPrompt("ann@example.org", "imap", "imap.example.org", "SHA-256 AB", "ab", "The server changed.")
+            shellCore.trustPrompt("ann@example.org", "imap", "imap.example.org", "T", "SHA-256 AB", "ab", "The server changed.")
             wait(50)
             verify(!has("trustDialog"))
             compare(shellCore.called("acceptCertificate").length, 0)

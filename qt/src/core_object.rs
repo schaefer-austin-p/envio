@@ -70,6 +70,7 @@ pub mod qobject {
             email: &QString,
             service: &QString,
             host: &QString,
+            title: &QString,
             fingerprint: &QString,
             hex: &QString,
             text: &QString,

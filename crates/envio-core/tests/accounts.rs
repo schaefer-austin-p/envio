@@ -134,6 +134,7 @@ fn connect_asks_before_trusting_an_unknown_certificate() {
     assert_eq!(host, "127.0.0.1");
     assert_eq!(hex, imap.hex);
     assert!(text.contains("not trusted"), "{text}");
+    assert!(text.contains("incoming mail server"), "{text}");
     assert!(saved_accounts(&h).is_empty());
 }
 

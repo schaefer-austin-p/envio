@@ -75,6 +75,8 @@ pub enum Event {
         email: String,
         service: Service,
         host: String,
+        /// Names the server (IMAP or SMTP) the prompt is about.
+        title: String,
         fingerprint: String,
         hex: String,
         text: String,
