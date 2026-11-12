@@ -31,6 +31,7 @@ fn settings_round_trip() {
         images: ImagesDefault::Always,
         images_from: ["news@example.org".to_owned()].into(),
         default_account: Some("1700".into()),
+        sync_window_days: 90,
     };
     save_settings(&path, &settings).unwrap();
     assert_eq!(load_settings(&path).unwrap(), settings);
