@@ -28,7 +28,9 @@ Item {
     // Opening search puts the cursor in the field and raises the keyboard.
     StackView.onActivated: {
         // After the page's children exist (a first push activates it at once).
+        // Not if the page was popped meanwhile.
         Qt.callLater(function() {
+            if (root.StackView.status !== StackView.Active) return
             field.input.forceActiveFocus()
             Qt.inputMethod.show()
         })
