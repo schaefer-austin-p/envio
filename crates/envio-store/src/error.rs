@@ -14,6 +14,11 @@ pub enum StoreError {
     Damaged(String),
     #[error("bad record in {file}: {reason}")]
     BadRecord { file: String, reason: String },
+    /// The record was written in full but could not be made durable, so it
+    /// may still take effect after a restart. Say "may still be applied",
+    /// not "failed".
+    #[error("could not confirm the write; it may still be applied: {0}")]
+    MayStillApply(io::Error),
     #[error("not found")]
     NotFound,
 }
@@ -21,10 +26,17 @@ pub enum StoreError {
 pub type Result<T> = std::result::Result<T, StoreError>;
 
 impl StoreError {
+    /// The action was not confirmed saved but may replay later.
+    pub fn may_still_apply(&self) -> bool {
+        matches!(self, Self::MayStillApply(_))
+    }
+
     /// The disk is full: the caller stops downloads and keeps going.
     pub fn is_disk_full(&self) -> bool {
         match self {
-            Self::Io(error) => error.kind() == io::ErrorKind::StorageFull,
+            Self::Io(error) | Self::MayStillApply(error) => {
+                error.kind() == io::ErrorKind::StorageFull
+            }
             Self::Sqlite(error) => error.sqlite_error_code() == Some(rusqlite::ErrorCode::DiskFull),
             _ => false,
         }

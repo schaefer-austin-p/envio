@@ -2,6 +2,7 @@
 //! so a rebuilt cache keeps them. Passwords are never here (Plan 6 keeps
 //! them in their own 0600 file).
 
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -56,36 +57,45 @@ pub struct Account {
     /// Never changes; the cache, journal and Outbox name the account by it.
     pub key: String,
     pub settings: AccountSettings,
+    /// Set when this entry of the file could not be read: what failed, with
+    /// no secrets. `settings` then holds only what parsed (name, email) and
+    /// empty values elsewhere, and the account must not be used. The file
+    /// keeps the entry as it was.
+    #[serde(skip)]
+    pub broken: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct FileIn {
     version: u32,
-    accounts: Vec<Account>,
+    accounts: Vec<serde_json::Value>,
 }
 
 #[derive(Serialize)]
-struct FileOut<'a> {
+struct FileOut {
     version: u32,
-    accounts: &'a [Account],
+    accounts: Vec<serde_json::Value>,
 }
 
 pub struct Accounts {
     path: PathBuf,
     accounts: Vec<Account>,
+    /// The original JSON of each broken entry by key, written back unchanged.
+    raw: HashMap<String, serde_json::Value>,
 }
 
 impl Accounts {
     /// Reads `path`; a missing file means no accounts yet.
     pub fn open(path: &Path) -> Result<Self> {
-        let accounts = match fs::read(path) {
+        let (accounts, raw) = match fs::read(path) {
             Ok(bytes) => parse(path, &bytes)?,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Default::default(),
             Err(error) => return Err(error.into()),
         };
         Ok(Self {
             path: path.to_owned(),
             accounts,
+            raw,
         })
     }
 
@@ -103,14 +113,19 @@ impl Accounts {
         let account = Account {
             key: key.clone(),
             settings,
+            broken: None,
         };
         self.change(|accounts| accounts.push(account))?;
         Ok(key)
     }
 
+    /// Replaces the settings; on a broken account this repairs it.
     pub fn update(&mut self, key: &str, settings: AccountSettings) -> Result<()> {
         let index = self.index(key)?;
-        self.change(|accounts| accounts[index].settings = settings)
+        self.change(|accounts| {
+            accounts[index].settings = settings;
+            accounts[index].broken = None;
+        })
     }
 
     /// Removes the settings. The caller also drops the account's cache
@@ -130,17 +145,27 @@ impl Accounts {
     }
 
     /// Saves an edited copy; memory changes only once the file is written.
+    /// Broken entries are written back exactly as they were read.
     fn change(&mut self, edit: impl FnOnce(&mut Vec<Account>)) -> Result<()> {
         let mut next = self.accounts.clone();
         edit(&mut next);
         // Never write a file that `open` would refuse.
         check(&self.path, &next)?;
+        let entries = next
+            .iter()
+            .map(|account| match self.raw.get(&account.key) {
+                Some(original) if account.broken.is_some() => original.clone(),
+                _ => serde_json::to_value(account).expect("account settings always serialize"),
+            })
+            .collect();
         let file = FileOut {
             version: VERSION,
-            accounts: &next,
+            accounts: entries,
         };
         let bytes = serde_json::to_vec_pretty(&file).expect("account settings always serialize");
         write_atomic(&self.path, &bytes)?;
+        self.raw
+            .retain(|key, _| next.iter().any(|a| &a.key == key && a.broken.is_some()));
         self.accounts = next;
         Ok(())
     }
@@ -153,7 +178,9 @@ fn bad(path: &Path, reason: String) -> StoreError {
     }
 }
 
-fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
+type Parsed = (Vec<Account>, HashMap<String, serde_json::Value>);
+
+fn parse(path: &Path, bytes: &[u8]) -> Result<Parsed> {
     let file: FileIn =
         serde_json::from_slice(bytes).map_err(|error| bad(path, error.to_string()))?;
     if file.version > VERSION {
@@ -162,8 +189,88 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Vec<Account>> {
             format!("version {} is from a newer envio", file.version),
         ));
     }
-    check(path, &file.accounts)?;
-    Ok(file.accounts)
+    let mut accounts = Vec::new();
+    let mut raw = HashMap::new();
+    for value in file.accounts {
+        // Without a usable key an entry cannot be named, kept or removed.
+        let key = value
+            .get("key")
+            .and_then(|key| key.as_str())
+            .filter(|key| is_key(key))
+            .ok_or_else(|| bad(path, "an account has no valid key".into()))?
+            .to_owned();
+        let account = match serde_json::from_value::<Account>(value.clone()) {
+            Ok(account) => match pin_problem(&account) {
+                None => account,
+                Some(reason) => stand_in(&value, key.clone(), reason),
+            },
+            Err(_) => stand_in(&value, key.clone(), unreadable(&value)),
+        };
+        if account.broken.is_some() {
+            raw.insert(key, value);
+        }
+        accounts.push(account);
+    }
+    check(path, &accounts)?;
+    Ok((accounts, raw))
+}
+
+/// A fixed reason naming which part failed, never a value from the file.
+fn unreadable(value: &serde_json::Value) -> String {
+    let settings = value.get("settings");
+    let server_bad = |which: &str| {
+        settings
+            .and_then(|settings| settings.get(which))
+            .is_none_or(|server| serde_json::from_value::<Server>(server.clone()).is_err())
+    };
+    if server_bad("imap") {
+        "unreadable IMAP server settings".to_owned()
+    } else if server_bad("smtp") {
+        "unreadable SMTP server settings".to_owned()
+    } else {
+        "unreadable account settings".to_owned()
+    }
+}
+
+/// A stand-in for an entry that did not parse: its key and whatever name and
+/// email it has, empty elsewhere.
+fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
+    let text = |field: &str| {
+        value
+            .get("settings")
+            .and_then(|settings| settings.get(field))
+            .and_then(|field| field.as_str())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let server = || Server {
+        host: String::new(),
+        port: 0,
+        security: Security::default(),
+        pin: None,
+    };
+    Account {
+        key,
+        settings: AccountSettings {
+            name: text("name"),
+            email: text("email"),
+            username: String::new(),
+            imap: server(),
+            smtp: server(),
+        },
+        broken: Some(reason),
+    }
+}
+
+fn pin_problem(account: &Account) -> Option<String> {
+    let settings = &account.settings;
+    [("imap", &settings.imap.pin), ("smtp", &settings.smtp.pin)]
+        .into_iter()
+        .find_map(|(which, pin)| {
+            pin.as_deref()
+                .filter(|pin| !is_pin(pin))
+                .map(|_| format!("malformed certificate pin for {which}"))
+        })
 }
 
 fn check(path: &Path, accounts: &[Account]) -> Result<()> {
@@ -179,17 +286,11 @@ fn check(path: &Path, accounts: &[Account]) -> Result<()> {
         if !seen.insert(account.key.as_str()) {
             return Err(bad(format!("account key {} appears twice", account.key)));
         }
-        let settings = &account.settings;
-        for pin in [&settings.imap.pin, &settings.smtp.pin]
-            .into_iter()
-            .flatten()
-        {
-            if !is_pin(pin) {
-                return Err(bad(format!(
-                    "account {} has a malformed certificate pin",
-                    account.key
-                )));
-            }
+        if account.broken.is_none() && pin_problem(account).is_some() {
+            return Err(bad(format!(
+                "account {} has a malformed certificate pin",
+                account.key
+            )));
         }
     }
     Ok(())

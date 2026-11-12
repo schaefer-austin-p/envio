@@ -57,19 +57,79 @@ fn a_version_1_file_reads_as_implicit_tls_without_pins() {
 }
 
 #[test]
-fn a_malformed_pin_in_the_file_is_a_bad_record() {
+fn a_malformed_pin_breaks_only_its_account() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
     pinned.imap.pin = Some(PIN.into());
-    accounts.add(pinned, 1_000).unwrap();
+    let bad = accounts.add(pinned, 1_000).unwrap();
+    let good = accounts.add(settings("bob@example.org"), 2_000).unwrap();
     let text = fs::read_to_string(&path).unwrap();
     fs::write(&path, text.replace(PIN, "not-a-pin")).unwrap();
+
+    let mut accounts = Accounts::open(&path).unwrap();
+    let broken = accounts.get(&bad).unwrap();
+    let reason = broken.broken.as_deref().unwrap();
+    assert!(reason.contains("pin"), "{reason}");
+    assert_eq!(broken.settings.email, "ada@example.org");
+    assert_eq!(accounts.get(&good).unwrap().broken, None);
+
+    // Adding another account keeps the broken entry as it was.
+    accounts.add(settings("cy@example.org"), 3_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("not-a-pin"), "{text}");
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.list().len(), 3);
+    assert!(reopened.get(&bad).unwrap().broken.is_some());
+}
+
+#[test]
+fn an_entry_that_does_not_parse_is_broken_with_its_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let text = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org", "imap": {"host": "h", "port": "SECRET-PORT-VALUE"}}}]}"#;
+    fs::write(&path, text).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    let account = accounts.get("1000").unwrap();
+    assert_eq!(
+        account.broken.as_deref(),
+        Some("unreadable IMAP server settings")
+    );
+    assert_eq!(account.settings.name, "Ada");
+}
+
+#[test]
+fn a_newer_version_still_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    fs::write(&path, r#"{"version": 3, "accounts": [{"key": "1000"}]}"#).unwrap();
     assert!(matches!(
         Accounts::open(&path),
         Err(StoreError::BadRecord { .. })
     ));
+}
+
+#[test]
+fn a_broken_account_can_be_removed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut pinned = settings("ada@example.org");
+    pinned.imap.pin = Some(PIN.into());
+    let bad = accounts.add(pinned, 1_000).unwrap();
+    let good = accounts.add(settings("bob@example.org"), 2_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace(PIN, "not-a-pin")).unwrap();
+
+    let mut accounts = Accounts::open(&path).unwrap();
+    accounts.remove(&bad).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("not-a-pin"), "{text}");
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.list().len(), 1);
+    assert!(reopened.get(&good).is_some());
 }
 
 #[test]

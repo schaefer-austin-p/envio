@@ -108,7 +108,7 @@ impl Worker<'_> {
         let before = self.status_of(account);
         // Before the rows go: waiting opens are answered, not leaked.
         self.open_failed(Some(account));
-        self.drop_composes_of(account);
+        self.book.drop_account(account);
         self.drop_outbox_of(account);
         if let Some(live) = self.live.get_mut(account) {
             // Sessions and the idler go; its IDLE future ends on the
@@ -124,6 +124,7 @@ impl Worker<'_> {
         match remove(&mut self.store, account) {
             Ok(()) => {
                 self.live.remove(account);
+                self.unread_sent.borrow_mut().remove(account);
                 self.emit(Event::AccountRemoved {
                     account: account.to_owned(),
                 });

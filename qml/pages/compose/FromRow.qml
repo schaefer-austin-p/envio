@@ -1,0 +1,111 @@
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQml 2.15
+import "../../platform"
+import "../../components"
+
+// Which account the message goes out from. With one account there is
+// nothing to pick; with more, a tap opens the list.
+Item {
+    id: root
+    required property Theme theme
+    required property var accounts
+    // The chosen account's key; `chosen` fires when the user picks another.
+    property string account: ""
+    property string email: ""
+    signal chosen(string key)
+
+    implicitHeight: theme.touch + 1
+
+    Repeater {
+        id: rows
+        model: root.accounts
+        delegate: Item {
+            id: row
+            required property var model
+            visible: false
+            Binding {
+                target: root
+                property: "email"
+                value: row.model.email
+                restoreMode: Binding.RestoreNone
+                when: row.model.key === root.account
+            }
+        }
+    }
+
+    ListRow {
+        objectName: "fromRow"
+        theme: root.theme
+        width: parent.width
+        enabled: rows.count > 1
+        onClicked: sheet.open()
+        Row {
+            objectName: "fromContent"
+            x: root.theme.gu(2)
+            y: root.theme.gu(1.75)
+            height: root.theme.touch - root.theme.gu(3.5)
+            Text {
+                textFormat: Text.PlainText
+                objectName: "fromLabel"
+                width: root.theme.gu(6.5) - root.theme.gu(2)
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+                text: qsTr("From")
+                color: root.theme.secondary
+                font.family: root.theme.fontUi
+                font.pixelSize: 14
+            }
+            Text {
+                textFormat: Text.PlainText
+                objectName: "fromValue"
+                width: root.width - root.theme.gu(6.5) - root.theme.gu(2)
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+                text: root.email
+                elide: Text.ElideRight
+                color: root.theme.text
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+            }
+        }
+    }
+
+    Sheet {
+        id: sheet
+        theme: root.theme
+        title: qsTr("Send from")
+        Repeater {
+            model: root.accounts
+            delegate: ListRow {
+                id: pick
+                required property var model
+                objectName: "account-" + model.key
+                theme: root.theme
+                width: sheet.width
+                onClicked: { sheet.close(); root.chosen(model.key) }
+                Column {
+                    width: parent.width
+                    Text {
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: pick.model.name
+                        elide: Text.ElideRight
+                        color: root.theme.text
+                        font.family: root.theme.fontUi
+                        font.pixelSize: 16
+                    }
+                    Text {
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: pick.model.email
+                        elide: Text.ElideRight
+                        color: root.theme.secondary
+                        font.family: root.theme.fontMono
+                        font.pixelSize: 13
+                    }
+                }
+            }
+        }
+    }
+}

@@ -9,6 +9,7 @@ mod plan;
 mod read;
 mod remove;
 mod run;
+mod search;
 mod setup;
 mod start;
 mod store;
@@ -16,21 +17,25 @@ mod store;
 mod testing;
 mod trust;
 mod turn;
+mod userdata;
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::api::command::{Command, ComposeId, StartFrom};
+use crate::api::command::{Command, ComposeId, ImagesChoice, StartFrom};
 use crate::api::event::Event;
 use crate::api::view::{AccountInfo, CacheState};
 use crate::clock::now_ms;
-use crate::compose::SaveThrottle;
 use crate::core::{Config, EventSink};
+use crate::drafts::DraftBook;
 use crate::health::AccountStatus;
+use crate::setup_thread::{SetupDone, SetupThread};
 use crate::text;
 use crate::undo::UndoBook;
 use conn::{IdleFuture, Live};
@@ -39,6 +44,7 @@ use envio_net::Roots;
 use envio_store::{FolderId, FolderRole, MessageRowId};
 use envio_sync::schedule::backoff_ms;
 use store::Store;
+use trust::with_host;
 
 pub(crate) struct Worker<'s> {
     store: Store,
@@ -62,37 +68,51 @@ pub(crate) struct Worker<'s> {
     /// needs the user's confirmation whatever the app says.
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.
-    opening: BTreeMap<MessageRowId, (bool, u32)>,
+    opening: BTreeMap<MessageRowId, (ImagesChoice, u32)>,
     /// Actions the user can still take back.
     undo: UndoBook,
-    /// Drafts changed and not yet saved.
-    throttle: SaveThrottle,
-    /// The stored draft of each compose window that has one.
-    drafts_of: BTreeMap<ComposeId, String>,
-    /// Composes whose message is queued, for the whole session: nothing more
-    /// is saved or sent for them, even after the window closed.
-    sent: BTreeSet<ComposeId>,
-    /// Composes whose last save failed (the user was told once).
-    save_failed: BTreeSet<ComposeId>,
+    /// Drafts: saved by the draft thread; the worker only flushes a draft
+    /// before it is sent and deletes it afterwards.
+    book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
+    /// The thread that does the network half of account setup.
+    setup: Arc<SetupThread>,
+    /// The newest `Detect` ticket by address: an older answer is dropped.
+    detecting: BTreeMap<String, u64>,
+    /// The newest `Connect` ticket by address.
+    probing: BTreeMap<String, u64>,
+    /// The "Search on server" the user waits for (the newest one).
+    server_search: Option<search::ServerSearch>,
+    /// The Inbox unread count each account's tab last showed.
+    unread_sent: RefCell<BTreeMap<String, u32>>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
 pub(crate) type Stamped = (Command, i64);
 
+/// What the worker's queue carries: the app's commands, and the answers of
+/// the setup thread.
+// A command is by far the common input; boxing it would allocate for each one.
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum Input {
+    Command(Stamped),
+    Setup(SetupDone),
+}
+
 /// Returns on `Shutdown` or when the handle is gone.
 pub(crate) fn run(
     config: &Config,
-    commands: &mut UnboundedReceiver<Stamped>,
+    commands: &mut UnboundedReceiver<Input>,
     sink: &dyn EventSink,
+    (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
     runtime.block_on(async {
-        let Some(mut worker) = Worker::open(config, commands, sink).await else {
+        let Some(mut worker) = Worker::open(config, commands, sink, (book, setup)).await else {
             return;
         };
         while worker.turn(commands).await == Flow::Continue {}
@@ -104,17 +124,24 @@ impl<'s> Worker<'s> {
     /// when told to shut down meanwhile.
     async fn open(
         config: &Config,
-        commands: &mut UnboundedReceiver<Stamped>,
+        commands: &mut UnboundedReceiver<Input>,
         sink: &'s dyn EventSink,
+        (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
-        let mut queued: VecDeque<Stamped> = VecDeque::new();
+        let mut queued: VecDeque<Input> = VecDeque::new();
         let (store, cache) = loop {
-            match Store::open(config, now_ms()) {
+            match Store::open(config, book, now_ms()) {
                 Ok(opened) => break opened,
                 Err(error) => {
                     failures = failures.saturating_add(1);
                     log::error!("opening the store: {error}");
+                    if failures == 1 {
+                        // Once per open: it keeps trying, drafts are safe.
+                        sink.emit(Event::StoreProblem {
+                            text: text::notice::store_problem(),
+                        });
+                    }
                 }
             }
             let wait = backoff_ms(failures, u64::from(failures));
@@ -124,9 +151,15 @@ impl<'s> Worker<'s> {
                 command = commands.recv() => match command {
                     None => return None,
                     Some(command) => {
-                        if matches!(command.0, Command::Shutdown) {
+                        if matches!(&command, Input::Command((Command::Shutdown, _))) {
                             if !queued.is_empty() {
-                                let names: Vec<&str> = queued.iter().map(|(c, _)| c.name()).collect();
+                                let names: Vec<&str> = queued
+                                    .iter()
+                                    .map(|input| match input {
+                                        Input::Command((c, _)) => c.name(),
+                                        Input::Setup(_) => "setup result",
+                                    })
+                                    .collect();
                                 log::warn!(
                                     "shutdown with {} unhandled commands: {}",
                                     names.len(),
@@ -144,7 +177,7 @@ impl<'s> Worker<'s> {
             .accounts
             .list()
             .iter()
-            .map(|a| (a.key.clone(), Live::new()))
+            .map(|a| (a.key.clone(), Live::for_account(a)))
             .collect();
         let mut worker = Worker {
             store,
@@ -161,16 +194,18 @@ impl<'s> Worker<'s> {
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
             undo: UndoBook::default(),
-            throttle: SaveThrottle::default(),
-            drafts_of: BTreeMap::new(),
-            sent: BTreeSet::new(),
-            save_failed: BTreeSet::new(),
+            book: Arc::clone(book),
             composing: BTreeMap::new(),
+            setup: Arc::clone(setup),
+            detecting: BTreeMap::new(),
+            probing: BTreeMap::new(),
+            server_search: None,
+            unread_sent: RefCell::new(BTreeMap::new()),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
-        for (command, at_ms) in queued {
-            if handle(&mut worker, command, at_ms).await == Flow::Stop {
+        for input in queued {
+            if worker.input(input).await == Flow::Stop {
                 return None;
             }
         }
@@ -183,24 +218,36 @@ impl<'s> Worker<'s> {
                 text: text::notice::cache_rebuilt(),
             });
         }
+        let skipped = self.store.journal.skipped().len();
+        if skipped > 0 {
+            self.sink.emit(Event::Notice {
+                text: text::notice::journal_skipped(u64::try_from(skipped).unwrap_or(u64::MAX)),
+            });
+        }
         let accounts = self
             .store
             .accounts
             .list()
             .iter()
             .map(|a| AccountInfo {
+                unread: self.seed_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
                 email: a.settings.email.clone(),
-                status: AccountStatus::Ready,
+                status: a
+                    .broken
+                    .clone()
+                    .map_or(AccountStatus::Ready, AccountStatus::Broken),
+                broken: a.broken.is_some(),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
+        self.sink.emit(Event::Settings(self.store.settings.clone()));
     }
 
     /// One loop iteration: run a step if an account has one, else wait for
     /// a command, an IDLE to end or the next timer.
-    pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
+    pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
         // Commands that came in during the last step go first: an Undo
         // pressed inside its window must not find the offer closed.
         if self.drain(commands).await == Flow::Stop {
@@ -223,8 +270,8 @@ impl<'s> Worker<'s> {
             }
         };
         tokio::select! {
-            command = commands.recv() => match command {
-                Some((command, at_ms)) => match handle(self, command, at_ms).await {
+            input = commands.recv() => match input {
+                Some(input) => match self.input(input).await {
                     Flow::Continue => self.drain(commands).await,
                     Flow::Stop => Flow::Stop,
                 },
@@ -239,7 +286,14 @@ impl<'s> Worker<'s> {
     }
 
     pub(crate) fn emit(&self, event: Event) {
+        let may_count = matches!(
+            event,
+            Event::MessagesChanged { .. } | Event::FoldersChanged { .. }
+        );
         self.sink.emit(event);
+        if may_count {
+            self.refresh_unread();
+        }
     }
 
     pub(crate) fn status_of(&self, account: &str) -> AccountStatus {
@@ -252,10 +306,14 @@ impl<'s> Worker<'s> {
     pub(crate) fn report(&self, account: &str, before: &AccountStatus) {
         let now = self.status_of(account);
         if now != *before {
+            let status = match self.store.accounts.get(account) {
+                Some(a) => with_host(now, &a.settings),
+                None => now,
+            };
             self.sink.emit(Event::AccountStatus {
                 account: account.to_owned(),
-                text: text::status::status(&now),
-                status: now,
+                text: text::status::status(&status),
+                status,
             });
         }
     }
@@ -269,13 +327,23 @@ impl<'s> Worker<'s> {
             .map(|f| f.id)
     }
 
-    /// Handles the commands already queued.
-    async fn drain(&mut self, commands: &mut UnboundedReceiver<Stamped>) -> Flow {
-        while let Ok((command, at_ms)) = commands.try_recv() {
-            if handle(self, command, at_ms).await == Flow::Stop {
+    /// Handles the inputs already queued.
+    async fn drain(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
+        while let Ok(input) = commands.try_recv() {
+            if self.input(input).await == Flow::Stop {
                 return Flow::Stop;
             }
         }
         Flow::Continue
+    }
+
+    async fn input(&mut self, input: Input) -> Flow {
+        match input {
+            Input::Command((command, at_ms)) => handle(self, command, at_ms).await,
+            Input::Setup(done) => {
+                self.setup_done(done);
+                Flow::Continue
+            }
+        }
     }
 }

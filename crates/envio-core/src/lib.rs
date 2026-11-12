@@ -5,6 +5,7 @@ pub mod build_info;
 pub mod core;
 pub mod health;
 pub mod logging;
+pub mod paths;
 pub mod problem;
 pub mod secrets;
 pub mod servers;
@@ -15,8 +16,10 @@ pub mod hooks;
 
 mod clock;
 mod compose;
+mod drafts;
 mod fsutil;
 mod outbox;
+mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
 #[allow(dead_code)]
 mod i18n;
@@ -29,17 +32,26 @@ mod undo;
 mod worker;
 
 pub use api::command::{
-    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, OutboxDecision, StartFrom,
-    UndoId, UserAction,
+    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice, OutboxDecision,
+    SearchScope, StartFrom, UndoId, UserAction,
 };
 pub use api::event::Event;
 pub use api::view::{
-    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageRow, MessageView, OutboxRow,
-    OutboxStatus, UnsentCounts,
+    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageHeader, MessageRow, MessageView,
+    OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink};
-pub use envio_store::{Flags, FolderId, FolderRole, MessageRowId, Page};
+pub use envio_store::{
+    Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, ListRef, MessageRowId,
+    PAGE, Settings, ThemeName,
+};
 pub use health::AccountStatus;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
+pub use text::count::{CountKind, count_text};
+pub use text::link::{malformed as link_malformed, userinfo_decoration, written_as};
+pub use text::notice::start_failed;
 pub use text::setup::ispdb_note;
+// What the app's glue names without depending on envio-net.
+pub use envio_net::autoconfig::Source as SetupSource;
+pub use envio_net::{Roots, RootsSource, Security};

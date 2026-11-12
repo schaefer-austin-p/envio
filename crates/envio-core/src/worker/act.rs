@@ -77,6 +77,32 @@ impl Worker<'_> {
         }
     }
 
+    /// Opening a message marks it read. Recorded like any flag change, but
+    /// the user did not ask for it, so there is no Undo offer and no notice.
+    pub(super) fn mark_opened_read(&mut self, id: MessageRowId) {
+        match self.store.db.message(id) {
+            Ok(message) if !message.flags.contains(Flags::SEEN) => {}
+            _ => return,
+        }
+        let mut done = Done {
+            now: now_ms(),
+            ..Done::default()
+        };
+        self.act_one(id, UserAction::MarkRead(true), &mut done);
+        if !done.folders.is_empty() {
+            self.emit(Event::MessagesChanged {
+                folders: done.folders.iter().copied().collect(),
+            });
+        }
+        // The journal holds the action back for the Undo window; an offer
+        // with nothing to take back is what runs the replay when it ends.
+        if !done.accounts.is_empty() {
+            let now = done.now;
+            done.undos.clear();
+            self.offer_undo(UserAction::MarkRead(true), done, now);
+        }
+    }
+
     fn offer_undo(&mut self, action: UserAction, done: Done, now: i64) {
         let shown = !done.undos.is_empty();
         let text = text::undo::offer(action, done.count());
@@ -118,14 +144,20 @@ impl Worker<'_> {
             return;
         };
         let newest = self.store.journal.pending().map(|a| a.seq).max();
+        self.arm_journal_hook();
         match driver::record(&mut self.store.local(), id, kind, done.now) {
             Ok(undo) => done.undos.push(undo),
             Err(error) => {
                 log::warn!("recording an action: {error}");
+                if only_maybe_saved(&error) {
+                    done.refused
+                        .get_or_insert_with(text::notice::change_may_still_apply);
+                    return;
+                }
                 // An error after the journal write leaves the action
                 // pending: it is done, just not undoable (#41).
                 if self.store.journal.pending().map(|a| a.seq).max() == newest {
-                    done.refused.get_or_insert_with(text::undo::not_done);
+                    done.refused.get_or_insert_with(|| refusal_text(&error));
                     return;
                 }
                 done.kept += 1;
@@ -154,6 +186,8 @@ impl Worker<'_> {
         let mut undone = 0;
         let mut late = 0;
         let mut failed = false;
+        let mut may_still_apply = false;
+        self.arm_journal_hook();
         for item in &offer.undos {
             match driver::undo(&mut self.store.local(), item) {
                 Ok(true) => undone += 1,
@@ -161,6 +195,7 @@ impl Worker<'_> {
                 Err(error) => {
                     log::warn!("undoing an action: {error}");
                     failed = true;
+                    may_still_apply |= only_maybe_saved(&error);
                 }
             }
         }
@@ -178,12 +213,24 @@ impl Worker<'_> {
             // Those stay pending: replay them without waiting for a poll.
             self.want_replay(&offer.accounts);
             self.emit(Event::Notice {
-                text: text::undo::cannot_undo(),
+                text: if may_still_apply {
+                    text::notice::undo_may_still_apply()
+                } else {
+                    text::undo::cannot_undo()
+                },
             });
         } else if late > 0 {
             self.emit(Event::Notice {
                 text: text::undo::too_late(),
             });
+        }
+    }
+
+    /// Test hook: makes the next journal write fail to sync, if asked to.
+    fn arm_journal_hook(&mut self) {
+        #[cfg(feature = "test-hooks")]
+        if crate::hooks::take_journal_failure(&self.store.paths.journal()) {
+            self.store.journal.fail_next_sync();
         }
     }
 
@@ -226,6 +273,21 @@ impl Worker<'_> {
     }
 }
 
+/// The journal line may be on disk without being durable, and the disk is
+/// not the reason (disk-full text wins).
+fn only_maybe_saved(error: &envio_sync::SyncError) -> bool {
+    matches!(error, envio_sync::SyncError::Store(e) if e.may_still_apply() && !e.is_disk_full())
+}
+
+/// What the user is told when an action could not be recorded at all.
+fn refusal_text(error: &envio_sync::SyncError) -> String {
+    match error {
+        _ if only_maybe_saved(error) => text::notice::change_may_still_apply(),
+        envio_sync::SyncError::Store(e) if e.is_disk_full() => text::notice::disk_full(),
+        _ => text::undo::not_done(),
+    }
+}
+
 fn failed_text(error: &envio_store::StoreError) -> String {
     log::warn!("finding a message to act on: {error}");
     match problem::from_store(error) {
@@ -239,6 +301,15 @@ mod tests {
     use super::*;
     use crate::api::command::UserAction;
     use envio_store::{ActionKind, Flags, Folder, FolderId, FolderRole};
+
+    #[test]
+    fn a_full_disk_while_recording_says_the_disk_is_full() {
+        let full = std::io::Error::from(std::io::ErrorKind::StorageFull);
+        let error = envio_sync::SyncError::Store(envio_store::StoreError::Io(full));
+        assert_eq!(refusal_text(&error), text::notice::disk_full());
+        let other = envio_sync::SyncError::Store(envio_store::StoreError::NotFound);
+        assert_eq!(refusal_text(&other), text::undo::not_done());
+    }
 
     fn folder(id: i64, path: &str, role: FolderRole) -> Folder {
         Folder {
@@ -311,6 +382,45 @@ mod worker_tests {
     }
 
     #[test]
+    fn expiry_sets_replay() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.act(&[seeded.message], UserAction::Flag(true));
+        assert!(!worker.live[&seeded.account].wants.replay);
+        // Inside the window the action is held back.
+        let _ = worker.expire_undos(now_ms());
+        assert!(!worker.live[&seeded.account].wants.replay);
+        let closed = worker.expire_undos(now_ms() + 60_000);
+        assert_eq!(closed.len(), 1);
+        assert!(worker.live[&seeded.account].wants.replay);
+    }
+
+    #[test]
+    fn opening_a_message_replays_when_the_window_ends() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.mark_opened_read(seeded.message);
+        let pending: Vec<_> = worker.store.journal.pending().collect();
+        assert!(
+            pending.iter().any(|a| matches!(
+                &a.kind,
+                ActionKind::SetFlags { add, .. } if add.contains(Flags::SEEN)
+            )),
+            "a pending SEEN entry"
+        );
+        assert!(!worker.live[&seeded.account].wants.replay);
+        let _ = worker.expire_undos(now_ms());
+        assert!(!worker.live[&seeded.account].wants.replay);
+        let closed = worker.expire_undos(now_ms() + 60_000);
+        assert_eq!(closed.len(), 1);
+        assert!(worker.live[&seeded.account].wants.replay);
+    }
+
+    #[test]
     fn an_undo_pressed_inside_the_window_wins_though_the_worker_is_late() {
         let dir = tempfile::tempdir().unwrap();
         let (config, seeded) = seed(dir.path());
@@ -354,17 +464,20 @@ mod worker_tests {
             expires_at_ms: now_ms() - 1,
         });
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        tx.send((
+        tx.send(crate::worker::Input::Command((
             crate::api::command::Command::Undo { undo: id },
             now_ms() - 100,
-        ))
+        )))
         .unwrap();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
-        tx.send((crate::api::command::Command::Shutdown, now_ms()))
-            .unwrap();
+        tx.send(crate::worker::Input::Command((
+            crate::api::command::Command::Shutdown,
+            now_ms(),
+        )))
+        .unwrap();
         runtime.block_on(worker.turn(&mut rx));
         assert!(
             sink.events()

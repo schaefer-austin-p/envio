@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use envio_core::{
     AccountSetup, Command, Config, ConnectRequest, Core, Event, EventSink, FolderId, FolderRole,
-    MessageRow, Page, ServerAddr, Service,
+    ListRef, MessageRow, ServerAddr, Service,
 };
 use envio_net::{Roots, Security};
 use envio_store::StorePaths;
@@ -40,7 +40,7 @@ fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
     let config = Config {
         cache_dir: dir.path().join("cache"),
         data_dir: dir.path().join("data"),
-        roots: Roots::empty(),
+        roots: Roots::bundled(),
         log_level: level,
         foreground: true,
     };
@@ -175,18 +175,28 @@ impl CoreRun {
         }
     }
 
+    /// Every row of the folder, page after page.
     pub fn rows(&self, folder: FolderId) -> Vec<MessageRow> {
-        let page = Page {
-            offset: 0,
-            limit: 200,
-        };
-        self.core.send(Command::ListMessages { folder, page });
-        self.wait(NET, |event| match event {
-            Event::Messages {
-                folder: f, rows, ..
-            } if *f == folder => Some(rows.clone()),
-            _ => None,
-        })
+        let list = ListRef::Folder(folder);
+        let mut all: Vec<MessageRow> = Vec::new();
+        let mut after = None;
+        loop {
+            self.core.send(Command::ListMessages { list, after });
+            let (rows, end) = self.wait(NET, |event| match event {
+                Event::Messages {
+                    list: l,
+                    after: a,
+                    rows,
+                    end,
+                } if *l == list && *a == after => Some((rows.clone(), *end)),
+                _ => None,
+            });
+            after = rows.last().map(|row| row.cursor);
+            all.extend(rows);
+            if end || after.is_none() {
+                return all;
+            }
+        }
     }
 
     /// The folder's row with `subject`, once the core shows it.

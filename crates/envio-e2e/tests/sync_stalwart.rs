@@ -83,13 +83,7 @@ async fn a_flag_change_reaches_the_server_after_the_undo_window() {
     let inbox = store.folder(FolderRole::Inbox);
     let message = store
         .db
-        .messages(
-            inbox.id,
-            envio_store::Page {
-                offset: 0,
-                limit: 1,
-            },
-        )
+        .list(envio_store::ListRef::Folder(inbox.id), None, 1)
         .unwrap()[0]
         .clone();
     let kind = ActionKind::SetFlags {
@@ -120,11 +114,10 @@ async fn delete_with_undo_then_delete_for_real_moves_to_trash() {
     let erin = User::new("erin");
     let (mut session, mut store, ids) = synced(&server, &erin, &["Keep", "Bin"]).await;
     let inbox = store.folder(FolderRole::Inbox);
-    let page = envio_store::Page {
-        offset: 0,
-        limit: 10,
-    };
-    let messages = store.db.messages(inbox.id, page).unwrap();
+    let messages = store
+        .db
+        .list(envio_store::ListRef::Folder(inbox.id), None, 10)
+        .unwrap();
     let pick = |subject: &str| {
         messages
             .iter()

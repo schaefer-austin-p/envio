@@ -4,15 +4,20 @@
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 #[derive(Default)]
 struct State {
     open: Mutex<Vec<TcpStream>>,
     down: AtomicBool,
     accepted: AtomicUsize,
+    /// Milliseconds each batch from the server waits before it is passed on.
+    delay_ms: AtomicU64,
+    /// Batches that waited for the delay.
+    held: AtomicUsize,
 }
 
 pub struct Proxy {
@@ -43,8 +48,12 @@ impl Proxy {
                     open.push(a);
                     open.push(b);
                 }
-                pipe(client.try_clone().unwrap(), server.try_clone().unwrap());
-                pipe(server, client);
+                pipe(
+                    client.try_clone().unwrap(),
+                    server.try_clone().unwrap(),
+                    None,
+                );
+                pipe(server, client, Some(Arc::clone(&shared)));
             }
         });
         Self { port, state }
@@ -63,15 +72,34 @@ impl Proxy {
         self.state.accepted.load(Ordering::SeqCst)
     }
 
+    /// Holds each batch the server sends back for `delay` (open connections
+    /// too); `Duration::ZERO` ends it.
+    pub fn slow(&self, delay: Duration) {
+        let ms = u64::try_from(delay.as_millis()).unwrap();
+        self.state.delay_ms.store(ms, Ordering::SeqCst);
+    }
+
+    /// How many batches have waited for the delay so far.
+    pub fn held(&self) -> usize {
+        self.state.held.load(Ordering::SeqCst)
+    }
+
     pub fn up(&self) {
         self.state.down.store(false, Ordering::SeqCst);
     }
 }
 
-fn pipe(mut from: TcpStream, mut to: TcpStream) {
+fn pipe(mut from: TcpStream, mut to: TcpStream, slow: Option<Arc<State>>) {
     thread::spawn(move || {
         let mut buf = [0u8; 8192];
         while let Ok(n) = from.read(&mut buf) {
+            if let Some(state) = &slow {
+                let ms = state.delay_ms.load(Ordering::SeqCst);
+                if ms > 0 {
+                    state.held.fetch_add(1, Ordering::SeqCst);
+                    thread::sleep(Duration::from_millis(ms));
+                }
+            }
             if n == 0 || to.write_all(&buf[..n]).is_err() {
                 break;
             }

@@ -42,15 +42,38 @@ pub(super) async fn folders(
 
 pub(super) async fn folder(
     worker: &mut Worker<'_>,
+    account: &str,
     session: &mut ImapSession,
     id: FolderId,
 ) -> Result<(), Problem> {
-    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now_ms())
+    // One time for the whole step.
+    let now = now_ms();
+    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now)
         .await
         .map_err(|e| imap_error(&e))?;
+    if let Some(live) = worker.live.get_mut(account) {
+        live.continuing = synced.more.then_some(id);
+    }
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
     }
+    Ok(())
+}
+
+pub(super) async fn search_server(
+    worker: &mut Worker<'_>,
+    account: &str,
+    session: &mut ImapSession,
+    (folder, query): (FolderId, &str),
+) -> Result<(), Problem> {
+    let ids = driver::search_server(session, &mut worker.store.local(), folder, query)
+        .await
+        .map_err(|e| imap_error(&e))?;
+    // Mail found there may be new to the cache.
+    worker.emit(Event::MessagesChanged {
+        folders: vec![folder],
+    });
+    worker.search_found(account, query, &ids);
     Ok(())
 }
 
@@ -72,6 +95,13 @@ pub(super) async fn body(
     let eml = driver::fetch_body(session, &mut worker.store.local(), id)
         .await
         .map_err(|e| imap_error(&e))?;
+    if let Some(eml) = &eml {
+        // Local search finds words in bodies: the text of the message, an
+        // HTML one through its text conversion. A failure only costs that.
+        if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
+            log::warn!("indexing a body: {e}");
+        }
+    }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
     });
@@ -140,6 +170,35 @@ mod tests {
     use super::*;
     use crate::worker::testing::{Sink, open, seed};
     use envio_store::{ActionKind, MessageRef};
+
+    #[test]
+    fn a_sync_that_changes_flags_tells_the_app_the_count_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let worker = open(&config, &sink);
+        let counts = |sink: &Sink| -> Vec<u32> {
+            sink.events()
+                .iter()
+                .filter_map(|e| match e {
+                    Event::AccountUnread { unread, .. } => Some(*unread),
+                    _ => None,
+                })
+                .collect()
+        };
+        // What a folder sync does: write the server's flags, then tell.
+        worker
+            .store
+            .db
+            .set_flags(seeded.folder, 1, envio_store::Flags::SEEN)
+            .unwrap();
+        let changed = || Event::MessagesChanged {
+            folders: vec![seeded.folder],
+        };
+        worker.emit(changed());
+        worker.emit(changed());
+        assert_eq!(counts(&sink), [0]);
+    }
 
     #[test]
     fn a_reverted_move_has_its_folder_synced() {

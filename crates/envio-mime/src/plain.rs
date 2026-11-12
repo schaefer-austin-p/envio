@@ -162,11 +162,15 @@ fn linkify(line: &str, out: &mut String) {
         } else {
             url.to_owned()
         };
-        out.push_str("<a href=\"");
-        escape_into(&href, out);
-        out.push_str("\">");
-        escape_into(url, out);
-        out.push_str("</a>");
+        if let Some(href) = crate::link::safe_href(&href) {
+            out.push_str("<a href=\"");
+            escape_into(&href, out);
+            out.push_str("\">");
+            escape_into(url, out);
+            out.push_str("</a>");
+        } else {
+            escape_into(url, out);
+        }
         pos = end;
     }
     escape_into(&line[pos..], out);

@@ -1,0 +1,18 @@
+[package]
+name = "envio-ui"
+description = "The screens' state: list models as row operations, selection, paging, one-shot signals. Qt-free."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+envio-core = { path = "../envio-core" }
+envio-mime = { path = "../envio-mime" }
+
+[dev-dependencies]
+envio-net = { path = "../envio-net" }

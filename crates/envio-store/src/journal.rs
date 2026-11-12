@@ -3,6 +3,9 @@
 //! lose them. Each action is added once and later marked done; what was
 //! added and not done is pending. A torn last line (a crash mid-write) is
 //! dropped and the file rewritten, so the next line can't join onto it.
+//! Records carry a version (`v`, absent means 1); a record this build can't
+//! read (newer version, unknown action kind) is skipped and reported by
+//! `skipped`, and stays on disk so a newer build can still replay it.
 
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
@@ -13,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
+use crate::journal_replay::{Replay, Skipped, replay};
 use crate::messages::Flags;
 
 /// Names a message without cache row ids, so it still resolves after a
@@ -51,9 +55,12 @@ pub struct Action {
     pub kind: ActionKind,
 }
 
+/// The record version this build writes and reads.
+pub(crate) const VERSION: u32 = 1;
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
-enum Record {
+pub(crate) enum Record {
     Add {
         action: Action,
     },
@@ -73,6 +80,10 @@ pub struct Journal {
     pending: BTreeMap<u64, Action>,
     /// An append failed part-way; rewrite before appending again.
     needs_compact: bool,
+    /// Records this build can't read; kept on disk, never replayed.
+    skipped: Vec<Skipped>,
+    /// Test seam: the next sync fails after the line is written.
+    fail_next_sync: bool,
 }
 
 impl Journal {
@@ -92,6 +103,8 @@ impl Journal {
             next_seq: replay.next_seq,
             pending: replay.pending,
             needs_compact: replay.torn,
+            skipped: replay.skipped,
+            fail_next_sync: false,
         };
         if !existed && let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
             File::open(dir)?.sync_all()?;
@@ -102,7 +115,9 @@ impl Journal {
         Ok(journal)
     }
 
-    /// Records a new action and returns it with its sequence number.
+    /// Records a new action and returns it with its sequence number. An
+    /// error for which `may_still_apply` is true means the line reached the
+    /// file but could not be made durable: it may replay after a crash.
     pub fn push(&mut self, at_ms: i64, target: MessageRef, kind: ActionKind) -> Result<Action> {
         let action = Action {
             seq: self.next_seq,
@@ -110,10 +125,15 @@ impl Journal {
             target,
             kind,
         };
-        self.append(&Record::Add {
+        let written = self.append(&Record::Add {
             action: action.clone(),
-        })?;
-        self.next_seq += 1;
+        });
+        // The line may be on disk even when the sync failed: that seq is
+        // spent, so the next action never shares it.
+        if matches!(&written, Ok(()) | Err(StoreError::MayStillApply(_))) {
+            self.next_seq += 1;
+        }
+        written?;
         self.pending.insert(action.seq, action.clone());
         Ok(action)
     }
@@ -123,6 +143,8 @@ impl Journal {
         if !self.pending.contains_key(&seq) {
             return Err(StoreError::NotFound);
         }
+        // On MayStillApply the done line may replay (Undo says "may still be
+        // undone"); the action stays pending in memory.
         self.append(&Record::Done { seq })?;
         self.pending.remove(&seq);
         Ok(())
@@ -133,13 +155,40 @@ impl Journal {
         self.pending.values()
     }
 
+    /// Records this build skipped on open (a newer Envio wrote them). They
+    /// stay in the file; the list holds no message content.
+    pub fn skipped(&self) -> &[Skipped] {
+        &self.skipped
+    }
+
+    /// Test seam: makes the next append's sync fail after the write.
+    #[doc(hidden)]
+    pub fn fail_next_sync(&mut self) {
+        self.fail_next_sync = true;
+    }
+
     /// Rewrites the file with only the pending actions (e.g. at startup).
     pub fn compact(&mut self) -> Result<()> {
         let mut bytes = encode(&Record::Next { seq: self.next_seq });
-        for action in self.pending.values() {
-            bytes.extend(encode(&Record::Add {
-                action: action.clone(),
-            }));
+        // Skipped lines and pending adds in sequence order, as they were.
+        let mut lines: Vec<(u64, Vec<u8>)> = self
+            .skipped
+            .iter()
+            .map(|skipped| {
+                let mut raw = skipped.raw.clone();
+                raw.push(b'\n');
+                (skipped.seq.unwrap_or(0), raw)
+            })
+            .chain(self.pending.values().map(|action| {
+                let record = Record::Add {
+                    action: action.clone(),
+                };
+                (action.seq, encode(&record))
+            }))
+            .collect();
+        lines.sort_by_key(|(seq, _)| *seq);
+        for (_, line) in lines {
+            bytes.extend(line);
         }
         // Stays set until the new file is open: if the rename lands but a later
         // step fails, `self.file` is the old unlinked inode and must not be used.
@@ -157,14 +206,23 @@ impl Journal {
         if self.needs_compact {
             self.compact()?;
         }
-        let written = self
-            .file
-            .write_all(&encode(record))
-            .and_then(|()| self.file.sync_data());
-        if written.is_err() {
+        if let Err(error) = self.file.write_all(&encode(record)) {
+            // No complete line can be in the file: a short write has no
+            // newline, so it is torn and dropped. This is a plain failure.
             self.needs_compact = true;
+            return Err(error.into());
         }
-        Ok(written?)
+        let synced = if std::mem::take(&mut self.fail_next_sync) {
+            Err(io::Error::other("injected sync failure"))
+        } else {
+            self.file.sync_data()
+        };
+        if let Err(error) = synced {
+            // The whole line is written but not known durable.
+            self.needs_compact = true;
+            return Err(StoreError::MayStillApply(error));
+        }
+        Ok(())
     }
 }
 
@@ -172,61 +230,16 @@ fn open_append(path: &Path) -> io::Result<File> {
     OpenOptions::new().create(true).append(true).open(path)
 }
 
+#[derive(Serialize)]
+struct Line<'a> {
+    v: u32,
+    #[serde(flatten)]
+    record: &'a Record,
+}
+
 fn encode(record: &Record) -> Vec<u8> {
-    let mut line = serde_json::to_vec(record).expect("journal records always serialize");
+    let mut line =
+        serde_json::to_vec(&Line { v: VERSION, record }).expect("journal records always serialize");
     line.push(b'\n');
     line
-}
-
-struct Replay {
-    pending: BTreeMap<u64, Action>,
-    next_seq: u64,
-    torn: bool,
-}
-
-impl Default for Replay {
-    fn default() -> Self {
-        Self {
-            pending: BTreeMap::new(),
-            next_seq: 1,
-            torn: false,
-        }
-    }
-}
-
-impl Replay {
-    fn apply(&mut self, record: Record) {
-        match record {
-            Record::Add { action } => {
-                self.next_seq = self.next_seq.max(action.seq + 1);
-                self.pending.insert(action.seq, action);
-            }
-            Record::Done { seq } => {
-                self.pending.remove(&seq);
-            }
-            Record::Next { seq } => self.next_seq = self.next_seq.max(seq),
-        }
-    }
-}
-
-fn replay(path: &Path, bytes: &[u8]) -> Result<Replay> {
-    let complete = match bytes.iter().rposition(|&byte| byte == b'\n') {
-        Some(end) => &bytes[..=end],
-        None => &[][..],
-    };
-    let mut replay = Replay {
-        torn: complete.len() != bytes.len(),
-        ..Replay::default()
-    };
-    for (index, line) in complete.split(|&byte| byte == b'\n').enumerate() {
-        if line.is_empty() {
-            continue;
-        }
-        let record = serde_json::from_slice(line).map_err(|error| StoreError::BadRecord {
-            file: format!("{}:{}", path.display(), index + 1),
-            reason: error.to_string(),
-        })?;
-        replay.apply(record);
-    }
-    Ok(replay)
 }

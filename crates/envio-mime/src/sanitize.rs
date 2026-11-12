@@ -210,7 +210,8 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
 fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Option<Cow<'u, str>> {
     match attribute {
         "href" => (clean_url(value) && has_scheme(value, &["http:", "https:", "mailto:"]))
-            .then_some(Cow::Borrowed(value)),
+            .then(|| crate::link::safe_href(value))
+            .flatten(),
         "src" => has_scheme(value, &["http:", "https:", "cid:"]).then_some(Cow::Borrowed(value)),
         "style" => filter_style(element, value).map(Cow::Owned),
         _ => Some(Cow::Borrowed(value)),

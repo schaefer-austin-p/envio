@@ -237,3 +237,27 @@ fn quote_text_unflows_inside_quotes_by_depth() {
         "> quoted one quoted two\n>> deeper still\nreply\n"
     );
 }
+
+#[test]
+fn the_subject_has_no_bidi_controls() {
+    let raw = "From: a@example.org\r\nSubject: Invoice \u{202E}fdp.exe\r\n\r\nhi".as_bytes();
+    assert_eq!(
+        envio_mime::envelope(raw).unwrap().subject,
+        "Invoice fdp.exe"
+    );
+}
+
+#[test]
+fn only_a_mixed_header_suggests_attachments() {
+    let head = |ct: &str| format!("From: a@example.org\r\nContent-Type: {ct}\r\n\r\n");
+    let guess = |ct: &str| envio_mime::header_suggests_attachments(head(ct).as_bytes());
+    assert!(guess("multipart/mixed; boundary=b"));
+    assert!(guess("Multipart/Mixed; boundary=b"));
+    assert!(!guess("multipart/alternative; boundary=b"));
+    assert!(!guess("multipart/related; boundary=b"));
+    assert!(!guess("text/plain"));
+    assert!(!envio_mime::header_suggests_attachments(
+        b"From: a@example.org\r\n\r\n"
+    ));
+    assert!(!envio_mime::header_suggests_attachments(b""));
+}

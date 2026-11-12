@@ -4,6 +4,7 @@
 
 pub mod core_run;
 pub mod proxy;
+pub mod ui_help;
 
 #[path = "../../../envio-net/tests/support/stalwart.rs"]
 pub mod stalwart;
@@ -11,7 +12,7 @@ pub mod stalwart;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use envio_net::Credentials;
-use envio_store::{Bodies, Db, Folder, FolderRole, Journal, Outbox, Page};
+use envio_store::{Bodies, Db, Folder, FolderRole, Journal, ListRef, Outbox};
 use envio_sync::Schedule;
 use envio_sync::driver::Local;
 use tempfile::TempDir;
@@ -87,12 +88,8 @@ impl Store {
 
     /// The cached subjects in the folder, newest first.
     pub fn subjects(&self, role: FolderRole) -> Vec<String> {
-        let page = Page {
-            offset: 0,
-            limit: 1_000,
-        };
         self.db
-            .messages(self.folder(role).id, page)
+            .list(ListRef::Folder(self.folder(role).id), None, 1_000)
             .unwrap()
             .into_iter()
             .map(|message| message.envelope.subject)

@@ -166,7 +166,7 @@ impl Worker<'_> {
         };
         let editable = matches!(item.meta.state, SendState::Failed { .. });
         let account_known = self.store.accounts.get(&item.meta.account).is_some();
-        let free = !self.sent.contains(&compose) && !self.drafts_of.contains_key(&compose);
+        let free = !self.book.is_sent(compose) && self.book.id_of(compose).is_none();
         let eml = (editable && free && account_known)
             .then(|| self.store.outbox.eml(id).ok())
             .flatten();
@@ -188,7 +188,7 @@ impl Worker<'_> {
                 return self.notice(text::compose::draft_not_saved());
             }
         };
-        self.drafts_of.insert(compose, draft_id.clone());
+        self.book.adopt(compose, draft_id.clone());
         draft.draft_id = Some(draft_id.clone());
         self.compose_ready(compose, draft, String::new());
         self.emit(Event::DraftSaved { compose, draft_id });
@@ -359,7 +359,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         std::fs::write(&drafts, b"in the way").unwrap();
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(failed()));
-        assert!(!w.drafts_of.contains_key(&C));
+        assert!(w.book.id_of(C).is_none());
         assert_eq!(notices(&t), 1);
     }
 
@@ -375,7 +375,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
             assert!(state(&w, id).is_some());
         }
         assert_eq!(notices(&t), 3);
-        assert!(w.drafts_of.is_empty());
+        assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
@@ -384,10 +384,10 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         let t = setup();
         let mut w = open(&t.config, t.sink);
         let id = item(&w, &t, EML, failed());
-        w.drafts_of.insert(C, "existing".into());
+        w.book.adopt(C, "existing".into());
         w.edit_outbox(&id, C);
         assert!(state(&w, &id).is_some());
-        assert_eq!(w.drafts_of[&C], "existing");
+        assert_eq!(w.book.id_of(C).as_deref(), Some("existing"));
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 }

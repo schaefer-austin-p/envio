@@ -1,6 +1,6 @@
 //! A whole store in a temporary folder, as core's worker would hold it.
 
-use envio_store::{Bodies, Db, Drafts, Folder, Journal, Outbox, Page};
+use envio_store::{Bodies, Db, Drafts, Folder, Journal, ListRef, Outbox};
 use envio_sync::Schedule;
 use envio_sync::driver::Local;
 use tempfile::TempDir;
@@ -62,12 +62,8 @@ impl Store {
 
     /// The cached subjects in `path`, newest first.
     pub fn subjects(&self, path: &str) -> Vec<String> {
-        let page = Page {
-            offset: 0,
-            limit: 10_000,
-        };
         self.db
-            .messages(self.folder(path).id, page)
+            .list(ListRef::Folder(self.folder(path).id), None, 10_000)
             .unwrap()
             .into_iter()
             .map(|message| message.envelope.subject)

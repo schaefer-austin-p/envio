@@ -12,7 +12,8 @@ impl Address {
     /// control characters in a name become spaces.
     pub fn new(name: Option<&str>, email: &str) -> Self {
         let name = name.map(|n| {
-            n.chars()
+            crate::link::strip_bidi_controls(n)
+                .chars()
                 .map(|c| if c.is_control() { ' ' } else { c })
                 .collect::<String>()
         });
@@ -37,7 +38,9 @@ impl Address {
         };
         let email = email.trim();
         (email.contains('@')
-            && !email.chars().any(|c| c.is_control() || c.is_whitespace())
+            && !email
+                .chars()
+                .any(|c| c.is_control() || c.is_whitespace() || crate::link::is_format_char(c))
             && !has_specials(email))
         .then(|| Self::new(name, email))
     }

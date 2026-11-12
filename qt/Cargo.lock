@@ -614,6 +614,7 @@ dependencies = [
  "ammonia",
  "getrandom 0.4.3",
  "html5ever",
+ "idna",
  "mail-builder",
  "mail-parser",
 ]
@@ -634,6 +635,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -657,6 +659,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-ui"
+version = "0.1.0"
+dependencies = [
+ "envio-core",
+ "envio-mime",
+]
+
+[[package]]
 name = "envio_qt"
 version = "0.1.0"
 dependencies = [
@@ -665,6 +675,12 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "envio-core",
+ "envio-ui",
+ "log",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "zeroize",
 ]
 
 [[package]]
@@ -2422,6 +2438,15 @@ dependencies = [
  "phf_codegen",
  "string_cache",
  "string_cache_codegen",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7265c9301c16a8711c992c2d8da90ee77ef54b1ed51482d6dfeb00dc756b1297"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

@@ -10,6 +10,8 @@ use crate::error::{Result, StoreError};
 pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0001_init.sql"),
     include_str!("../migrations/0002_message_size.sql"),
+    include_str!("../migrations/0003_search_addresses.sql"),
+    include_str!("../migrations/0004_attachment_mark_name_key.sql"),
 ];
 
 /// The schema version of a fully migrated database.
@@ -133,6 +135,56 @@ mod tests {
     }
 
     #[test]
+    fn migrates_0002_to_0003_keeping_rows() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..2]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role) VALUES ('1700', 'INBOX', 'inbox');
+             INSERT INTO messages (folder_id, uid, subject, date, flags, size)
+                 VALUES (1, 1, 'Quarterly report', 1800000000, 0, 10),
+                        (1, 2, 'Lunch', 1800000100, 1, 20);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let rows: i64 = conn
+            .query_row("SELECT count(*) FROM messages", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 2);
+        // The old index is replaced by the composite one, which is used.
+        assert!(
+            !schema(&conn)
+                .iter()
+                .any(|s| s.starts_with("index messages_by_date "))
+        );
+        let plan: String = conn
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT id FROM messages WHERE folder_id = 1
+                 ORDER BY date DESC, id DESC",
+                [],
+                |row| row.get(3),
+            )
+            .unwrap();
+        assert!(plan.contains("messages_by_folder_date"), "{plan}");
+        // Old rows still search by header; the new tables start empty.
+        let hits: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM messages_fts WHERE messages_fts MATCH 'lunch'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(hits, 1);
+        for table in ["bodies_fts", "addresses"] {
+            let n: i64 = conn
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(n, 0, "{table}");
+        }
+    }
+
+    #[test]
     fn migrating_twice_changes_nothing() {
         let mut conn = Connection::open_in_memory().unwrap();
         migrate(&mut conn).unwrap();
@@ -179,5 +231,28 @@ mod tests {
         for (index, name) in names.iter().enumerate() {
             assert!(name.starts_with(&format!("{:04}_", index + 1)), "{name}");
         }
+    }
+
+    #[test]
+    fn a_database_that_ran_0003_gets_the_attachment_mark_and_name_key() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..3]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role, uidvalidity, uidnext)
+                 VALUES ('1700', 'INBOX', 'inbox', 7, 43);
+             INSERT INTO messages (folder_id, uid, message_id, subject, date, flags, preview)
+                 VALUES (1, 42, '<a@example.org>', 'Plans', 1800000000, 0, '');
+             INSERT INTO addresses (address, name, last_seen) VALUES ('ada@example.org', 'ADA L', 5);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        let (mark, key): (i64, String) = conn
+            .query_row(
+                "SELECT m.has_attachments, a.name_key FROM messages m, addresses a",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((mark, key.as_str()), (0, "ada l"));
     }
 }

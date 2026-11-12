@@ -12,12 +12,39 @@ ApplicationWindow {
     title: "Envio"
     color: appTheme.ground
 
-    Theme { id: appTheme }
+    EnvioCore { id: core }
+    RowsModel { id: accountsModel; kind: "accounts" }
+    RowsModel { id: foldersModel; kind: "folders" }
+    RowsModel { id: messagesModel; kind: "messages" }
+    RowsModel { id: outboxModel; kind: "outbox" }
+    RowsModel { id: suggestionsModel; kind: "suggestions" }
+    RowsModel { id: searchModel; kind: "search" }
 
-    InboxPage {
-        anchors.fill: parent
-        theme: appTheme
+    // The settings, once they arrive, pick the look; until then the
+    // defaults.
+    Theme {
+        id: appTheme
+        name: core.theme !== "" ? core.theme : "carbon"
+        darkMode: core.darkMode !== "" ? core.darkMode : "system"
     }
 
-    Component.onCompleted: console.info("envio " + BuildInfo.version + " (" + BuildInfo.commit + ")")
+    AppShell {
+        anchors.fill: parent
+        theme: appTheme
+        core: core
+        accounts: accountsModel
+        folders: foldersModel
+        messages: messagesModel
+        outbox: outboxModel
+        suggestions: suggestionsModel
+        searchResults: searchModel
+    }
+
+    Component.onCompleted: {
+        console.info("envio " + BuildInfo.version + " (" + BuildInfo.commit + ")")
+        // Models first: attachModel brings each up to date from what the
+        // core already sent.
+        for (const model of [accountsModel, foldersModel, messagesModel, outboxModel, suggestionsModel, searchModel]) core.attachModel(model)
+        core.start()
+    }
 }

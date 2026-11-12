@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-11 10:19+0100\n"
+"POT-Creation-Date: 2026-11-12 09:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,64 +18,727 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/pages/InboxPage.qml:26
+#: qml/components/EditMenu.qml:60
+msgid "Cut"
+msgstr ""
+
+#: qml/components/EditMenu.qml:67 qml/pages/reader/LinkSheet.qml:108
+msgid "Copy"
+msgstr ""
+
+#: qml/components/EditMenu.qml:74
+msgid "Paste"
+msgstr ""
+
+#: qml/components/EditMenu.qml:80
+msgid "Select all"
+msgstr ""
+
+#: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
+#: qml/pages/inbox/InboxPage.qml:44 qml/pages/inbox/InboxPage.qml:62
 msgid "Inbox"
 msgstr ""
 
-#: qml/pages/InboxPage.qml:38
-msgid "No accounts yet."
+#: qml/components/FolderLabel.qml:17
+msgid "Sent"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:8
-msgid "Add at least one recipient"
+#: qml/components/FolderLabel.qml:18
+msgid "Drafts"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:14
-msgid "{address} is not a valid email address"
+#: qml/components/FolderLabel.qml:19
+msgid "Trash"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:21
-msgid "Could not read the attachment {name}"
+#: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
+#: qml/pages/reader/ReaderPage.qml:106
+msgid "Archive"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:29
-msgid "On {date}, {name} wrote:"
+#: qml/components/FolderLabel.qml:21
+msgid "Junk"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:36
-msgid "Forwarded message"
+#: qml/components/TopBar.qml:32
+msgid "Leave selection"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:37
-msgid "From"
+#: qml/components/TopBar.qml:32
+msgid "Back"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:38
-msgid "Date"
+#. TRANSLATORS: %1 is a file size in bytes, like 812.
+#: qml/components/fileSize.js:11
+msgid "%1 B"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:39
-msgid "Subject"
+#. TRANSLATORS: %1 is a file size in kilobytes, like 4.2 or 84.
+#: qml/components/fileSize.js:24
+msgid "%1 kB"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:40
+#. TRANSLATORS: %1 is a file size in megabytes, like 1.5 or 106.
+#: qml/components/fileSize.js:27
+msgid "%1 MB"
+msgstr ""
+
+#. TRANSLATORS: %1 is a file size in gigabytes, like 2.0.
+#: qml/components/fileSize.js:29
+msgid "%1 GB"
+msgstr ""
+
+#: qml/pages/ProblemPage.qml:47
+msgid "Trying again…"
+msgstr ""
+
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:226
+msgid "Try again"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:224
+#: qml/pages/settings/SettingsPage.qml:34
+msgid "Accounts"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:98
+msgid "Add account"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:95
+msgid "Check certificate"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:128
+#: qml/pages/accounts/UpdatePasswordPage.qml:26
+msgid "Update password"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:147
+#: qml/pages/accounts/AccountsPage.qml:162 qml/pages/settings/ImagesPage.qml:99
+msgid "Remove"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:160
+msgid "Remove this account?"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:161
+msgid "Keep account"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:17
+msgid "Use these servers?"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:18
+msgid ""
+"These servers are not on your address's domain. They came from the domain's "
+"DNS records. Use them only if you recognise them."
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:19
+#: qml/pages/accounts/TrustDialog.qml:19 qml/pages/inbox/OutboxPage.qml:58
+#: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:120
+#: qml/pages/search/SearchPage.qml:196
+msgid "Cancel"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:20
+msgid "Use these servers"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:28
+msgid "IMAP: %1, port %2"
+msgstr ""
+
+#: qml/pages/accounts/ConfirmHostsDialog.qml:38
+msgid "SMTP: %1, port %2"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:32
+msgid "Enter your email address. Envio finds the mail servers for it."
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:43
+msgid "Email address"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:64 qml/pages/accounts/SignInStep.qml:78
+msgid "Continue"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:83
+msgid "Set up manually"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:50
+msgid "Account name"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:60 qml/pages/accounts/OptionsStep.qml:63
+msgid "Use as default sender"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:61
+msgid "New messages start from this account"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:68 qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/settings/SyncPage.qml:20
+msgid "Sync"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SyncPage.qml:53
+msgid "While Envio is open"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:78
+msgid "Envio checks for new mail while it is open. Push is not available yet."
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:83
+msgid "Keep mail for"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:88 qml/pages/settings/SyncPage.qml:72
+msgid "Last 30 days"
+msgstr ""
+
+#: qml/pages/accounts/OptionsStep.qml:99
+msgid "Done"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:53
+msgid "IMAP server"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:55
+msgid "IMAP port"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:63 qml/pages/accounts/ServersStep.qml:85
+msgid "Upgrade with STARTTLS (otherwise TLS from the start)"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:69
+msgid "IMAP STARTTLS"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:72
+msgid "SMTP server"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:74
+msgid "SMTP port"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:91
+msgid "SMTP STARTTLS"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:94
+msgid "User name"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:96 qml/pages/accounts/SignInStep.qml:69
+msgid "Password"
+msgstr ""
+
+#: qml/pages/accounts/ServersStep.qml:102
+msgid "Connect"
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:56
+msgid ""
+"This provider needs an app password for Envio, not your usual one. Create "
+"one in your account settings."
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:69
+msgid "App password"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:17
+msgid "Can't verify %1"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:20
+msgid "Trust this certificate"
+msgstr ""
+
+#: qml/pages/accounts/TrustDialog.qml:26
+msgid "SHA-256"
+msgstr ""
+
+#: qml/pages/accounts/UpdatePasswordPage.qml:50
+msgid "New password"
+msgstr ""
+
+#: qml/pages/accounts/UpdatePasswordPage.qml:59
+msgid "Save password"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:99
+msgid "Sign in"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:100
+msgid "Server settings"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:101
+msgid "Account options"
+msgstr ""
+
+#: qml/pages/compose/AttachmentChips.qml:60
+msgid "Remove attachment"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:138
+msgid "Write"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:144
+msgid "Attach a file"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:152 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/reader/ReaderPage.qml:122
+msgid "More actions"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:159
+msgid "Send"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:203 qml/pages/reader/HeaderBlock.qml:16
+#: crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: crates/envio-core/src/text/compose.rs:45
-msgid "Could not queue the message. It is still a draft"
+#: qml/pages/compose/ComposePage.qml:216 qml/pages/reader/HeaderBlock.qml:17
+msgid "Cc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:229
+msgid "Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:238
+msgid "Cc and Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:248
+#: crates/envio-core/src/text/compose.rs:43
+msgid "Subject"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:267
+msgid "Write your message"
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:29
+msgid "Discard draft"
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:41
+msgid "Discard this message?"
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:42
+msgid "The draft is deleted and cannot be brought back."
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:43
+msgid "Keep editing"
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:44
+msgid "Discard"
+msgstr ""
+
+#: qml/pages/compose/FromRow.qml:54 qml/pages/reader/HeaderBlock.qml:15
+#: crates/envio-core/src/text/compose.rs:41
+msgid "From"
+msgstr ""
+
+#: qml/pages/compose/FromRow.qml:77
+msgid "Send from"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:24
+msgid "Show quoted text"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:44
+msgid "Hide"
+msgstr ""
+
+#: qml/pages/compose/QuoteFold.qml:50
+msgid "Remove quoted text"
+msgstr ""
+
+#: qml/pages/compose/RecipientField.qml:93
+msgid "Remove %1"
+msgstr ""
+
+#: qml/pages/compose/Suggestions.qml:70
+msgid "from Contacts"
+msgstr ""
+
+#: qml/pages/compose/Suggestions.qml:71
+msgid "written to %1"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:38
+msgid "All"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:64
+msgid "Mail"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:98 qml/pages/search/SearchPage.qml:89
+msgid "All accounts"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:109
+msgid "Unified inbox"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:133 qml/pages/inbox/OutboxPage.qml:24
+msgid "Outbox"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:141
+msgid "waiting to send"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:231 qml/pages/settings/SettingsPage.qml:23
+msgid "Settings"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:156
+msgid "Search"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:163
+msgid "Open menu"
+msgstr ""
+
+#. TRANSLATORS: %1 is how many messages are waiting to be sent,
+#. e.g. "2 messages waiting"; it is left out when none are.
+#: qml/pages/inbox/InboxPage.qml:201
+msgid "Offline. %1"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:202
+msgid "Offline."
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:239
+msgid "New message"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:285
+msgid "Undo"
+msgstr ""
+
+#: qml/pages/inbox/MoveSheet.qml:16 qml/pages/inbox/SelectionBar.qml:42
+#: qml/pages/reader/ReaderMore.qml:19
+msgid "Move to folder"
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:46
+msgid "Nothing waiting to send."
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:56
+msgid "Delete this message?"
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:57
+msgid "It has not been sent, and it cannot be brought back."
+msgstr ""
+
+#: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:114
+msgid "Delete"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:64
+msgid "Send again"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:71
+msgid "Move to Sent"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:78
+msgid "Retry"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:85
+msgid "Edit"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:60
+msgid "Mark as read"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:61
+msgid "Mark as unread"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:62 qml/pages/reader/ReaderMore.qml:20
+msgid "Flag"
+msgstr ""
+
+#: qml/pages/inbox/SelectionBar.qml:63 qml/pages/reader/ReaderMore.qml:21
+msgid "Remove flag"
+msgstr ""
+
+#: qml/pages/reader/AttachmentList.qml:20
+msgid "Attachments"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:101
+msgid "Open"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:37
+msgid "Pick an app, like Document Viewer"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:38
+msgid "Save"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:38
+msgid "Into Files or another app"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:39
+msgid "Share"
+msgstr ""
+
+#: qml/pages/reader/AttachmentsSheet.qml:39
+msgid "Send it with another app"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:42
+msgid "Date"
+msgstr ""
+
+#: qml/pages/reader/HeaderBlock.qml:19
+msgid "Account"
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:16
+msgid ""
+"Remote images are blocked. They can tell the sender when and where you "
+"opened this."
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:32
+msgid "Load images"
+msgstr ""
+
+#: qml/pages/reader/ImagesBanner.qml:38
+msgid "Always for this sender"
+msgstr ""
+
+#: qml/pages/reader/LinkSheet.qml:21
+msgid "Open this link?"
+msgstr ""
+
+#: qml/pages/reader/ReaderMore.qml:18
+msgid "Reply all"
+msgstr ""
+
+#: qml/pages/reader/ReaderMore.qml:22
+msgid "Add sender to Contacts"
+msgstr ""
+
+#: qml/pages/reader/ReaderPage.qml:201
+msgid "Loading…"
+msgstr ""
+
+#: qml/pages/reader/ReplyBar.qml:28
+msgid "Reply"
+msgstr ""
+
+#: qml/pages/reader/ReplyBar.qml:35
+msgid "Forward"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:72
+msgid "Search mail"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:108
+msgid "This folder"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:184
+msgid "Searching the servers…"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:205
+msgid "Search the servers too"
+msgstr ""
+
+#: qml/pages/search/SearchPage.qml:213
+msgid "Finds mail older than the 30 days kept here"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:18 qml/pages/settings/SettingsPage.qml:35
+msgid "About"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:25
+#: qml/pages/settings/SettingsPage.qml:31
+msgid "Appearance"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:39
+msgid "Carbon"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:40
+msgid "Airmail"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:100
+msgid "Colour scheme"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:109
+msgid "Light"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:110
+msgid "Dark"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:111
+msgid "System"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:33
+msgid "Load remote images"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:38
+msgid "Ask each time"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:39
+msgid "Mail shows without pictures until you load them."
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:47
+msgid "Always"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:48
+msgid ""
+"Pictures in every message load at once. The sender can tell you opened it."
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:57
+msgid "Always load from"
+msgstr ""
+
+#: qml/pages/settings/ImagesPage.qml:72
+msgid "No senders yet. Choose \"Always load from this sender\" in a message."
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:54
+msgid ""
+"New mail arrives while the app is open. When it is closed, Envio does not "
+"check."
+msgstr ""
+
+#: qml/pages/settings/SyncPage.qml:63
+msgid "Keep mail on this phone for"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:8
+msgid "Sent to the Outbox"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:12
+msgid "Add at least one recipient"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:18
+msgid "{address} is not a valid email address"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:25
+msgid "Could not read the attachment {name}"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:33
+msgid "On {date}, {name} wrote:"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:40
+msgid "Forwarded message"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:49
-msgid "There is no account to write from"
+msgid "Could not queue the message. It is still a draft"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:53
-msgid "This draft can not be opened"
+msgid "There is no account to write from"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:57
+msgid "This draft can not be opened"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:61
 msgid "Could not save your draft"
+msgstr ""
+
+#: crates/envio-core/src/text/count.rs:20
+msgid "{n} selected"
+msgid_plural "{n} selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:24
+msgid "{n} result"
+msgid_plural "{n} results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:31
+msgid "{n} message waiting to send"
+msgid_plural "{n} messages waiting to send"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:40
+msgid "{n} new message"
+msgid_plural "{n} new messages"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/link.rs:8
+msgid "Before the @ is decoration. This link opens {host}."
+msgstr ""
+
+#: crates/envio-core/src/text/link.rs:16
+msgid "The address is written as {punycode}."
+msgstr ""
+
+#: crates/envio-core/src/text/link.rs:22
+msgid "This link looks malformed and can't be opened."
 msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:7
@@ -87,37 +750,75 @@ msgid "The mail cache was damaged and is being rebuilt from the server"
 msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:15
-msgid "Storage is full. Free some space to keep mail up to date"
+msgid ""
+"Envio cannot open its mail storage. Your unsent mail is safe; trying again"
 msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:19
 msgid ""
+"The mail cache is damaged and could not be rebuilt. Free some space or "
+"restart Envio"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:23
+msgid "Storage is full. Free some space to keep mail up to date"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:28
+msgid ""
+"Envio could not start. Restart it, or free some space if that does not help"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:32
+msgid ""
 "Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:25
+#: crates/envio-core/src/text/notice.rs:38
 msgid "Couldn't update the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:26
+#: crates/envio-core/src/text/notice.rs:39
 msgid "Couldn't move the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:27
+#: crates/envio-core/src/text/notice.rs:40
 msgid "Couldn't delete the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:34
+#: crates/envio-core/src/text/notice.rs:47
 msgid "Gave up updating the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:35
+#: crates/envio-core/src/text/notice.rs:48
 msgid "Gave up moving the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:36
+#: crates/envio-core/src/text/notice.rs:49
 msgid "Gave up deleting the message on the server; it's back"
 msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:54
+msgid "Could not save your settings"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:58
+msgid "Could not save the contact"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:63
+msgid "This change couldn't be saved on the phone. It may still be applied."
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:68
+msgid "Undo couldn't be saved on the phone. The change may still be undone."
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:75
+msgid "{n} pending change could not be read and was skipped"
+msgid_plural "{n} pending changes could not be read and were skipped"
+msgstr[0] ""
+msgstr[1] ""
 
 #: crates/envio-core/src/text/outbox.rs:8
 msgid "Waiting to be sent"
@@ -177,10 +878,14 @@ msgstr ""
 msgid "Could not read your mail from this phone"
 msgstr ""
 
+#: crates/envio-core/src/text/read.rs:23
+msgid "This folder can't be searched on the server right now"
+msgstr ""
+
 #: crates/envio-core/src/text/setup.rs:12
 msgid ""
 "To find your mail servers, Envio asks the Thunderbird configuration database "
-"and your mail provider. Only the part of your address after the @ is sent"
+"and your mail provider. Only the part of your address after the @ is sent."
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:18
@@ -217,120 +922,135 @@ msgid ""
 "before you accept it"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:45
-msgid "Confirm the servers before signing in"
-msgstr ""
-
-#: crates/envio-core/src/text/setup.rs:49
-msgid "This account is already added"
+#: crates/envio-core/src/text/setup.rs:48
+msgid ""
+"Envio has no trusted certificate authorities on this device, so it cannot "
+"check the server. Please report this problem"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:53
-msgid "Sign-in failed. Check the address, username and password"
+msgid "Confirm the servers before signing in"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:57
-msgid "That certificate fingerprint is not valid"
+msgid "This account is already added"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:61
-msgid "That does not look like an email address"
+msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:65
-msgid "Could not reach the server. Check the settings and your connection"
+msgid "That certificate fingerprint is not valid"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:69
-msgid "Could not save the account settings. Check the free storage"
+msgid "That does not look like an email address"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:73
-msgid "There is no certificate waiting to be accepted for this account"
+msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:77
-msgid "Could not remove the account. Restart Envio, which finishes the removal"
+msgid "Could not save the account settings. Check the free storage"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:81
+msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:85
+msgid "Could not remove the account. Restart Envio, which finishes the removal"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:93
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:104
+#: crates/envio-core/src/text/setup.rs:112
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:11
+#: crates/envio-core/src/text/status.rs:13
+msgid ""
+"This account's settings cannot be read ({reason}). Remove it and add it again"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:20
 msgid "Ready"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:12
+#: crates/envio-core/src/text/status.rs:21
 msgid "Syncing"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:13
+#: crates/envio-core/src/text/status.rs:22
 msgid "Offline, retrying"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:14
+#: crates/envio-core/src/text/status.rs:24
+msgid "Can't read the saved mail on this phone. Retrying."
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:26
 msgid "Sign-in failed, update password"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:16
+#: crates/envio-core/src/text/status.rs:28
 msgid "The server certificate needs your attention"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:17
+#: crates/envio-core/src/text/status.rs:29
 msgid "Storage is full, downloads stopped"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:18
+#: crates/envio-core/src/text/status.rs:30
 msgid "Removing account"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:24
+#: crates/envio-core/src/text/status.rs:37
 msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:25
+#: crates/envio-core/src/text/status.rs:38
 msgid "outgoing mail"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:31
+#: crates/envio-core/src/text/status.rs:44
 msgid ""
 "The certificate of the {service} server changed.\n"
 "Old fingerprint: {old}\n"
 "New fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:41
+#: crates/envio-core/src/text/status.rs:54
 msgid ""
 "The certificate of the {service} server is not trusted: {reason}.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:50
+#: crates/envio-core/src/text/status.rs:63
 msgid ""
 "The certificate of the {service} server is not trusted.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:58
+#: crates/envio-core/src/text/status.rs:71
 msgid "self-signed or from an unknown authority"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:59
+#: crates/envio-core/src/text/status.rs:72
 msgid "expired"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:60
+#: crates/envio-core/src/text/status.rs:73
 msgid "issued for another server name"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:61
+#: crates/envio-core/src/text/status.rs:74
 msgid "not valid"
 msgstr ""
 

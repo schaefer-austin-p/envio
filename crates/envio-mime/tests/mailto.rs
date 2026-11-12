@@ -59,3 +59,55 @@ fn mailto_drops_control_characters() {
     assert_eq!(draft.body, "a\nbc\td");
     assert_eq!(draft.in_reply_to, None);
 }
+
+#[test]
+fn mailto_quoted_display_name_keeps_its_comma() {
+    let draft = parse_mailto(
+        "mailto:?to=%22Doe%2C%20Jane%22%20%3Cj%40x.example%3E%2C%20b%40y.example\
+         &cc=%22Smith%2C%20A%22%20%3Ca%40z.example%3E",
+    )
+    .unwrap();
+    assert_eq!(
+        draft.to,
+        [
+            Address::new(Some("Doe, Jane"), "j@x.example"),
+            addr("b@y.example")
+        ]
+    );
+    assert_eq!(draft.cc.len(), 1);
+    assert_eq!(draft.cc[0].email, "a@z.example");
+}
+
+#[test]
+fn mailto_plain_addr_specs_still_split_at_commas() {
+    let draft = parse_mailto("mailto:a@x.example,b@y.example?to=c@z.example,d@w.example").unwrap();
+    let emails: Vec<_> = draft.to.iter().map(|a| a.email.as_str()).collect();
+    assert_eq!(
+        emails,
+        ["a@x.example", "b@y.example", "c@z.example", "d@w.example"]
+    );
+}
+
+#[test]
+fn mailto_recipients_with_format_characters_are_dropped() {
+    for uri in [
+        "mailto:pay@\u{202E}elpmaxe.knab",
+        "mailto:pay@%E2%80%AEelpmaxe.knab",
+        "mailto:?to=ok@x.example%2C%20a%40b%E2%80%8B.example",
+    ] {
+        let draft = parse_mailto(uri).unwrap();
+        assert!(
+            draft.to.iter().all(|a| a.email == "ok@x.example"),
+            "{uri} {:?}",
+            draft.to
+        );
+    }
+    let draft = parse_mailto("mailto:?to=%22J%E2%80%AEane%22%20%3Cj%40x.example%3E").unwrap();
+    assert_eq!(draft.to[0].name.as_deref(), Some("Jane"));
+}
+
+#[test]
+fn mailto_stray_quote_keeps_later_recipients() {
+    let draft = parse_mailto("mailto:?to=a%22b%40x.example%2Cboss%40y.example").unwrap();
+    assert_eq!(draft.to, [addr("boss@y.example")]);
+}

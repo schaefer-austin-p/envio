@@ -7,29 +7,81 @@ use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use envio_mime::{Message as Mime, RenderOptions};
-use envio_store::{BodyState, FolderId, Message, MessageRowId, Page};
+use envio_mime::{Address, Message as Mime, RenderOptions};
+use envio_store::{BodyState, Cursor, Db, FolderId, ListRef, Message, MessageRowId, PAGE};
 
 use super::Worker;
+use super::userdata::{is_known, loads_images};
+use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
-use crate::api::view::{AttachmentRow, FolderRow, MessageRow, MessageView};
+use crate::api::view::{AttachmentRow, FolderRow, MessageHeader, MessageRow, MessageView};
 use crate::clock::now_ms;
 use crate::text;
-
-pub(crate) const SEARCH_LIMIT: usize = 200;
-
-/// Most messages one `ListMessages` returns, whatever the app asks for.
-pub(crate) const PAGE_MAX: u32 = 500;
 
 /// Longest file name written, in bytes (file systems stop at 255).
 const MAX_NAME_BYTES: usize = 200;
 
+/// What `render_view` needs to know about the user and the message's place.
+pub(crate) struct ViewContext<'a> {
+    pub account: &'a str,
+    pub settings: &'a envio_store::Settings,
+    pub contacts: &'a [envio_store::Contact],
+    /// The cached envelope, for mail that can not be parsed.
+    pub stored: &'a envio_store::Envelope,
+}
+
+fn names(list: &[Address]) -> Vec<String> {
+    list.iter().map(Address::display).collect()
+}
+
+/// The header lines of a message that could not be parsed come from the
+/// cached envelope (`Name <address>` strings).
+fn stored_header(stored: &envio_store::Envelope, account: &str) -> MessageHeader {
+    let from = Address::parse(&stored.from);
+    MessageHeader {
+        from: from.as_ref().map_or_else(
+            || envio_mime::strip_bidi_controls(&stored.from),
+            |a| a.name.clone().unwrap_or_else(|| a.email.clone()),
+        ),
+        from_address: from.map(|a| a.email).unwrap_or_default(),
+        to: Vec::new(),
+        cc: Vec::new(),
+        subject: envio_mime::strip_bidi_controls(&stored.subject),
+        date: (stored.date != 0).then_some(stored.date),
+        account: account.to_owned(),
+        sender_known: false,
+    }
+}
+
 /// Renders raw mail for the reader. Sanitising stays in `envio_mime`;
-/// a message that is not valid mail comes back as escaped text.
-pub(crate) fn render_view(raw: &[u8], images: bool, width_px: u32) -> MessageView {
+/// a message that is not valid mail comes back as escaped text. Remote
+/// images load only as `images` and the sender allow.
+pub(crate) fn render_view(
+    raw: &[u8],
+    images: ImagesChoice,
+    width_px: u32,
+    ctx: &ViewContext<'_>,
+) -> MessageView {
     let message = envio_mime::parse(raw);
+    let mut header = stored_header(ctx.stored, ctx.account);
+    if let Mime::Parsed { envelope, .. } = &message {
+        let sender = envelope.from.first();
+        header = MessageHeader {
+            from: sender.map_or_else(String::new, |a| {
+                a.name.clone().unwrap_or_else(|| a.email.clone())
+            }),
+            from_address: sender.map_or_else(String::new, |a| a.email.clone()),
+            to: names(&envelope.to),
+            cc: names(&envelope.cc),
+            subject: envelope.subject.clone(),
+            date: envelope.date,
+            ..header
+        };
+    }
+    header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
+    let load = loads_images(ctx.settings, images, &header.from_address);
     let options = RenderOptions {
-        allow_remote_images: images,
+        allow_remote_images: load,
         cid_urls: HashMap::new(),
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
@@ -51,6 +103,7 @@ pub(crate) fn render_view(raw: &[u8], images: bool, width_px: u32) -> MessageVie
         ),
     };
     MessageView {
+        header,
         html: rendered.html,
         raw,
         blocked_images: rendered.blocked_images,
@@ -66,13 +119,6 @@ fn is_format(c: char) -> bool {
         | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x2064
         | 0x2066..=0x206F | 0xFEFF | 0xFFF9..=0xFFFB
         | 0xE0001 | 0xE0020..=0xE007F)
-}
-
-pub(crate) fn clamp_page(page: Page) -> Page {
-    Page {
-        limit: page.limit.min(PAGE_MAX),
-        ..page
-    }
 }
 
 /// A name from a sender, made fit to be a file in one directory: its last
@@ -141,20 +187,38 @@ fn folder_name(path: &str) -> String {
     }
 }
 
-fn row(message: Message) -> MessageRow {
-    MessageRow {
-        id: message.id,
-        folder: message.folder,
-        from: message.envelope.from,
-        subject: message.envelope.subject,
-        preview: message.preview,
-        date: (message.envelope.date != 0).then_some(message.envelope.date),
-        flags: message.flags,
-    }
+/// The rows for `messages`; `account_of` names the account of a folder.
+pub(super) fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
+    let mut accounts: HashMap<FolderId, String> = HashMap::new();
+    messages
+        .into_iter()
+        .map(|message| {
+            let account = accounts
+                .entry(message.folder)
+                .or_insert_with(|| {
+                    db.folder(message.folder)
+                        .map(|f| f.account)
+                        .unwrap_or_default()
+                })
+                .clone();
+            MessageRow {
+                id: message.id,
+                folder: message.folder,
+                account,
+                cursor: Db::cursor_of(&message),
+                has_attachments: message.envelope.has_attachments,
+                from: message.envelope.from,
+                subject: message.envelope.subject,
+                preview: message.preview,
+                date: (message.envelope.date != 0).then_some(message.envelope.date),
+                flags: message.flags,
+            }
+        })
+        .collect()
 }
 
 impl Worker<'_> {
-    fn read_failed(&self, error: &envio_store::StoreError) {
+    pub(super) fn read_failed(&self, error: &envio_store::StoreError) {
         log::warn!("reading the cache: {error}");
         self.emit(Event::Notice {
             text: text::read::could_not_read(),
@@ -164,14 +228,18 @@ impl Worker<'_> {
     pub(super) fn list_folders(&self, account: &str) {
         match self.store.db.folders(account) {
             Ok(folders) => {
+                let unread = self.store.db.unread_counts(account).unwrap_or_else(|e| {
+                    log::warn!("counting unread messages: {e}");
+                    Default::default()
+                });
                 let folders = folders
                     .into_iter()
                     .map(|f| FolderRow {
                         name: folder_name(&f.path),
+                        unread: unread.get(&f.id).copied().unwrap_or(0),
                         id: f.id,
                         path: f.path,
                         role: f.role,
-                        unread: 0,
                     })
                     .collect();
                 self.emit(Event::Folders {
@@ -183,27 +251,21 @@ impl Worker<'_> {
         }
     }
 
-    pub(super) fn list_messages(&self, folder: FolderId, page: Page) {
-        let page = clamp_page(page);
-        match self.store.db.messages(folder, page) {
-            Ok(messages) => self.emit(Event::Messages {
-                folder,
-                page,
-                rows: messages.into_iter().map(row).collect(),
-            }),
-            Err(e) => self.read_failed(&e),
-        }
-    }
-
-    pub(super) fn search(&self, account: &str, query: String) {
-        let limit = u32::try_from(SEARCH_LIMIT).unwrap_or(u32::MAX);
-        match self.store.db.search(account, &query, limit) {
-            Ok(messages) => self.emit(Event::SearchResults {
-                account: account.to_owned(),
-                query,
-                rows: messages.into_iter().map(row).collect(),
-            }),
-            Err(e) => self.read_failed(&e),
+    pub(super) fn list_messages(&self, list: ListRef, after: Option<Cursor>) {
+        match self.store.db.list(list, after, PAGE) {
+            Ok(messages) => {
+                let end = messages.len() < PAGE as usize;
+                self.emit(Event::Messages {
+                    list,
+                    after,
+                    rows: rows(&self.store.db, messages),
+                    end,
+                });
+            }
+            Err(e) => {
+                self.read_failed(&e);
+                self.emit(Event::MessagesFailed { list, after });
+            }
         }
     }
 
@@ -220,15 +282,54 @@ impl Worker<'_> {
         Some(self.store.db.folder(message.folder).ok()?.account)
     }
 
-    pub(super) fn open_message(&mut self, id: MessageRowId, images: bool, width_px: u32) {
+    /// The reader's view of a cached message's raw bytes.
+    fn view(
+        &self,
+        message: &Message,
+        raw: &[u8],
+        (images, width_px): (ImagesChoice, u32),
+    ) -> MessageView {
+        let account = self.account_of(message.id).unwrap_or_default();
+        let ctx = ViewContext {
+            account: &account,
+            settings: &self.store.settings,
+            contacts: &self.store.contacts,
+            stored: &message.envelope,
+        };
+        render_view(raw, images, width_px, &ctx)
+    }
+
+    /// A body cached before the list had the attachment mark (migration
+    /// 0004 starts every row at 0) is never fetched again, so opening it from
+    /// the cache sets the exact value and tells the list, as a body download
+    /// does.
+    fn correct_attachment_mark(&self, message: &Message, raw: &[u8]) {
+        // A body that does not parse says nothing: keep the stored guess.
+        let Some(exact) = envio_mime::envelope(raw).map(|e| e.has_attachments) else {
+            return;
+        };
+        if exact == message.envelope.has_attachments {
+            return;
+        }
+        match self.store.db.set_has_attachments(message.id, exact) {
+            Ok(()) => self.emit(Event::MessagesChanged {
+                folders: vec![message.folder],
+            }),
+            Err(e) => log::warn!("storing the attachment mark: {e}"),
+        }
+    }
+
+    pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
         if message.body == BodyState::Downloaded {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
-                    let view = render_view(&raw, images, width_px);
-                    return self.emit(Event::MessageOpened { id, view });
+                    let view = self.view(&message, &raw, (images, width_px));
+                    self.emit(Event::MessageOpened { id, view });
+                    self.correct_attachment_mark(&message, &raw);
+                    return self.mark_opened_read(id);
                 }
                 // The file is gone: fetch it again.
                 Err(e) => log::warn!("reading a cached body: {e}"),
@@ -258,12 +359,13 @@ impl Worker<'_> {
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
-        match raw {
-            Some(raw) => {
-                let view = render_view(raw, images, width_px);
+        match (raw, self.store.db.message(id)) {
+            (Some(raw), Ok(message)) => {
+                let view = self.view(&message, raw, (images, width_px));
                 self.emit(Event::MessageOpened { id, view });
+                self.mark_opened_read(id);
             }
-            None => self.unavailable(id),
+            _ => self.unavailable(id),
         }
     }
 
@@ -291,6 +393,7 @@ impl Worker<'_> {
             Ok(path) => self.emit(Event::AttachmentSaved { id, index, path }),
             Err(e) => {
                 log::warn!("saving an attachment: {e}");
+                self.emit(Event::AttachmentFailed { id, index });
                 self.emit(Event::Notice {
                     text: text::read::attachment_not_saved(),
                 });
@@ -298,7 +401,12 @@ impl Worker<'_> {
         }
     }
 
-    fn write_attachment(&self, id: MessageRowId, index: usize, dir: &Path) -> io::Result<PathBuf> {
+    pub(super) fn write_attachment(
+        &self,
+        id: MessageRowId,
+        index: usize,
+        dir: &Path,
+    ) -> io::Result<PathBuf> {
         let message = self.store.db.message(id).map_err(io::Error::other)?;
         let raw = self
             .store
@@ -315,6 +423,7 @@ impl Worker<'_> {
             Mime::Raw(_) => None,
         };
         let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
+        std::fs::create_dir_all(dir)?;
         write_new(dir, &name, &bytes)
     }
 }
@@ -322,6 +431,26 @@ impl Worker<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn an_idle_error_answers_a_pending_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        assert!(worker.opening.contains_key(&seeded.message));
+        // What `begin_idle` and `idle_done` do with an error.
+        worker.open_failed(Some(&seeded.account));
+        assert!(worker.opening.is_empty());
+        assert!(worker.live[&seeded.account].wants.bodies.is_empty());
+        let answered = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageUnavailable { id, .. } if id == seeded.message));
+        assert!(answered);
+    }
 
     #[test]
     fn safe_file_name_strips_paths_and_controls() {
@@ -338,10 +467,16 @@ mod tests {
     }
 
     #[test]
-    fn a_page_is_capped() {
-        let page = |offset, limit| Page { offset, limit };
-        assert_eq!(clamp_page(page(10, u32::MAX)), page(10, PAGE_MAX));
-        assert_eq!(clamp_page(page(0, 50)), page(0, 50));
+    fn the_stored_from_fallback_has_no_bidi_controls() {
+        let stored = envio_store::Envelope {
+            from: "\"PayPal\" <service@\u{202E}lapyap.evil>".into(),
+            subject: "Invoice \u{202E}fdp.exe".into(),
+            ..Default::default()
+        };
+        let header = stored_header(&stored, "me");
+        assert!(!header.from.contains('\u{202E}'), "{}", header.from);
+        assert_eq!(header.subject, "Invoice fdp.exe");
+        assert_eq!(header.from_address, "");
     }
 
     #[test]

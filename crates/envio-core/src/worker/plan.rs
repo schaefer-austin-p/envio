@@ -16,6 +16,8 @@ pub struct Wants {
     pub full: bool,
     pub folders: BTreeSet<FolderId>,
     pub bodies: Vec<MessageRowId>,
+    /// Server searches the user waits for: folder and query.
+    pub searches: Vec<(FolderId, String)>,
     pub replay: bool,
     pub send: bool,
     pub file: bool,
@@ -27,14 +29,34 @@ impl Wants {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Step {
     Folders,
     Body(MessageRowId),
+    /// "Search on server" in one folder (the account is the step's).
+    SearchServer {
+        folder: FolderId,
+        query: String,
+    },
     Replay,
     Send,
     File,
     Folder(FolderId),
+}
+
+impl Step {
+    /// The step's kind for the backoff: which sort of work keeps failing.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Step::Folders => "folders",
+            Step::Body(_) => "body",
+            Step::SearchServer { .. } => "search",
+            Step::Replay => "replay",
+            Step::Send => "send",
+            Step::File => "file",
+            Step::Folder(_) => "folder",
+        }
+    }
 }
 
 impl Wants {
@@ -57,6 +79,16 @@ impl Wants {
 /// run that only sends.
 pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool, relist: bool) -> Vec<Step> {
     let mut out = Vec::new();
+    // The user is waiting for these: they go first.
+    out.extend(
+        wants
+            .searches
+            .iter()
+            .map(|(folder, query)| Step::SearchServer {
+                folder: *folder,
+                query: query.clone(),
+            }),
+    );
     if !disk_full {
         out.extend(wants.bodies.iter().map(|id| Step::Body(*id)));
     }
@@ -198,6 +230,26 @@ mod tests {
     }
 
     #[test]
+    fn a_server_search_runs_before_downloads() {
+        let wants = Wants {
+            bodies: vec![MessageRowId(7)],
+            searches: vec![(FolderId(1), "zebra".into())],
+            ..Wants::default()
+        };
+        assert_eq!(
+            steps(&wants, &folders(), false, false),
+            [
+                Step::Folders,
+                Step::SearchServer {
+                    folder: FolderId(1),
+                    query: "zebra".into()
+                },
+                Step::Body(MessageRowId(7)),
+            ]
+        );
+    }
+
+    #[test]
     fn inbox_first_and_no_duplicate_folders() {
         let wants = Wants {
             full: true,
@@ -207,8 +259,8 @@ mod tests {
         let all = steps(&wants, &folders(), false, false);
         let synced: Vec<Step> = all
             .iter()
-            .copied()
             .filter(|s| matches!(s, Step::Folder(_)))
+            .cloned()
             .collect();
         assert_eq!(
             synced,

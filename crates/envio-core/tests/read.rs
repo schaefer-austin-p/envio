@@ -3,9 +3,12 @@
 mod support;
 
 use envio_core::api::view::{MessageRow, MessageView};
-use envio_core::{Command, Event, FolderId, FolderRole, MessageRowId, Page};
+use envio_core::{
+    Command, Event, FolderId, FolderRole, ImagesChoice, ListRef, MessageRowId, PAGE, SearchScope,
+};
 use envio_store::{BodyState, Db};
 use support::Harness;
+use support::fake::{Kind, serve};
 
 const ME: &str = "me@example.org";
 
@@ -46,11 +49,8 @@ fn seeded(messages: &[(u32, &[u8])]) -> Seeded {
 impl Seeded {
     fn rows(&self) -> Vec<MessageRow> {
         self.h.send(Command::ListMessages {
-            folder: self.folder,
-            page: Page {
-                offset: 0,
-                limit: 50,
-            },
+            list: ListRef::Folder(self.folder),
+            after: None,
         });
         self.h.wait(|e| match e {
             Event::Messages { rows, .. } => Some(rows.clone()),
@@ -66,7 +66,7 @@ impl Seeded {
             .id
     }
 
-    fn open(&self, id: MessageRowId, images: bool) -> MessageView {
+    fn open(&self, id: MessageRowId, images: ImagesChoice) -> MessageView {
         self.h.send(Command::OpenMessage {
             id,
             images,
@@ -93,22 +93,14 @@ fn list_folders_and_a_page_of_messages() {
     assert_eq!(folders[0].id, s.folder);
     assert_eq!(folders[0].name, "INBOX");
     assert_eq!(folders[0].role, FolderRole::Inbox);
-    assert_eq!(folders[0].unread, 0);
+    assert_eq!(folders[0].unread, 3);
 
-    s.h.send(Command::ListMessages {
-        folder: s.folder,
-        page: Page {
-            offset: 1,
-            limit: 1,
-        },
-    });
-    let (page, rows) = s.h.wait(|e| match e {
-        Event::Messages { page, rows, .. } => Some((*page, rows.clone())),
-        _ => None,
-    });
-    assert_eq!(page.offset, 1);
-    assert_eq!(rows.len(), 1);
+    let rows = s.rows();
+    assert_eq!(rows.len(), 3);
     assert_eq!(rows[0].folder, s.folder);
+    assert_eq!(rows[0].account, s.key);
+    // The seeded rows' headers named no attachment.
+    assert!(!rows[0].has_attachments);
     assert!(rows[0].subject.starts_with("message "));
     assert_eq!(rows[0].from, "Ada <ada@example.org>");
 }
@@ -116,7 +108,7 @@ fn list_folders_and_a_page_of_messages() {
 #[test]
 fn open_a_downloaded_message_renders_sanitized_html() {
     let s = seeded(&[(1, HTML)]);
-    let view = s.open(s.id_of("message 1"), false);
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
     assert!(view.html.contains("Hello"));
     assert!(!view.html.contains("script"));
     assert!(!view.html.contains("alert"));
@@ -126,7 +118,7 @@ fn open_a_downloaded_message_renders_sanitized_html() {
 #[test]
 fn a_broken_message_opens_as_raw_text() {
     let s = seeded(&[(1, BROKEN)]);
-    let view = s.open(s.id_of("message 1"), false);
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
     assert!(view.raw);
     // Shown as text, not as markup.
     assert!(view.html.contains("&lt;b&gt;not a body"));
@@ -136,10 +128,10 @@ fn a_broken_message_opens_as_raw_text() {
 fn remote_images_stay_blocked_until_asked() {
     let s = seeded(&[(1, REMOTE_IMAGE)]);
     let id = s.id_of("message 1");
-    let blocked = s.open(id, false);
+    let blocked = s.open(id, ImagesChoice::Default);
     assert_eq!(blocked.blocked_images, 1);
     assert!(!blocked.html.contains("images.example.net"));
-    let shown = s.open(id, true);
+    let shown = s.open(id, ImagesChoice::Load);
     assert_eq!(shown.blocked_images, 0);
     assert!(shown.html.contains("images.example.net/a.png"));
 }
@@ -148,7 +140,7 @@ fn remote_images_stay_blocked_until_asked() {
 fn search_finds_by_subject() {
     let s = seeded(&[(7, HTML), (8, HTML)]);
     s.h.send(Command::Search {
-        account: s.key.clone(),
+        scope: SearchScope::Account(s.key.clone()),
         query: "message 7".into(),
     });
     let (query, rows) = s.h.wait(|e| match e {
@@ -164,7 +156,7 @@ fn search_finds_by_subject() {
 fn save_attachment_sanitizes_the_file_name() {
     let s = seeded(&[(1, WITH_ATTACHMENT)]);
     let id = s.id_of("message 1");
-    let view = s.open(id, false);
+    let view = s.open(id, ImagesChoice::Default);
     assert_eq!(view.attachments.len(), 1);
     assert_eq!(view.attachments[0].name, "evil.txt");
     assert_eq!(view.attachments[0].size, 5);
@@ -189,6 +181,44 @@ fn save_attachment_sanitizes_the_file_name() {
 }
 
 #[test]
+fn save_attachment_creates_a_missing_folder() {
+    let s = seeded(&[(1, WITH_ATTACHMENT)]);
+    let id = s.id_of("message 1");
+    let out = tempfile::tempdir().unwrap();
+    let dir = out.path().join("cache").join("attachments");
+    s.h.send(Command::SaveAttachment {
+        id,
+        index: 0,
+        dir: dir.clone(),
+    });
+    let path = s.h.wait(|e| match e {
+        Event::AttachmentSaved { path, .. } => Some(path.clone()),
+        _ => None,
+    });
+    assert_eq!(path, dir.join("evil.txt"));
+}
+
+#[test]
+fn a_failed_save_says_which_attachment_failed() {
+    let s = seeded(&[(1, WITH_ATTACHMENT)]);
+    let id = s.id_of("message 1");
+    let out = tempfile::tempdir().unwrap();
+    // A file where the folder should be: the save cannot start.
+    let blocked = out.path().join("file");
+    std::fs::write(&blocked, b"x").unwrap();
+    s.h.send(Command::SaveAttachment {
+        id,
+        index: 0,
+        dir: blocked.join("sub"),
+    });
+    let failed = s.h.wait(|e| match e {
+        Event::AttachmentFailed { id, index } => Some((*id, *index)),
+        _ => None,
+    });
+    assert_eq!(failed, (id, 0));
+}
+
+#[test]
 fn opening_without_a_body_offline_is_unavailable() {
     let mut h = Harness::unstarted();
     h.foreground = true;
@@ -196,17 +226,16 @@ fn opening_without_a_body_offline_is_unavailable() {
     h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let db = Db::open(&h.paths().db()).unwrap();
     let folder = db.folders(&key).unwrap()[0].id;
-    let page = Page {
-        offset: 0,
-        limit: 5,
-    };
-    let id = db.messages(folder, page).unwrap()[0].id;
+    let id = db
+        .list(envio_store::ListRef::Folder(folder), None, 5)
+        .unwrap()[0]
+        .id;
     db.set_body_state(id, BodyState::Missing).unwrap();
     drop(db);
     h.start_core();
     h.send(Command::OpenMessage {
         id,
-        images: false,
+        images: ImagesChoice::Default,
         width_px: 300,
     });
     let text = h.wait(|e| match e {
@@ -223,11 +252,10 @@ fn removing_an_account_answers_a_pending_open() {
     h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let db = Db::open(&h.paths().db()).unwrap();
     let folder = db.folders(&key).unwrap()[0].id;
-    let page = Page {
-        offset: 0,
-        limit: 5,
-    };
-    let id = db.messages(folder, page).unwrap()[0].id;
+    let id = db
+        .list(envio_store::ListRef::Folder(folder), None, 5)
+        .unwrap()[0]
+        .id;
     db.set_body_state(id, BodyState::Missing).unwrap();
     drop(db);
     h.start_core();
@@ -235,7 +263,7 @@ fn removing_an_account_answers_a_pending_open() {
     // have failed the open.
     h.send(Command::OpenMessage {
         id,
-        images: false,
+        images: ImagesChoice::Default,
         width_px: 300,
     });
     h.send(Command::RemoveAccount {
@@ -246,4 +274,299 @@ fn removing_an_account_answers_a_pending_open() {
         Event::MessageUnavailable { id: i, .. } if *i == id => Some(()),
         _ => None,
     });
+}
+
+const WITH_CC: &[u8] = b"From: Ada <ada@example.org>\r\nTo: Me <me@example.org>\r\n\
+Cc: Bob <bob@example.org>, carol@example.org\r\nSubject: cc\r\n\
+Date: Thu, 14 Jan 2027 10:00:00 +0000\r\n\r\nHello\r\n";
+
+fn first_page(
+    h: &Harness,
+    list: ListRef,
+    after: Option<envio_core::Cursor>,
+) -> (Vec<MessageRow>, bool) {
+    h.send(Command::ListMessages { list, after });
+    h.wait(|e| match e {
+        Event::Messages {
+            list: l,
+            after: a,
+            rows,
+            end,
+        } if *l == list && *a == after => Some((rows.clone(), *end)),
+        _ => None,
+    })
+}
+
+#[test]
+fn the_unified_inbox_lists_every_account_inbox() {
+    let mut h = Harness::unstarted();
+    let one = h.seed_account("one@example.org", Some("pw"));
+    let two = h.seed_account("two@example.org", Some("pw"));
+    h.seed_folder_with(&one, "INBOX", FolderRole::Inbox, &[(1, HTML), (2, HTML)]);
+    h.seed_folder_with(&two, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    h.seed_folder_with(&two, "Archive", FolderRole::Archive, &[(1, HTML)]);
+    h.start_core();
+    let (rows, end) = first_page(&h, ListRef::Inboxes, None);
+    assert!(end);
+    assert_eq!(rows.len(), 3);
+    let count = |key: &str| rows.iter().filter(|r| r.account == key).count();
+    assert_eq!((count(&one), count(&two)), (2, 1));
+}
+
+#[test]
+fn the_next_page_starts_after_the_cursor() {
+    let n = PAGE as usize + 10;
+    let messages: Vec<(u32, &[u8])> = (1..=n as u32).map(|uid| (uid, HTML)).collect();
+    let s = seeded(&messages);
+    let list = ListRef::Folder(s.folder);
+    let (first, end) = first_page(&s.h, list, None);
+    assert_eq!(first.len(), PAGE as usize);
+    assert!(!end);
+    let cursor = first.last().unwrap().cursor;
+    let (second, end) = first_page(&s.h, list, Some(cursor));
+    assert_eq!(second.len(), 10);
+    assert!(end);
+    let mut ids: Vec<_> = first.iter().chain(&second).map(|r| r.id).collect();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), n, "no row twice, none missing");
+}
+
+#[test]
+fn the_last_page_says_end() {
+    let full: Vec<(u32, &[u8])> = (1..=PAGE).map(|uid| (uid, HTML)).collect();
+    let s = seeded(&full);
+    let list = ListRef::Folder(s.folder);
+    // Exactly a page: the app asks once more and gets nothing, with `end`.
+    let (rows, end) = first_page(&s.h, list, None);
+    assert_eq!(rows.len(), PAGE as usize);
+    assert!(!end);
+    let (rows, end) = first_page(&s.h, list, Some(rows.last().unwrap().cursor));
+    assert!(rows.is_empty());
+    assert!(end);
+}
+
+#[test]
+fn folder_rows_carry_unread_counts() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let inbox = h.seed_folder_with(
+        &key,
+        "INBOX",
+        FolderRole::Inbox,
+        &[(1, HTML), (2, HTML), (3, HTML)],
+    );
+    h.seed_folder_with(&key, "Archive", FolderRole::Archive, &[(1, HTML)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    db.set_flags(inbox, 1, envio_core::Flags::SEEN).unwrap();
+    drop(db);
+    h.start_core();
+    let unread = h.wait(|e| match e {
+        Event::Started { accounts, .. } => Some(accounts[0].unread),
+        _ => None,
+    });
+    assert_eq!(unread, 2);
+    h.send(Command::ListFolders {
+        account: key.clone(),
+    });
+    let folders = h.wait(|e| match e {
+        Event::Folders { folders, .. } => Some(folders.clone()),
+        _ => None,
+    });
+    let of = |name: &str| folders.iter().find(|f| f.name == name).unwrap().unread;
+    assert_eq!((of("INBOX"), of("Archive")), (2, 1));
+}
+
+#[test]
+fn a_view_has_cc_from_the_message() {
+    let s = seeded(&[(1, WITH_CC)]);
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
+    let header = view.header;
+    assert_eq!(header.from, "Ada");
+    assert_eq!(header.from_address, "ada@example.org");
+    assert_eq!(header.to, ["Me <me@example.org>"]);
+    assert_eq!(header.cc, ["Bob <bob@example.org>", "carol@example.org"]);
+    assert_eq!(header.subject, "cc");
+    assert!(header.date.is_some());
+    assert_eq!(header.account, s.key);
+    assert!(!header.sender_known);
+}
+
+#[test]
+fn images_load_by_default_for_an_allowed_sender() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, REMOTE_IMAGE)]);
+    std::fs::create_dir_all(h.data_dir()).unwrap();
+    let settings = envio_core::Settings {
+        images_from: ["ada@example.org".to_owned()].into(),
+        ..envio_core::Settings::default()
+    };
+    envio_store::save_settings(&h.paths().settings(), &settings).unwrap();
+    h.start_core();
+    let s = Seeded {
+        h,
+        key,
+        folder: FolderId(1),
+    };
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
+    assert_eq!(view.blocked_images, 0);
+    assert!(view.html.contains("images.example.net/a.png"));
+    assert!(view.header.sender_known);
+}
+
+#[test]
+fn opening_a_message_marks_it_read_without_an_undo_offer() {
+    let s = seeded(&[(1, HTML), (2, HTML)]);
+    let id = s.id_of("message 1");
+    assert!(
+        !s.rows()
+            .iter()
+            .find(|r| r.id == id)
+            .unwrap()
+            .flags
+            .contains(envio_core::Flags::SEEN)
+    );
+    s.open(id, ImagesChoice::Default);
+    // The list is told; an Undo toast for something nobody asked for is not.
+    let changed = s.h.wait(|e| match e {
+        Event::MessagesChanged { folders } => Some(folders.contains(&s.folder)),
+        Event::UndoOffer { .. } => Some(false),
+        _ => None,
+    });
+    assert!(changed, "MessagesChanged for the folder, no UndoOffer");
+    let rows = s.rows();
+    let seen = |subject: &str| {
+        rows.iter()
+            .find(|r| r.subject == subject)
+            .unwrap()
+            .flags
+            .contains(envio_core::Flags::SEEN)
+    };
+    assert!(seen("message 1"));
+    assert!(!seen("message 2"));
+    // Opening it again changes nothing.
+    s.open(id, ImagesChoice::Load);
+    s.h.send(Command::ListMessages {
+        list: ListRef::Folder(s.folder),
+        after: None,
+    });
+    let again = s.h.wait(|e| match e {
+        Event::MessagesChanged { .. } | Event::UndoOffer { .. } => Some(true),
+        Event::Messages { .. } => Some(false),
+        _ => None,
+    });
+    assert!(!again, "a second open sent no change");
+}
+
+#[test]
+fn a_row_shows_the_attachment_mark_once_the_body_says_so() {
+    let server = serve(Kind::Message);
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let key = h.seed_account_at(ME, Some("pw"), server.port);
+    h.pin_imap(&key, &server.hex);
+    // Cached from the header alone: no mark, and no body yet.
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let folder = db.folders(&key).unwrap()[0].id;
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    db.set_body_state(id, BodyState::Missing).unwrap();
+    drop(db);
+    h.start_core();
+    let rows = |h: &Harness| {
+        h.send(Command::ListMessages {
+            list: ListRef::Folder(folder),
+            after: None,
+        });
+        h.wait(|e| match e {
+            Event::Messages { rows, .. } => Some(rows.clone()),
+            _ => None,
+        })
+    };
+    assert!(!rows(&h)[0].has_attachments);
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessageOpened { id: i, .. } if *i == id => Some(()),
+        _ => None,
+    });
+    // The body is stored before MessageOpened, so the list now has the mark.
+    let rows = rows(&h);
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].has_attachments);
+}
+
+#[test]
+fn opening_a_cached_body_sets_the_attachment_mark_a_migration_left_at_zero() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, WITH_ATTACHMENT)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    // The body is stored; the row is as migration 0004 left it.
+    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+    db.set_has_attachments(id, false).unwrap();
+    drop(db);
+    h.start_core();
+    let rows = |h: &Harness| {
+        h.send(Command::ListMessages {
+            list: ListRef::Folder(folder),
+            after: None,
+        });
+        h.wait(|e| match e {
+            Event::Messages { rows, .. } => Some(rows.clone()),
+            _ => None,
+        })
+    };
+    assert!(!rows(&h)[0].has_attachments);
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessagesChanged { folders } if folders.contains(&folder) => Some(()),
+        _ => None,
+    });
+    assert!(rows(&h)[0].has_attachments);
+}
+
+#[test]
+fn a_cached_body_that_does_not_parse_keeps_the_attachment_mark() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let folder = h.seed_folder_with(
+        &key,
+        "INBOX",
+        FolderRole::Inbox,
+        &[(1, b"no headers here\r\n")],
+    );
+    let db = Db::open(&h.paths().db()).unwrap();
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+    db.set_has_attachments(id, true).unwrap();
+    drop(db);
+    h.start_core();
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessageOpened { .. } => Some(()),
+        _ => None,
+    });
+    h.send(Command::ListMessages {
+        list: ListRef::Folder(folder),
+        after: None,
+    });
+    let rows = h.wait(|e| match e {
+        Event::Messages { rows, .. } => Some(rows.clone()),
+        _ => None,
+    });
+    assert!(rows[0].has_attachments);
 }

@@ -12,7 +12,6 @@ use crate::api::command::{ComposeId, DraftInput, StartFrom};
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::compose::{self, ComposeError};
-use crate::problem::{self, Problem};
 use crate::text;
 
 fn refusal(error: &ComposeError) -> String {
@@ -65,6 +64,7 @@ impl Worker<'_> {
     }
 
     pub(super) fn compose_ready(&self, compose: ComposeId, draft: DraftInput, quoted: String) {
+        self.book.opened(compose, &draft.account);
         self.emit(Event::ComposeReady {
             compose,
             draft,
@@ -82,7 +82,7 @@ impl Worker<'_> {
         });
         match (draft_id, loaded) {
             (Some(id), Some(draft)) => {
-                self.drafts_of.insert(compose, id.to_owned());
+                self.book.adopt(compose, id.to_owned());
                 self.compose_ready(compose, draft, String::new());
             }
             _ => self.compose_refused(compose, text::compose::draft_unavailable()),
@@ -90,7 +90,13 @@ impl Worker<'_> {
     }
 
     fn start_from_mailto(&mut self, compose: ComposeId, mailto: Option<&str>) {
-        let Some(account) = self.store.accounts.list().first().map(|a| a.key.clone()) else {
+        let first = self
+            .store
+            .accounts
+            .list()
+            .iter()
+            .find(|a| a.broken.is_none());
+        let Some(account) = first.map(|a| a.key.clone()) else {
             return self.compose_refused(compose, text::compose::no_account());
         };
         let Some(parsed) = mailto.and_then(envio_mime::parse_mailto) else {
@@ -109,133 +115,32 @@ impl Worker<'_> {
         self.compose_ready(compose, draft, String::new());
     }
 
-    /// An account is going: its pending draft saves must not bring it back.
-    pub(super) fn drop_composes_of(&mut self, account: &str) {
-        self.throttle.drop_account(account);
-    }
-
-    pub(super) fn draft_changed(&mut self, compose: ComposeId, draft: DraftInput) {
-        // A sent message must not come back as a draft, nor a removed
-        // account's.
-        if self.sent.contains(&compose) || self.store.accounts.get(&draft.account).is_none() {
-            return;
-        }
-        self.throttle.changed(compose, draft, now_ms());
-    }
-
-    /// Saves the draft; when that fails it stays pending and is tried again
-    /// a second later, so closing the window afterwards still saves it.
-    fn persist(&mut self, compose: ComposeId, draft: DraftInput) -> bool {
-        let saved = self.save_draft(compose, &draft);
-        if saved {
-            self.save_failed.remove(&compose);
-        } else {
-            self.throttle.retry(compose, draft, now_ms());
-        }
-        saved
-    }
-
-    /// Writes the draft: created the first time, replaced after. False when
-    /// the write failed (the first failure of a run tells the user).
-    fn save_draft(&mut self, compose: ComposeId, draft: &DraftInput) -> bool {
-        if self.store.accounts.get(&draft.account).is_none() {
-            return true;
-        }
-        let stored = compose::to_store(draft, now_ms());
-        let known = self
-            .drafts_of
-            .get(&compose)
-            .cloned()
-            .or_else(|| draft.draft_id.clone());
-        let result = match &known {
-            Some(id) => self.store.drafts.save(id, &stored).map(|()| None),
-            None => self.store.drafts.create(&stored).map(Some),
-        };
-        match result {
-            Ok(created) => {
-                if let Some(id) = known.or_else(|| created.clone()) {
-                    self.drafts_of.insert(compose, id);
-                }
-                if let Some(draft_id) = created {
-                    self.emit(Event::DraftSaved { compose, draft_id });
-                }
-                true
-            }
-            Err(error) => {
-                // Once per run of failures: it is retried every second.
-                if self.save_failed.insert(compose) {
-                    log::warn!("saving a draft: {error}");
-                    let text = match problem::from_store(&error) {
-                        Problem::DiskFull => text::notice::disk_full(),
-                        _ => text::compose::draft_not_saved(),
-                    };
-                    self.emit(Event::Notice { text });
-                }
-                false
-            }
-        }
-    }
-
-    /// Saves every draft still waiting for its second.
-    pub(super) fn flush_drafts(&mut self) {
-        for (compose, draft) in self.throttle.take_all() {
-            self.persist(compose, draft);
-        }
-    }
-
-    pub(super) fn save_due_drafts(&mut self, now: i64) {
-        for (compose, draft) in self.throttle.due(now) {
-            self.persist(compose, draft);
-        }
-    }
-
-    pub(super) fn close_compose(&mut self, compose: ComposeId, discard: bool) {
-        let pending = self.throttle.take(compose);
+    /// The window closed: a reply still waiting for its body is forgotten.
+    /// The draft itself is the draft thread's.
+    pub(super) fn forget_waiting(&mut self, compose: ComposeId) {
         self.composing.retain(|_, waiting| {
             waiting.retain(|(c, _)| *c != compose);
             !waiting.is_empty()
         });
-        let was_sent = self.sent.contains(&compose);
-        self.save_failed.remove(&compose);
-        if discard {
-            self.delete_draft(
-                compose,
-                pending.as_ref().and_then(|d| d.draft_id.as_deref()),
-            );
-        } else {
-            let saved = match pending.filter(|_| !was_sent) {
-                Some(draft) => self.persist(compose, draft),
-                None => true,
-            };
-            if saved {
-                self.drafts_of.remove(&compose);
-            }
-        }
-    }
-
-    fn delete_draft(&mut self, compose: ComposeId, fallback: Option<&str>) {
-        let id = self.drafts_of.remove(&compose);
-        if let Some(id) = id.as_deref().or(fallback)
-            && let Err(e) = self.store.drafts.delete(id)
-        {
-            log::warn!("deleting a draft: {e}");
-        }
     }
 
     pub(super) fn send(&mut self, compose: ComposeId, draft: &DraftInput) {
-        if self.sent.contains(&compose) {
+        if self.book.is_sent(compose) {
             return;
         }
         match self.try_send(compose, draft) {
             Ok(item) => {
-                self.sent.insert(compose);
-                self.emit(Event::Queued { compose, item });
+                self.emit(Event::Queued {
+                    compose,
+                    item,
+                    text: text::compose::queued(),
+                });
                 self.emit(Event::OutboxChanged);
                 self.emit_outbox();
             }
             Err(text) => {
                 // The window stays open: keep what the user wrote.
-                self.draft_changed(compose, draft.clone());
+                self.book.requeue(compose, draft.clone(), now_ms());
                 self.compose_refused(compose, text);
             }
         }
@@ -257,6 +162,9 @@ impl Worker<'_> {
                 .map(String::as_str),
             &settings.email,
         );
+        // What this Send carries is on disk before anything is built.
+        self.book.changed(compose, draft.clone(), now_ms());
+        self.book.flush(compose)?;
         let mut files = Vec::new();
         for path in &draft.attachments {
             match read_attachment(path) {
@@ -289,12 +197,17 @@ impl Worker<'_> {
         };
         match self.store.outbox.enqueue(new, &built.bytes) {
             Ok(item) => {
-                // Only now is the draft not needed any more.
-                self.throttle.take(compose);
-                self.delete_draft(compose, draft.draft_id.as_deref());
+                // Only now is the draft not needed any more: no more saves,
+                // then its file and attachment copies go.
+                if let Some(id) = self.book.sent(compose).or_else(|| draft.draft_id.clone())
+                    && let Err(e) = self.store.drafts.delete(&id)
+                {
+                    log::warn!("deleting a sent draft: {e}");
+                }
                 if let Some(live) = self.live.get_mut(&draft.account) {
                     live.wants.send = true;
                 }
+                self.remember_recipients(draft);
                 Ok(item.id)
             }
             Err(error) => {
@@ -317,7 +230,7 @@ mod tests {
     /// What compose said (the worker also announces itself at start).
     fn said(sink: &Sink) -> Vec<Event> {
         let mut events = sink.events();
-        events.retain(|e| !matches!(e, Event::Started { .. }));
+        events.retain(|e| !matches!(e, Event::Started { .. } | Event::Settings(_)));
         events
     }
 
@@ -350,7 +263,7 @@ mod tests {
         let (mut worker, account, id) = waiting(dir.path(), &sink);
         assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
         assert!(worker.live[&account].wants.bodies.contains(&id));
-        worker.close_compose(C, true);
+        worker.forget_waiting(C);
         assert!(worker.composing.is_empty());
         worker.compose_body_fetched(id, None);
         assert!(said(&sink).is_empty());

@@ -23,16 +23,21 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     {
         live.health.status = crate::health::AccountStatus::Syncing;
     }
-    match run_step(worker, account, step).await {
-        Ok(()) => succeeded(worker, account, step),
+    match run_step(worker, account, &step).await {
+        Ok(()) => succeeded(worker, account, &step),
         Err(problem) => {
-            let response = failed(worker, account, &problem);
+            // A part of a big folder that failed is not continued first.
+            if let Some(live) = worker.live.get_mut(account) {
+                live.continuing = None;
+            }
+            let response = failed(worker, account, step.kind(), &problem);
+            search_failed(worker, account, &step, &problem);
             if matches!(
                 response,
                 Response::ItemError | Response::StopDownloads | Response::Rebuild
             ) {
                 // Waiting would only repeat it; the next full run tries again.
-                finished(worker, account, step);
+                finished(worker, account, &step);
             }
             if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
                 worker.open_failed(Some(account));
@@ -58,52 +63,94 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     worker.report(account, &before);
 }
 
+/// The user waits for a server search: no retry, and one unreachable
+/// account must not hold the others back. A step before the search (the
+/// folder list) that can't connect fails it too.
+fn search_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Problem) {
+    let own = matches!(step, Step::SearchServer { .. });
+    if let Some(query) = worker.searching(account)
+        && (own || !matches!(problem, Problem::Refused(_)))
+    {
+        if own {
+            finished(worker, account, step);
+        }
+        worker.search_step_failed(account, &query, problem);
+    }
+}
+
 pub(crate) async fn run_step(
     worker: &mut Worker<'_>,
     account: &str,
-    step: Step,
+    step: &Step,
 ) -> Result<(), Problem> {
-    if step == Step::Send {
+    if *step == Step::Send {
         return mail::send(worker, account).await;
     }
     let mut session = worker.imap(account).await?;
     let result = match step {
         Step::Folders => sync::folders(worker, account, &mut session).await,
-        Step::Body(id) => sync::body(worker, &mut session, id).await,
+        Step::Body(id) => sync::body(worker, &mut session, *id).await,
+        Step::SearchServer { folder, query } => {
+            sync::search_server(worker, account, &mut session, (*folder, query)).await
+        }
         Step::Replay => sync::replay(worker, account, &mut session).await,
         Step::File => mail::file(worker, account, &mut session).await,
-        Step::Folder(id) => sync::folder(worker, &mut session, id).await,
+        Step::Folder(id) => sync::folder(worker, account, &mut session, *id).await,
         Step::Send => Ok(()),
     };
     if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
-        let changed = match step {
-            Step::Folder(id) if session.take_changes() => Some(id),
-            _ => None,
-        };
-        keep(worker, account, session, changed);
+        let changed = changed_folder(step, &mut session);
+        let open = worker
+            .live
+            .get(account)
+            .is_some_and(|live| keep_open(worker.foreground, step, &live.wants));
+        keep(worker, account, session, (changed, open));
     }
     result
+}
+
+/// The folder to sync again: the step's, if the server reported a change.
+fn changed_folder(step: &Step, session: &mut ImapSession) -> Option<FolderId> {
+    match step {
+        Step::Folder(id) if session.take_changes() => Some(*id),
+        _ => None,
+    }
 }
 
 /// A session lives on unless the step broke it (a refusal doesn't). If the
 /// server reported a change while the step's folder was selected, that
 /// folder is synced again.
-fn keep(worker: &mut Worker<'_>, account: &str, session: ImapSession, changed: Option<FolderId>) {
+fn keep(
+    worker: &mut Worker<'_>,
+    account: &str,
+    session: ImapSession,
+    (changed, open): (Option<FolderId>, bool),
+) {
     if let Some(live) = worker.live.get_mut(account) {
         if let Some(id) = changed {
             live.wants.folders.insert(id);
         }
-        live.conn = Conn::Ready(session);
+        live.conn = if open {
+            Conn::Ready(session)
+        } else {
+            Conn::Closed
+        };
     }
 }
 
-fn succeeded(worker: &mut Worker<'_>, account: &str, step: Step) {
+/// Whether the session stays open after `step`. In the foreground always. In
+/// the background only bodies the reader waits for are fetched: the session
+/// stays while another one is wanted (a burst shares one connection) and
+/// closes with the last.
+fn keep_open(foreground: bool, step: &Step, wants: &super::plan::Wants) -> bool {
+    foreground || matches!(step, Step::Body(id) if wants.bodies.iter().any(|other| other != id))
+}
+
+fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
     finished(worker, account, step);
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
-        if !disk_full {
-            live.health.ok();
-        }
+        live.health.ok_step(step.kind(), disk_full);
         if live.wants.is_empty() {
             live.listed = false;
         } else if live.health.status == crate::health::AccountStatus::Ready {
@@ -113,7 +160,7 @@ fn succeeded(worker: &mut Worker<'_>, account: &str, step: Step) {
 }
 
 /// The step's want is met (or given up): clear it.
-fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
+fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
     let folders = worker.store.db.folders(account).unwrap_or_default();
     let Some(live) = worker.live.get_mut(account) else {
         return;
@@ -124,24 +171,36 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: Step) {
             live.relist = false;
             live.wants.expand(&folders);
         }
-        Step::Body(id) => live.wants.bodies.retain(|b| *b != id),
+        Step::Body(id) => live.wants.bodies.retain(|b| b != id),
+        Step::SearchServer { folder, query } => live
+            .wants
+            .searches
+            .retain(|(f, q)| !(f == folder && q == query)),
         Step::Replay => live.wants.replay = false,
         Step::Send => live.wants.send = false,
         Step::File => live.wants.file = false,
         Step::Folder(id) => {
-            live.wants.folders.remove(&id);
+            // Parts remain: the same folder runs again, ahead of the others.
+            if live.continuing != Some(*id) {
+                live.wants.folders.remove(id);
+            }
         }
     }
 }
 
 /// Applies a problem to the account's health. Any problem but a refusal
 /// loses the connection.
-pub(crate) fn failed(worker: &mut Worker<'_>, account: &str, problem: &Problem) -> Response {
+pub(crate) fn failed(
+    worker: &mut Worker<'_>,
+    account: &str,
+    kind: &'static str,
+    problem: &Problem,
+) -> Response {
     let now = now_ms();
     let Some(live) = worker.live.get_mut(account) else {
         return Response::ItemError;
     };
-    let response = live.health.failed(problem, account, now);
+    let response = live.health.failed_step(kind, problem, (account, now));
     if !matches!(problem, Problem::Refused(_)) {
         live.conn = Conn::Closed;
         live.listed = false;
@@ -161,6 +220,7 @@ fn rebuild(worker: &mut Worker<'_>) {
             });
             for (key, live) in &mut worker.live {
                 // Folder ids did not survive.
+                live.continuing = None;
                 live.wants = super::plan::Wants {
                     full: true,
                     ..super::plan::Wants::default()
@@ -169,7 +229,107 @@ fn rebuild(worker: &mut Worker<'_>) {
                     account: key.clone(),
                 });
             }
+            worker.refresh_unread();
         }
-        Err(error) => log::error!("rebuilding the cache: {error}"),
+        Err(error) => {
+            log::error!("rebuilding the cache: {error}");
+            worker.emit(Event::Notice {
+                text: text::notice::rebuild_failed(),
+            });
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::rebuild;
+    use crate::api::event::Event;
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn a_folder_with_parts_left_keeps_its_want() {
+        use super::finished;
+        use crate::worker::plan::Step;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account.clone();
+        let id = seeded.folder;
+        let live = worker.live.get_mut(&account).unwrap();
+        live.wants.folders.insert(id);
+        live.continuing = Some(id);
+        finished(&mut worker, &account, &Step::Folder(id));
+        let live = worker.live.get_mut(&account).unwrap();
+        assert!(live.wants.folders.contains(&id), "dropped between parts");
+        // The last part: nothing continues, the want is met.
+        live.continuing = None;
+        finished(&mut worker, &account, &Step::Folder(id));
+        let live = worker.live.get_mut(&account).unwrap();
+        assert!(!live.wants.folders.contains(&id));
+    }
+
+    #[test]
+    fn a_failed_rebuild_is_noticed() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let garbage = config.cache_dir.join("garbage");
+        fs::write(&garbage, b"not a database, long enough to be read as one").unwrap();
+        fs::rename(&garbage, worker.store.paths.db()).unwrap();
+        // Moving the damaged file aside needs a writable folder.
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o500)).unwrap();
+        let as_root = fs::write(config.cache_dir.join("probe"), b"x").is_ok();
+        rebuild(&mut worker);
+        fs::set_permissions(&config.cache_dir, fs::Permissions::from_mode(0o700)).unwrap();
+        if as_root {
+            eprintln!("skipped: running as root, read-only has no effect");
+            return;
+        }
+        let notices: Vec<String> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Notice { text } => Some(text),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(notices, [crate::text::notice::rebuild_failed()]);
+    }
+}
+
+#[cfg(test)]
+mod keep_tests {
+    use super::*;
+    use crate::worker::plan::Wants;
+    use envio_store::MessageRowId;
+
+    fn wanting(ids: &[i64]) -> Wants {
+        Wants {
+            bodies: ids.iter().map(|id| MessageRowId(*id)).collect(),
+            ..Wants::default()
+        }
+    }
+
+    #[test]
+    fn the_foreground_always_keeps_the_session() {
+        assert!(keep_open(true, &Step::Replay, &Wants::default()));
+    }
+
+    #[test]
+    fn a_background_burst_of_bodies_shares_a_session_and_closes_with_the_last() {
+        let two = wanting(&[1, 2]);
+        assert!(keep_open(false, &Step::Body(MessageRowId(1)), &two));
+        assert!(!keep_open(
+            false,
+            &Step::Body(MessageRowId(2)),
+            &wanting(&[2])
+        ));
+        assert!(!keep_open(false, &Step::Replay, &two));
     }
 }

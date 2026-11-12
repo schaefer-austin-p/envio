@@ -1,11 +1,10 @@
-//! Adding an account: finding servers, checking them, saving.
+//! Adding an account: finding servers, checking them, saving. The network
+//! half runs on the setup thread; what has state stays here.
 
 use std::collections::BTreeSet;
 
-use envio_net::autoconfig::{self, Found, Internet, Setting};
-use envio_net::imap::ImapSession;
-use envio_net::smtp::SmtpSession;
-use envio_net::{Endpoint, Fingerprint, NetError, Untrusted};
+use envio_net::Fingerprint;
+use envio_net::autoconfig::{Found, Setting};
 use envio_store::{Account, AccountSettings};
 use secrecy::SecretString;
 
@@ -17,8 +16,10 @@ use crate::api::view::AccountInfo;
 use crate::clock::now_ms;
 use crate::health::AccountStatus;
 use crate::mask;
-use crate::problem::{self, Problem};
-use crate::servers::{ServerAddr, Service, credentials, store_server};
+use crate::servers::{ServerAddr, Service, store_server};
+use crate::setup_thread::{
+    DetectResult, ProbeJob, ProbeResult, SetupDone, SetupJob, next_ticket, pin_for,
+};
 use crate::text;
 
 fn addr_of(setting: &Setting) -> ServerAddr {
@@ -83,9 +84,10 @@ pub(crate) fn check_request(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let email = &request.setup.email;
+    // A broken entry holds no usable address.
     if existing
         .iter()
-        .any(|a| a.settings.email.eq_ignore_ascii_case(email))
+        .any(|a| a.broken.is_none() && a.settings.email.eq_ignore_ascii_case(email))
     {
         return Err(Refusal::Duplicate);
     }
@@ -100,60 +102,38 @@ fn refusal_text(refusal: &Refusal) -> String {
     }
 }
 
-/// The accepted pin for `service`, if any.
-fn pin_for(accepted: &[(Service, Fingerprint)], service: Service) -> Option<Fingerprint> {
-    accepted
-        .iter()
-        .find(|(s, _)| *s == service)
-        .map(|(_, fingerprint)| *fingerprint)
-}
-
-fn endpoint_of(addr: &ServerAddr, pin: Option<Fingerprint>) -> Endpoint {
-    Endpoint {
-        host: addr.host.clone(),
-        port: addr.port,
-        security: addr.security,
-        pin,
-    }
-}
-
-/// The event that tells the app why a server did not work out.
-fn setup_event(setup: &AccountSetup, service: Service, error: &NetError) -> Event {
-    let email = setup.email.clone();
-    let host = match service {
-        Service::Imap => &setup.imap.host,
-        Service::Smtp => &setup.smtp.host,
-    };
-    let (presented, reason) = match error {
-        NetError::Untrusted { presented, reason } => (*presented, *reason),
-        // A pin the user accepted is no longer what the server shows.
-        NetError::PinChanged { presented, .. } => (*presented, Untrusted::Other),
-        _ => {
-            let text = match problem::from_net(error, service) {
-                Problem::SignIn => text::setup::sign_in_failed(),
-                Problem::Certificate(_) => text::status::status(&AccountStatus::Certificate(None)),
-                Problem::Refused(reason) => text::notice::refused(&reason),
-                _ => text::setup::unreachable(),
-            };
-            return Event::SetupProblem { email, text };
-        }
-    };
-    Event::TrustPrompt {
-        email,
-        service,
-        host: host.clone(),
-        fingerprint: presented.display(),
-        hex: presented.to_hex(),
-        text: text::setup::trust(host, reason),
-    }
-}
-
 impl Worker<'_> {
-    /// Looks the servers up (only the domain goes out) and tells the app.
-    pub(crate) async fn detect(&mut self, email: String) {
-        log::info!("detecting servers for {}", mask::address(&email));
-        let internet = Internet::new(self.roots.clone());
-        match autoconfig::detect(&email, &internet).await {
+    /// Has the setup thread look the servers up (only the domain goes out).
+    pub(crate) fn detect(&mut self, email: String) {
+        let ticket = next_ticket();
+        self.detecting.insert(email.clone(), ticket);
+        self.setup.send(SetupJob::Detect { email, ticket });
+    }
+
+    /// An answer of the setup thread; one nobody waits for any more (a
+    /// newer request, or a worker that restarted) is dropped.
+    pub(super) fn setup_done(&mut self, done: SetupDone) {
+        match done {
+            SetupDone::Detected(done) => self.detected(*done),
+            SetupDone::Probed(done) => self.probed(*done),
+        }
+    }
+
+    fn detected(&mut self, done: DetectResult) {
+        let DetectResult {
+            email,
+            ticket,
+            result,
+        } = done;
+        if self.detecting.get(&email) != Some(&ticket) {
+            log::info!(
+                "dropped a stale detect result for {}",
+                mask::address(&email)
+            );
+            return;
+        }
+        self.detecting.remove(&email);
+        match result {
             Ok(found) => {
                 let text = if found.confirm {
                     let (imap, smtp) = (&found.imap.endpoint.host, &found.smtp.endpoint.host);
@@ -167,18 +147,16 @@ impl Worker<'_> {
                 }
                 self.emit(Event::Detected { email, setup, text });
             }
-            Err(error) => {
-                log::warn!("detect failed: {error}");
-                self.emit(Event::SetupProblem {
-                    email,
-                    text: text::setup::bad_address(),
-                });
-            }
+            Err(_) => self.emit(Event::SetupProblem {
+                email,
+                text: text::setup::bad_address(),
+            }),
         }
     }
 
-    /// Checks both servers with the password, then adds the account.
-    pub(crate) async fn connect(&mut self, mut request: ConnectRequest) {
+    /// Checks what needs no connection, then has the setup thread check both
+    /// servers with the password.
+    pub(crate) fn connect(&mut self, mut request: ConnectRequest) {
         // Do not trust the app's flag for servers that DNS gave us.
         request.setup.needs_confirm |= touches(&self.srv_hosts, &request.setup);
         let email = request.setup.email.clone();
@@ -191,8 +169,38 @@ impl Worker<'_> {
             }
         };
         log::info!("checking a new account {}", mask::address(&email));
-        if let Err(event) = self.try_servers(&request, &accepted).await {
+        let ticket = next_ticket();
+        self.probing.insert(email, ticket);
+        self.setup.send(SetupJob::Probe(Box::new(ProbeJob {
+            ticket,
+            request,
+            accepted,
+            roots: self.roots.clone(),
+        })));
+    }
+
+    /// The servers were checked: add the account, or tell the app why not.
+    fn probed(&mut self, done: ProbeResult) {
+        let ProbeResult {
+            ticket,
+            request,
+            accepted,
+            outcome,
+        } = done;
+        let email = request.setup.email.clone();
+        if self.probing.get(&email) != Some(&ticket) {
+            log::info!("dropped a stale probe result for {}", mask::address(&email));
+            return;
+        }
+        self.probing.remove(&email);
+        if let Err(event) = outcome {
             self.emit(*event);
+            return;
+        }
+        // Nothing may have been added since the check.
+        if let Err(refusal) = check_request(&request, self.store.accounts.list()) {
+            let text = refusal_text(&refusal);
+            self.emit(Event::SetupProblem { email, text });
             return;
         }
         // A pin is stored only if the user accepted it in this request.
@@ -243,32 +251,9 @@ impl Worker<'_> {
             name,
             email,
             status: AccountStatus::Ready,
+            unread: 0,
+            broken: false,
         })
-    }
-
-    /// Opens IMAP, then SMTP, with the request's pins. The error is the
-    /// event to send: the trust prompt or the problem.
-    async fn try_servers(
-        &self,
-        request: &ConnectRequest,
-        accepted: &[(Service, Fingerprint)],
-    ) -> Result<(), Box<Event>> {
-        let setup = &request.setup;
-        let login = credentials(&setup.username, &request.password);
-        let imap = endpoint_of(&setup.imap, pin_for(accepted, Service::Imap));
-        let session = ImapSession::open(&imap, &self.roots, &login)
-            .await
-            .map_err(|e| Box::new(setup_event(setup, Service::Imap, &e)))?;
-        // Logging out is a courtesy; the check has passed.
-        let _ = session.logout().await;
-        let on_smtp = |e: NetError| Box::new(setup_event(setup, Service::Smtp, &e));
-        let smtp = endpoint_of(&setup.smtp, pin_for(accepted, Service::Smtp));
-        let mut session = SmtpSession::connect(&smtp, &self.roots)
-            .await
-            .map_err(on_smtp)?;
-        session.login(&login).await.map_err(on_smtp)?;
-        let _ = session.quit().await;
-        Ok(())
     }
 }
 
@@ -321,6 +306,7 @@ mod tests {
                 imap: server(),
                 smtp: server(),
             },
+            broken: None,
         }
     }
 

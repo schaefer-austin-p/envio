@@ -253,3 +253,11 @@ fn attachment_content_type_is_validated() {
     assert!(text.contains("image/svg+xml"));
     assert_eq!(text.matches("application/octet-stream").count(), 3);
 }
+
+#[test]
+fn message_id_domain_is_punycoded() {
+    assert!(new_message_id("a@例え.jp").ends_with("@xn--r8jz45g.jp"));
+    assert!(new_message_id("a@bücher.example").ends_with("@xn--bcher-kva.example"));
+    assert!(new_message_id("a@ex\u{200B}ample.org").ends_with("@invalid"));
+    assert!(new_message_id("a@\u{202E}example.org").ends_with("@invalid"));
+}

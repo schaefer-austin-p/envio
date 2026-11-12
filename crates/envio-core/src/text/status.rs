@@ -6,16 +6,29 @@ use crate::problem::CertDetails;
 use crate::servers::Service;
 use envio_net::Untrusted;
 
+/// An account that could not be loaded; `reason` is a fixed text from the
+/// store (never a value from the file).
+pub fn broken(reason: &str) -> String {
+    fill(
+        &tr("This account's settings cannot be read ({reason}). Remove it and add it again"),
+        &[("reason", reason)],
+    )
+}
+
 pub fn status(status: &AccountStatus) -> String {
     match status {
         AccountStatus::Ready => tr("Ready"),
         AccountStatus::Syncing => tr("Syncing"),
         AccountStatus::Offline { .. } => tr("Offline, retrying"),
+        AccountStatus::LocalError { .. } => {
+            tr("Can't read the saved mail on this phone. Retrying.")
+        }
         AccountStatus::SignInFailed => tr("Sign-in failed, update password"),
         AccountStatus::Certificate(Some(details)) => certificate(details),
         AccountStatus::Certificate(None) => tr("The server certificate needs your attention"),
         AccountStatus::DiskFull => tr("Storage is full, downloads stopped"),
         AccountStatus::Removing => tr("Removing account"),
+        AccountStatus::Broken(reason) => broken(reason),
     }
 }
 
@@ -72,6 +85,10 @@ mod tests {
         let offline = AccountStatus::Offline { retry_at_ms: 5 };
         assert_eq!(status(&offline), "Offline, retrying");
         assert_eq!(
+            status(&AccountStatus::LocalError { retry_at_ms: 5 }),
+            "Can't read the saved mail on this phone. Retrying."
+        );
+        assert_eq!(
             status(&AccountStatus::SignInFailed),
             "Sign-in failed, update password"
         );
@@ -86,6 +103,7 @@ mod tests {
             pinned: Some(old),
             presented: new,
             reason: None,
+            host: String::new(),
         });
         assert!(text.contains(&old.display()), "{text}");
         assert!(text.contains(&new.display()), "{text}");

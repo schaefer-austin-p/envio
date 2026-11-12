@@ -270,3 +270,16 @@ fn a_send_lists_the_outbox() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].subject, "Plans");
 }
+
+#[test]
+fn edit_of_an_unknown_account_is_refused() {
+    let (mut h, _) = unstarted();
+    // Its account was removed (or never existed): no draft can be sent from it.
+    let item = seed_item(&h, "9999999", failed());
+    h.start_core();
+    h.send(Command::EditOutbox { item, compose: C });
+    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    assert_eq!(rows(&h).len(), 1);
+    let drafts = Drafts::open(&h.paths().drafts()).unwrap();
+    assert!(drafts.list().unwrap().is_empty());
+}

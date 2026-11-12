@@ -3,10 +3,30 @@
 use std::path::PathBuf;
 
 use envio_net::autoconfig::Source;
-use envio_store::{FolderId, MessageRowId, Page};
+use envio_store::{Cursor, FolderId, ListRef, MessageRowId, Settings};
 use secrecy::SecretString;
 
 use crate::servers::{ServerAddr, Service};
+
+/// Where a search looks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchScope {
+    /// Every account (locally); a server search takes each Inbox.
+    All,
+    /// One account (a server search takes its Inbox).
+    Account(String),
+    Folder(FolderId),
+}
+
+/// Whether `OpenMessage` loads remote images.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImagesChoice {
+    /// As the settings say: for an allowed sender, or when images always
+    /// load. Otherwise they stay blocked.
+    Default,
+    /// The user asked for them for this message.
+    Load,
+}
 
 /// What the wizard has settled on for a new account.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,9 +101,17 @@ pub enum OutboxDecision {
 /// data in `StartCompose`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StartFrom {
-    New { account: String },
-    Reply { id: MessageRowId, all: bool },
-    Forward { id: MessageRowId },
+    New {
+        account: String,
+    },
+    Reply {
+        id: MessageRowId,
+        all: bool,
+    },
+    /// Quotes the message and attaches its attachments.
+    Forward {
+        id: MessageRowId,
+    },
     Draft,
     Mailto,
 }
@@ -116,15 +144,23 @@ pub enum Command {
     RemoveAccount { account: String, confirmed: bool },
     /// The account's folders, from the cache.
     ListFolders { account: String },
-    /// One page of a folder's messages, newest first, from the cache.
-    ListMessages { folder: FolderId, page: Page },
-    /// Full-text search over the account's cached mail.
-    Search { account: String, query: String },
+    /// One page (`PAGE` rows) of a list, newest first, from the cache:
+    /// the first page, or the one after `after`.
+    ListMessages {
+        list: ListRef,
+        after: Option<Cursor>,
+    },
+    /// Header and body search over cached mail (`All`: every account).
+    Search { scope: SearchScope, query: String },
+    /// Ask the server too: the folder of `scope` (an account's or the
+    /// unified Inbox: each account's Inbox), found mail is cached.
+    SearchServer { scope: SearchScope, query: String },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,
-        /// Load remote images (off by default: privacy).
-        images: bool,
+        /// Remote images stay blocked unless the settings or the user
+        /// say otherwise.
+        images: ImagesChoice,
         /// Widest image or table, in pixels.
         width_px: u32,
     },
@@ -157,6 +193,9 @@ pub enum Command {
     },
     /// The window closed: keep the draft, or delete it.
     CloseCompose { compose: ComposeId, discard: bool },
+    /// A file the user picked: copied into the draft's folder; the answer is
+    /// `Attached` or `AttachFailed`.
+    Attach { compose: ComposeId, path: PathBuf },
     /// Queue the message in the Outbox; the answer is `Queued` or
     /// `ComposeRefused`.
     Send {
@@ -174,9 +213,25 @@ pub enum Command {
     /// Turn a refused message into a draft in compose window `compose`, then
     /// remove it from the Outbox.
     EditOutbox { item: String, compose: ComposeId },
+    /// Addresses to suggest for what the user has typed in a recipient field.
+    Autocomplete { query: String },
+    /// Keep a sender in the contacts ("Add sender to Contacts").
+    AddContact { name: String, address: String },
+    /// Save the settings except the allowed image senders, which the worker
+    /// keeps as they are (they change only by `AllowImagesFrom` and
+    /// `DisallowImagesFrom`); the answer is `Settings`.
+    SaveSettings(Settings),
+    /// Always load remote images from this sender. Open the message again
+    /// to see them.
+    AllowImagesFrom { address: String },
+    /// Take a sender off the allowed list ("Remove" in the image settings).
+    DisallowImagesFrom { address: String },
     /// Panic the worker, to test the restart.
     #[cfg(feature = "test-hooks")]
     Crash,
+    /// Make the worker sleep, to test what must not wait for it.
+    #[cfg(feature = "test-hooks")]
+    Stall { ms: u64 },
 }
 
 impl Command {
@@ -194,6 +249,7 @@ impl Command {
             Self::ListFolders { .. } => "ListFolders",
             Self::ListMessages { .. } => "ListMessages",
             Self::Search { .. } => "Search",
+            Self::SearchServer { .. } => "SearchServer",
             Self::OpenMessage { .. } => "OpenMessage",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
@@ -201,12 +257,20 @@ impl Command {
             Self::StartCompose { .. } => "StartCompose",
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",
+            Self::Attach { .. } => "Attach",
             Self::Send { .. } => "Send",
             Self::ListOutbox => "ListOutbox",
             Self::DecideOutbox { .. } => "DecideOutbox",
             Self::EditOutbox { .. } => "EditOutbox",
+            Self::Autocomplete { .. } => "Autocomplete",
+            Self::AddContact { .. } => "AddContact",
+            Self::SaveSettings(_) => "SaveSettings",
+            Self::AllowImagesFrom { .. } => "AllowImagesFrom",
+            Self::DisallowImagesFrom { .. } => "DisallowImagesFrom",
             #[cfg(feature = "test-hooks")]
             Self::Crash => "Crash",
+            #[cfg(feature = "test-hooks")]
+            Self::Stall { .. } => "Stall",
         }
     }
 }

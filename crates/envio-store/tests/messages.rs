@@ -1,5 +1,5 @@
 use envio_store::{
-    BodyState, Db, Envelope, Flags, FolderId, FolderRole, NewMessage, Page, StoreError,
+    BodyState, Db, Envelope, Flags, FolderId, FolderRole, ListRef, NewMessage, StoreError,
 };
 
 fn message(uid: u32, subject: &str, date: i64) -> NewMessage {
@@ -14,6 +14,7 @@ fn message(uid: u32, subject: &str, date: i64) -> NewMessage {
             date,
             in_reply_to: None,
             references: Vec::new(),
+            has_attachments: false,
         },
         flags: Flags::empty(),
         preview: format!("preview of {subject}"),
@@ -24,11 +25,6 @@ fn inbox(db: &Db, account: &str) -> FolderId {
     db.upsert_folder(account, "INBOX", FolderRole::Inbox)
         .unwrap()
 }
-
-const ALL: Page = Page {
-    offset: 0,
-    limit: 100,
-};
 
 #[test]
 fn message_row_ids_are_never_reused() {
@@ -69,7 +65,31 @@ fn upsert_updates_by_uid_and_keeps_the_body_state() {
     let stored = db.message(id).unwrap();
     assert_eq!(stored.envelope.subject, "New");
     assert_eq!(stored.body, BodyState::Downloaded);
-    assert_eq!(db.messages(folder, ALL).unwrap().len(), 1);
+    assert_eq!(
+        db.list(ListRef::Folder(folder), None, 100).unwrap().len(),
+        1
+    );
+}
+
+#[test]
+fn the_attachment_mark_is_set_by_a_new_row_and_only_the_full_parse_changes_it() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = inbox(&db, "a1");
+    let mut guess = message(5, "Plans", 1);
+    guess.envelope.has_attachments = true;
+    let id = db.upsert_message(folder, &guess).unwrap();
+    assert!(db.message(id).unwrap().envelope.has_attachments);
+    // A later header upsert keeps the stored value, body downloaded or not.
+    guess.envelope.has_attachments = false;
+    db.upsert_message(folder, &guess).unwrap();
+    assert!(db.message(id).unwrap().envelope.has_attachments);
+    db.set_body_state(id, BodyState::Downloaded).unwrap();
+    db.set_body_state(id, BodyState::Missing).unwrap();
+    db.upsert_message(folder, &guess).unwrap();
+    assert!(db.message(id).unwrap().envelope.has_attachments);
+    // The full parse is what changes it.
+    db.set_has_attachments(id, false).unwrap();
+    assert!(!db.message(id).unwrap().envelope.has_attachments);
 }
 
 #[test]
@@ -83,37 +103,6 @@ fn set_flags_replaces_the_flags() {
         db.set_flags(folder, 6, Flags::SEEN),
         Err(StoreError::NotFound)
     ));
-}
-
-#[test]
-fn messages_are_newest_first_and_paged() {
-    let db = Db::open_in_memory().unwrap();
-    let folder = inbox(&db, "a1");
-    for (uid, date) in [(1, 300), (2, 100), (3, 200)] {
-        db.upsert_message(folder, &message(uid, "m", date)).unwrap();
-    }
-    let uids = |page| -> Vec<u32> {
-        db.messages(folder, page)
-            .unwrap()
-            .iter()
-            .map(|m| m.uid)
-            .collect()
-    };
-    assert_eq!(uids(ALL), [1, 3, 2]);
-    assert_eq!(
-        uids(Page {
-            offset: 1,
-            limit: 1
-        }),
-        [3]
-    );
-    assert!(
-        uids(Page {
-            offset: 3,
-            limit: 10
-        })
-        .is_empty()
-    );
 }
 
 #[test]

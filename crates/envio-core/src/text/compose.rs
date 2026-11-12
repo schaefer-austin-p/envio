@@ -4,6 +4,10 @@ use envio_mime::ForwardLabels;
 
 use crate::i18n::{fill, tr};
 
+pub fn queued() -> String {
+    tr("Sent to the Outbox")
+}
+
 pub fn no_recipients() -> String {
     tr("Add at least one recipient")
 }

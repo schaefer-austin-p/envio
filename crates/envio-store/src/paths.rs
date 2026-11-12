@@ -39,6 +39,20 @@ impl StorePaths {
         self.data.join("outbox")
     }
 
+    pub fn settings(&self) -> PathBuf {
+        self.data.join("settings.json")
+    }
+
+    pub fn contacts(&self) -> PathBuf {
+        self.data.join("contacts.json")
+    }
+
+    /// Copies of attached files, one folder per draft id. Inside the drafts
+    /// folder but not a `.json` file, so draft scans ignore it.
+    pub fn draft_files(&self) -> PathBuf {
+        self.drafts().join("files")
+    }
+
     pub fn drafts(&self) -> PathBuf {
         self.data.join("drafts")
     }

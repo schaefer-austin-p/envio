@@ -16,7 +16,9 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
-use crate::worker::Stamped;
+use crate::drafts::DraftBook;
+use crate::setup_thread::SetupThread;
+use crate::worker::Input;
 use crate::{text, worker};
 
 /// The longest wait before a restart, so `Core::drop` never joins for long.
@@ -49,15 +51,16 @@ pub(crate) fn install_panic_hook() {
 
 pub(crate) fn supervise(
     config: Config,
-    mut commands: UnboundedReceiver<Stamped>,
+    mut commands: UnboundedReceiver<Input>,
     sink: Arc<dyn EventSink>,
+    (book, setup): (Arc<DraftBook>, Arc<SetupThread>),
 ) {
     install_panic_hook();
     let mut panics: u32 = 0;
     let mut last_panic = Instant::now();
     loop {
         let run = panic::catch_unwind(AssertUnwindSafe(|| {
-            worker::run(&config, &mut commands, &*sink);
+            worker::run(&config, &mut commands, &*sink, (&book, &setup));
         }));
         if run.is_ok() {
             return; // Shutdown, or the handle was dropped

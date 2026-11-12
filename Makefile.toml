@@ -79,8 +79,13 @@ eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-e2e
 '''
 
+# QML never formats a count (#3); the script also checks itself on a fixture.
+[tasks.no-qml-plurals]
+command = "tools/ci/no-qml-plurals.sh"
+args = ["--self-test"]
+
 [tasks.ci]
-dependencies = ["format-check", "lint", "coverage-report", "audit"]
+dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals"]
 
 [tasks.default]
 alias = "ci"
@@ -101,7 +106,13 @@ clickable launch --arch arm64
 '''
 
 [tasks.qml-test]
-description = "Run the QML tests in the CI image"
-command = "docker"
-args = ["run", "--rm", "-v", "${CARGO_MAKE_WORKING_DIRECTORY}:/src", "-w", "/src",
-        "${APP_CI_IMAGE}", "tests/qml/run.sh"]
+description = "Run the QML tests in the CI image (builds the Envio module for them)"
+# Same mounts and build dirs as app-docker, so the two share one build.
+script = '''
+docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
+  -e ENVIO_COMMIT="$(git rev-parse --short=10 HEAD 2>/dev/null)" \
+  -v "${CARGO_MAKE_WORKING_DIRECTORY}:/src" -w /src \
+  -e CARGO_HOME=/src/target/docker-cargo \
+  -e BUILD_DIR=/src/build-docker -e CARGO_TARGET_DIR=/src/target/docker-qt \
+  "${APP_CI_IMAGE}" tests/qml/run.sh
+'''

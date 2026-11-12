@@ -5,6 +5,7 @@
 set -eu
 root=$(cd "$(dirname "$0")/../.." && pwd)
 build=${BUILD_DIR:-$root/build-ci}
+export BUILD_DIR="$build"
 export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target/ci-qt}
 
 section() { echo "== $1"; }
@@ -20,8 +21,14 @@ section "lint: QML"
 qmllint=$(command -v qmllint || echo /usr/lib/qt5/bin/qmllint)
 find "$root/qml" -name '*.qml' -exec "$qmllint" {} +
 
+section "lint: QML formats no counts (#3)"
+"$root/tools/ci/no-qml-plurals.sh" --self-test
+
 section "lint: qt/ Rust"
 cargo clippy --manifest-path "$root/qt/Cargo.toml" --all-targets --locked -- -D warnings
+
+section "tests: qt/ Rust (the pure conversions)"
+cargo test --manifest-path "$root/qt/Cargo.toml" --locked
 
 section "build: CMake, warnings as errors"
 cmake -S "$root" -B "$build" -DCMAKE_BUILD_TYPE=Release -DENVIO_WERROR=ON \

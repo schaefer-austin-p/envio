@@ -332,6 +332,24 @@ impl MailServer for FakeServer {
             .collect())
     }
 
+    /// Case-insensitive match anywhere in the message, live messages only.
+    async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
+        self.call("search_text", "")?;
+        let wanted = text.to_lowercase();
+        let folder = self.selected()?;
+        Ok(folder
+            .messages
+            .iter()
+            .filter(|(_, message)| {
+                !message.flags.deleted
+                    && String::from_utf8_lossy(&message.eml)
+                        .to_lowercase()
+                        .contains(&wanted)
+            })
+            .map(|(uid, _)| *uid)
+            .collect())
+    }
+
     async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>> {
         self.call("fetch_summaries", &format!("{uids:?}"))?;
         let folder = self.selected()?;

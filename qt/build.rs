@@ -58,6 +58,6 @@ fn main() {
     println!("cargo:rustc-env=ENVIO_COMMIT={}", build_commit());
     println!("cargo:rerun-if-changed=../manifest.json");
     CxxQtBuilder::new_qml_module(QmlModule::new("Envio").version(1, 0))
-        .files(["src/build_info.rs"])
+        .files(["src/build_info.rs", "src/core_object.rs", "src/models.rs"])
         .build();
 }

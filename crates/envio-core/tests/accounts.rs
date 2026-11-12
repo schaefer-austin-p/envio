@@ -3,7 +3,7 @@
 mod support;
 
 use std::net::TcpListener;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use envio_core::secrets::Secrets;
 use envio_core::{
@@ -11,7 +11,7 @@ use envio_core::{
 };
 use envio_net::Security;
 use envio_store::{Accounts, ActionKind, Draft, Journal, MessageRef, NewOutboxItem, Outbox};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use support::Harness;
 use support::fake::{Kind, serve};
 
@@ -414,4 +414,174 @@ fn accept_certificate_needs_the_presented_fingerprint() {
         moved.then_some(())
     });
     assert_eq!(pin(&h), Some(presented));
+}
+
+#[test]
+fn a_broken_account_is_listed_and_not_connected() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let broken = h.seed_account("broken@example.org", Some("pw"));
+    let good = h.seed_account("good@example.org", Some("pw"));
+    let path = h.paths().accounts();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    for entry in json["accounts"].as_array_mut().unwrap() {
+        if entry["key"] == broken.as_str() {
+            entry["settings"]["imap"]["pin"] = "not-a-pin".into();
+        }
+    }
+    std::fs::write(&path, json.to_string()).unwrap();
+    h.start_core();
+    let accounts = h.wait(|e| match e {
+        Event::Started { accounts, .. } => Some(accounts.clone()),
+        _ => None,
+    });
+    let info = accounts.iter().find(|a| a.key == broken).unwrap();
+    assert!(info.broken);
+    assert!(matches!(info.status, AccountStatus::Broken(_)));
+    assert!(!accounts.iter().find(|a| a.key == good).unwrap().broken);
+    // The healthy one still syncs (tries to connect and goes offline).
+    // A wrongly run broken account shows itself as a status other than Broken.
+    let moved = std::cell::Cell::new(false);
+    let watch = |e: &Event| {
+        if status_of(&broken)(e).is_some_and(|s| !matches!(s, AccountStatus::Broken(_))) {
+            moved.set(true);
+        }
+    };
+    h.wait(|e| {
+        watch(e);
+        status_of(&good)(e).filter(|s| matches!(s, AccountStatus::Offline { .. }))
+    });
+    let quiet = Instant::now() + Duration::from_millis(700);
+    while let Some(left) = quiet.checked_duration_since(Instant::now()) {
+        if let Ok(event) = h.events.recv_timeout(left) {
+            watch(&event);
+        }
+    }
+    assert!(!moved.get(), "a broken account changed status: it ran");
+}
+
+#[test]
+fn a_pin_change_during_connect_is_refused() {
+    let imap = serve(Kind::Imap);
+    let smtp = serve(Kind::Smtp);
+    let h = Harness::start();
+    let other = "00".repeat(32);
+    let accepted = vec![(Service::Imap, other), (Service::Smtp, smtp.hex.clone())];
+    h.send(request(imap.port, smtp.port, accepted));
+    let hex = h.wait(|e| match e {
+        Event::TrustPrompt { hex, .. } => Some(hex.clone()),
+        _ => None,
+    });
+    assert_eq!(hex, imap.hex);
+    assert!(saved_accounts(&h).is_empty());
+}
+
+#[test]
+fn a_failed_password_write_rolls_the_account_back() {
+    let imap = serve(Kind::Imap);
+    let smtp = serve(Kind::Smtp);
+    let h = Harness::start();
+    started(&h);
+    // The password file cannot be written: a directory sits in its place.
+    std::fs::create_dir_all(h.data_dir().join(envio_core::secrets::FILE_NAME)).unwrap();
+    let accepted = vec![
+        (Service::Imap, imap.hex.clone()),
+        (Service::Smtp, smtp.hex.clone()),
+    ];
+    h.send(request(imap.port, smtp.port, accepted));
+    let text = h.wait(problem);
+    assert!(
+        text.starts_with("Could not save the account settings"),
+        "{text}"
+    );
+    assert!(saved_accounts(&h).is_empty());
+}
+
+#[test]
+fn an_srv_host_needs_confirmation_end_to_end() {
+    use envio_core::hooks::{SetupFake, fake_setup};
+    use envio_net::autoconfig::{Found, Setting, Source};
+    let h = Harness::start();
+    started(&h);
+    let setting = |host: &str| Setting {
+        endpoint: envio_net::Endpoint {
+            host: host.into(),
+            port: 993,
+            security: Security::Tls,
+            pin: None,
+        },
+        username: "ada".into(),
+    };
+    fake_setup(
+        "ada@srv-end.example",
+        SetupFake {
+            delay: Duration::ZERO,
+            found: Some(Found {
+                imap: setting("mail.elsewhere.example"),
+                smtp: setting("smtp.elsewhere.example"),
+                source: Source::Srv,
+                confirm: true,
+            }),
+        },
+    );
+    h.send(Command::Detect {
+        email: "ada@srv-end.example".into(),
+    });
+    let setup = h.wait(|e| match e {
+        Event::Detected { setup, .. } => Some(setup.clone()),
+        _ => None,
+    });
+    h.send(Command::Connect(Box::new(ConnectRequest {
+        setup: AccountSetup {
+            needs_confirm: false,
+            ..setup
+        },
+        password: SecretString::from("pw".to_owned()),
+        servers_confirmed: false,
+        accepted: vec![],
+    })));
+    assert_eq!(h.wait(problem), "Confirm the servers before signing in");
+}
+
+#[test]
+fn empty_roots_never_prompt_trust() {
+    let imap = serve(Kind::Handshake);
+    let mut h = Harness::unstarted();
+    h.roots = envio_net::Roots::empty();
+    h.start_core();
+    h.send(request(imap.port, 1, vec![]));
+    let event = h.wait(|e| match e {
+        Event::TrustPrompt { .. } => Some(None),
+        Event::SetupProblem { text, .. } => Some(Some(text.clone())),
+        _ => None,
+    });
+    let text = event.expect("a trust prompt with no roots");
+    assert!(
+        text.contains("no trusted certificate authorities"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_password_for_a_broken_account_is_refused_and_not_written() {
+    let mut h = Harness::unstarted();
+    let broken = h.seed_account("broken@example.org", Some("old-pw"));
+    let path = h.paths().accounts();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    json["accounts"][0]["settings"]["imap"]["pin"] = "not-a-pin".into();
+    std::fs::write(&path, json.to_string()).unwrap();
+    h.start_core();
+    h.send(Command::UpdatePassword {
+        account: broken.clone(),
+        password: SecretString::from("new-pw".to_owned()),
+    });
+    let notice = h.wait(|e| match e {
+        Event::Notice { text } => Some(text.clone()),
+        _ => None,
+    });
+    assert!(notice.contains("Remove it and add it again"), "{notice}");
+    let secrets = Secrets::open(&h.data_dir()).unwrap();
+    assert_eq!(secrets.get(&broken).unwrap().expose_secret(), "old-pw");
 }

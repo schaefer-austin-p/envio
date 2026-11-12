@@ -2,6 +2,7 @@
   "policy_groups" : [
     "connectivity",
     "content_exchange",
+    "content_exchange_source",
     "networking"
   ],
   "policy_version": "$ENV{APPARMOR_POLICY}"

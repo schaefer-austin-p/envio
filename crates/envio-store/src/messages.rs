@@ -1,8 +1,10 @@
 //! Message metadata: envelope, flags, preview, thread references and
 //! whether the body is on disk.
 
+use std::collections::BTreeMap;
 use std::ops::BitOr;
 
+use rusqlite::types::Value;
 use rusqlite::{OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +92,9 @@ pub struct Envelope {
     pub in_reply_to: Option<String>,
     /// The References header's Message-IDs, oldest first.
     pub references: Vec<String>,
+    /// A non-inline attachment is present. A guess from the headers until
+    /// the body is downloaded, then exact.
+    pub has_attachments: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,15 +126,27 @@ pub struct Message {
     pub body: BodyState,
 }
 
+/// A position in a newest-first list: the next page holds rows strictly
+/// older than this `(date, id)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Page {
-    pub offset: u32,
-    pub limit: u32,
+pub struct Cursor {
+    pub date: i64,
+    pub id: MessageRowId,
 }
+
+/// A list of messages: one folder, or every account's Inbox merged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ListRef {
+    Folder(FolderId),
+    Inboxes,
+}
+
+/// The usual page size of a list.
+pub const PAGE: u32 = 50;
 
 /// The columns `from_row` reads, from `messages` aliased as `m`.
 pub(crate) const COLUMNS: &str = "m.id, m.folder_id, m.uid, m.message_id, m.subject, \
-     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state, m.size";
+     m.from_addr, m.to_addrs, m.date, m.in_reply_to, m.refs, m.flags, m.preview, m.body_state, m.size, m.has_attachments";
 
 pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
     let refs: String = row.get(9)?;
@@ -147,6 +164,7 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
             date: row.get(7)?,
             in_reply_to: row.get(8)?,
             references: refs.split_whitespace().map(str::to_owned).collect(),
+            has_attachments: row.get(14)?,
         },
         flags: Flags::from_bits(row.get(10)?),
         preview: row.get(11)?,
@@ -159,13 +177,16 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
 }
 
 impl Db {
-    /// Adds a message, or updates it by UID. An update keeps the body state.
+    /// Adds a message, or updates it by UID. An update keeps the body state
+    /// and `has_attachments`: a header never changes, so a new row takes the
+    /// header's guess and only [`Db::set_has_attachments`] (the full parse)
+    /// changes it afterwards.
     pub fn upsert_message(&self, folder: FolderId, message: &NewMessage) -> Result<MessageRowId> {
         let envelope = &message.envelope;
         let id = self.conn().query_row(
             "INSERT INTO messages (folder_id, uid, message_id, subject, from_addr, to_addrs,
-                                   date, in_reply_to, refs, flags, preview, size)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                                   date, in_reply_to, refs, flags, preview, size, has_attachments)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
              ON CONFLICT (folder_id, uid) DO UPDATE SET
                  message_id = excluded.message_id, subject = excluded.subject,
                  from_addr = excluded.from_addr, to_addrs = excluded.to_addrs,
@@ -186,6 +207,7 @@ impl Db {
                 message.flags.bits(),
                 message.preview,
                 message.size,
+                envelope.has_attachments,
             ],
             |row| row.get(0),
         )?;
@@ -199,16 +221,51 @@ impl Db {
         )?)
     }
 
-    /// A folder's messages, newest first.
-    pub fn messages(&self, folder: FolderId, page: Page) -> Result<Vec<Message>> {
+    /// Up to `limit` messages of `list`, newest first (`date DESC, id DESC`).
+    /// With `after`, only rows strictly older than the cursor, so new mail
+    /// and deletions between calls never repeat or skip a row.
+    pub fn list(&self, list: ListRef, after: Option<Cursor>, limit: u32) -> Result<Vec<Message>> {
+        let (folder_filter, key): (_, Value) = match list {
+            ListRef::Folder(folder) => ("m.folder_id = ?1", folder.0.into()),
+            ListRef::Inboxes => (
+                "m.folder_id IN (SELECT id FROM folders WHERE role = ?1)",
+                "inbox".to_owned().into(),
+            ),
+        };
+        let (date, id) = after.map_or((i64::MAX, i64::MAX), |c| (c.date, c.id.0));
         let mut stmt = self.conn().prepare(&format!(
-            "SELECT {COLUMNS} FROM messages m WHERE m.folder_id = ?1
-             ORDER BY m.date DESC, m.id DESC LIMIT ?2 OFFSET ?3"
+            "SELECT {COLUMNS} FROM messages m
+             WHERE {folder_filter} AND (m.date < ?2 OR (m.date = ?2 AND m.id < ?3))
+             ORDER BY m.date DESC, m.id DESC LIMIT ?4"
         ))?;
         let messages = stmt
-            .query_map(params![folder.0, page.limit, page.offset], from_row)?
+            .query_map(params![key, date, id, limit], from_row)?
             .collect::<rusqlite::Result<_>>()?;
         Ok(messages)
+    }
+
+    /// The cursor that continues a list after `message`.
+    pub fn cursor_of(message: &Message) -> Cursor {
+        Cursor {
+            date: message.envelope.date,
+            id: message.id,
+        }
+    }
+
+    /// Unseen messages per folder of `account` (folders with none are absent).
+    pub fn unread_counts(&self, account: &str) -> Result<BTreeMap<FolderId, u32>> {
+        let mut stmt = self.conn().prepare(
+            "SELECT m.folder_id, count(*) FROM messages m
+             JOIN folders f ON f.id = m.folder_id
+             WHERE f.account = ?1 AND m.flags & ?2 = 0
+             GROUP BY m.folder_id",
+        )?;
+        let counts = stmt
+            .query_map(params![account, Flags::SEEN.bits()], |row| {
+                Ok((FolderId(row.get(0)?), row.get(1)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(counts)
     }
 
     pub fn message(&self, id: MessageRowId) -> Result<Message> {
@@ -234,6 +291,24 @@ impl Db {
         Ok(messages)
     }
 
+    /// The row ids of the cached messages with these UIDs (UIDs not cached
+    /// are skipped), in the order given.
+    pub fn ids_of(&self, folder: FolderId, uids: &[u32]) -> Result<Vec<MessageRowId>> {
+        let mut stmt = self
+            .conn()
+            .prepare("SELECT id FROM messages WHERE folder_id = ?1 AND uid = ?2")?;
+        let mut ids = Vec::new();
+        for uid in uids {
+            if let Some(id) = stmt
+                .query_row(params![folder.0, uid], |row| row.get(0))
+                .optional()?
+            {
+                ids.push(MessageRowId(id));
+            }
+        }
+        Ok(ids)
+    }
+
     /// The UIDs cached for a folder, ascending.
     pub fn uids(&self, folder: FolderId) -> Result<Vec<u32>> {
         let mut stmt = self
@@ -257,6 +332,14 @@ impl Db {
             }
             Ok(deleted)
         })
+    }
+
+    /// Stores the exact attachment flag, from the whole message.
+    pub fn set_has_attachments(&self, id: MessageRowId, has: bool) -> Result<()> {
+        found(self.conn().execute(
+            "UPDATE messages SET has_attachments = ?2 WHERE id = ?1",
+            params![id.0, has],
+        )?)
     }
 
     pub fn set_body_state(&self, id: MessageRowId, state: BodyState) -> Result<()> {

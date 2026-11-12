@@ -20,13 +20,26 @@ enum Step {
 impl ImapSession {
     /// Uploads a message (Sent copy, draft) with `flags`.
     pub async fn append(&mut self, folder: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {
-        let mailbox = query::quote(folder)?;
         let flags = if flags.is_empty() {
             String::new()
         } else {
             format!(" {}", query::flag_list(flags)?)
         };
-        let command = format!("APPEND {mailbox}{flags} {{{}}}", eml.len());
+        self.upload(format!("{}{flags}", query::quote(folder)?), eml)
+            .await
+    }
+
+    /// Uploads a message with its internal date set to `unix_secs` instead
+    /// of "now": how mail that arrived earlier is put on a server.
+    pub async fn append_at(&mut self, folder: &str, unix_secs: i64, eml: &[u8]) -> Result<()> {
+        let date = query::internal_date(unix_secs);
+        self.upload(format!("{} \"{date}\"", query::quote(folder)?), eml)
+            .await
+    }
+
+    /// `APPEND <target> {n}` and the literal.
+    async fn upload(&mut self, target: String, eml: &[u8]) -> Result<()> {
+        let command = format!("APPEND {target} {{{}}}", eml.len());
         // The upload alone can outlast a command, so the limit grows with
         // the message.
         connect::within_for(connect::transfer_timeout(eml.len()), async {

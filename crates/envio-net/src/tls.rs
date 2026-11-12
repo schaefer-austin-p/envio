@@ -25,6 +25,18 @@ pub struct Roots {
     /// Why some or all of the system bundle did not load. Empty when
     /// everything did, and for `from_der` and `empty`.
     problems: Arc<[String]>,
+    source: RootsSource,
+}
+
+/// Where a [`Roots`] set came from, for the startup log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootsSource {
+    /// The system store, or roots supplied by the caller (`from_der`).
+    System,
+    /// The `webpki-roots` set compiled into the app.
+    Bundled,
+    /// No CAs at all: only [`Roots::empty`] (the tests' choice).
+    Empty,
 }
 
 impl fmt::Debug for Roots {
@@ -51,7 +63,42 @@ impl Roots {
         Self {
             store: Arc::new(store),
             problems: load_problems(errors, ignored).into(),
+            source: RootsSource::System,
         }
+    }
+
+    /// The system bundle, or the bundled `webpki-roots` when the system
+    /// store has no certificate (the confined app may not see it). The
+    /// system load errors are kept either way.
+    pub fn system_or_bundled() -> Self {
+        Self::choose(Self::system())
+    }
+
+    /// `system` if it holds a certificate, else the bundled set carrying
+    /// `system`'s load errors.
+    pub(crate) fn choose(system: Self) -> Self {
+        if system.is_empty() {
+            Self {
+                problems: system.problems,
+                ..Self::bundled()
+            }
+        } else {
+            system
+        }
+    }
+
+    /// The Mozilla CA set compiled in through `webpki-roots`.
+    pub fn bundled() -> Self {
+        let mut store = RootCertStore::empty();
+        store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        Self {
+            source: RootsSource::Bundled,
+            ..Self::loaded(store)
+        }
+    }
+
+    pub fn source(&self) -> RootsSource {
+        self.source
     }
 
     /// What went wrong loading the system bundle, as text for the log;
@@ -70,13 +117,17 @@ impl Roots {
 
     /// No CAs: only pinned servers connect.
     pub fn empty() -> Self {
-        Self::loaded(RootCertStore::empty())
+        Self {
+            source: RootsSource::Empty,
+            ..Self::loaded(RootCertStore::empty())
+        }
     }
 
     fn loaded(store: RootCertStore) -> Self {
         Self {
             store: Arc::new(store),
             problems: Arc::new([]),
+            source: RootsSource::System,
         }
     }
 
@@ -172,6 +223,40 @@ mod tests {
         assert_eq!(problems[0], "permission denied");
         assert!(problems[1].starts_with("2 "), "{problems:?}");
         assert_eq!(load_problems(vec![], 1).len(), 1);
+    }
+
+    #[test]
+    fn bundled_roots_are_not_empty() {
+        let bundled = Roots::bundled();
+        assert!(!bundled.is_empty());
+        assert_eq!(bundled.source(), RootsSource::Bundled);
+    }
+
+    #[test]
+    fn the_fallback_is_used_when_the_system_store_is_empty() {
+        let hidden = Roots {
+            problems: Arc::new(["permission denied".to_owned()]),
+            ..Roots::empty()
+        };
+        let chosen = Roots::choose(hidden);
+        assert_eq!(chosen.source(), RootsSource::Bundled);
+        assert!(!chosen.is_empty());
+        assert_eq!(chosen.load_errors(), ["permission denied"]);
+    }
+
+    #[test]
+    fn a_system_store_with_certificates_is_kept() {
+        let system = Roots {
+            problems: Arc::new(["one bad file".to_owned()]),
+            ..Roots::bundled()
+        };
+        let system = Roots {
+            source: RootsSource::System,
+            ..system
+        };
+        let chosen = Roots::choose(system);
+        assert_eq!(chosen.source(), RootsSource::System);
+        assert_eq!(chosen.load_errors(), ["one bad file"]);
     }
 
     #[test]

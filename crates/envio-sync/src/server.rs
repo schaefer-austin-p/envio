@@ -20,6 +20,8 @@ pub trait MailServer {
     async fn select(&mut self, path: &str) -> Result<FolderState>;
     async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>>;
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>>;
+    /// "Search on server" in the selected folder.
+    async fn search_text(&mut self, text: &str) -> Result<Vec<u32>>;
     async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>>;
     async fn fetch_flags(
         &mut self,
@@ -65,6 +67,10 @@ impl MailServer for ImapSession {
 
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         ImapSession::search_message_id(self, message_id).await
+    }
+
+    async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
+        ImapSession::search_text(self, text).await
     }
 
     async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>> {

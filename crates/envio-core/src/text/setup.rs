@@ -9,7 +9,7 @@ use envio_net::autoconfig::Source;
 /// Said before `Detect`: the domain of the address leaves the phone.
 pub fn ispdb_note() -> String {
     tr(
-        "To find your mail servers, Envio asks the Thunderbird configuration database and your mail provider. Only the part of your address after the @ is sent",
+        "To find your mail servers, Envio asks the Thunderbird configuration database and your mail provider. Only the part of your address after the @ is sent.",
     )
 }
 
@@ -38,6 +38,14 @@ pub fn trust(host: &str, reason: Untrusted) -> String {
             "The certificate of {host} is not trusted: {reason}. Check the fingerprint before you accept it",
         ),
         &[("host", host), ("reason", &untrusted_reason(reason))],
+    )
+}
+
+/// Said instead of the trust prompt when no root certificates loaded: a
+/// fingerprint dialog would then ask about every server.
+pub fn no_roots() -> String {
+    tr(
+        "Envio has no trusted certificate authorities on this device, so it cannot check the server. Please report this problem",
     )
 }
 

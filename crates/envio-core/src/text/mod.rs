@@ -2,6 +2,8 @@
 //! xgettext reads only these files (see tools/i18n/update.sh).
 
 pub mod compose;
+pub mod count;
+pub mod link;
 pub mod notice;
 pub mod outbox;
 pub mod read;

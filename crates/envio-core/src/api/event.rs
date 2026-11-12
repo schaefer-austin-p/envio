@@ -1,14 +1,15 @@
 //! What the core tells the app.
 
-use super::command::{AccountSetup, ComposeId, DraftInput, UndoId};
+use super::command::{AccountSetup, ComposeId, DraftInput, SearchScope, UndoId};
 use std::path::PathBuf;
 
 use super::view::{
-    AccountInfo, CacheState, FolderRow, MessageRow, MessageView, OutboxRow, UnsentCounts,
+    AccountInfo, CacheState, FolderRow, MessageRow, MessageView, OutboxRow, Suggestion,
+    UnsentCounts,
 };
 use crate::health::AccountStatus;
 use crate::servers::Service;
-use envio_store::{FolderId, MessageRowId, Page};
+use envio_store::{Cursor, FolderId, ListRef, MessageRowId, Settings};
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -16,6 +17,11 @@ pub enum Event {
     Started {
         accounts: Vec<AccountInfo>,
         cache: CacheState,
+    },
+    /// The store will not open; the worker keeps trying. Drafts are safe.
+    /// `Started` follows once it opens.
+    StoreProblem {
+        text: String,
     },
     /// The worker panicked and came back.
     WorkerRestarted {
@@ -30,6 +36,11 @@ pub enum Event {
         account: String,
         status: AccountStatus,
         text: String,
+    },
+    /// The account's Inbox unread count changed (sent only when it did).
+    AccountUnread {
+        account: String,
+        unread: u32,
     },
     /// The account's folder list changed.
     FoldersChanged {
@@ -87,16 +98,43 @@ pub enum Event {
     },
     /// The answer to `ListMessages`.
     Messages {
-        folder: FolderId,
-        page: Page,
+        list: ListRef,
+        /// The cursor the page was asked after (`None`: the first page).
+        after: Option<Cursor>,
         rows: Vec<MessageRow>,
+        /// This page was the last: it held fewer than `PAGE` rows.
+        end: bool,
     },
-    /// The answer to `Search`.
+    /// `ListMessages` could not read the cache (a `Notice` says so): the
+    /// page is not coming.
+    MessagesFailed {
+        list: ListRef,
+        after: Option<Cursor>,
+    },
+    /// The answer to `Search` (`server: false`), or to `SearchServer`
+    /// (`server: true`, every match: cached and fetched, newest first).
     SearchResults {
-        account: String,
+        scope: SearchScope,
         query: String,
+        server: bool,
         rows: Vec<MessageRow>,
     },
+    /// A server search that could not ask an account; `text` says why (the
+    /// account's status, or the server's refusal). Other accounts of the
+    /// same search still answer with `SearchResults`.
+    SearchFailed {
+        scope: SearchScope,
+        query: String,
+        text: String,
+    },
+    /// The answer to `Autocomplete`, for the same `query`.
+    Suggestions {
+        query: String,
+        items: Vec<Suggestion>,
+    },
+    /// The settings as they are now: sent after `Started` and after each
+    /// save.
+    Settings(Settings),
     MessageOpened {
         id: MessageRowId,
         view: MessageView,
@@ -111,6 +149,12 @@ pub enum Event {
         id: MessageRowId,
         index: usize,
         path: PathBuf,
+    },
+    /// `SaveAttachment` for this attachment did not write the file (a
+    /// `Notice` says so too).
+    AttachmentFailed {
+        id: MessageRowId,
+        index: usize,
     },
     /// An action was done; it can be taken back until `expires_at_ms`
     /// (unix milliseconds).
@@ -136,6 +180,19 @@ pub enum Event {
         compose: ComposeId,
         draft_id: String,
     },
+    /// A file was copied into the draft: `path` is the copy, which is what
+    /// the draft's attachments hold.
+    Attached {
+        compose: ComposeId,
+        path: PathBuf,
+        name: String,
+        size: u64,
+    },
+    /// The file could not be attached; `text` says why.
+    AttachFailed {
+        compose: ComposeId,
+        text: String,
+    },
     /// Compose can not go on (or `Send` did not queue); `text` says why.
     /// The draft is kept.
     ComposeRefused {
@@ -146,5 +203,7 @@ pub enum Event {
     Queued {
         compose: ComposeId,
         item: String,
+        /// For the toast that tells the user ("Sent to the Outbox").
+        text: String,
     },
 }

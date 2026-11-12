@@ -9,6 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ENVIO_WERROR "Treat compiler warnings as errors (on in CI)" OFF)
+option(ENVIO_QMLTEST "Build envio-qmltest, the QML test runner that links the Envio module" OFF)
 
 find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 
@@ -28,6 +29,15 @@ target_compile_definitions(envio PRIVATE QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASC
   QT_NO_KEYWORDS ENVIO_APP_ID="envio.aps")
 if(ENVIO_WERROR)
   target_compile_options(envio PRIVATE -Werror)
+endif()
+
+# tests/qml/run.sh runs the QML tests with this: qmltestrunner cannot load
+# the Rust `Envio` module, which is a static plugin.
+if(ENVIO_QMLTEST)
+  find_package(Qt5 5.15 REQUIRED COMPONENTS QuickTest Network)
+  add_executable(envio-qmltest tests/qml/main.cpp)
+  target_link_libraries(envio-qmltest PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
+    Qt5::QuickTest Qt5::Network)
 endif()
 
 # po/*.po -> share/locale/<lang>/LC_MESSAGES/envio.aps.mo

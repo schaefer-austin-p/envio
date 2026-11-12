@@ -3,6 +3,7 @@
 //! drafts) kept in files outside the cache so a rebuild can't lose it.
 
 mod accounts;
+mod addresses;
 mod atomic;
 mod bodies;
 mod db;
@@ -11,6 +12,7 @@ mod error;
 mod folders;
 mod ids;
 mod journal;
+mod journal_replay;
 mod lookup;
 mod messages;
 mod migrate;
@@ -18,16 +20,26 @@ mod outbox;
 mod paths;
 mod rebuild;
 mod search;
+mod userdata;
 
 pub use accounts::{Account, AccountSettings, Accounts, Security, Server};
+pub use addresses::SeenAddress;
 pub use bodies::Bodies;
 pub use db::Db;
 pub use drafts::{Draft, Drafts};
 pub use error::{Result, StoreError};
 pub use folders::{Folder, FolderId, FolderRole, SyncState};
 pub use journal::{Action, ActionKind, Journal, MessageRef};
-pub use messages::{BodyState, Envelope, Flags, Message, MessageRowId, NewMessage, Page};
+pub use journal_replay::{SkipReason, Skipped};
+pub use messages::{
+    BodyState, Cursor, Envelope, Flags, ListRef, Message, MessageRowId, NewMessage, PAGE,
+};
 pub use migrate::SCHEMA_VERSION;
 pub use outbox::{NewOutboxItem, Outbox, OutboxItem, OutboxMeta, SendState};
 pub use paths::StorePaths;
 pub use rebuild::{Opened, open_or_rebuild};
+pub use search::{BODY_INDEX_BYTES, Within};
+pub use userdata::{
+    Contact, DarkMode, ImagesDefault, Settings, ThemeName, load_contacts, load_settings,
+    save_contacts, save_settings,
+};

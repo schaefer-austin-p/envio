@@ -1,9 +1,93 @@
 <RCC>
     <qresource prefix="/qml">
         <file>Main.qml</file>
-        <file>pages/InboxPage.qml</file>
+        <file>pages/AppShell.qml</file>
+        <file>pages/ProblemPage.qml</file>
+        <file>pages/inbox/InboxPage.qml</file>
+        <file>pages/inbox/AccountTabs.qml</file>
+        <file>pages/inbox/MessageList.qml</file>
+        <file>pages/inbox/MessageRow.qml</file>
+        <file>pages/inbox/FoldersDrawer.qml</file>
+        <file>pages/inbox/SelectionBar.qml</file>
+        <file>pages/inbox/MoveSheet.qml</file>
+        <file>pages/inbox/OutboxPage.qml</file>
+        <file>pages/inbox/OutboxRow.qml</file>
+        <file>pages/reader/ReaderPage.qml</file>
+        <file>pages/reader/HeaderBlock.qml</file>
+        <file>pages/reader/ImagesBanner.qml</file>
+        <file>pages/reader/LinkSheet.qml</file>
+        <file>pages/reader/AttachmentsSheet.qml</file>
+        <file>pages/reader/AttachmentList.qml</file>
+        <file>pages/reader/ReaderMore.qml</file>
+        <file>pages/reader/ReplyBar.qml</file>
+        <file>pages/compose/ComposePage.qml</file>
+        <file>pages/compose/RecipientField.qml</file>
+        <file>pages/compose/Suggestions.qml</file>
+        <file>pages/compose/QuoteFold.qml</file>
+        <file>pages/compose/AttachmentChips.qml</file>
+        <file>pages/compose/FromRow.qml</file>
+        <file>pages/compose/DiscardActions.qml</file>
+        <file>pages/accounts/WizardPage.qml</file>
+        <file>pages/accounts/EmailStep.qml</file>
+        <file>pages/accounts/SignInStep.qml</file>
+        <file>pages/accounts/ServersStep.qml</file>
+        <file>pages/accounts/OptionsStep.qml</file>
+        <file>pages/accounts/ConfirmHostsDialog.qml</file>
+        <file>pages/accounts/TrustDialog.qml</file>
+        <file>pages/accounts/AccountsPage.qml</file>
+        <file>pages/accounts/UpdatePasswordPage.qml</file>
+        <file>pages/search/SearchPage.qml</file>
+        <file>pages/settings/SettingsPage.qml</file>
+        <file>pages/settings/AppearancePage.qml</file>
+        <file>pages/settings/ImagesPage.qml</file>
+        <file>pages/settings/SyncPage.qml</file>
+        <file>pages/settings/AboutPage.qml</file>
         <file>platform/qmldir</file>
         <file>platform/Theme.qml</file>
         <file>platform/ut/SystemColours.qml</file>
+        <file>platform/ut/GridUnit.qml</file>
+        <file>platform/Content.qml</file>
+        <file>platform/ut/ContentExport.qml</file>
+        <file>platform/ut/ContentImport.qml</file>
+        <file>platform/ut/UriSource.qml</file>
+        <file>platform/Uri.qml</file>
+        <file>platform/fileUrl.js</file>
+        <file>components/qmldir</file>
+        <file>components/Avatar.qml</file>
+        <file>components/Banner.qml</file>
+        <file>components/AppButton.qml</file>
+        <file>components/Chip.qml</file>
+        <file>components/DateText.qml</file>
+        <file>components/FolderLabel.qml</file>
+        <file>components/AppDialog.qml</file>
+        <file>components/EditMenu.qml</file>
+        <file>components/Field.qml</file>
+        <file>components/HoldSelection.qml</file>
+        <file>components/Icon.qml</file>
+        <file>components/fileSize.js</file>
+        <file>components/keyboardRect.js</file>
+        <file>components/IconButton.qml</file>
+        <file>components/KeyboardAvoider.qml</file>
+        <file>components/ListRow.qml</file>
+        <file>components/RadioRow.qml</file>
+        <file>components/Sheet.qml</file>
+        <file>components/TextBlock.qml</file>
+        <file>components/Toast.qml</file>
+        <file>components/Toggle.qml</file>
+        <file>components/TopBar.qml</file>
+    </qresource>
+    <!-- Theme.qml loads these as ../../third_party/fonts/..., on disk and here. -->
+    <qresource prefix="/third_party">
+        <file alias="fonts/Inter/Inter-Regular.ttf">../third_party/fonts/Inter/Inter-Regular.ttf</file>
+        <file alias="fonts/Inter/Inter-Medium.ttf">../third_party/fonts/Inter/Inter-Medium.ttf</file>
+        <file alias="fonts/Inter/Inter-SemiBold.ttf">../third_party/fonts/Inter/Inter-SemiBold.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-Regular.ttf">../third_party/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-Medium.ttf">../third_party/fonts/IBMPlexMono/IBMPlexMono-Medium.ttf</file>
+        <file alias="fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf">../third_party/fonts/IBMPlexMono/IBMPlexMono-SemiBold.ttf</file>
+        <file alias="fonts/Lora/Lora-Regular.ttf">../third_party/fonts/Lora/Lora-Regular.ttf</file>
+        <file alias="fonts/Inter/OFL.txt">../third_party/fonts/Inter/OFL.txt</file>
+        <file alias="fonts/IBMPlexMono/OFL.txt">../third_party/fonts/IBMPlexMono/OFL.txt</file>
+        <file alias="fonts/Lora/OFL.txt">../third_party/fonts/Lora/OFL.txt</file>
+        <file alias="fonts/Lora/Lora-SemiBold.ttf">../third_party/fonts/Lora/Lora-SemiBold.ttf</file>
     </qresource>
 </RCC>
