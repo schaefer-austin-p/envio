@@ -452,5 +452,45 @@ Item {
             verify(find("appPasswordHint").visible)
             compare(find("passwordField").label, "App password")
         }
+
+        // #87: while a step is busy its footer shows a spinner and a status
+        // line in place of the button, then the button comes back.
+        function busyShows(buttonName, text) {
+            const button = find(buttonName)
+            const line = find("footerBusy", button.parent.parent)
+            for (const look of ["carbon", "airmail"]) {
+                for (const mode of ["light", "dark"]) {
+                    const label = look + " " + mode
+                    thm.name = look
+                    thm.darkMode = mode
+                    wizard.busy = false
+                    verify(!line.visible, label)
+                    verify(button.visible, label)
+                    wizard.busy = true
+                    verify(line.visible, label)
+                    compare(line.text, text, label)
+                    verify(!button.visible, label)
+                    compare(line.height, button.parent.height, label)
+                    wizard.busy = false
+                    verify(!line.visible, label)
+                    verify(button.visible, label)
+                }
+            }
+            thm.name = "carbon"
+            thm.darkMode = "system"
+        }
+        function test_email_step_shows_busy_exactly_while_busy() {
+            busyShows("continueButton", "Looking up settings…")
+        }
+        function test_servers_step_shows_busy_exactly_while_busy() {
+            typeEmail()
+            mouseClick(find("manualButton"))
+            compare(wizard.step, "servers")
+            busyShows("connectButton", "Connecting…")
+        }
+        function test_signin_step_shows_busy_exactly_while_busy() {
+            toSignIn(plainJson, false)
+            busyShows("signInContinue", "Signing in…")
+        }
     }
 }

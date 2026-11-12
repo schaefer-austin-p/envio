@@ -90,6 +90,8 @@ Item {
     PageFooter {
         id: footer
         theme: root.theme
+        busy: root.busy
+        busyText: qsTr("Signing in…")
     AppButton {
         id: continueButton
         objectName: "signInContinue"

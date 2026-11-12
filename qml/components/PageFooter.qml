@@ -15,6 +15,10 @@ Item {
     objectName: "pageFooter"
     required property Theme theme
     default property alias content: body.data
+    // While `busy` a BusyLine with `busyText` takes the place of the content
+    // (the same height, so nothing jumps); the content is hidden, not removed.
+    property bool busy: false
+    property string busyText: ""
     // The keyboard in window coordinates. Tests set it; on the phone it is
     // Qt's, in logical pixels (Ubuntu Touch reports device pixels).
     property rect keyboard: KeyboardRect.logical(Qt.inputMethod.keyboardRectangle,
@@ -45,5 +49,16 @@ Item {
         y: root.theme.footerPadTop
         width: parent.width - 2 * x
         height: root.theme.controlHeight
+        visible: !root.busy
+    }
+    BusyLine {
+        objectName: "footerBusy"
+        theme: root.theme
+        running: root.busy
+        text: root.busyText
+        x: body.x
+        y: body.y
+        width: body.width
+        height: body.height
     }
 }
