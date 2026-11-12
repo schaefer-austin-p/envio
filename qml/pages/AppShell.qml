@@ -110,9 +110,33 @@ Item {
         onMailto: function(uri) { root.openMailto(uri) }
     }
 
+    // The page that leaves is hidden at once; the new one slides in a little
+    // and fades in. The style's own transitions keep both pages (whose roots
+    // are transparent) on screen together for about half a second.
     StackView {
         id: stack
         anchors.fill: parent
+        readonly property int enterMs: 150
+        readonly property int enterShift: 24
+
+        pushEnter: Transition {
+            ParallelAnimation {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "x"; from: stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
+            }
+        }
+        pushExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+        popEnter: Transition {
+            ParallelAnimation {
+                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                NumberAnimation { property: "x"; from: -stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
+            }
+        }
+        popExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+        replaceEnter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
+        }
+        replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
     }
 
     Component {

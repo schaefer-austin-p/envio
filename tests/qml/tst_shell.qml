@@ -122,6 +122,28 @@ Item {
             u.destroy()
         }
 
+        // Two pages never show together: the page that leaves is hidden
+        // within a frame or two, and comes back whole on Back.
+        function test_the_leaving_page_hides_at_once() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const inbox = b.shell.currentPage
+            tryCompare(inbox, "opacity", 1)
+            inbox.settingsRequested()
+            const settings = b.shell.currentPage
+            compare(settings.objectName, "settingsPage")
+            tryVerify(function() { return inbox.opacity === 0 || !inbox.visible }, 60)
+            tryCompare(settings, "opacity", 1)
+            compare(settings.x, 0)
+            settings.backRequested()
+            tryVerify(function() { return settings.opacity === 0 || !settings.visible }, 60)
+            tryCompare(inbox, "opacity", 1)
+            verify(inbox.visible)
+            compare(inbox.x, 0)
+            compare(b.shell.depth, 1)
+            b.shell.destroy()
+        }
+
         function test_search_and_settings_push_their_pages() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
