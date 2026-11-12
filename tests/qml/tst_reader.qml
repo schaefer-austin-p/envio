@@ -553,6 +553,26 @@ Item {
             heightSpy.target = null
         }
 
+        // The body waits for the push transition: while the status is not
+        // Active, the page shows Loading and no body, even with the view in.
+        function test_body_waits_for_the_push_transition() {
+            coverStack.visible = true
+            // The first page of a stack is not animated; the reader is the second.
+            coverStack.push(coverComponent)
+            coverStack.push(readerComponent, { messageId: 5, width: 400, height: 700 })
+            const reader = coverStack.currentItem
+            mock.messageOpened(view([], 0))
+            verify(reader.StackView.status !== StackView.Active,
+                   "no window to check: status is " + reader.StackView.status)
+            compare(reader.ready, false)
+            compare(reader.bodyHtml, "")
+            tryCompare(reader.StackView, "status", StackView.Active)
+            tryCompare(reader, "ready", true)
+            verify(reader.bodyHtml.length > 0)
+            coverStack.clear()
+            coverStack.visible = false
+        }
+
         // Reply and forward push the compose page over the reader: the body
         // stays as it was, and Back does not lay it out again.
         function test_a_page_pushed_over_the_reader_keeps_the_body() {
