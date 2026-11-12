@@ -296,6 +296,17 @@ Item {
             core.outbox.clear()
         }
 
+        function test_a_sent_message_is_not_waiting() {
+            const banner = find("outboxBanner", page)
+            core.outbox.append({ id: "n", account: "ann", subject: "Hi", to: "x@y", status: "sentnotfiled", text: "" })
+            waitForRendering(page)
+            verify(!banner.visible)
+            core.outbox.append({ id: "w", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+            tryVerify(function() { return banner.visible })
+            compare(banner.text, "waiting 1")
+            core.outbox.clear()
+        }
+
         Component {
             id: spyComponent
             SignalSpy { signalName: "outboxRequested" }

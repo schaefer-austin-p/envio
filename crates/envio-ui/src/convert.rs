@@ -85,13 +85,20 @@ pub fn folder_row(account: &str, f: &FolderRow) -> Row {
     })
 }
 
-pub fn outbox_row(r: &OutboxRow) -> Row {
-    let status = match r.status {
-        OutboxStatus::Queued | OutboxStatus::SentNotFiled => "waiting",
+/// The state word QML switches on. Only `waiting` (and `sending`, on its
+/// way) counts as waiting to send; `sentnotfiled` is done and has no actions.
+pub fn outbox_state(status: &OutboxStatus) -> &'static str {
+    match status {
+        OutboxStatus::Queued => "waiting",
         OutboxStatus::Sending => "sending",
+        OutboxStatus::SentNotFiled => "sentnotfiled",
         OutboxStatus::MayHaveBeenSent { .. } => "maybesent",
         OutboxStatus::Failed { .. } | OutboxStatus::Damaged => "failed",
-    };
+    }
+}
+
+pub fn outbox_row(r: &OutboxRow) -> Row {
+    let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
         account: r.account.clone(),
@@ -178,4 +185,21 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         Event::Settings(settings) => Signal::Settings(settings),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn outbox_states_keep_sending_and_sent_apart_from_waiting() {
+        assert_eq!(outbox_state(&OutboxStatus::Queued), "waiting");
+        assert_eq!(outbox_state(&OutboxStatus::Sending), "sending");
+        assert_eq!(outbox_state(&OutboxStatus::SentNotFiled), "sentnotfiled");
+        assert_eq!(
+            outbox_state(&OutboxStatus::MayHaveBeenSent { asked: true }),
+            "maybesent"
+        );
+        assert_eq!(outbox_state(&OutboxStatus::Damaged), "failed");
+    }
 }

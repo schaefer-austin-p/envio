@@ -66,9 +66,12 @@ Item {
             core.outbox.append(item("s", "sending", "Sending"))
             core.outbox.append(item("f", "failed", "The server refused it"))
             core.outbox.append(item("m", "maybesent", "It may have been sent"))
+            core.outbox.append(item("n", "sentnotfiled", "Sent, not yet in Sent"))
             waitForRendering(page)
-            // Delete is always there; the rest follows the status.
-            for (const id of ["w", "s", "f", "m"]) verify(shown("delete-" + id), "delete-" + id)
+            // Delete follows the status: core refuses it while sending or once sent.
+            for (const id of ["w", "f", "m"]) verify(shown("delete-" + id), "delete-" + id)
+            verify(!shown("delete-s") && !shown("delete-n"))
+            verify(!shown("retry-n") && !shown("edit-n") && !shown("sendAgain-n") && !shown("moveToSent-n"))
             verify(!shown("retry-w") && !shown("edit-w") && !shown("sendAgain-w") && !shown("moveToSent-w"))
             verify(!shown("retry-s") && !shown("edit-s") && !shown("sendAgain-s") && !shown("moveToSent-s"))
             verify(shown("retry-f") && shown("edit-f"))

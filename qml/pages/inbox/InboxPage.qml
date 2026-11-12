@@ -34,6 +34,8 @@ Item {
     signal outboxRequested()
 
     readonly property int outboxCount: outboxRows.count
+    // Messages still to go out: sent-but-not-filed ones are not.
+    readonly property int waitingCount: waitingProbe.toSend
     readonly property int offlineCount: offlineProbe.offline
     readonly property bool selecting: list.selectedCount > 0
 
@@ -103,6 +105,24 @@ Item {
             readonly property string key: model.key
         }
         onItemRemoved: (index, item) => { if (root.tab !== "" && root.tab !== "folder" && item.key === root.tab) root.showUnified() }
+    }
+    Repeater {
+        id: waitingProbe
+        property int toSend: 0
+        function recount() {
+            let n = 0
+            for (let i = 0; i < count; i++) if (itemAt(i) !== null && itemAt(i).isWaiting) n++
+            toSend = n
+        }
+        model: root.outbox
+        delegate: Item {
+            visible: false
+            required property var model
+            readonly property bool isWaiting: model.status === "waiting" || model.status === "sending"
+            onIsWaitingChanged: waitingProbe.recount()
+        }
+        onItemAdded: Qt.callLater(recount)
+        onItemRemoved: Qt.callLater(recount)
     }
     Repeater {
         id: offlineProbe
@@ -178,7 +198,7 @@ Item {
             height: visible ? implicitHeight : 0
             // TRANSLATORS: %1 is how many messages are waiting to be sent,
             // e.g. "2 messages waiting"; it is left out when none are.
-            text: root.outboxCount > 0 ? qsTr("Offline. %1").arg(root.core.countText("waiting", root.outboxCount))
+            text: root.waitingCount > 0 ? qsTr("Offline. %1").arg(root.core.countText("waiting", root.waitingCount))
                                        : qsTr("Offline.")
         }
         Banner {
@@ -186,9 +206,9 @@ Item {
             objectName: "outboxBanner"
             theme: root.theme
             width: parent.width
-            visible: root.outboxCount > 0 && root.offlineCount === 0
+            visible: root.waitingCount > 0 && root.offlineCount === 0
             height: visible ? implicitHeight : 0
-            text: root.core.countText("waiting", root.outboxCount)
+            text: root.core.countText("waiting", root.waitingCount)
             MouseArea { anchors.fill: parent; onClicked: root.outboxRequested() }
         }
     }

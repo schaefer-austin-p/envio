@@ -5,7 +5,8 @@ import "../../components"
 // One unsent message: subject, recipients, its status in words, and the
 // actions its status allows. Envio never resends on its own, so "Send again"
 // is only ever a tap here.
-//   waiting, sending: Delete
+//   waiting:          Delete
+//   sending, sentnotfiled: none (core refuses Delete; it is on its way or done)
 //   failed:           Retry, Edit, Delete
 //   maybesent:        Send again, Move to Sent, Delete (the server may
 //                     already have it, so the user decides)
@@ -86,6 +87,7 @@ ListRow {
             }
             AppButton {
                 objectName: "delete-" + root.model.id
+                visible: root.model.status !== "sending" && root.model.status !== "sentnotfiled"
                 theme: root.theme
                 text: qsTr("Delete")
                 onClicked: root.deleteRequested(root.model.id)

@@ -68,7 +68,7 @@ pub struct OutboxRowUi {
     pub subject: String,
     /// The recipients, joined.
     pub to: String,
-    /// "waiting", "sending", "failed" or "maybesent".
+    /// "waiting", "sending", "sentnotfiled", "failed" or "maybesent".
     pub status: String,
     pub text: String,
 }
