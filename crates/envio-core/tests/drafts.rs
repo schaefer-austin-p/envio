@@ -176,25 +176,28 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     });
     // The copy is under way (it waits for the pipe's writer).
     std::thread::sleep(Duration::from_millis(300));
-    let start = Instant::now();
+    // The copy stays blocked until `release` below, so order proves the
+    // point: a save or flush that waited for the copy cannot land before it.
     s.change(s.draft("typed while copying"));
-    let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
-    let saved = s.wait_for_draft(limit, |d| d.body == "typed while copying");
+    let saved = s.wait_for_draft(Duration::from_secs(10), |d| d.body == "typed while copying");
     s.change(s.draft("typed again"));
-    let flush_start = Instant::now();
-    s.h.send(Command::AppActive(false));
-    // The copy stays blocked until `release` below, so a flush that waited
-    // for it would take far longer than this.
-    let flushed = flush_start.elapsed() < Duration::from_millis(2_000)
-        && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
-    let on_time = start.elapsed() < limit + Duration::from_millis(500);
+    let core = s.h.core.as_ref().unwrap();
+    let (done, flushed_rx) = std::sync::mpsc::channel();
+    let flushed = std::thread::scope(|scope| {
+        scope.spawn(move || {
+            core.send(Command::AppActive(false));
+            let _ = done.send(());
+        });
+        flushed_rx.recv_timeout(Duration::from_secs(10)).is_ok()
+            && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again")
+    });
     // Let the copy end whatever the result, so nothing is left blocked.
     release(&slow, b"payload");
     let copy = s.h.wait(|e| match e {
         Event::Attached { path, .. } => Some(path.clone()),
         _ => None,
     });
-    assert!(saved && on_time, "a text save waited for the copy");
+    assert!(saved, "a text save waited for the copy");
     assert!(flushed, "the flush waited for the copy");
     assert_eq!(std::fs::read(copy).unwrap(), b"payload");
 }
