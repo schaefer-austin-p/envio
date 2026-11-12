@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import QtTest 1.2
 import "../../qml/platform"
 import "../../qml/pages/search"
@@ -10,6 +11,7 @@ Item {
 
     Theme { id: thm }
     MockCore { id: core }
+    readonly property var mock: core
     SearchPage {
         id: page
         theme: thm
@@ -19,6 +21,16 @@ Item {
         folderId: 7
         anchors.fill: parent
     }
+    Component {
+        id: pageC
+        SearchPage {
+            theme: thm
+            core: root.mock
+            accounts: root.mock.accounts
+            results: root.mock.searchResults
+        }
+    }
+    Component { id: stackC; StackView {} }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
 
     TestCase {
@@ -48,7 +60,7 @@ Item {
             return all(name).filter(function(o) { return o.visible }).length > 0
         }
         function message(id) {
-            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", subject: "Plans " + id,
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train…", date: 0, dateBucket: "time", unread: false,
                      flagged: false, hasAttachments: false, selected: false }
         }
@@ -99,6 +111,20 @@ Item {
             mouseClick(find("row-5"))
             compare(opened.count, 1)
             compare(opened.signalArguments[0][0], 5)
+        }
+
+        function test_search_field_has_focus_when_opened() {
+            const holder = createTemporaryObject(stackC, root, { width: 400, height: 700 })
+            holder.push(Qt.createQmlObject("import QtQuick 2.15; Item {}", holder))
+            holder.push(pageC)
+            tryVerify(function() {
+                return holder.currentItem && holder.currentItem.objectName === "searchPage"
+                    && holder.currentItem.StackView.status === StackView.Active
+            })
+            const fields = everything(holder.currentItem, []).filter(function(o) {
+                return o.objectName === "searchField" })
+            compare(fields.length, 1)
+            tryVerify(function() { return fields[0].input.activeFocus })
         }
 
         function test_rows_show_the_stamp_in_airmail_and_the_dot_in_carbon() {

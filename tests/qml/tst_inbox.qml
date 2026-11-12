@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.2
 import "../../qml/platform"
+import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
 import "../../qml/pages/inbox"
 
@@ -69,7 +70,7 @@ Item {
             return hit[0]
         }
         function message(id, selected) {
-            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", subject: "Plans " + id,
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train…", date: 0, dateBucket: "time", unread: true,
                      flagged: false, hasAttachments: false, selected: selected === true }
         }
@@ -146,9 +147,31 @@ Item {
             compare(netRequests.count(), 0)
         }
 
+        function test_stamp_tint_uses_from_address() {
+            const a = "ann@example.org"
+            let b = "bob@example.org"
+            for (let i = 0; StampTint.isBlue(b) === StampTint.isBlue(a) && i < 50; i++)
+                b = "bob" + i + "@example.org"
+            verify(StampTint.isBlue(b) !== StampTint.isBlue(a))
+            const rows = [{ id: 31, addr: a }, { id: 32, addr: b }]
+            for (const r of rows) {
+                const m = message(r.id)
+                m.fromAddress = r.addr
+                core.messages.append(m)
+            }
+            thm.name = "airmail"
+            waitForRendering(page)
+            for (const r of rows) {
+                const stamp = find("stamp", find("row-" + r.id, page)).item
+                verify(stamp !== null)
+                compare(stamp.blue, StampTint.isBlue(r.addr))
+            }
+            thm.name = "carbon"
+        }
+
         function test_rows_follow_the_theme() {
             core.messages.append(message(21))
-            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", subject: "Read",
+            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", fromAddress: "ann@example.org", subject: "Read",
                                    preview: "", date: 0, dateBucket: "time", unread: false,
                                    flagged: false, hasAttachments: false, selected: false })
             waitForRendering(page)

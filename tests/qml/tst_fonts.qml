@@ -22,7 +22,7 @@ Item {
             theme: thm
             width: 360
             showAccount: true
-            model: ({ "id": 1, "selected": false, "unread": true, "from": "Ana", "flagged": false,
+            model: ({ "id": 1, "selected": false, "unread": true, "from": "Ana", "fromAddress": "ana@example.org", "flagged": false,
                       "hasAttachments": true, "dateBucket": "daymonth", "date": 1700000000,
                       "subject": "Hi", "preview": "Hello", "accountName": "Work" })
             index: 0

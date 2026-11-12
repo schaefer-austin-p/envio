@@ -48,8 +48,8 @@ ListRow {
         y: root.theme.gu(1.75)
         sourceComponent: Avatar {
             theme: root.theme
-            initials: StampTint.initials(root.model.from)
-            blue: StampTint.isBlue(StampTint.addressOf(root.model.from))
+            initials: root.model.fromAddress === "" ? "" : StampTint.initials(root.model.from)
+            blue: StampTint.isBlue(root.model.fromAddress)
         }
     }
     Column {

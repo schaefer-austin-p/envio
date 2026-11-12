@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
@@ -23,6 +24,15 @@ Item {
     property bool serverBusy: false
     property var failures: []
     readonly property string query: field.text.trim()
+
+    // Opening search puts the cursor in the field and raises the keyboard.
+    StackView.onActivated: {
+        // After the page's children exist (a first push activates it at once).
+        Qt.callLater(function() {
+            field.input.forceActiveFocus()
+            Qt.inputMethod.show()
+        })
+    }
 
     signal backRequested()
     signal messageRequested(var message)
