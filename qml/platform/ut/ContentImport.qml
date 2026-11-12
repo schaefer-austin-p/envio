@@ -39,8 +39,14 @@ Rectangle {
         function onStateChanged() {
             if (root.transfer.state === ContentTransfer.Charged) {
                 const paths = []
-                for (let i = 0; i < root.transfer.items.length; i++)
-                    paths.push(decodeURIComponent(root.transfer.items[i].url.toString().replace(/^file:\/\//, "")))
+                for (let i = 0; i < root.transfer.items.length; i++) {
+                    const raw = root.transfer.items[i].url.toString().replace(/^file:\/\//, "")
+                    // A name with a bare "%" ("100%.pdf") is not a valid
+                    // escape; keep it as it came rather than drop the import.
+                    let path = raw
+                    try { path = decodeURIComponent(raw) } catch (e) {}
+                    paths.push(path)
+                }
                 root.imported(paths)
                 root.done()
             } else if (root.transfer.state === ContentTransfer.Aborted) {
