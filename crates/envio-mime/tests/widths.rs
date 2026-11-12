@@ -68,6 +68,7 @@ fn width_attribute_wins_over_css() {
     let html = clean(r#"<table><tr><td width="20" style="width:40px">x</td></tr></table>"#);
     let td = tags(&html, "td")[0];
     assert_eq!(attr(td, "width"), Some("20"), "{td}");
+    assert_eq!(attr(td, "style"), None, "the CSS width goes too: {td}");
 }
 
 #[test]
@@ -78,6 +79,11 @@ fn other_units_are_not_carried() {
         ));
         let td = tags(&html, "td")[0];
         assert_eq!(attr(td, "width"), None, "{width}: {td}");
+        assert_eq!(
+            attr(td, "style"),
+            None,
+            "the CSS width goes too: {width}: {td}"
+        );
     }
 }
 
