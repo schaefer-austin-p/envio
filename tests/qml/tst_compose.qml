@@ -255,6 +255,22 @@ Item {
             compare(JSON.parse(mock.called("send").pop().args[1]).to, ["Bob <bob@example.org>", "last@example.org"])
         }
 
+        function test_bar_close_and_send_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_bar_close_and_send(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "")
+            compare(find("topBar").height, thm.barHeight)
+            const close = find("backButton")
+            compare(close.iconName, "close")
+            verify(close.width >= thm.touch && close.height >= thm.touch)
+            const send = find("sendButton")
+            compare(send.iconName, "send")
+            verify(send.width >= thm.touch && send.height >= thm.touch)
+            compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)
+        }
+
         function test_back_keeps_the_draft() {
             mock.composeReady(1, reply, "")
             mouseClick(find("backButton"))

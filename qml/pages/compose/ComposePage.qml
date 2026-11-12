@@ -135,6 +135,8 @@ Item {
         theme: root.theme
         width: parent.width
         showBack: true
+        backIcon: "close"
+        compact: true
         title: qsTr("Write")
         onBackClicked: root.leave()
         IconButton {
@@ -156,6 +158,7 @@ Item {
             objectName: "sendButton"
             theme: root.theme
             primary: true
+            iconName: "send"
             text: qsTr("Send")
             enabled: root.filled && !root.sending
             onClicked: root.send()

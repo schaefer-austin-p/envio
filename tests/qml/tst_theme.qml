@@ -164,4 +164,16 @@ TestCase {
         compare(theme.eyebrowCaps, true)
         fuzzyCompare(theme.eyebrowSpacing, 1.2, 0.001)
     }
+
+    function test_bar_roles() {
+        compare(theme.barHeight, theme.touch + theme.gu(1.5))
+        compare(theme.barTitleFont.pixelSize, 20)
+        compare(theme.barTitleCompactFont.pixelSize, 18)
+        theme.name = "airmail"
+        compare(theme.barHeight, theme.touch + theme.gu(1.5))
+        compare(theme.barTitleFont.pixelSize, 26)
+        compare(theme.barTitleCompactFont.pixelSize, 22)
+        compare(theme.barTitleFont.family, theme.fontTitle)
+        compare(theme.barTitleFont.weight, Font.DemiBold)
+    }
 }

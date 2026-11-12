@@ -58,6 +58,16 @@ Control {
     readonly property real iconSmall: gu(2)
     readonly property real iconButton: gu(2.5)
 
+    // Top bar (boards): a touch-high button row under 12 px of padding, no
+    // hairline. Titles: Carbon 20 mono, Airmail 26 Lora, both semibold; the
+    // compose bar's are 18 and 22.
+    readonly property real barPadTop: gu(1.5)
+    readonly property real barHeight: touch + barPadTop
+    readonly property font barTitleFont: Qt.font({ "family": fontTitle, "pixelSize": airmail ? 26 : 20,
+                                                   "weight": Font.DemiBold })
+    readonly property font barTitleCompactFont: Qt.font({ "family": fontTitle, "pixelSize": airmail ? 22 : 18,
+                                                          "weight": Font.DemiBold })
+
     // Shapes (boards: airmail-prompts, airmail-compose, carbon-*). Carbon
     // keeps what the components drew before; Airmail's controls are pills.
     // Buttons: 52 px high in both themes at gu 8. The Toast is a pill in
