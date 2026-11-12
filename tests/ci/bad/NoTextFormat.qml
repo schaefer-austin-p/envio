@@ -1,3 +1,4 @@
+// expect: Text without textFormat
 import QtQuick 2.15
 
 // Fixture: a Text without textFormat is AutoText, which renders markup in

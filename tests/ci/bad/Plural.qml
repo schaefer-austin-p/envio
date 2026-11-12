@@ -1,3 +1,4 @@
+// expect: qsTr with a count argument
 import QtQuick 2.15
 
 // Fixture for tools/ci/no-qml-plurals.sh: must be rejected.

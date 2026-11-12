@@ -1,3 +1,4 @@
+// expect: qsTr with a count argument
 import QtQuick 2.15
 
 // Fixture: the count is on a later line; must be rejected.
