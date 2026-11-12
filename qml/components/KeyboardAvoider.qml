@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
+import "keyboardRect.js" as KeyboardRect
 
 // Keeps the focused field of a Flickable above the on-screen keyboard: the
 // keyboard's overlap becomes the Flickable's bottom margin (so the content
@@ -12,7 +13,8 @@ Item {
     required property Flickable flickable
     // The keyboard in window coordinates. Tests set it; on the phone it is
     // Qt's.
-    property rect keyboard: Qt.inputMethod.keyboardRectangle
+    property rect keyboard: KeyboardRect.logical(Qt.inputMethod.keyboardRectangle,
+        Screen.width, Screen.devicePixelRatio)
     // Space kept between the field and the keyboard.
     property real gap: 16
     // For tests: how far the keyboard covers the Flickable.

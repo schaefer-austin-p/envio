@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/components/fileSize.js" as FileSize
+import "../../qml/components/keyboardRect.js" as KeyboardRect
 
 Item {
     id: root
@@ -334,6 +335,43 @@ Item {
             growBody.height = 0
         }
 
+        // #61: Ubuntu Touch reports the keyboard in device pixels.
+        function test_keyboard_rect_in_device_pixels_becomes_logical() {
+            const r = KeyboardRect.logical(Qt.rect(0, 1470, 1080, 822), 411.43, 2.625)
+            fuzzyCompare(r.x, 0, 0.01)
+            fuzzyCompare(r.y, 560, 0.01)
+            fuzzyCompare(r.width, 411.43, 0.01)
+            fuzzyCompare(r.height, 313.14, 0.01)
+        }
+
+        function test_keyboard_rect_already_logical_is_unchanged() {
+            const r = KeyboardRect.logical(Qt.rect(0, 500, 400, 200), 400, 1)
+            compare(r.y, 500)
+            compare(r.width, 400)
+            compare(r.height, 200)
+        }
+
+        // The phone's numbers: the page's bottom is at 863, the keyboard's top at 560.
+        function test_avoider_with_the_converted_phone_rect_overlaps() {
+            const kb = KeyboardRect.logical(Qt.rect(0, 1470, 1080, 822), 411.43, 2.625)
+            phoneAvoider.keyboard = kb
+            const bottom = phoneFlick.mapToItem(null, 0, phoneFlick.height).y
+            verify(bottom > kb.y)
+            verify(phoneAvoider.covered > 0, "covered " + phoneAvoider.covered)
+            fuzzyCompare(phoneAvoider.covered, Math.min(phoneFlick.height, bottom - kb.y), 0.01)
+            phoneAvoider.keyboard = Qt.rect(0, 0, 0, 0)
+        }
+
+        // A sheet whose parent does not start at window y 0 rests on the keyboard's top.
+        function test_sheet_inset_is_measured_in_window_coordinates() {
+            offsetSheet.keyboard = Qt.rect(0, 400, 400, 200)
+            const bottom = offsetParent.mapToItem(null, 0, offsetParent.height).y
+            fuzzyCompare(offsetSheet.keyboardInset, bottom - 400, 0.01)
+            verify(offsetSheet.keyboardInset > 0)
+            offsetSheet.keyboard = Qt.rect(0, 0, 0, 0)
+            compare(offsetSheet.keyboardInset, 0)
+        }
+
         function test_touch_targets_are_44() {
             const ib = createTemporaryObject(iconButtonComponent, root)
             verify(ib.width >= 44 && ib.height >= 44)
@@ -351,6 +389,22 @@ Item {
         TextArea { id: kbArea; y: 200; width: 280 }
         KeyboardAvoider { id: avoider; flickable: kbFlick }
     }
+
+    Flickable {
+        id: phoneFlick
+        y: 563
+        width: 300
+        height: 300
+        contentHeight: 1200
+        KeyboardAvoider { id: phoneAvoider; flickable: phoneFlick }
+    }
+    Item {
+        id: offsetParent
+        y: 100
+        width: 400
+        height: 400
+    }
+    Sheet { id: offsetSheet; theme: thm; parent: offsetParent }
 
     TextField { id: helper; width: 100; y: 600 }
     Component { id: fieldComponent; Field { theme: thm; width: 300; y: 300 } }
