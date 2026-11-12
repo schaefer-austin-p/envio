@@ -192,7 +192,7 @@ pub mod qobject {
         #[cxx_name = "clearSelection"]
         fn clear_selection(self: Pin<&mut EnvioCore>);
         #[qinvokable]
-        fn act(self: Pin<&mut EnvioCore>, action: &QString, folder: i64);
+        fn act(self: Pin<&mut EnvioCore>, action: &QString, folder: i64) -> bool;
         #[qinvokable]
         fn undo(self: Pin<&mut EnvioCore>, id: i64);
         #[qinvokable]

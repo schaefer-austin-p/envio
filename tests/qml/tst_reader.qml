@@ -300,6 +300,20 @@ Item {
             compare(backed.count, 1)
         }
 
+        function test_an_action_on_a_pruned_row_does_not_leave() {
+            open(view([], 0))
+            mock.reset()
+            mock.actRuns = false
+            mouseClick(find("act-archive"))
+            mock.actRuns = true
+            compare(backed.count, 0)
+            // The page asks again; the core answers if the message is gone.
+            compare(mock.called("open").length, 1)
+            mock.messageUnavailable(5, "That message is gone.")
+            waitForRendering(root.page)
+            compare(find("unavailableText").text, "That message is gone.")
+        }
+
         function test_move_cancel_leaves_no_selection() {
             open(view([], 0))
             mock.reset()

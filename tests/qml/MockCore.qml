@@ -77,7 +77,9 @@ Item {
     function more() { record("more", []) }
     function select(id, on) { record("select", [id, on]) }
     function clearSelection() { record("clearSelection", []) }
-    function act(action, folder) { record("act", [action, folder]) }
+    // False: the selected row is gone, nothing was acted on.
+    property bool actRuns: true
+    function act(action, folder) { record("act", [action, folder]); return actRuns }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }

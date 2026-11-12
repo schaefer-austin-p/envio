@@ -54,10 +54,15 @@ Item {
 
     // Archive and Delete leave the page (the inbox offers the Undo); the
     // other actions go to the core the way the inbox's selection bar does:
-    // this message is the selection.
+    // this message is the selection. When sync has pruned the row the
+    // action does not run: the page asks again, and the core answers with
+    // its unavailable notice if the message is gone.
     function act(action, leave) {
         core.select(messageId, true)
-        core.act(action, 0)
+        if (!core.act(action, 0)) {
+            load(false)
+            return
+        }
         if (leave) backRequested()
     }
     function compose(kind) {

@@ -158,14 +158,18 @@ impl qobject::EnvioCore {
         self.run(outs);
     }
 
-    pub fn act(mut self: Pin<&mut Self>, action: &QString, folder: i64) {
+    /// Act on the selection; false when there was nothing to act on (the
+    /// selected rows are gone from their lists).
+    pub fn act(mut self: Pin<&mut Self>, action: &QString, folder: i64) -> bool {
         let Some(action) = cv::user_action(&s(action), folder) else {
-            return;
+            return false;
         };
-        if let Some((command, outs)) = self.as_mut().rust_mut().ui.act_on_selection(action) {
-            self.as_mut().run(outs);
-            self.send_command(command);
-        }
+        let Some((command, outs)) = self.as_mut().rust_mut().ui.act_on_selection(action) else {
+            return false;
+        };
+        self.as_mut().run(outs);
+        self.send_command(command);
+        true
     }
 
     pub fn undo(self: Pin<&mut Self>, id: i64) {
