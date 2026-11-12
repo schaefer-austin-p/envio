@@ -28,10 +28,6 @@ enum KeeperMsg {
         compose: ComposeId,
         discard: bool,
     },
-    Attach {
-        compose: ComposeId,
-        path: PathBuf,
-    },
     Flush(Sender<()>),
     /// Look at the clock again: the book changed behind the thread's back.
     Wake,
@@ -41,6 +37,10 @@ enum KeeperMsg {
 pub(crate) struct DraftKeeper {
     tx: Sender<KeeperMsg>,
     thread: Option<JoinHandle<()>>,
+    /// Attachment copies, one at a time on their own thread (`envio-attach`)
+    /// so a big file never delays a text save. Not joined on drop: it ends
+    /// after the copy it is in, and a stuck source must not hold up quitting.
+    attach_tx: Sender<(ComposeId, PathBuf)>,
 }
 
 impl DraftKeeper {
@@ -50,12 +50,19 @@ impl DraftKeeper {
         book.set_waker(move || {
             let _ = waker.send(KeeperMsg::Wake);
         });
+        let (attach_tx, attach_rx) = channel();
+        let attach_book = Arc::clone(&book);
+        let attach_sink = Arc::clone(&sink);
+        thread::Builder::new()
+            .name("envio-attach".into())
+            .spawn(move || run_attach(&attach_book, &attach_rx, &*attach_sink))?;
         let thread = thread::Builder::new()
             .name("envio-drafts".into())
             .spawn(move || run(&book, &rx, &*sink))?;
         Ok(Self {
             tx,
             thread: Some(thread),
+            attach_tx,
         })
     }
 
@@ -72,7 +79,9 @@ impl DraftKeeper {
     }
 
     pub fn attach(&self, compose: ComposeId, path: PathBuf) {
-        self.post(KeeperMsg::Attach { compose, path });
+        if self.attach_tx.send((compose, path)).is_err() {
+            log::warn!("the attach thread has stopped; dropped an attachment");
+        }
     }
 
     /// Saves everything pending and waits for it, for at most 500 ms.
@@ -117,6 +126,19 @@ fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) {
     }
 }
 
+/// Copies the attachments in the order they were asked for. A panic fails
+/// that one attachment, not the ones after it.
+fn run_attach(book: &DraftBook, rx: &Receiver<(ComposeId, PathBuf)>, sink: &dyn EventSink) {
+    while let Ok((compose, path)) = rx.recv() {
+        let done = panic::catch_unwind(AssertUnwindSafe(|| {
+            emit_all(sink, book.attach(compose, &path));
+        }));
+        if done.is_err() {
+            log::error!("the attach thread panicked; going on");
+        }
+    }
+}
+
 /// One message (or due time) handled; false when the thread should end.
 fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> bool {
     {
@@ -132,7 +154,6 @@ fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> boo
             Ok(KeeperMsg::Close { compose, discard }) => {
                 emit_all(sink, book.close(compose, discard));
             }
-            Ok(KeeperMsg::Attach { compose, path }) => emit_all(sink, book.attach(compose, &path)),
             Ok(KeeperMsg::Flush(ack)) => {
                 emit_all(sink, book.flush_all());
                 let _ = ack.send(());

@@ -1,6 +1,7 @@
 //! What is saved and what waits to be: no threads, so it can be tested alone.
 //! The mutex is held for the bookkeeping and for the file write of one draft
-//! (small, a few ms), never across a network call.
+//! (small, a few ms), never across a network call and never while an
+//! attachment is copied (that can take as long as the file is big).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{self, AssertUnwindSafe};
@@ -196,26 +197,51 @@ impl DraftBook {
     /// Copies `path` into the compose's draft folder, first creating the
     /// draft when it has none. `Attached` or `AttachFailed`, after a
     /// `DraftSaved` when the draft was created.
+    ///
+    /// The copy runs without the state lock, so saves go on meanwhile. The
+    /// draft may be deleted or its message sent while it runs: then the lock
+    /// is taken again, the copy is dropped and the attach fails, so no entry
+    /// or file is left for a draft that is gone. (A crash mid-copy leaves a
+    /// partial file in the draft's folder; the next start's sweep only
+    /// removes folders of drafts that are gone, so that file stays until
+    /// the draft is deleted.)
     pub fn attach(&self, compose: ComposeId, path: &Path) -> Vec<Event> {
-        let mut st = self.lock();
-        let mut events = Vec::new();
         let failed = |text: String| Event::AttachFailed { compose, text };
-        if st.sent.contains(&compose) {
-            return vec![failed(text::compose::draft_not_saved())];
-        }
-        let id = match self.draft_for(&mut st, compose, &mut events) {
-            Ok(id) => id,
-            Err(text) => {
-                events.push(failed(text));
-                return events;
+        let (id, mut events) = {
+            let mut st = self.lock();
+            let mut events = Vec::new();
+            if st.sent.contains(&compose) {
+                return vec![failed(text::compose::draft_not_saved())];
+            }
+            match self.draft_for(&mut st, compose, &mut events) {
+                Ok(id) => (id, events),
+                Err(text) => {
+                    events.push(failed(text));
+                    return events;
+                }
             }
         };
         let name = path
             .file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-        let copy = self
-            .drafts()
-            .and_then(|drafts| drafts.keep_attachment(&id, path));
+        let drafts = self.drafts();
+        let copy = match &drafts {
+            Ok(drafts) => drafts.keep_attachment(&id, path),
+            Err(e) => Err(envio_store::StoreError::Io(std::io::Error::other(
+                e.to_string(),
+            ))),
+        };
+        let alive = {
+            let st = self.lock();
+            !st.sent.contains(&compose) && st.id_for(compose).as_deref() == Some(id.as_str())
+        };
+        if !alive {
+            if let Ok(drafts) = &drafts {
+                drafts.forget_copy(&id, copy.as_ref().ok().map(PathBuf::as_path));
+            }
+            events.push(failed(text::compose::draft_not_saved()));
+            return events;
+        }
         events.push(match copy {
             Ok(copy) => Event::Attached {
                 compose,
@@ -564,5 +590,68 @@ mod tests {
         book.changed(B, input("b"), 0);
         assert_eq!(book.next_due(), None);
         assert!(book.flush_all().is_empty());
+    }
+
+    #[test]
+    fn a_copy_does_not_hold_the_lock_and_a_draft_deleted_meanwhile_leaves_nothing() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let book = Arc::new(book(dir.path()));
+        // A named pipe: the copy blocks until the test writes to it.
+        let slow = dir.path().join("slow.bin");
+        assert!(
+            std::process::Command::new("mkfifo")
+                .arg(&slow)
+                .status()
+                .unwrap()
+                .success()
+        );
+        book.opened(A, "acct");
+        let copier = {
+            let (book, slow) = (Arc::clone(&book), slow.clone());
+            std::thread::spawn(move || book.attach(A, &slow))
+        };
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        // The state lock is free while the copy waits.
+        let (tx, rx) = std::sync::mpsc::channel();
+        {
+            let book = Arc::clone(&book);
+            std::thread::spawn(move || {
+                book.changed(B, input("other"), 0);
+                let events = book.save_due(DRAFT_SAVE_MS);
+                let flushed = book.flush(B);
+                let _ = tx.send((events, flushed));
+            });
+        }
+        let free = rx.recv_timeout(std::time::Duration::from_secs(2));
+        // The user discards the draft while its copy runs.
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let closer = {
+            let book = Arc::clone(&book);
+            std::thread::spawn(move || {
+                book.close(A, true);
+                let _ = done_tx.send(());
+            })
+        };
+        let discarded = done_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .is_ok();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&slow)
+            .unwrap()
+            .write_all(b"payload")
+            .unwrap();
+        let events = copier.join().unwrap();
+        closer.join().unwrap();
+        let (events_b, flushed) = free.expect("save_due or flush waited for the copy");
+        assert_eq!(saved(&events_b), 1);
+        assert!(flushed.unwrap().is_some());
+        assert!(discarded, "close waited for the copy");
+        assert!(matches!(events.last(), Some(Event::AttachFailed { .. })));
+        let files = dir.path().join("drafts").join("files");
+        assert_eq!(std::fs::read_dir(files).map_or(0, Iterator::count), 0);
+        // Only the other compose's draft is left.
+        assert_eq!(book.drafts().unwrap().list().unwrap().len(), 1);
     }
 }

@@ -134,6 +134,65 @@ fn file_count(dir: &Path) -> usize {
     std::fs::read_dir(dir).map_or(0, Iterator::count)
 }
 
+/// A named pipe: copying from it blocks until `release` writes, which is a
+/// copy of any length the test wants.
+fn slow_source(s: &S, name: &str) -> PathBuf {
+    let dir = s.h.dir.path().join("picked");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(&path)
+            .status()
+            .unwrap()
+            .success()
+    );
+    path
+}
+
+fn release(source: &Path, bytes: &[u8]) {
+    use std::io::Write;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(source)
+        .unwrap()
+        .write_all(bytes)
+        .unwrap();
+}
+
+#[test]
+fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
+    let s = started();
+    s.open_compose();
+    s.change(s.draft("typed"));
+    let slow = slow_source(&s, "big.bin");
+    s.h.send(Command::Attach {
+        compose: C,
+        path: slow.clone(),
+    });
+    // The copy is under way (it waits for the pipe's writer).
+    std::thread::sleep(Duration::from_millis(300));
+    let start = Instant::now();
+    s.change(s.draft("typed while copying"));
+    let limit = Duration::from_millis(SAVE_MS + 300);
+    let saved = s.wait_for_draft(limit, |d| d.body == "typed while copying");
+    s.change(s.draft("typed again"));
+    let flush_start = Instant::now();
+    s.h.send(Command::AppActive(false));
+    let flushed = flush_start.elapsed() < Duration::from_millis(300)
+        && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
+    let on_time = start.elapsed() < limit + Duration::from_millis(500);
+    // Let the copy end whatever the result, so nothing is left blocked.
+    release(&slow, b"payload");
+    let copy = s.h.wait(|e| match e {
+        Event::Attached { path, .. } => Some(path.clone()),
+        _ => None,
+    });
+    assert!(saved && on_time, "a text save waited for the copy");
+    assert!(flushed, "the flush waited for the copy");
+    assert_eq!(std::fs::read(copy).unwrap(), b"payload");
+}
+
 #[test]
 fn a_change_is_saved_while_the_worker_is_stalled() {
     let s = started();

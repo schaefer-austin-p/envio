@@ -159,6 +159,20 @@ impl Drafts {
         unreachable!("the loop only ends by returning")
     }
 
+    /// Drops a copy `keep_attachment` made for a draft that went meanwhile
+    /// (deleted or sent), and the draft's files folder when that is empty
+    /// now. Best effort: what is left, the next start's `sweep_files` takes
+    /// (it removes the folders of drafts that are gone).
+    pub fn forget_copy(&self, draft_id: &str, copy: Option<&Path>) {
+        if let Some(copy) = copy {
+            let _ = fs::remove_file(copy);
+        }
+        if check(draft_id).is_ok() {
+            // Fails when the folder is not empty or not there; both are fine.
+            let _ = fs::remove_dir(self.files_dir(draft_id));
+        }
+    }
+
     /// Deletes the copies of drafts that no longer exist (a crash between
     /// deleting a draft and its files); returns how many folders went. A
     /// damaged draft still has its file, so its copies stay.
