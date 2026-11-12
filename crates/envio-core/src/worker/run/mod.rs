@@ -100,7 +100,11 @@ pub(crate) async fn run_step(
     };
     if !matches!(&result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
         let changed = changed_folder(step, &mut session);
-        keep(worker, account, session, changed);
+        let open = worker
+            .live
+            .get(account)
+            .is_some_and(|live| keep_open(worker.foreground, step, &live.wants));
+        keep(worker, account, session, (changed, open));
     }
     result
 }
@@ -116,19 +120,30 @@ fn changed_folder(step: &Step, session: &mut ImapSession) -> Option<FolderId> {
 /// A session lives on unless the step broke it (a refusal doesn't). If the
 /// server reported a change while the step's folder was selected, that
 /// folder is synced again.
-fn keep(worker: &mut Worker<'_>, account: &str, session: ImapSession, changed: Option<FolderId>) {
+fn keep(
+    worker: &mut Worker<'_>,
+    account: &str,
+    session: ImapSession,
+    (changed, open): (Option<FolderId>, bool),
+) {
     if let Some(live) = worker.live.get_mut(account) {
         if let Some(id) = changed {
             live.wants.folders.insert(id);
         }
-        // In the background only a body the reader waits for is fetched:
-        // the connection is not kept.
-        live.conn = if worker.foreground {
+        live.conn = if open {
             Conn::Ready(session)
         } else {
             Conn::Closed
         };
     }
+}
+
+/// Whether the session stays open after `step`. In the foreground always. In
+/// the background only bodies the reader waits for are fetched: the session
+/// stays while another one is wanted (a burst shares one connection) and
+/// closes with the last.
+fn keep_open(foreground: bool, step: &Step, wants: &super::plan::Wants) -> bool {
+    foreground || matches!(step, Step::Body(id) if wants.bodies.iter().any(|other| other != id))
 }
 
 fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
@@ -285,5 +300,36 @@ mod tests {
             })
             .collect();
         assert_eq!(notices, [crate::text::notice::rebuild_failed()]);
+    }
+}
+
+#[cfg(test)]
+mod keep_tests {
+    use super::*;
+    use crate::worker::plan::Wants;
+    use envio_store::MessageRowId;
+
+    fn wanting(ids: &[i64]) -> Wants {
+        Wants {
+            bodies: ids.iter().map(|id| MessageRowId(*id)).collect(),
+            ..Wants::default()
+        }
+    }
+
+    #[test]
+    fn the_foreground_always_keeps_the_session() {
+        assert!(keep_open(true, &Step::Replay, &Wants::default()));
+    }
+
+    #[test]
+    fn a_background_burst_of_bodies_shares_a_session_and_closes_with_the_last() {
+        let two = wanting(&[1, 2]);
+        assert!(keep_open(false, &Step::Body(MessageRowId(1)), &two));
+        assert!(!keep_open(
+            false,
+            &Step::Body(MessageRowId(2)),
+            &wanting(&[2])
+        ));
+        assert!(!keep_open(false, &Step::Replay, &two));
     }
 }
