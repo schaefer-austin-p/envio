@@ -114,5 +114,10 @@ No row reacts to a swipe.
 | No swipe conflicts with edge gestures | Pass | Left edge opens the launcher, app unchanged after (`e05`). A horizontal drag on a row opens the message like a tap (`e02`); no row action. |
 | Unread count | Fail, then pass | On df69b78 the account and unified count stayed at the startup value after new or read mail (#75). On 0cb013c: opening an unread message takes the tab from 66 to 65 (`u02`), new mail brings it back to 66 (`u03`), and the drawer's Unified and Inbox agree (`u04`). |
 
+| Upgrade from an earlier build | Fail, then pass | On 2feec5e a phone that had run the earlier migration 0003 failed with "no such column: m.has_attachments", retried every second and flashed "Offline." (`v01`). On 7d8e6be (0003 restored, columns in 0004) the inbox loads, the log has no retries, and messages open (`v02`). |
+| Page transitions | Pass | Test build of 7d8e6be with the enter animation slowed to 40 s, linear (not committed). Opening a message: the inbox is gone at once while the reader fades in (`v03`). Back: the reader is gone while the inbox fades in (`v04`). |
+| The link sheet opens a link | Pass | On 7d8e6be: the sheet shows `https://example.com/ok` (`v05`); Open starts Morph Browser on that page under AppArmor (`v06`). |
+
 Screenshots are in `docs/phone-runs/0.1.0/`. Phone: Ubuntu Touch 24.04,
-build df69b78, throwaway Stalwart through `adb reverse`.
+build df69b78 (later rows: the build named in the row), throwaway Stalwart
+through `adb reverse`.
