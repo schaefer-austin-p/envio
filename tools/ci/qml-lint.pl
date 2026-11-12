@@ -117,6 +117,16 @@ for my $file (@ARGV) {
         $bad = 1;
     }
 
+    # A count role (unread, count) joined into text or given to .arg() is a
+    # count QML formats (#3): the number comes as text from Rust (unreadText,
+    # EnvioCore.countText). Arithmetic and comparisons are fine; only
+    # concatenation and .arg() are flagged, so a count passed through an
+    # alias or a helper function is not caught.
+    while ($code =~ /(?:\+(?!=)\s*[\w.\[\]]*\.(?:unread|count)\b(?![\w(])|[\w.\]]\.(?:unread|count)\b\s*\+(?![+=])|\.arg\(\s*[\w.\[\]]*\b(?:unread|count)\b(?![\w(]))/g) {
+        print "$file:" . line_of($code, $-[0]) . ": a count role in text (use the text role from Rust, e.g. unreadText)\n";
+        $bad = 1;
+    }
+
     # Swipe rows: no SwipeDelegate, leadingActions or trailingActions.
     while ($code =~ /\b(SwipeDelegate|leadingActions|trailingActions)\b/g) {
         print "$file:" . line_of($code, $-[0]) . ": $1 (no swipe actions on rows)\n";

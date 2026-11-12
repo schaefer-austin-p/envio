@@ -80,9 +80,9 @@ Item {
             core.messages.clear()
             core.outbox.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 3 })
+                                   status: "Up to date", state: "ok", unread: 3, unreadText: "3" })
             core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
-                                   status: "Up to date", state: "ok", unread: 0 })
+                                   status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             opened.clear()
             page.pendingInbox = ""
             find("undoToast", page).hide()
@@ -349,7 +349,7 @@ Item {
         }
         function addAccount() {
             shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                        status: "Up to date", state: "ok", unread: 0 })
+                                        status: "Up to date", state: "ok", unread: 0, unreadText: "" })
         }
 
         // The shell covers the page above while it is shown.
@@ -362,7 +362,7 @@ Item {
 
         function test_accounts_open_the_inbox() {
             shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                        status: "Up to date", state: "ok", unread: 0 })
+                                        status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })
         }

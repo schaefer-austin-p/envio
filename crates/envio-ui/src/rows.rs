@@ -13,6 +13,9 @@ pub struct AccountRow {
     /// "ok", "offline", "local", "auth", "pin", "broken" or "diskfull".
     pub state: String,
     pub unread: u32,
+    /// The count as the number's digits, empty for none: QML shows it
+    /// without formatting anything.
+    pub unread_text: String,
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
@@ -108,6 +111,7 @@ const ACCOUNT: &[&str] = &[
     "status",
     "state",
     "unread",
+    "unreadText",
     "pinService",
     "pinHost",
     "pinFingerprint",
@@ -158,6 +162,7 @@ impl Row {
             (Self::Account(r), "status") => s(&r.status),
             (Self::Account(r), "state") => s(&r.state),
             (Self::Account(r), "unread") => Int(r.unread.into()),
+            (Self::Account(r), "unreadText") => s(&r.unread_text),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
             (Self::Account(r), "pinFingerprint") => s(&r.pin.fingerprint),

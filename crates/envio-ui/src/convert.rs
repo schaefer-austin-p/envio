@@ -21,6 +21,11 @@ pub fn state_word(status: &AccountStatus) -> &'static str {
     }
 }
 
+/// The unread count for display: the digits, or nothing for zero.
+pub fn unread_text(n: u32) -> String {
+    if n == 0 { String::new() } else { n.to_string() }
+}
+
 pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
     let state = if info.broken {
         "broken"
@@ -34,6 +39,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         status: status_text.to_owned(),
         state: state.to_owned(),
         unread: info.unread,
+        unread_text: unread_text(info.unread),
         pin: Box::default(),
     }
 }

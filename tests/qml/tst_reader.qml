@@ -373,7 +373,7 @@ Item {
         function test_a_tap_in_the_shell_pushes_the_reader() {
             shell.visible = true
             shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                        status: "Up to date", state: "ok", unread: 0 })
+                                        status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             shellCore.ready = true
             const inbox = {}
             tryVerify(function() {

@@ -47,7 +47,7 @@ Item {
             objectName: "tab-" + model.key
             theme: root.theme
             // The count is a number beside the name, not counted prose.
-            text: model.unread > 0 ? model.name + "  " + model.unread : model.name
+            text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
             selected: root.current === model.key
             height: tabs.height
             onClicked: root.chosen(tab.model.key)

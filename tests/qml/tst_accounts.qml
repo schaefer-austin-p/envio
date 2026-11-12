@@ -56,7 +56,7 @@ Item {
             tryVerify(function() { return !sheet.visible })
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 0,
+                                   status: "Up to date", state: "ok", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
             updateClosed.clear()
@@ -160,7 +160,7 @@ Item {
         function pinRow() {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Certificate changed", state: "pin", unread: 0,
+                                   status: "Certificate changed", state: "pin", unread: 0, unreadText: "",
                                    pinService: "smtp", pinHost: "smtp.example.org", pinFingerprint: "AB:CD", pinHex: "abcd",
                                    pinText: "The server's certificate is not the one you trusted." })
             function buttons() { return certButtons() }
@@ -186,7 +186,7 @@ Item {
         function test_pin_row_without_details_has_no_button() {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "The server certificate needs your attention", state: "pin", unread: 0,
+                                   status: "The server certificate needs your attention", state: "pin", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinFingerprint: "", pinHex: "", pinText: "" })
             tryVerify(function() {
                 return everything(page, []).filter(function(o) { return o.objectName === "status" && o.visible && o.text.indexOf("attention") >= 0 }).length >= 1

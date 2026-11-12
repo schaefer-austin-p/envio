@@ -199,6 +199,26 @@ fn unread_updates_one_row_in_place() {
     };
     let Row::Account(b) = row else { panic!() };
     assert_eq!((*at, b.key.as_str(), b.unread), (1, "b", 7));
+    assert_eq!(b.unread_text, "7", "QML shows the count as given");
+    assert_eq!(
+        Row::Account(b.clone()).value("unreadText").map(text),
+        Some("7".into())
+    );
+    let outs = feed(
+        &mut ui,
+        Event::AccountUnread {
+            account: "b".into(),
+            unread: 0,
+        },
+    );
+    let Op::Update {
+        row: Row::Account(b),
+        ..
+    } = changes(&outs, Model::Accounts)[0]
+    else {
+        panic!()
+    };
+    assert_eq!(b.unread_text, "", "none shows nothing");
     // An account the app does not list changes nothing.
     let outs = feed(
         &mut ui,
@@ -208,4 +228,14 @@ fn unread_updates_one_row_in_place() {
         },
     );
     assert!(changes(&outs, Model::Accounts).is_empty());
+}
+
+fn text(v: envio_ui::RowValue) -> String {
+    match v {
+        envio_ui::RowValue::Str(s) => s,
+        other => panic!(
+            "not a string role: {}",
+            matches!(other, envio_ui::RowValue::Int(_))
+        ),
+    }
 }

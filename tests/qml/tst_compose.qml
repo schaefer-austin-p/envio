@@ -79,8 +79,8 @@ Item {
             mock.reset()
             mock.accounts.clear()
             mock.suggestions.clear()
-            mock.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0 })
-            mock.accounts.append({ key: "work", name: "Work", email: "ann@work.example", status: "", state: "ok", unread: 0 })
+            mock.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            mock.accounts.append({ key: "work", name: "Work", email: "ann@work.example", status: "", state: "ok", unread: 0, unreadText: "" })
             sent.clear()
             closed.clear()
             page.reset()
@@ -372,7 +372,7 @@ Item {
         }
 
         function test_mailto_waits_for_the_core_and_an_account() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0 })
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
             shell.visible = true
             tryVerify(function() { return shell.accountCount === 1 })
             shell.openMailto("mailto:bob@example.org?subject=Hi")

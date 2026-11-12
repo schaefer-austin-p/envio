@@ -9,7 +9,7 @@ Item {
     id: root
     required property Theme theme
     required property var core
-    // The accounts model (roles key, name, email, status, state, unread).
+    // The accounts model (roles key, name, email, status, state, unread, unreadText).
     required property var accounts
     property string current: ""
     property string currentName: ""

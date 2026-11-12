@@ -86,6 +86,7 @@ impl Ui {
             return Vec::new();
         };
         self.accounts[at].unread = unread;
+        self.accounts[at].unread_text = convert::unread_text(unread);
         let row = Row::Account(self.accounts[at].clone());
         vec![change(Model::Accounts, Op::Update { at, row })]
     }
