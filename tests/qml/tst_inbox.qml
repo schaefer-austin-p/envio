@@ -126,6 +126,26 @@ Item {
             compare(netRequests.count(), 0)
         }
 
+        function test_rows_follow_the_theme() {
+            core.messages.append(message(21))
+            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", subject: "Read",
+                                   preview: "", date: 0, dateBucket: "time", unread: false,
+                                   flagged: false, hasAttachments: false, selected: false })
+            waitForRendering(page)
+            const names = ["carbon", "airmail"]
+            for (let i = 0; i < 2; i++) {
+                thm.name = names[i]
+                const air = names[i] === "airmail"
+                const row = find("row-21", page)
+                compare(thm.showUnreadDot, !air)
+                compare(find("unreadDot", row).visible, !air)
+                compare(find("stamp", row).visible, air)
+                compare(find("rowSender", row).font.weight, thm.unreadWeight)
+                compare(find("rowSender", find("row-22", page)).font.weight, Font.Normal)
+            }
+            thm.name = "carbon"
+        }
+
         function test_tap_opens_the_message() {
             core.messages.append(message(11))
             waitForRendering(page)

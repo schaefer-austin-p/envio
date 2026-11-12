@@ -88,6 +88,13 @@ Control {
     readonly property real checkRadius: 4
     // Avatars: circles in Carbon, a small-cornered square in Airmail.
     function avatarRadius(size) { return airmail ? 4 : size / 2 }
+    // Carbon's avatar circle; Airmail's perforated stamp is 40 x 48 (boards).
+    readonly property real avatarSize: gu(5.5)
+    readonly property real stampWidth: 40
+    readonly property real stampHeight: 48
+    // Airmail's stamp stands in for the unread dot; unread rows are semibold.
+    readonly property bool showUnreadDot: !airmail
+    readonly property int unreadWeight: Font.DemiBold
 
     readonly property var roles: ({
         "carbon": {

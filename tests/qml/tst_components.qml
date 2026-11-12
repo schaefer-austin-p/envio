@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/components/fileSize.js" as FileSize
+import "../../qml/platform/stampTint.js" as StampTint
 
 Item {
     id: root
@@ -11,6 +12,7 @@ Item {
     height: 700
 
     Theme { id: thm }
+    Avatar { id: stamp; theme: thm; initials: "LU" }
 
     ListRow {
         id: row
@@ -70,6 +72,30 @@ Item {
                 break
             }
             return out
+        }
+
+        function test_stamp_tint_is_stable_per_address() {
+            compare(StampTint.isBlue("lucia@example.org"), StampTint.isBlue("LUCIA@example.org"))
+            compare(StampTint.isBlue("Lucia"), true)
+            compare(StampTint.isBlue("Ann"), false)
+        }
+        function test_stamp_initials() {
+            compare(StampTint.initials("Green Coast Trails"), "GC")
+            compare(StampTint.initials("lucia"), "L")
+            compare(StampTint.initials(""), "")
+        }
+        function test_avatar_is_a_circle_in_carbon_and_a_stamp_in_airmail() {
+            thm.name = "carbon"
+            compare(stamp.width, thm.avatarSize)
+            compare(stamp.height, thm.avatarSize)
+            compare(stamp.stampVisible, false)
+            thm.name = "airmail"
+            compare(stamp.width, thm.stampWidth)
+            compare(stamp.height, thm.stampHeight)
+            compare(thm.stampWidth, 40)
+            compare(thm.stampHeight, 48)
+            compare(stamp.stampVisible, true)
+            thm.name = "carbon"
         }
 
         function test_row_has_no_swipe() {
