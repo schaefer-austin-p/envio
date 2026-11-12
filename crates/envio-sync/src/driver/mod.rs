@@ -6,6 +6,7 @@
 mod account;
 mod actions;
 mod folders;
+mod older;
 mod outbox;
 mod replay;
 mod search;
@@ -13,6 +14,7 @@ mod search;
 pub use account::{AccountSynced, Unsent, has_due_mail, remove_account, sync_account, unsent};
 pub use actions::{Undo, record, undo};
 pub use folders::{BATCHES_PER_STEP, Synced, fetch_body, sync_folder, sync_folders};
+pub use older::{Older, load_older};
 pub use outbox::{Filed, Sent, file_sent, send_outbox};
 pub use replay::{Replayed, replay};
 pub use search::search_server;
