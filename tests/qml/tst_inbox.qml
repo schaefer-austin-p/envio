@@ -394,21 +394,48 @@ Item {
             core.folders.clear()
         }
 
-        function test_offline_banner_with_a_count_is_one_string() {
-            core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+        function test_offline_banner_asks_for_the_current_tab() {
             core.accounts.setProperty(1, "state", "offline")
-            tryVerify(function() { return find("offlineBanner", page).visible })
-            compare(find("offlineBanner", page).text, "Offline. waiting 1")
+            const banner = find("offlineBanner", page)
+            page.showUnified()
+            tryCompare(banner, "text", "offline bob |  | -1 | 0")
+            page.showAccount("bob")
+            tryCompare(banner, "text", "offline bob | bob | -1 | 0")
+            page.showFolder(7, "Archive")
+            tryCompare(banner, "text", "offline bob | folder | 7 | 0")
+            core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+            tryCompare(banner, "text", "offline bob | folder | 7 | 1")
+            page.showUnified()
             core.accounts.setProperty(1, "state", "ok")
-            core.outbox.clear()
         }
 
-        function test_offline_banner_shows() {
-            verify(!find("offlineBanner", page).visible)
+        function test_offline_banner_rereads_when_an_account_changes_state() {
+            page.showUnified()
+            const banner = find("offlineBanner", page)
+            verify(!banner.visible)
             core.accounts.setProperty(1, "state", "offline")
-            tryVerify(function() { return find("offlineBanner", page).visible })
+            tryCompare(banner, "text", "offline bob |  | -1 | 0")
+            // The offline count stays one, the account differs.
+            core.accounts.setProperty(0, "state", "offline")
             core.accounts.setProperty(1, "state", "ok")
-            tryVerify(function() { return !find("offlineBanner", page).visible })
+            tryCompare(banner, "text", "offline ann |  | -1 | 0")
+            core.accounts.setProperty(0, "state", "ok")
+            tryVerify(function() { return !banner.visible })
+        }
+
+        function test_outbox_banner_shows_when_no_offline_banner() {
+            page.showUnified()
+            const outbox = find("outboxBanner", page)
+            const offline = find("offlineBanner", page)
+            core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
+            tryVerify(function() { return outbox.visible })
+            verify(!offline.visible)
+            core.accounts.setProperty(1, "state", "offline")
+            tryVerify(function() { return offline.visible })
+            verify(!outbox.visible)
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return outbox.visible })
+            core.outbox.clear()
         }
 
         function test_outbox_banner_opens_the_outbox() {

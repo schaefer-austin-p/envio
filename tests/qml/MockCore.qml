@@ -112,6 +112,16 @@ Item {
         return linkViews[url] || { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                    "afterHost": url, "warning": "", "openable": true }
     }
+    // "" while no account is offline, else a tag of the arguments and of the
+    // offline accounts (the core words the real text).
+    function offlineText(tab, folder, waiting) {
+        record("offlineText", [tab, folder, waiting])
+        const keys = []
+        for (let i = 0; i < accounts.count; i++)
+            if (accounts.get(i).state === "offline") keys.push(accounts.get(i).key)
+        if (keys.length === 0) return ""
+        return "offline " + keys.join(",") + " | " + tab + " | " + folder + " | " + waiting
+    }
     function countText(kind, n) { return kind + " " + n }
     function dateBucket(unixSecs) { return "time" }
     function attachModel(model) { models.push(model) }
