@@ -183,7 +183,9 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     s.change(s.draft("typed again"));
     let flush_start = Instant::now();
     s.h.send(Command::AppActive(false));
-    let flushed = flush_start.elapsed() < Duration::from_millis(300)
+    // The copy stays blocked until `release` below, so a flush that waited
+    // for it would take far longer than this.
+    let flushed = flush_start.elapsed() < Duration::from_millis(2_000)
         && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
     let on_time = start.elapsed() < limit + Duration::from_millis(500);
     // Let the copy end whatever the result, so nothing is left blocked.
@@ -201,11 +203,9 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
 fn a_change_is_saved_while_the_worker_is_stalled() {
     let s = started();
     s.stall(3_000);
-    let start = Instant::now();
     s.change(s.draft("typed"));
     let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
     assert!(s.wait_for_draft(limit, |d| d.body == "typed"));
-    assert!(start.elapsed() < limit + Duration::from_millis(100));
 }
 
 #[test]

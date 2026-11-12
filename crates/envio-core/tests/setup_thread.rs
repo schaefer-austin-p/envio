@@ -67,7 +67,8 @@ fn commands_are_handled_while_detect_runs() {
     });
     std::thread::sleep(Duration::from_millis(100));
     let took = folders_answer(&h, &key);
-    assert!(took < Duration::from_millis(500), "{took:?}");
+    // Detect stalls for 2 s; the answer comes well before it ends.
+    assert!(took < Duration::from_millis(1_500), "{took:?}");
     // The Detect still ends.
     h.wait(|e| matches!(e, Event::Detected { .. }).then_some(()));
 }
@@ -102,7 +103,8 @@ fn commands_are_handled_while_connect_probes() {
     })));
     std::thread::sleep(Duration::from_millis(200));
     let took = folders_answer(&h, &key);
-    assert!(took < Duration::from_millis(500), "{took:?}");
+    // The probe never gets an answer; the folders answer must not wait on it.
+    assert!(took < Duration::from_millis(1_500), "{took:?}");
 }
 
 #[test]

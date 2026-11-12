@@ -418,12 +418,9 @@ fn accept_certificate_needs_the_presented_fingerprint() {
 
 #[test]
 fn a_broken_account_is_listed_and_not_connected() {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.set_nonblocking(true).unwrap();
-    let port = listener.local_addr().unwrap().port();
     let mut h = Harness::unstarted();
     h.foreground = true;
-    let broken = h.seed_account_at("broken@example.org", Some("pw"), port);
+    let broken = h.seed_account("broken@example.org", Some("pw"));
     let good = h.seed_account("good@example.org", Some("pw"));
     let path = h.paths().accounts();
     let text = std::fs::read_to_string(&path).unwrap();
@@ -444,9 +441,7 @@ fn a_broken_account_is_listed_and_not_connected() {
     assert!(matches!(info.status, AccountStatus::Broken(_)));
     assert!(!accounts.iter().find(|a| a.key == good).unwrap().broken);
     // The healthy one still syncs (tries to connect and goes offline).
-    // The store gives a broken entry no server (host "", port 0), so the
-    // listener can never see a dial. A wrongly connected broken account
-    // shows itself instead as a status other than Broken.
+    // A wrongly run broken account shows itself as a status other than Broken.
     let moved = std::cell::Cell::new(false);
     let watch = |e: &Event| {
         if status_of(&broken)(e).is_some_and(|s| !matches!(s, AccountStatus::Broken(_))) {
@@ -464,7 +459,6 @@ fn a_broken_account_is_listed_and_not_connected() {
         }
     }
     assert!(!moved.get(), "a broken account changed status: it ran");
-    assert!(listener.accept().is_err(), "connected a broken account");
 }
 
 #[test]
