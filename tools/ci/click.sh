@@ -17,10 +17,9 @@ out=build-click
 # shellcheck source=tools/ci/dind.sh
 source tools/ci/dind.sh
 
-# A cancelled run never reaches its trap: reap what earlier runs left behind.
-docker ps -aq --filter label=envio-ci=click | xargs -r docker rm -f >/dev/null
-
-c=$(docker create --label envio-ci=click --label "envio-ci-run=${GITHUB_RUN_ID:-local}" \
+# No reap of earlier runs' containers: two jobs can overlap on one daemon.
+# A cancelled run's container ends by itself when its sleep does (--rm).
+c=$(docker create --rm --label envio-ci=click --label "envio-ci-run=${GITHUB_RUN_ID:-local}" \
   "$image" sleep 7200)
 trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
 docker start "$c" >/dev/null
