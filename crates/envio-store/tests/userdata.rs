@@ -101,12 +101,26 @@ fn a_second_damaged_file_keeps_the_first() {
 }
 
 #[test]
-fn a_read_error_leaves_the_file_in_place() {
+fn a_file_that_cannot_be_read_is_moved_aside_not_overwritten() {
     let dir = tempfile::tempdir().unwrap();
     // A directory where the file should be: reading fails, not parsing.
     let path = dir.path().join("settings.json");
     fs::create_dir(&path).unwrap();
-    assert!(load_settings(&path).is_err());
-    assert!(path.is_dir());
-    assert!(!dir.path().join("settings.json.damaged").exists());
+    fs::write(path.join("keep"), b"x").unwrap();
+    assert_eq!(load_settings(&path).unwrap(), Settings::default());
+    assert!(
+        dir.path()
+            .join("settings.json.damaged")
+            .join("keep")
+            .exists()
+    );
+    // A later save writes a new file and leaves the damaged copy alone.
+    save_settings(&path, &Settings::default()).unwrap();
+    assert!(path.is_file());
+    assert!(
+        dir.path()
+            .join("settings.json.damaged")
+            .join("keep")
+            .exists()
+    );
 }

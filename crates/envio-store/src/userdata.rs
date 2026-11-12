@@ -60,9 +60,9 @@ pub struct Contact {
     pub address: String,
 }
 
-/// Missing file: defaults. A file that is read but does not parse: moved to
-/// `<name>.damaged` (or `.damaged.1`, … so an earlier one is kept), then
-/// defaults. A read error leaves the file in place and is returned.
+/// Missing file: defaults. A file that cannot be read or does not parse:
+/// moved to `<name>.damaged` (or `.damaged.1`, … so an earlier one is kept),
+/// then defaults. Moving it aside means a later save never writes over it.
 pub fn load_settings(path: &Path) -> Result<Settings> {
     load(path)
 }
@@ -87,7 +87,7 @@ fn load<T: serde::de::DeserializeOwned + Default>(path: &Path) -> Result<T> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(T::default()),
-        Err(error) => return Err(error.into()),
+        Err(_) => return set_aside(path),
     };
     match serde_json::from_slice(&bytes) {
         Ok(value) => Ok(value),
