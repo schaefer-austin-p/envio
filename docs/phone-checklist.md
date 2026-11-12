@@ -121,3 +121,19 @@ No row reacts to a swipe.
 Screenshots are in `docs/phone-runs/0.1.0/`. Phone: Ubuntu Touch 24.04,
 build df69b78 (later rows: the build named in the row), throwaway Stalwart
 through `adb reverse`.
+
+## Daily-use run (Plan 8b)
+
+| Item | Result | Evidence |
+| ---- | ------ | -------- |
+| Heavy HTML opens quickly (#88) | Pass | Two real Stripe-built messages (private, not committed). GUI-thread CPU per open: Link notice 0.19 s (was about 10 s), receipt 0.39 s. RSS after both: 214 and 229 MB, peak 238 MB (was 1.4 GB, peak 2.0 GB). The receipt's text column is still narrow: #90. |
+| Load older mail (#89) | Pass | The heidi inbox ends at "Load older messages" (`older-ready-*`); one tap loads back to 400 days, then "No older messages" (`older-done-*`). The loading state was too quick to catch against the local server. |
+| Sync window (#89) | Pass | Settings → Sync offers 30 days, 90 days, a year and all mail (`sync-window-*`). After "Last 90 days" the list reaches the 88-day message and the row is back to "Load older messages" (`after-90-days-*`). Search then says "Finds mail older than the 90 days kept here". |
+| Wizard busy state (#87) | Pass | "Looking up settings…" with a spinner in place of Continue (`wizard-email-busy-*`). The Servers and Sign-in steps finish too fast against the local server to catch. |
+| Rows and search (#73, #63) | Pass | Rows show the sender's name, and "(no sender)" and "(no subject)" for a bare message (`rows-placeholders-airmail`). Search opens with the field focused and the keyboard up (`search-open-airmail`). |
+| Trust prompt names the service (#62) | Pass | Wizard: "Can't verify the incoming mail server (IMAP)", then "…outgoing mail server (SMTP)" (`trust-imap-*`, `trust-smtp-airmail`). A changed pin on the Accounts page shows the same title with the old and new fingerprints (`pin-airmail`). |
+| Link sheet shows the real host (#76) | Pass | `https://xn--pypal-4ve.com/` with the host in bold, then "Displays as paypal.com, which may imitate another site" (`link-idn-*`). |
+
+Screenshots are in `docs/phone-runs/daily-use/`. The user's own account
+addresses are painted out or cropped. Phone: Ubuntu Touch 24.04, build
+3fe8913, throwaway Stalwart through `adb reverse`.
