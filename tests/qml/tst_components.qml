@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/components/fileSize.js" as FileSize
+import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/components/keyboardRect.js" as KeyboardRect
 
 Item {
@@ -12,6 +13,7 @@ Item {
     height: 700
 
     Theme { id: thm }
+    Avatar { id: stamp; theme: thm; initials: "LU" }
 
     ListRow {
         id: row
@@ -20,6 +22,18 @@ Item {
         Text { text: "Plans for the weekend" }
     }
     SignalSpy { id: rowClicked; target: row; signalName: "clicked" }
+    ListRow {
+        id: chevRow
+        theme: thm
+        // Shares the plain row's spot (nothing else is hit-testable lower
+        // down); the tests swap which of the two shows.
+        visible: false
+        width: 300
+        chevron: true
+        Text { text: "Appearance" }
+    }
+    SignalSpy { id: chevRowClicked; target: chevRow; signalName: "clicked" }
+    Chevron { id: lone; theme: thm; y: 300 }
     SignalSpy { id: rowHeld; target: row; signalName: "pressAndHold" }
 
     Toast { id: toast; theme: thm; width: 300 }
@@ -71,6 +85,108 @@ Item {
                 break
             }
             return out
+        }
+
+        function test_stamp_tint_is_stable_per_address() {
+            compare(StampTint.isBlue("lucia@example.org"), StampTint.isBlue("LUCIA@example.org"))
+            compare(StampTint.isBlue("Lucia"), true)
+            compare(StampTint.isBlue("Ann"), false)
+        }
+        function chevronOf(r) {
+            for (let i = 0; i < r.children.length; i++) {
+                const c = r.children[i]
+                if (c.objectName === "chevron") return c
+                for (let j = 0; j < c.children.length; j++)
+                    if (c.children[j].objectName === "chevron") return c.children[j]
+            }
+            return null
+        }
+        function test_chevron_is_the_small_icon_in_secondary() {
+            for (const look of ["carbon", "airmail"]) {
+                for (const dark of [false, true]) {
+                    thm.name = look
+                    thm.darkMode = dark ? "dark" : "light"
+                    compare(lone.width, thm.iconSmall)
+                    compare(lone.color, thm.secondary)
+                }
+            }
+            thm.name = "carbon"
+            thm.darkMode = "system"
+        }
+        function test_chevron_points_right_or_down_by_direction() {
+            compare(lone.direction, "forward")
+            compare(lone.name, "forward")
+            lone.direction = "down"
+            compare(lone.name, "down")
+            lone.direction = "forward"
+        }
+        function test_a_plain_row_has_no_chevron() {
+            compare(chevronOf(row), null)
+        }
+        function test_a_row_with_a_chevron_shows_it_at_the_trailing_edge() {
+            row.visible = false
+            chevRow.visible = true
+            const c = chevronOf(chevRow)
+            verify(c !== null)
+            verify(c.visible)
+            verify(c.width > 0)
+            verify(c.mapToItem(chevRow, 0, 0).x + c.width <= chevRow.width)
+            verify(c.mapToItem(chevRow, 0, 0).x > chevRow.width / 2)
+            compare(c.color, thm.secondary)
+            chevRow.visible = false
+            row.visible = true
+        }
+        function test_the_chevron_is_decoration_the_row_takes_the_tap() {
+            row.visible = false
+            chevRow.visible = true
+            const c = chevronOf(chevRow)
+            verify(c !== null)
+            chevRowClicked.clear()
+            mouseClick(chevRow, 10, 10)
+            compare(chevRowClicked.count, 1, "the row itself takes a tap")
+            chevRowClicked.clear()
+            const p = c.mapToItem(chevRow, c.width / 2, c.height / 2)
+            mouseClick(chevRow, p.x, p.y)
+            compare(chevRowClicked.count, 1)
+            chevRow.visible = false
+            row.visible = true
+        }
+        function test_stamp_tint_comes_from_the_address() {
+            compare(StampTint.addressOf("Ann <a@x.org>"), "a@x.org")
+            compare(StampTint.addressOf("  A@X.org "), "a@x.org")
+            const t = StampTint.isBlue(StampTint.addressOf("a@x.org"))
+            compare(StampTint.isBlue(StampTint.addressOf("Ann <a@x.org>")), t)
+            compare(StampTint.isBlue(StampTint.addressOf("Ann Lee <A@X.org>")), t)
+            compare(StampTint.initials("Ann Lee <a@x.org>"), "AL")
+        }
+        function test_stamp_mask_has_holes_on_the_edge() {
+            thm.name = "airmail"
+            const canvas = findChild(stamp, "stampCanvas")
+            const alpha = function(x, y) { return canvas.getContext("2d").getImageData(x, y, 1, 1).data[3] }
+            tryVerify(function() { return alpha(20, 24) > 0 })
+            compare(alpha(8, 0), 0)
+            compare(alpha(0, 8), 0)
+            verify(alpha(4, 0) > 0)
+            verify(alpha(4, 4) > 0)
+            thm.name = "carbon"
+        }
+        function test_stamp_initials() {
+            compare(StampTint.initials("Green Coast Trails"), "GC")
+            compare(StampTint.initials("lucia"), "L")
+            compare(StampTint.initials(""), "")
+        }
+        function test_avatar_is_a_circle_in_carbon_and_a_stamp_in_airmail() {
+            thm.name = "carbon"
+            compare(stamp.width, thm.avatarSize)
+            compare(stamp.height, thm.avatarSize)
+            compare(stamp.stampVisible, false)
+            thm.name = "airmail"
+            compare(stamp.width, thm.stampWidth)
+            compare(stamp.height, thm.stampHeight)
+            compare(thm.stampWidth, 40)
+            compare(thm.stampHeight, 48)
+            compare(stamp.stampVisible, true)
+            thm.name = "carbon"
         }
 
         function test_row_has_no_swipe() {
@@ -360,6 +476,26 @@ Item {
             verify(phoneAvoider.covered > 0, "covered " + phoneAvoider.covered)
             fuzzyCompare(phoneAvoider.covered, Math.min(phoneFlick.height, bottom - kb.y), 0.01)
             phoneAvoider.keyboard = Qt.rect(0, 0, 0, 0)
+        }
+
+        // A sheet taller than the window keeps clear of the ring's top band in
+        // Airmail (y >= frameInset); Carbon's inset is 0, so it may reach 0.
+        function test_tall_sheet_keeps_the_ring_top_band_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_tall_sheet_keeps_the_ring_top_band(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            growSheet.open()
+            tryVerify(function() { return growSheet.opened })
+            growBody.height = 3000
+            tryVerify(function() { return growSheet.height > growSheet.parent.height })
+            verify(growSheet.y >= thm.frameInset, "y " + growSheet.y)
+            if (data.airmail) compare(growSheet.y, thm.frameInset)
+            else compare(growSheet.y, 0)
+            growSheet.close()
+            tryVerify(function() { return !growSheet.visible })
+            growBody.height = 0
+            thm.name = "carbon"
         }
 
         // A sheet whose parent does not start at window y 0 rests on the keyboard's top.

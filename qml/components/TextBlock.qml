@@ -32,8 +32,8 @@ Rectangle {
         color: root.theme.text
         selectionColor: root.theme.tintB
         selectedTextColor: root.theme.text
-        font.family: root.theme.fontUi
-        font.pixelSize: 16
+        font.family: root.theme.fontBody
+        font.pixelSize: root.theme.bodySize
 
         Text {
             id: hint

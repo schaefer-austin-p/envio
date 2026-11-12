@@ -37,7 +37,7 @@ Column {
     Rectangle {
         width: root.width
         height: root.theme.touch
-        radius: root.theme.gu(1)
+        radius: root.theme.fieldRadius
         color: root.framed ? root.theme.surface : "transparent"
         border.width: !root.framed ? 0 : input.activeFocus ? 2 : 1
         border.color: input.activeFocus ? root.theme.primary : root.theme.field

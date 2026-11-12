@@ -81,6 +81,8 @@ Item {
     // For tests: the page on top and how many there are.
     readonly property Item currentPage: stack.currentItem
     readonly property int depth: stack.depth
+    // The ring's inside, where pages, sheets, dialogs and the problem page lie.
+    readonly property Item frameArea: frame.area
 
     // Compose pages: the core made the compose, the page follows it.
     function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
@@ -113,30 +115,50 @@ Item {
     // The page that leaves is hidden at once; the new one slides in a little
     // and fades in. The style's own transitions keep both pages (whose roots
     // are transparent) on screen together for about half a second.
-    StackView {
-        id: stack
+    AirmailFrame {
+        id: frame
+        theme: root.theme
         anchors.fill: parent
-        readonly property int enterMs: 150
-        readonly property int enterShift: 24
+        StackView {
+            id: stack
+            anchors.fill: parent
+            readonly property int enterMs: 150
+            readonly property int enterShift: 24
 
-        pushEnter: Transition {
-            ParallelAnimation {
+            pushEnter: Transition {
+                ParallelAnimation {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                    NumberAnimation { property: "x"; from: stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                }
+            }
+            pushExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+            popEnter: Transition {
+                ParallelAnimation {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                    NumberAnimation { property: "x"; from: -stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
+                }
+            }
+            popExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+            replaceEnter: Transition {
                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "x"; from: stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
+            }
+            replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
+        }
+
+        ProblemPage {
+            anchors.fill: parent
+            z: 10
+            visible: root.problem !== ""
+            theme: root.theme
+            text: root.problem
+            busy: root.retrying
+            // The page stays up, busy, until the core is ready or reports again.
+            onRetry: {
+                root.retrying = true
+                root.core.start()
+                root.core.refresh("")
             }
         }
-        pushExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
-        popEnter: Transition {
-            ParallelAnimation {
-                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
-                NumberAnimation { property: "x"; from: -stack.enterShift; to: 0; duration: stack.enterMs; easing.type: Easing.OutCubic }
-            }
-        }
-        popExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
-        replaceEnter: Transition {
-            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: stack.enterMs; easing.type: Easing.OutCubic }
-        }
-        replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
     }
 
     Component {
@@ -278,22 +300,7 @@ Item {
         objectName: "sentToast"
         theme: root.theme
         z: 5
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.gu(2) }
-    }
-
-    ProblemPage {
-        anchors.fill: parent
-        z: 10
-        visible: root.problem !== ""
-        theme: root.theme
-        text: root.problem
-        busy: root.retrying
-        // The page stays up, busy, until the core is ready or reports again.
-        onRetry: {
-            root.retrying = true
-            root.core.start()
-            root.core.refresh("")
-        }
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.frameInset + root.theme.gu(2) }
     }
 
     Connections {

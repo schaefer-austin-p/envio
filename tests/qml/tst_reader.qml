@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtTest 1.2
 import "../../qml/platform"
+import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
 import "../../qml/pages/reader"
 
@@ -10,6 +11,7 @@ Item {
     height: 700
 
     Theme { id: thm }
+    Component { id: metricsComponent; TextMetrics {} }
     MockCore { id: mock }
     property var openedUrls: []
     property var exported: []
@@ -125,10 +127,171 @@ Item {
 
         function test_shows_the_header_and_body() {
             open(view([], 0))
-            compare(find("bodyText").text, "<p>Hello</p>")
+            compare(find("bodyText").text, "<style>a{color:" + String(thm.link) + "}</style><p>Hello</p>")
             compare(find("bodyText").textFormat, Text.RichText)
             verify(!shown("imagesBanner"))
             compare(find("headerSubject").text, "Invoice 0042")
+        }
+
+        function test_body_links_use_the_theme_link_colour_data() {
+            return [
+                { tag: "carbon light", airmail: false, dark: false, want: "#B8342C" },
+                { tag: "carbon dark", airmail: false, dark: true, want: "#E36A60" },
+                { tag: "airmail light", airmail: true, dark: false, want: "#1F3A5F" },
+                { tag: "airmail dark", airmail: true, dark: true, want: "#A9C1E3" }
+            ]
+        }
+
+        // #74: no board shows a body link, so Carbon uses accent and Airmail
+        // its heading blue; Qt's default #0000FF must never show.
+        function test_body_links_use_the_theme_link_colour(data) {
+            open(view([], 0))
+            thm.name = data.airmail ? "airmail" : "carbon"
+            thm.darkMode = data.dark ? "dark" : "light"
+            compare(String(thm.link).toUpperCase(), data.want)
+            verify(find("bodyText").text.indexOf("<style>a{color:" + String(thm.link) + "}</style>") === 0)
+            thm.name = "carbon"
+            thm.darkMode = "system"
+        }
+
+        function test_header_stamp_is_airmail_only() {
+            open(view([], 0))
+            compare(find("headerStamp").item, null)
+            thm.name = "airmail"
+            verify(find("headerStamp").item !== null)
+            compare(find("headerSender").text, "Ana Ruiz")
+            compare(find("headerSender").font.family, thm.fontLabel)
+            thm.name = "carbon"
+            compare(find("headerStamp").item, null)
+        }
+
+        // A sender with no display name is a bare address: mono, so rn/m stay distinct.
+        function test_airmail_bare_address_sender_uses_the_address_font() {
+            const v = view([], 0)
+            v.from = "ceo@acrne-corp.com"
+            open(v)
+            thm.name = "airmail"
+            compare(find("headerSender").font.family, thm.fontAddress)
+            verify(thm.fontAddress !== thm.fontLabel)
+            thm.name = "carbon"
+        }
+
+        function has(name) {
+            return everything(root.page, []).some(function(o) { return o.objectName === name })
+        }
+
+        function test_airmail_header_stamp_row_sits_below_the_title() {
+            open(view([], 0))
+            thm.name = "airmail"
+            waitForRendering(root.page)
+            const title = find("headerSubject")
+            const stampRow = find("headerStamp")
+            const y = stampRow.mapToItem(title, 0, 0).y
+            verify(y >= title.height, "the stamp row at " + y + " overlaps the title of height " + title.height)
+            // The table starts below the stamp row, and its From row is gone.
+            verify(!has("header-From"))
+            verify(has("header-To"))
+            compare(find("headerAddress").text, "ana@example.org")
+            compare(find("headerAddress").font.family, thm.fontAddress)
+            const table = find("header-To").parent.parent.parent
+            verify(table.mapToItem(title, 0, 0).y >= y + thm.stampHeight)
+            thm.name = "carbon"
+        }
+
+        // M1: a long (spoofed) address keeps its domain end visible.
+        function test_long_airmail_address_keeps_its_domain() {
+            const v = view([], 0)
+            v.fromAddress = "paypal.com-account-security-verification-team@evil.ru"
+            open(v)
+            thm.name = "airmail"
+            waitForRendering(root.page)
+            const a = find("headerAddress")
+            compare(a.text, v.fromAddress)
+            const m = createTemporaryObject(metricsComponent, root,
+                { font: a.font, elide: a.elide, elideWidth: 200, text: a.text })
+            verify(m.elidedText !== a.text, "elided: " + m.elidedText)
+            verify(m.elidedText.endsWith("@evil.ru"), "shows " + m.elidedText)
+            thm.name = "carbon"
+        }
+
+        // M3: a sender whose address is empty (bidi-spoofed) gets the row's colour.
+        function test_header_stamp_colour_matches_the_row_for_an_empty_address() {
+            const names = ['"PayPal" <service@lapyap.evil>', "Ana Ruiz <ana@example.org>",
+                           "Bob <bob@example.org>", "Cy <cy@x.org>", "Di <di@y.net>", "Ed <ed@z.io>"]
+            for (let i = 0; i < names.length; i++) {
+                const v = view([], 0)
+                v.from = names[i]
+                v.fromAddress = ""
+                open(v)
+                thm.name = "airmail"
+                waitForRendering(root.page)
+                const avatar = find("headerStamp").item.children[0]
+                compare(avatar.blue, StampTint.isBlue(StampTint.addressOf(v.from)), names[i])
+                thm.name = "carbon"
+            }
+        }
+
+        function test_header_addresses_use_the_address_font_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_header_addresses_use_the_address_font(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            const v = view([], 0)
+            v.to = ["me@example.org", "Bob <bob@example.org>"]
+            v.cc = ["cc@example.org"]
+            open(v)
+            compare(find("header-To").font.family, thm.fontAddress)
+            compare(find("header-Cc").font.family, thm.fontAddress)
+            // A row without an address stays in the label font.
+            compare(find("header-Account").font.family, thm.fontLabel)
+        }
+
+        function test_airmail_header_drops_only_the_from_row() {
+            thm.name = "airmail"
+            open(view([], 0))
+            verify(!shown("header-From"))
+            verify(shown("header-To") && shown("header-Date") && shown("header-Account"))
+        }
+
+        function test_carbon_header_is_unchanged() {
+            open(view([], 0))
+            thm.name = "carbon"
+            waitForRendering(root.page)
+            const title = find("headerSubject")
+            compare(title.y, 0)
+            const from = find("header-From")
+            verify(from.visible)
+            // The title, then gu(1.5), then the table: hairline, gu(1), rows.
+            const table = from.parent.parent.parent
+            compare(table.y, title.height + thm.gu(1.5))
+            compare(from.parent.y, thm.gu(1))
+            verify(!has("headerAddress"))
+        }
+
+        function test_body_takes_the_body_roles_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_body_takes_the_body_roles(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            open(view([], 0))
+            const body = find("bodyText")
+            compare(body.font.family, thm.fontBody)
+            compare(body.font.pixelSize, thm.bodySize)
+            compare(body.lineHeight, thm.bodyLineHeight)
+            thm.name = "carbon"
+        }
+
+        function test_link_parts_keep_mono_under_airmail() {
+            thm.name = "airmail"
+            open(view([], 0))
+            const url = "https://bank.example@evil.example/login"
+            mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
+                                    "punycode": "", "afterHost": "/login", "openable": true, "warning": "" }
+            find("bodyText").linkActivated(url)
+            tryVerify(function() { return find("linkSheet").opened })
+            for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
+                compare(find(name).font.family, thm.fontMono, name)
+            thm.name = "carbon"
         }
 
         function test_images_banner_loads_images() {

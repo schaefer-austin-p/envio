@@ -128,6 +128,7 @@ Item {
         onContinued: root.submit()
     }
     ServersStep {
+        objectName: "serversStep"
         id: servers
         theme: root.theme
         anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }

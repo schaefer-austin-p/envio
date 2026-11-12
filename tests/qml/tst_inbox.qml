@@ -89,6 +89,24 @@ Item {
             find("noticeToast", page).hide()
             waitForRendering(page)
         }
+        function test_folder_group_rows_have_a_chevron_but_leaf_rows_do_not() {
+            core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            const bob = find("account-bob", page)
+            tryVerify(function() { return find("chevron", ann).visible })
+            verify(find("chevron", bob).visible)
+            // The open group points down, a closed one right.
+            compare(find("chevron", ann).name, "down")
+            compare(find("chevron", bob).name, "forward")
+            verify(!has("chevron", find("folder-9", page)))
+            verify(!has("chevron", find("outboxRow", page)))
+            // Close the drawer again: it is the ancestor that has a closeRequested signal.
+            let drawer = ann
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            drawer.visible = false
+        }
+
         function test_tab_switch_opens_the_list() {
             mouseClick(find("tab-all", page))
             compare(core.called("openList").pop().args, ["inboxes", 0])
@@ -124,6 +142,26 @@ Item {
             waitForRendering(page)
             wait(500)
             compare(netRequests.count(), 0)
+        }
+
+        function test_rows_follow_the_theme() {
+            core.messages.append(message(21))
+            core.messages.append({ id: 22, account: "ann", accountName: "Ann", from: "Ann", subject: "Read",
+                                   preview: "", date: 0, dateBucket: "time", unread: false,
+                                   flagged: false, hasAttachments: false, selected: false })
+            waitForRendering(page)
+            const names = ["carbon", "airmail"]
+            for (let i = 0; i < 2; i++) {
+                thm.name = names[i]
+                const air = names[i] === "airmail"
+                const row = find("row-21", page)
+                compare(thm.showUnreadDot, !air)
+                compare(find("unreadDot", row).visible, !air)
+                compare(find("stamp", row).item !== null, air)
+                compare(find("rowSender", row).font.weight, thm.unreadWeight)
+                compare(find("rowSender", find("row-22", page)).font.weight, Font.Normal)
+            }
+            thm.name = "carbon"
         }
 
         function test_tap_opens_the_message() {

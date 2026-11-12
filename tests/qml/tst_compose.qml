@@ -86,6 +86,22 @@ Item {
             page.reset()
         }
 
+        function test_body_and_quote_take_the_body_roles_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_body_and_quote_take_the_body_roles(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
+            const input = find("textBlockInput")
+            compare(input.font.family, thm.fontBody)
+            compare(input.font.pixelSize, thm.bodySize)
+            const quote = find("quoteText")
+            compare(quote.font.family, thm.fontBody)
+            compare(quote.font.pixelSize, thm.bodySize - 2)
+            compare(quote.lineHeight, thm.bodyLineHeight)
+            thm.name = "carbon"
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
             compare(find("to").entries, ["Bob <bob@example.org>"])
@@ -155,6 +171,19 @@ Item {
             compare(find("to").input.text, "")
             compare(lastDraft().to, ["Bob <bob@example.org>"])
             verify(!shown("suggestion-0"), "the list closes")
+        }
+
+        function test_suggestion_address_uses_the_address_font_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_suggestion_address_uses_the_address_font(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
+            find("to").input.text = "bo"
+            tryVerify(function() { return shown("suggestion-0") }, 2000)
+            compare(find("suggestionAddress-0").font.family, thm.fontAddress)
         }
 
         function test_an_answer_to_an_earlier_query_is_not_shown() {
@@ -237,6 +266,28 @@ Item {
             find("to").input.text = "last@example.org"
             mouseClick(find("sendButton"))
             compare(JSON.parse(mock.called("send").pop().args[1]).to, ["Bob <bob@example.org>", "last@example.org"])
+        }
+
+        function test_bar_close_and_send_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_bar_close_and_send(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "")
+            compare(find("topBar").height, thm.barHeight)
+            const close = find("backButton")
+            compare(close.iconName, "close")
+            verify(close.width >= thm.touch && close.height >= thm.touch)
+            const send = find("sendButton")
+            compare(send.iconName, "send")
+            compare(send.background.height, thm.compactControlHeight)
+            const bar = find("topBar")
+            const top = send.mapToItem(bar, 0, 0).y
+            verify(top >= 0 && top + send.height <= bar.height,
+                   "send target " + top + ".." + (top + send.height) + " in bar " + bar.height)
+            verify(send.mapToItem(bar, send.width, 0).x <= bar.width - thm.gu(1.5), "right inset")
+            verify(send.width >= thm.touch && send.height >= thm.touch)
+            compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)
         }
 
         function test_back_keeps_the_draft() {
@@ -342,6 +393,26 @@ Item {
             mouseClick(find("account-work"))
             compare(find("fromValue").text, "ann@work.example")
             compare(lastDraft().account, "work")
+        }
+
+        function chevronIn(item) {
+            return everything(item, []).filter(function(o) { return o.objectName === "chevron" })[0]
+        }
+        function test_from_row_shows_a_down_chevron_when_it_opens_a_picker() {
+            mock.composeReady(1, reply, "")
+            const row = find("fromRow")
+            const c = chevronIn(row)
+            verify(c !== undefined)
+            verify(c.visible)
+            verify(c.width > 0)
+            compare(c.name, "down")
+            compare(c.color, thm.secondary)
+            verify(c.mapToItem(row, 0, 0).x + c.width <= row.width)
+        }
+        function test_from_row_has_no_chevron_with_one_account() {
+            mock.accounts.remove(1)
+            mock.composeReady(1, reply, "")
+            tryVerify(function() { return chevronIn(find("fromRow")) === undefined })
         }
 
         // Phone shots: the From label and the suggestion text sat at x=0, and the

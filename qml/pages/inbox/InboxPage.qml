@@ -223,17 +223,14 @@ Item {
         onMessageRequested: root.messageRequested(message)
     }
 
-    Rectangle {
+    PageFooter {
         id: footer
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
-        height: newMessage.height + root.theme.gu(3)
-        color: root.theme.ground
-        Rectangle { width: parent.width; height: 1; color: root.theme.hairline }
+        theme: root.theme
         AppButton {
             id: newMessage
             objectName: "newMessage"
             theme: root.theme
-            anchors { left: parent.left; right: parent.right; margins: root.theme.gu(2); verticalCenter: parent.verticalCenter }
+            width: parent.width
             primary: true
             iconName: "pencil"
             text: qsTr("New message")

@@ -22,7 +22,7 @@ AbstractButton {
         verticalAlignment: Text.AlignVCenter
         color: root.theme.airmail ? (root.selected ? root.theme.heading : root.theme.secondary)
                                   : (root.selected ? root.theme.primaryText : root.theme.text)
-        font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
+        font.family: root.theme.fontLabel
         font.pixelSize: root.theme.airmail ? 15 : 13
         font.weight: root.selected ? Font.DemiBold : Font.Medium
     }
@@ -30,7 +30,7 @@ AbstractButton {
         Rectangle {
             visible: !root.theme.airmail
             anchors.fill: parent
-            radius: 6
+            radius: root.theme.chipRadius
             color: root.selected ? root.theme.primary : "transparent"
             border.width: 1
             border.color: root.selected ? root.theme.primary : root.theme.field

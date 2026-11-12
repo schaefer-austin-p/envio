@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../platform/stampTint.js" as StampTint
 
 // One message in the list (board 1; board 9 in selection mode, where a
 // checkbox takes the unread dot's place). No swipe: tap opens, long-press
@@ -19,12 +20,13 @@ ListRow {
 
     // The slot: an 8 px dot, or the checkbox.
     Rectangle {
-        x: root.theme.gu(2)
-        y: root.theme.gu(1.75) + (root.selecting ? 2 : 7)
+        objectName: "unreadDot"
+        x: root.theme.gu(2) + (root.theme.airmail ? (root.theme.stampWidth - width) / 2 : 0)
+        y: root.theme.gu(1.75) + (root.selecting ? (root.theme.airmail ? 13 : 2) : 7)
         width: root.selecting ? 22 : 8
         height: width
-        radius: 4
-        visible: root.selecting || root.model.unread
+        radius: root.selecting ? root.theme.checkRadius : width / 2
+        visible: root.selecting || (root.theme.showUnreadDot && root.model.unread)
         color: root.selecting ? (root.model.selected ? root.theme.primary : "transparent") : root.theme.accent
         border.width: root.selecting ? (root.model.selected ? 0 : 2) : 0
         border.color: root.theme.field
@@ -37,9 +39,22 @@ ListRow {
             anchors.centerIn: parent
         }
     }
+    // Airmail: the sender's stamp (the checkbox replaces it while selecting).
+    Loader {
+        objectName: "stamp"
+        active: root.theme.airmail
+        visible: !root.selecting
+        x: root.theme.gu(2)
+        y: root.theme.gu(1.75)
+        sourceComponent: Avatar {
+            theme: root.theme
+            initials: StampTint.initials(root.model.from)
+            blue: StampTint.isBlue(StampTint.addressOf(root.model.from))
+        }
+    }
     Column {
         id: col
-        x: root.theme.gu(2) + 22 + root.theme.gu(1.5)
+        x: root.theme.gu(2) + (root.theme.airmail ? root.theme.stampWidth : 22) + root.theme.gu(1.5)
         y: root.theme.gu(1.75)
         width: parent.width - x - root.theme.gu(2)
         spacing: 3
@@ -49,13 +64,14 @@ ListRow {
             Text {
                 textFormat: Text.PlainText
                 id: sender
+                objectName: "rowSender"
                 anchors { left: parent.left; right: tail.left; rightMargin: root.theme.gu(1) }
                 text: root.model.from
                 elide: Text.ElideRight
                 color: root.theme.heading
-                font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 14
-                font.weight: root.model.unread ? Font.DemiBold : Font.Normal
+                font.weight: root.model.unread ? root.theme.unreadWeight : Font.Normal
             }
             Row {
                 id: tail
@@ -114,7 +130,7 @@ ListRow {
             text: root.model.accountName.toUpperCase()
             elide: Text.ElideRight
             color: root.theme.secondary
-            font.family: root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 11
             font.letterSpacing: 0.5
         }

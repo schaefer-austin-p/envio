@@ -36,7 +36,7 @@ Item {
             textFormat: Text.PlainText
             text: BuildInfo.version
             color: root.theme.text
-            font.family: root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 15
         }
         Text {
@@ -44,7 +44,7 @@ Item {
             textFormat: Text.PlainText
             text: BuildInfo.commit
             color: root.theme.secondary
-            font.family: root.theme.fontMono
+            font.family: root.theme.fontLabel
             font.pixelSize: 13
         }
     }

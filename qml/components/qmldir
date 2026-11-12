@@ -1,9 +1,12 @@
 Avatar 1.0 Avatar.qml
 Banner 1.0 Banner.qml
+AirmailFrame 1.0 AirmailFrame.qml
 AppButton 1.0 AppButton.qml
+Chevron 1.0 Chevron.qml
 Chip 1.0 Chip.qml
 AppDialog 1.0 AppDialog.qml
 Field 1.0 Field.qml
+PageFooter 1.0 PageFooter.qml
 Icon 1.0 Icon.qml
 IconButton 1.0 IconButton.qml
 KeyboardAvoider 1.0 KeyboardAvoider.qml

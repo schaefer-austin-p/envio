@@ -28,7 +28,7 @@ Sheet {
         text: root.attachment.mime + " · " + FileSize.fileSize(root.attachment.size)
         elide: Text.ElideRight
         color: root.theme.secondary
-        font.family: root.theme.fontMono
+        font.family: root.theme.fontLabel
         font.pixelSize: 12
         bottomPadding: root.theme.gu(1)
     }

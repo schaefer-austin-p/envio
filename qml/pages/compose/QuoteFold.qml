@@ -32,8 +32,9 @@ Column {
         text: root.quoted
         wrapMode: Text.Wrap
         color: root.theme.secondary
-        font.family: root.theme.fontUi
-        font.pixelSize: 14
+        font.family: root.theme.fontBody
+        font.pixelSize: root.theme.bodySize - 2
+        lineHeight: root.theme.bodyLineHeight
     }
     Row {
         visible: root.expanded

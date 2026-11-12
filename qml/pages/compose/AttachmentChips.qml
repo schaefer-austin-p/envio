@@ -49,7 +49,7 @@ Column {
                 visible: chip.modelData.size >= 0
                 text: chip.modelData.size >= 0 ? FileSize.fileSize(chip.modelData.size) : ""
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
             }
             IconButton {

@@ -145,6 +145,80 @@ for my $file (@ARGV) {
         $bad = 1;
     }
 
+    # fontMono is read only by qml/platform/Theme.qml, which exposes it as
+    # fontAddress; labels use fontLabel, reading text fontBody,
+    # section labels the eyebrow fields (#67).
+    if ($file !~ m{(?:^|/)qml/platform/Theme\.qml$}) {
+        while ($code =~ /\bfontMono\b/g) {
+            print "$file:" . line_of($code, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody, fontAddress or the eyebrow fields; hosts and the fingerprint use fontAddress)\n";
+            $bad = 1;
+        }
+        # theme["fontMono"]: the string is blanked in $code, so look at it
+        # with the strings put back.
+        my $fm = $code;
+        substr($fm, $_->[0], length $_->[1]) = $_->[1] for @strings;
+        while ($fm =~ /\[\s*["']fontMono["']\s*\]/g) {
+            print "$file:" . line_of($fm, $-[0]) . ": fontMono (use Theme.fontLabel, fontBody, fontAddress or the eyebrow fields; hosts and the fingerprint use fontAddress)\n";
+            $bad = 1;
+        }
+    }
+
+    # Shapes come from Theme roles (controlRadius, cardRadius, ...): outside
+    # qml/platform/Theme.qml a radius (radius, topLeftRadius, ... as a
+    # binding, a JS assignment or a Binding { property: "radius" }) is a Theme
+    # role read or a circle (width / 2, height / 2). A number, or a gu()
+    # size, fails (#68).
+    if ($file !~ m{(?:^|/)qml/platform/Theme\.qml$}) {
+        my $radius_ok = sub {
+            my ($v) = @_;
+            $v =~ s/^\s+|\s+$//g;
+            # A condition choosing between allowed values is allowed.
+            my @alts = $v =~ /^[^?]+\?\s*([^:]+?)\s*:\s*(.+)$/ ? ($1, $2) : ($v);
+            for my $alt (@alts) {
+                # Circle forms: width / 2, parent.height / 2, width / 2 - 1,
+                # Math.min(width, height) / 2.
+                next if $alt =~ m{^(?:[\w.]*\b(?:width|height)|Math\.min\(\s*[\w.]+\s*,\s*[\w.]+\s*\))\s*/\s*2(?:\s*-\s*\d+(?:\.\d+)?)?$};
+                next if $alt =~ /\btheme\.\w*[Rr]adius\b/ && $alt !~ /\bgu\s*\(/ && $alt !~ /(?<![\w.])\d/;
+                return 0;
+            }
+            return 1;
+        };
+        my @found;
+        # $code with the strings put back (a Binding's property name is one).
+        my $nc = $code;
+        substr($nc, $_->[0], length $_->[1]) = $_->[1] for @strings;
+        # Bindings (and property declarations): `radius: v`, `topLeftRadius: v`.
+        while ($code =~ /(?<![\w.])\w*[Rr]adius\s*:\s*([^\n;}]*)/g) {
+            push @found, [$-[0], $1];
+        }
+        # JS assignments: `item.radius = v`, `radius += v` (a compound
+        # assignment is never a circle or a role, so it always fails). A JS
+        # local (`const radius = 4`) is not a radius property.
+        while ($code =~ /(?:\.|(?<![\w.]))\w*[Rr]adius\s*((?:[-+*\/%]|\?\?|\|\||&&)?)=(?![=>])\s*([^\n;}]*)/g) {
+            my ($op, $v, $off) = ($1, $2, $-[0]);
+            next if substr($code, 0, $off) =~ /\b(?:const|let|var)\s+$/;
+            push @found, [$off, $op ne '' ? "$op= $v" : $v];
+        }
+        # Bracket assignments: `item["radius"] = v`.
+        while ($nc =~ /\[\s*["']\w*[Rr]adius["']\s*\]\s*((?:[-+*\/%]|\?\?|\|\||&&)?)=(?![=>])\s*([^\n;}]*)/g) {
+            my ($op, $v, $off) = ($1, $2, $-[0]);
+            push @found, [$off, $op ne '' ? "$op= $v" : $v];
+        }
+        # Binding { property: "radius"; value: v }, in either order.
+        while ($nc =~ /\bBinding\s*\{([^}]*)\}/g) {
+            my ($body, $off) = ($1, $-[0]);
+            next unless $body =~ /property\s*:\s*["']\w*[Rr]adius["']/;
+            push @found, [$off, $body =~ /\bvalue\s*:\s*([^\n;}]*)/ ? $1 : ''];
+        }
+        for my $f (sort { $a->[0] <=> $b->[0] } @found) {
+            my ($off, $v) = @$f;
+            $v =~ s/\s+$//;
+            next if $radius_ok->($v);
+            print "$file:" . line_of($src, $off) . ": radius '$v' (use a Theme radius role, or width / 2 for a circle)\n";
+            $bad = 1;
+        }
+    }
+
     # Swipe rows: no SwipeDelegate, leadingActions or trailingActions.
     while ($code =~ /\b(SwipeDelegate|leadingActions|trailingActions)\b/g) {
         print "$file:" . line_of($code, $-[0]) . ": $1 (no swipe actions on rows)\n";

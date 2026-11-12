@@ -10,8 +10,10 @@ AbstractButton {
     property bool primary: false
     // Optional leading icon name (see Icon.qml).
     property string iconName: ""
+    // The drawn pill's height; the tap target stays implicitHeight.
+    property real visibleHeight: theme.controlHeight
 
-    implicitHeight: theme.gu(6.5)
+    implicitHeight: theme.controlHeight
     implicitWidth: Math.max(theme.gu(6), row.implicitWidth + theme.gu(4))
     opacity: enabled ? 1 : 0.45
 
@@ -38,16 +40,16 @@ AbstractButton {
             objectName: "buttonLabel"
             text: root.text
             color: root.primary ? root.theme.primaryText : root.theme.primary
-            font.family: root.theme.airmail ? root.theme.fontUi : root.theme.fontMono
-            font.pixelSize: 15
-            font.weight: Font.Medium
+            font: root.theme.controlFont
             anchors.verticalCenter: parent.verticalCenter
         }
     }
     }
 
     background: Rectangle {
-        radius: root.theme.airmail ? root.theme.gu(1.5) : root.theme.gu(1)
+        height: root.visibleHeight
+        y: (parent.height - height) / 2
+        radius: root.visibleHeight < root.theme.controlHeight ? root.theme.compactControlRadius : root.theme.controlRadius
         color: root.primary ? root.theme.primary : (root.down ? root.theme.selected : "transparent")
         border.width: root.primary ? 0 : 1
         border.color: root.theme.primary

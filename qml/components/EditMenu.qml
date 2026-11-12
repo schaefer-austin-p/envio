@@ -29,7 +29,7 @@ Menu {
     padding: theme.gu(0.75)
 
     background: Rectangle {
-        radius: root.theme.gu(1.5)
+        radius: root.theme.menuRadius
         color: root.theme.ground
         border.width: 1
         border.color: root.theme.hairline

@@ -19,10 +19,11 @@ Column {
         textFormat: Text.PlainText
         text: qsTr("Attachments")
         color: root.theme.secondary
-        font.family: root.theme.fontMono
-        font.pixelSize: 11
-        font.capitalization: Font.AllUppercase
-        font.letterSpacing: 0.6
+        font.family: root.theme.eyebrowFamily
+        font.pixelSize: root.theme.eyebrowSize
+        font.weight: root.theme.eyebrowWeight
+        font.letterSpacing: root.theme.eyebrowSpacing
+        font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
     }
     Repeater {
         model: root.files
@@ -59,7 +60,7 @@ Column {
                     textFormat: Text.PlainText
                     text: FileSize.fileSize(file.modelData.size)
                     color: root.theme.secondary
-                    font.family: root.theme.fontMono
+                    font.family: root.theme.fontLabel
                     font.pixelSize: 12
                 }
             }

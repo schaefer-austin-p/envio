@@ -2,6 +2,7 @@ import QtQuick 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
+import "../../components/richText.js" as RichText
 
 // Reading one message (boards 2, 3, 4): header, the body as rich text with
 // remote images blocked until the user allows them, attachments, and the
@@ -165,7 +166,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: body.height + root.theme.gu(3)
-                radius: root.theme.gu(1)
+                radius: root.theme.cardRadius
                 color: root.theme.surface
                 Text {
                     id: body
@@ -175,13 +176,13 @@ Item {
                     width: parent.width - root.theme.gu(3)
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    text: root.view !== null ? root.view.html : ""
+                    text: RichText.withLinkColor(root.view !== null ? root.view.html : "", String(root.theme.link))
                     textFormat: Text.RichText
                     wrapMode: Text.Wrap
-                    linkColor: root.theme.accent
                     color: root.theme.text
-                    font.family: root.theme.fontUi
-                    font.pixelSize: 16
+                    font.family: root.theme.fontBody
+                    font.pixelSize: root.theme.bodySize
+                    lineHeight: root.theme.bodyLineHeight
                     onLinkActivated: linkSheet.show(link)
                 }
             }
@@ -230,7 +231,6 @@ Item {
 
     ReplyBar {
         id: footer
-        anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
         theme: root.theme
         visible: root.view !== null
         onReplyRequested: root.compose("reply")

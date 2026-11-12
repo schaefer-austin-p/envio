@@ -61,6 +61,7 @@ Rectangle {
         theme: root.theme
         width: parent.width
         showBack: true
+        compact: true
         title: qsTr("Mail")
         onBackClicked: root.closeRequested()
     }
@@ -79,10 +80,11 @@ Rectangle {
                 topPadding: root.theme.gu(1.5)
                 bottomPadding: root.theme.gu(0.75)
                 color: root.theme.secondary
-                font.family: root.theme.fontMono
-                font.pixelSize: 11
-                font.letterSpacing: 0.6
-                font.capitalization: Font.AllUppercase
+                font.family: root.theme.eyebrowFamily
+                font.pixelSize: root.theme.eyebrowSize
+                font.weight: root.theme.eyebrowWeight
+                font.letterSpacing: root.theme.eyebrowSpacing
+                font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
             }
             component CountText: Text {
                 textFormat: Text.PlainText
@@ -90,7 +92,7 @@ Rectangle {
                 visible: n > 0
                 text: n
                 color: root.theme.accent
-                font.family: root.theme.fontMono
+                font.family: root.theme.fontLabel
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
             }
@@ -161,16 +163,19 @@ Rectangle {
                     width: column.width
                     Rectangle { width: parent.width; height: 1; color: root.theme.hairline }
                     ListRow {
+                        id: group
                         objectName: "account-" + acct.model.key
                         theme: root.theme
                         width: parent.width
                         separator: false
+                        chevron: true
+                        chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
                         Text {
                             textFormat: Text.PlainText
                             x: root.theme.gu(2.5)
                             y: root.theme.gu(1.75)
-                            width: parent.width - x - root.theme.gu(2.5)
+                            width: parent.width - x - group.chevronSpace
                             text: acct.model.name + " · " + acct.model.email
                             elide: Text.ElideRight
                             color: root.theme.heading

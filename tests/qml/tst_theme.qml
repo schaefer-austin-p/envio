@@ -136,4 +136,44 @@ TestCase {
         compare(theme.gu(2), theme.gridUnit * 2)
         verify(theme.touch >= 44)
     }
+
+    // #67: label, body and eyebrow roles.
+    function test_font_roles_in_carbon() {
+        theme.name = "carbon"
+        compare(theme.fontLabel, theme.fontMono)
+        compare(theme.fontBody, theme.fontUi)
+        compare(theme.bodySize, 16)
+        compare(theme.bodyLineHeight, 1.0)
+        compare(theme.eyebrowFamily, theme.fontMono)
+        compare(theme.eyebrowSize, 11)
+        compare(theme.eyebrowWeight, Font.Normal)
+        compare(theme.eyebrowCaps, true)
+        fuzzyCompare(theme.eyebrowSpacing, 0.6, 0.001)
+    }
+
+    function test_font_roles_in_airmail() {
+        theme.name = "airmail"
+        verify(theme.fontLabel !== theme.fontMono)
+        compare(theme.fontLabel, theme.fontUi)
+        compare(theme.fontBody, "Lora")
+        compare(theme.bodySize, 16)
+        fuzzyCompare(theme.bodyLineHeight, 1.6, 0.001)
+        compare(theme.eyebrowFamily, theme.fontUi)
+        compare(theme.eyebrowSize, 12)
+        compare(theme.eyebrowWeight, Font.DemiBold)
+        compare(theme.eyebrowCaps, true)
+        fuzzyCompare(theme.eyebrowSpacing, 1.2, 0.001)
+    }
+
+    function test_bar_roles() {
+        compare(theme.barHeight, theme.touch + theme.gu(1.5))
+        compare(theme.barTitleFont.pixelSize, 20)
+        compare(theme.barTitleCompactFont.pixelSize, 18)
+        theme.name = "airmail"
+        compare(theme.barHeight, theme.touch + theme.gu(1.5))
+        compare(theme.barTitleFont.pixelSize, 26)
+        compare(theme.barTitleCompactFont.pixelSize, 22)
+        compare(theme.barTitleFont.family, theme.fontTitle)
+        compare(theme.barTitleFont.weight, Font.DemiBold)
+    }
 }

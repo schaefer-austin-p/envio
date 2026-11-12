@@ -4,6 +4,8 @@
 #    through EnvioCore.countText. Fails on a qsTr/qsTranslate/qsTrId call
 #    with a count argument (also across lines, or `qsTr (`) and on %n inside
 #    one of their strings. Comments are ignored.
+#  - fontMono is read only by qml/platform/Theme.qml (#67).
+#  - A radius outside qml/platform/Theme.qml is a Theme role or a circle (#68).
 #  - No swipe actions on list rows: fails on SwipeDelegate, leadingActions
 #    and trailingActions.
 #

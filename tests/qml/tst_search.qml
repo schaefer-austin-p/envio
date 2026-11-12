@@ -101,6 +101,22 @@ Item {
             compare(opened.signalArguments[0][0], 5)
         }
 
+        function test_rows_show_the_stamp_in_airmail_and_the_dot_in_carbon() {
+            typeQuery("train")
+            const m = message(6)
+            m.unread = true
+            core.searchResults.append(m)
+            tryVerify(function() { return shown("row-6") })
+            const names = ["carbon", "airmail"]
+            for (let i = 0; i < 2; i++) {
+                thm.name = names[i]
+                const air = names[i] === "airmail"
+                compare(find("unreadDot").visible, !air)
+                compare(find("stamp").item !== null, air)
+            }
+            thm.name = "carbon"
+        }
+
         function test_server_search_button() {
             verify(!shown("searchServers"), "no button without a question")
             typeQuery("train")

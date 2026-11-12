@@ -21,16 +21,24 @@ QC.Popup {
     parent: QC.Overlay.overlay
     modal: true
     closePolicy: QC.Popup.CloseOnEscape
-    x: theme.gu(2)
-    y: theme.gu(15)
-    width: parent ? parent.width - theme.gu(4) : 0
+    x: theme.frameInset + theme.gu(2)
+    y: theme.frameInset + theme.gu(15)
+    width: parent ? parent.width - 2 * theme.frameInset - theme.gu(4) : 0
     padding: theme.gu(2.5)
 
-    QC.Overlay.modal: Rectangle { color: root.theme.scrim }
+    // The scrim covers the ring's inner area only: the ring stays undimmed.
+    QC.Overlay.modal: Item {
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: root.theme.frameInset
+            radius: root.theme.frameInnerRadius
+            color: root.theme.scrim
+        }
+    }
 
     background: Rectangle {
         color: root.theme.ground
-        radius: root.theme.gu(1.5)
+        radius: root.theme.dialogRadius
         border.width: 1
         border.color: root.theme.hairline
     }
