@@ -122,8 +122,10 @@ Item {
             u.destroy()
         }
 
-        // Two pages never show together: the page that leaves is hidden
-        // within a frame or two, and comes back whole on Back.
+        // Two pages never show together: once the arriving page starts to
+        // show, the page that leaves is already hidden, and it comes back
+        // whole on Back. Checked against the arriving page's first frame,
+        // not a wall-clock limit, so a slow machine can't make it flaky.
         function test_the_leaving_page_hides_at_once() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
@@ -132,11 +134,13 @@ Item {
             inbox.settingsRequested()
             const settings = b.shell.currentPage
             compare(settings.objectName, "settingsPage")
-            tryVerify(function() { return inbox.opacity === 0 || !inbox.visible }, 60)
+            tryVerify(function() { return settings.opacity > 0 })
+            verify(inbox.opacity === 0 || !inbox.visible, "the leaving page shows alongside")
             tryCompare(settings, "opacity", 1)
             compare(settings.x, 0)
             settings.backRequested()
-            tryVerify(function() { return settings.opacity === 0 || !settings.visible }, 60)
+            tryVerify(function() { return inbox.opacity > 0 })
+            verify(settings.opacity === 0 || !settings.visible, "the leaving page shows alongside")
             tryCompare(inbox, "opacity", 1)
             verify(inbox.visible)
             compare(inbox.x, 0)
