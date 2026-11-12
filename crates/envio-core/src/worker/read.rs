@@ -304,9 +304,10 @@ impl Worker<'_> {
     /// the cache sets the exact value and tells the list, as a body download
     /// does.
     fn correct_attachment_mark(&self, message: &Message, raw: &[u8]) {
-        let exact = envio_mime::envelope(raw)
-            .unwrap_or_default()
-            .has_attachments;
+        // A body that does not parse says nothing: keep the stored guess.
+        let Some(exact) = envio_mime::envelope(raw).map(|e| e.has_attachments) else {
+            return;
+        };
         if exact == message.envelope.has_attachments {
             return;
         }

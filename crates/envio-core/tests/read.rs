@@ -534,3 +534,39 @@ fn opening_a_cached_body_sets_the_attachment_mark_a_migration_left_at_zero() {
     });
     assert!(rows(&h)[0].has_attachments);
 }
+
+#[test]
+fn a_cached_body_that_does_not_parse_keeps_the_attachment_mark() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let folder = h.seed_folder_with(
+        &key,
+        "INBOX",
+        FolderRole::Inbox,
+        &[(1, b"no headers here\r\n")],
+    );
+    let db = Db::open(&h.paths().db()).unwrap();
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+    db.set_has_attachments(id, true).unwrap();
+    drop(db);
+    h.start_core();
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessageOpened { .. } => Some(()),
+        _ => None,
+    });
+    h.send(Command::ListMessages {
+        list: ListRef::Folder(folder),
+        after: None,
+    });
+    let rows = h.wait(|e| match e {
+        Event::Messages { rows, .. } => Some(rows.clone()),
+        _ => None,
+    });
+    assert!(rows[0].has_attachments);
+}
