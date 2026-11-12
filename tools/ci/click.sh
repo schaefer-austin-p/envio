@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Builds the arm64 .click in clickable's cross-compile image and reviews it;
+# the package and the review output land in build-click/. CI runs this on the
+# runner's dind daemon (see dind.sh). Locally, point DOCKER_HOST at your
+# daemon (unix:///var/run/docker.sock), or use `cargo make click` instead.
+#
+# clickable normally bind-mounts the project, but a job container's paths
+# don't exist on the dind daemon, so the source goes in with `docker cp`.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+
+# docker.io/clickable/amd64-ut24.04-1.x-arm64 (image_version 13).
+image=clickable/amd64-ut24.04-1.x-arm64@sha256:2ea7f5e79c257a3928adcf7b45d13e8bc72ab9c7c0367d94f1214e5a0c58c817
+clickable_version=8.10.0
+out=build-click
+
+# shellcheck source=tools/ci/dind.sh
+source tools/ci/dind.sh
+
+c=$(docker create "$image" sleep infinity)
+trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
+docker start "$c" >/dev/null
+git archive --prefix=src/ HEAD | docker cp - "$c:/"
+
+run() {
+  docker exec -w /src -e CLICKABLE_ENV_ENVIO_COMMIT="$(git rev-parse --short=10 HEAD)" \
+    "$c" bash -euo pipefail -c "$1"
+}
+
+# The image has click-review but not clickable. A prebuilt image with
+# clickable in it would remove this step. --ignore-installed: pip would
+# otherwise uninstall the image's apt `click` (the package tool) to make room
+# for the `click` library clickable needs.
+run "apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version"
+
+run 'clickable build --arch arm64 --container-mode'
+
+rm -rf "$out"
+mkdir -p "$out"
+click=$(docker exec "$c" bash -c 'find /src/build -name "*.click" | head -n1')
+[ -n "$click" ] || { echo "no .click was built" >&2; exit 1; }
+docker cp "$c:$click" "$out/"
+
+# click-review: errors fail the script, warnings are printed only.
+run 'clickable review --arch arm64 --container-mode --accept-warnings' | tee "$out/click-review.txt"
+ls -l "$out"

@@ -194,8 +194,11 @@ job service):
 - `cargo xtask affected` lists crates changed since the merge base with
   master plus their reverse dependencies (`git diff` + `cargo metadata`).
   Only those run their unit tests and `tests/` integration tests.
-- Always: `cargo fmt --check`, clippy on the whole workspace, `envio-e2e`,
-  and the clickable build.
+- Always: `cargo fmt --check`, clippy on the whole workspace and `envio-e2e`.
+- The clickable build (`click.yml`, not a required check): on pushes to
+  master, tags and manual runs, and on a PR that touches `clickable.yaml`,
+  `manifest.json`, `envio.apparmor`, `CMakeLists.txt`, `qt/`,
+  `.forgejo/workflows/` or the click scripts.
 - Everything runs when `Cargo.lock`, the workspace `Cargo.toml` or
   `.forgejo/` change, and on pushes to master and on tags.
 
