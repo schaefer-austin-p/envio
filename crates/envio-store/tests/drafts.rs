@@ -43,6 +43,22 @@ fn list_is_newest_first() {
 }
 
 #[test]
+fn delete_clears_the_files_folder_even_when_the_draft_file_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("x", 1)).unwrap();
+    let source = dir.path().join("a.txt");
+    std::fs::write(&source, "data").unwrap();
+    let copy = drafts.keep_attachment(&id, &source).unwrap();
+    // A partial failure: the draft file went, its copies stayed.
+    std::fs::remove_file(dir.path().join(format!("{id}.json"))).unwrap();
+    assert!(copy.exists());
+    assert!(matches!(drafts.delete(&id), Err(StoreError::NotFound)));
+    assert!(!copy.exists());
+    assert!(!copy.parent().unwrap().exists());
+}
+
+#[test]
 fn delete_removes_a_draft() {
     let dir = tempfile::tempdir().unwrap();
     let drafts = Drafts::open(dir.path()).unwrap();
