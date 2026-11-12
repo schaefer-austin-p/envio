@@ -51,6 +51,9 @@ pub struct Ui {
     older: OlderRow,
     /// Load older found nothing more on the server for the shown list.
     older_done: bool,
+    /// Rows Load older cached are to be paged in: asked as soon as the
+    /// list can take a page.
+    older_paging: bool,
     /// A search is on: there is no "Load older" row.
     searching: bool,
     mirror: Mirror,

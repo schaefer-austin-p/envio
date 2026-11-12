@@ -76,7 +76,6 @@ fn older_rows_are_paged_in_before_the_row_returns() {
     let _ = ui.load_older().unwrap();
     // Rows arrived: the list is not at its end until they are shown.
     assert_eq!(rows(&feed(&mut ui, loaded(9, false))), [OlderRow::Hidden]);
-    assert!(ui.more().is_some());
     let last = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
     assert_eq!(rows(&feed(&mut ui, last)), [OlderRow::Ready]);
 }
@@ -101,4 +100,41 @@ fn older_failure_returns_to_ready() {
     );
     // And it can be tried again.
     assert!(ui.load_older().is_some());
+}
+
+fn changed() -> Event {
+    Event::MessagesChanged {
+        folders: vec![envio_core::FolderId(1)],
+    }
+}
+
+/// The `ListMessages` pages the outputs ask after a cursor.
+fn asked(outs: &[Output]) -> Vec<Option<envio_core::Cursor>> {
+    outs.iter()
+        .filter_map(|o| match o {
+            Output::Send(Command::ListMessages { after, .. }) => Some(*after),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn the_ui_pages_in_the_rows_load_older_fetched_itself() {
+    for (exhausted, last) in [(false, OlderRow::Ready), (true, OlderRow::Done)] {
+        let mut ui = Ui::new();
+        opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+        let _ = ui.load_older().unwrap();
+        let outs = feed(&mut ui, loaded(50, exhausted));
+        assert_eq!(rows(&outs), [OlderRow::Hidden]);
+        // The refresh after MessagesChanged; the view never calls more().
+        let mut seen = asked(&outs);
+        let outs = feed(&mut ui, changed());
+        seen.extend(asked(&outs));
+        let outs = feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], false));
+        seen.extend(asked(&outs));
+        assert!(seen.contains(&Some(cursor(1, 10))), "{seen:?}");
+        // The older rows arrive at the end of the list.
+        let page_in = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+        assert_eq!(rows(&feed(&mut ui, page_in)), [last]);
+    }
 }

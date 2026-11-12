@@ -143,3 +143,25 @@ fn load_older_offline_reports_older_unavailable() {
         "Couldn't load older messages. Try again when you are online."
     );
 }
+
+#[test]
+fn removing_an_account_does_not_strand_a_load_on_the_inboxes() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_, gone, _) = seeded(&mut h, "one@example.org");
+    let (_, _, kept) = seeded(&mut h, "two@example.org");
+    h.start_core();
+    // Queued together: the removal is handled before any step runs.
+    h.send(Command::LoadOlder {
+        list: ListRef::Inboxes,
+    });
+    h.send(Command::RemoveAccount {
+        account: gone,
+        confirmed: true,
+    });
+    let (fetched, exhausted) = older_loaded(&h, ListRef::Inboxes);
+    // The removed account did not answer: the total is the other's.
+    assert_eq!(fetched, 9);
+    assert!(!exhausted);
+    assert_eq!(rows_of(&h, ListRef::Folder(kept)), 10);
+}

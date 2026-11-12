@@ -30,6 +30,7 @@ impl Ui {
     /// A list is opened: the row starts over.
     pub(super) fn older_reset(&mut self) -> Vec<Output> {
         self.older_done = false;
+        self.older_paging = false;
         self.searching = false;
         self.set_older(OlderRow::Hidden)
     }
@@ -40,8 +41,28 @@ impl Ui {
         self.set_older(OlderRow::Hidden)
     }
 
-    /// A page was shown: at the end of the list, a hidden row appears.
+    /// Asks for the page below the loaded rows once the list is idle (the
+    /// view is not relied on: a short list never scrolls).
+    fn older_page_in(&mut self) -> Vec<Output> {
+        if !self.older_paging {
+            return Vec::new();
+        }
+        let Some(command) = self.more() else {
+            return Vec::new();
+        };
+        self.older_paging = false;
+        vec![Output::Send(command)]
+    }
+
+    /// A page was shown: the rows Load older cached are paged in, and at
+    /// the end of the list a hidden row appears.
     pub(super) fn older_shown(&mut self) -> Vec<Output> {
+        let mut outs = self.older_page_in();
+        outs.extend(self.older_ready());
+        outs
+    }
+
+    fn older_ready(&mut self) -> Vec<Output> {
         let at_end = self.current.as_ref().is_some_and(|c| c.end);
         if self.older != OlderRow::Hidden || self.searching || !at_end {
             return Vec::new();
@@ -71,7 +92,10 @@ impl Ui {
         self.older_done = exhausted;
         if fetched > 0 {
             cur.end = false;
-            return self.set_older(OlderRow::Hidden);
+            self.older_paging = true;
+            let mut outs = self.set_older(OlderRow::Hidden);
+            outs.extend(self.older_page_in());
+            return outs;
         }
         self.set_older(if exhausted {
             OlderRow::Done

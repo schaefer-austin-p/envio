@@ -157,6 +157,15 @@ impl Worker<'_> {
         }
     }
 
+    /// `account` is being removed: its folders' floors go, and a load
+    /// waiting for it gives up. Called before its rows are deleted.
+    pub(super) fn older_account_removed(&mut self, account: &str) {
+        self.older_account_failed(account);
+        for folder in self.store.db.folders(account).unwrap_or_default() {
+            self.floors.remove(&folder.id);
+        }
+    }
+
     /// Whether a `LoadOlder` waits for `account`.
     pub(super) fn older_waiting(&self, account: &str) -> bool {
         self.loads
