@@ -147,7 +147,7 @@ impl Worker<'_> {
                 }
                 Err(e) => {
                     log::warn!("reading an attachment to forward: {e}");
-                    let name = info.filename.clone().unwrap_or_default();
+                    let name = notice_name(info.filename.as_deref(), info.index);
                     self.emit(Event::AttachFailed {
                         compose,
                         text: text::compose::attachment_unreadable(&name),
@@ -183,5 +183,22 @@ impl Worker<'_> {
             }
             self.compose_body_fetched(id, None);
         }
+    }
+}
+
+/// An attachment's name as a notice shows it: no path, no bidi or other
+/// controls that could reorder the text, and `attachment-N` when unnamed.
+fn notice_name(filename: Option<&str>, index: usize) -> String {
+    super::read::safe_file_name(filename.unwrap_or(""), index)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::notice_name;
+
+    #[test]
+    fn a_failed_forward_names_the_file_safely() {
+        assert_eq!(notice_name(Some("inv\u{202E}fdp.exe"), 2), "invfdp.exe");
+        assert_eq!(notice_name(None, 2), "attachment-3");
     }
 }
