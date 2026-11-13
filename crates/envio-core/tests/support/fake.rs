@@ -124,12 +124,27 @@ fn talk(
 ) -> std::io::Result<()> {
     let mut reader = BufReader::new(tls);
     let mut line = String::new();
+    // The tag of an IDLE the client has not ended with DONE yet.
+    let mut idling: Option<String> = None;
     loop {
         line.clear();
         if reader.read_line(&mut line)? == 0 {
             return Ok(());
         }
         log.lock().unwrap().push(line.trim_end().to_owned());
+        if let Some(tag) = idling.take_if(|_| line.trim_end().eq_ignore_ascii_case("DONE")) {
+            reader
+                .get_mut()
+                .write_all(format!("{tag} OK idle done\r\n").as_bytes())?;
+            continue;
+        }
+        if let Some((tag, command)) = line.trim_end().split_once(' ')
+            && command.eq_ignore_ascii_case("IDLE")
+        {
+            idling = Some(tag.to_owned());
+            reader.get_mut().write_all(b"+ idling\r\n")?;
+            continue;
+        }
         let (text, last) = reply(line.trim_end());
         reader.get_mut().write_all(text.as_bytes())?;
         if last {
