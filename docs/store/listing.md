@@ -104,7 +104,8 @@ Source folder: `docs/phone-runs/0.1.0-release/`. Copy the chosen files to
 | 2 | Reader, Airmail light | `th-airmail-light-message.png` | Use, but it is a plain-text mail, not curated HTML. Retake if an HTML mail is wanted. |
 | 3 | Compose with attachment chips | `ch09-both-attached.png` | Use. Carbon light, two attachments (png and pdf). |
 | 4 | Inbox, Carbon dark | `th-carbon-dark-inbox.png` | Use. |
-| 5 | Wizard sign-in step with found servers | none | TO TAKE. `trust-imap-wizard.png` shows the certificate dialog over manual settings, not the found servers. |
+| 5 | Wizard sign-in step with found servers | `wizard-found-servers.png` | Use. Airmail dark, settings found at the provider for the made-up address envio.demo@fastmail.com; the account was not added. |
 
-All files use synthetic accounts at envio.test. Check each once more for
+Shots 1 to 4 use synthetic accounts at envio.test; shot 5 shows a made-up
+address whose domain only went to the ISPDB lookup. Check each once more for
 status-bar content before upload.
