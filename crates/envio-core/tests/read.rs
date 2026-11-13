@@ -571,3 +571,28 @@ fn a_cached_body_that_does_not_parse_keeps_the_attachment_mark() {
     });
     assert!(rows[0].has_attachments);
 }
+
+#[test]
+fn folders_are_listed_role_first() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    for (path, role) in [
+        ("Trash", FolderRole::Trash),
+        ("Drafts", FolderRole::Drafts),
+        ("Banking", FolderRole::Other),
+        ("INBOX", FolderRole::Inbox),
+        ("Sent", FolderRole::Sent),
+    ] {
+        h.seed_folder_with(&key, path, role, &[]);
+    }
+    h.start_core();
+    h.send(Command::ListFolders {
+        account: key.clone(),
+    });
+    let folders = h.wait(|e| match e {
+        Event::Folders { account, folders } if *account == key => Some(folders.clone()),
+        _ => None,
+    });
+    let paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(paths, ["INBOX", "Drafts", "Sent", "Trash", "Banking"]);
+}
