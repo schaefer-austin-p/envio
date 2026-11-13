@@ -54,6 +54,14 @@ fn rows_of(h: &Harness, list: ListRef) -> usize {
     })
 }
 
+/// Waits for the startup sync's SEARCH, then returns the row count for `list`.
+/// `rows_of` is queued behind that step, so the answer is taken after the
+/// startup sync's prune; a later `UID SEARCH SINCE` is the sync under test.
+fn settled(h: &Harness, server: &TlsServer, list: ListRef) -> usize {
+    until_lines(server, "UID SEARCH SINCE", 1);
+    rows_of(h, list)
+}
+
 #[test]
 fn load_older_fetches_a_batch_and_reports_it() {
     let mut h = Harness::unstarted();
@@ -98,6 +106,7 @@ fn a_sync_after_load_older_keeps_the_older_rows() {
     let list = ListRef::Folder(inbox);
     h.send(Command::LoadOlder { list });
     older_loaded(&h, list);
+    assert_eq!(settled(&h, &server, list), 10);
     let before = lines(&server, "UID SEARCH SINCE");
     h.send(Command::Refresh { account: Some(key) });
     until_lines(&server, "UID SEARCH SINCE", before + 1);
@@ -114,6 +123,7 @@ fn changing_the_window_drops_the_floor_and_resyncs() {
     let list = ListRef::Folder(inbox);
     h.send(Command::LoadOlder { list });
     older_loaded(&h, list);
+    assert_eq!(settled(&h, &server, list), 10);
     let before = lines(&server, "UID SEARCH SINCE");
     h.send(Command::SaveSettings(Settings {
         sync_window_days: 7,
