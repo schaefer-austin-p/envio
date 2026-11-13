@@ -253,6 +253,24 @@ Item {
             verify(mock.called("draftChanged").length > n, "editing marks the draft edited")
         }
 
+        // #138 review: with Cc Bcc showing, a long chip uses what the first line
+        // has left (line minus the button minus a small input), input beside it.
+        function test_long_chip_uses_the_line_beside_cc_bcc_at_360() {
+            root.width = 360
+            mock.composeReady(1, { account: "ann", to: ["Bartholomew Longname <bartholomew.longname@example.org>"], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            const chip = find("to-remove-0")
+            const input = to.input.mapToItem(chip.parent, 0, 0)
+            verify(shown("showCc"))
+            verify(chip.width >= 150 && chip.width >= to.width - thm.gu(16.5) - find("showCc").width - 2, "chip is " + chip.width + " wide")
+            compare(input.y, chip.y, "the input is on the chip's line")
+            verify(chip.x + chip.width + to.input.width <= chip.parent.width + 1)
+            verify(to.height <= find("fromRow").height + 2, "one line")
+            root.width = 400
+        }
+
         function test_typed_text_is_in_the_draft() {
             mock.composeReady(1, reply, "")
             find("to").input.text = "dave@exa"

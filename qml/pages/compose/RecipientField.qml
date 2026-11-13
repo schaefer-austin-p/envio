@@ -93,7 +93,7 @@ Item {
                         required property int index
                         objectName: root.objectName + "-remove-" + index
                         implicitHeight: root.theme.touch
-                        implicitWidth: Math.min(trailing.visible ? flow.width - root.theme.gu(15) : root.width - root.theme.gu(9), chipText.implicitWidth + root.theme.gu(6))
+                        implicitWidth: Math.min(flow.width - root.theme.gu(9), chipText.implicitWidth + root.theme.gu(6))
                         Accessible.role: Accessible.Button
                         Accessible.name: qsTr("Remove %1").arg(modelData)
                         contentItem: Item {}
@@ -132,7 +132,7 @@ Item {
                     width: {
                         const last = chips.count > 0 ? chips.itemAt(chips.count - 1) : null
                         const left = flow.width - (last ? last.x + last.width : 0) - root.theme.gu(1)
-                        return left >= root.theme.gu(14) ? left : flow.width - root.theme.gu(1)
+                        return left >= root.theme.gu(8) ? left : flow.width - root.theme.gu(1)
                     }
                     inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
                     onAccepted: root.commit(true)
