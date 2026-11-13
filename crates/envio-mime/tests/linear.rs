@@ -82,8 +82,58 @@ fn linearising_keeps_text_order_and_alignment() {
         "{html}"
     );
     assert!(html.contains(r#"<div align="center">second"#), "{html}");
-    for dropped in ["cellpadding", "bgcolor", "width", "valign"] {
+    for dropped in ["cellpadding", "bgcolor=", "width", "valign"] {
         assert!(!html.contains(dropped), "{dropped} kept in {html}");
+    }
+    assert!(html.contains("background-color:red"), "{html}");
+}
+
+#[test]
+fn a_linearised_cell_keeps_its_background_colour() {
+    let html = clean(
+        r##"<table><tr><td bgcolor="#1a1f36"><font color="#ffffff">Pay now</font></td></tr></table>"##,
+    );
+    assert!(
+        html.contains(r#"<div style="background-color:#1a1f36;">"#),
+        "{html}"
+    );
+    assert!(!html.contains("bgcolor="), "{html}");
+}
+
+#[test]
+fn a_cell_style_follows_the_background_so_it_wins() {
+    let html = clean(r##"<table><tr><td bgcolor="#abc" style="color:red">x</td></tr></table>"##);
+    assert!(
+        html.contains(r#"style="background-color:#abc;color:red""#),
+        "{html}"
+    );
+}
+
+#[test]
+fn a_row_background_reaches_its_cells_unless_the_cell_has_one() {
+    let html = clean(
+        r##"<table><tr bgcolor="#111111"><td>a</td></tr><tr bgcolor="#111111"><td bgcolor="blue">b</td></tr><tr><td>c</td></tr></table>"##,
+    );
+    assert!(
+        html.contains(r#"<div style="background-color:#111111;">a"#),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"<div style="background-color:blue;">b"#),
+        "{html}"
+    );
+    assert!(!html.contains("#111111;\">b"), "{html}");
+    assert!(html.contains("<div>c"), "{html}");
+}
+
+#[test]
+fn a_junk_background_value_is_dropped() {
+    for junk in ["red;position:fixed", "#12", "#ggg", "url(x)", ""] {
+        let html = clean(&format!(
+            r#"<table><tr><td bgcolor="{junk}">x</td></tr></table>"#
+        ));
+        assert!(!html.contains("background"), "{junk}: {html}");
+        assert!(!html.contains("position"), "{junk}: {html}");
     }
 }
 

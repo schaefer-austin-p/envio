@@ -88,6 +88,8 @@ pub(crate) fn linearise(html: &str) -> String {
     // Whether each open table is being linearised; the top owns what is read.
     let mut open: Vec<bool> = Vec::new();
     let mut tables = 0;
+    // The valid `bgcolor` of the open linearised row, for cells without one.
+    let mut row_bg: Option<String> = None;
     let mut pos = 0;
     while let Some((start, end)) = next_tag(html, pos) {
         out.push_str(&html[pos..start]);
@@ -101,7 +103,7 @@ pub(crate) fn linearise(html: &str) -> String {
                 tables += 1;
                 open.push(linear);
                 if linear {
-                    block(raw, &mut out);
+                    block(raw, None, &mut out);
                 } else {
                     out.push_str(raw);
                 }
@@ -113,8 +115,12 @@ pub(crate) fn linearise(html: &str) -> String {
                     out.push_str(raw);
                 }
             }
-            (_, "tbody" | "thead" | "tfoot" | "tr" | "colgroup" | "col") if own => {}
-            (false, "td" | "th") if own => block(raw, &mut out),
+            (false, "tr") if own => {
+                row_bg = parse_tag(raw).and_then(|t| bgcolor(&t.attrs).map(str::to_owned));
+            }
+            (true, "tr") if own => row_bg = None,
+            (_, "tbody" | "thead" | "tfoot" | "colgroup" | "col") if own => {}
+            (false, "td" | "th") if own => block(raw, row_bg.as_deref(), &mut out),
             (true, "td" | "th") if own => out.push_str("</div>"),
             _ => out.push_str(raw),
         }
@@ -123,21 +129,52 @@ pub(crate) fn linearise(html: &str) -> String {
     out
 }
 
-/// Writes a `div` start tag with the `align` and `style` of the start tag `raw`.
-fn block(raw: &str, out: &mut String) {
+/// Writes a `div` start tag with the `align` and `style` of the start tag
+/// `raw`. Its `bgcolor` (else `row_bg`, the row's) leads the style as
+/// `background-color`, so the tag's own style still wins.
+fn block(raw: &str, row_bg: Option<&str>, out: &mut String) {
     out.push_str("<div");
     if let Some(tag) = parse_tag(raw) {
+        let bg = bgcolor(&tag.attrs).or(row_bg);
+        let mut styled = false;
         for (name, value) in &tag.attrs {
-            if name == "align" || name == "style" {
-                out.push(' ');
-                out.push_str(name);
-                out.push_str("=\"");
-                escape_into(value, out);
-                out.push('"');
+            if name == "align" {
+                attr("align", None, value, out);
+            } else if name == "style" && !styled {
+                styled = true;
+                attr("style", bg, value, out);
             }
+        }
+        if !styled && let Some(bg) = bg {
+            attr("style", Some(bg), "", out);
         }
     }
     out.push('>');
+}
+
+/// Writes ` name="[background-color:bg;]value"`, escaped.
+fn attr(name: &str, bg: Option<&str>, value: &str, out: &mut String) {
+    out.push(' ');
+    out.push_str(name);
+    out.push_str("=\"");
+    if let Some(bg) = bg {
+        out.push_str("background-color:");
+        escape_into(bg, out);
+        out.push(';');
+    }
+    escape_into(value, out);
+    out.push('"');
+}
+
+/// The `bgcolor` value if it is a colour: `#` and 3 or 6 hex digits, or
+/// ASCII letters only (a name). Anything else could smuggle CSS.
+fn bgcolor(attrs: &[(String, String)]) -> Option<&str> {
+    let value = attrs.iter().find(|(n, _)| n == "bgcolor")?.1.as_str();
+    let ok = match value.strip_prefix('#') {
+        Some(hex) => matches!(hex.len(), 3 | 6) && hex.bytes().all(|b| b.is_ascii_hexdigit()),
+        None => !value.is_empty() && value.bytes().all(|b| b.is_ascii_alphabetic()),
+    };
+    ok.then_some(value)
 }
 
 /// The byte range of the first tag at or after `pos`. Every `<` starts a
