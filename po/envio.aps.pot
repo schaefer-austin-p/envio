@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 18:02+0100\n"
+"POT-Creation-Date: 2026-11-13 21:03+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -308,41 +308,52 @@ msgstr ""
 msgid "Remove attachment"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:140
+#: qml/pages/compose/ComposePage.qml:31 qml/pages/compose/FromRow.qml:59
+#: qml/pages/reader/HeaderBlock.qml:17 crates/envio-core/src/text/compose.rs:41
+msgid "From"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:31 qml/pages/compose/ComposePage.qml:223
+#: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
+msgid "To"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:31 qml/pages/compose/ComposePage.qml:240
+#: qml/pages/reader/HeaderBlock.qml:19
+msgid "Cc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:31 qml/pages/compose/ComposePage.qml:254
+msgid "Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:31 qml/pages/compose/SubjectRow.qml:27
+#: crates/envio-core/src/text/compose.rs:43
+msgid "Subject"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:152
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:146
+#: qml/pages/compose/ComposePage.qml:158
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:154 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:141
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:165
+#: qml/pages/compose/ComposePage.qml:177
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:209 qml/pages/reader/HeaderBlock.qml:18
-#: crates/envio-core/src/text/compose.rs:44
-msgid "To"
-msgstr ""
-
-#: qml/pages/compose/ComposePage.qml:210
+#: qml/pages/compose/ComposePage.qml:224
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:225 qml/pages/reader/HeaderBlock.qml:19
-msgid "Cc"
-msgstr ""
-
-#: qml/pages/compose/ComposePage.qml:238
-msgid "Bcc"
-msgstr ""
-
-#: qml/pages/compose/ComposePage.qml:265
+#: qml/pages/compose/ComposePage.qml:282
 msgid "Write your message"
 msgstr ""
 
@@ -366,12 +377,7 @@ msgstr ""
 msgid "Discard"
 msgstr ""
 
-#: qml/pages/compose/FromRow.qml:57 qml/pages/reader/HeaderBlock.qml:17
-#: crates/envio-core/src/text/compose.rs:41
-msgid "From"
-msgstr ""
-
-#: qml/pages/compose/FromRow.qml:80
+#: qml/pages/compose/FromRow.qml:82
 msgid "Send from"
 msgstr ""
 
@@ -387,12 +393,8 @@ msgstr ""
 msgid "Remove quoted text"
 msgstr ""
 
-#: qml/pages/compose/RecipientField.qml:98
+#: qml/pages/compose/RecipientField.qml:100
 msgid "Remove %1"
-msgstr ""
-
-#: qml/pages/compose/SubjectRow.qml:24 crates/envio-core/src/text/compose.rs:43
-msgid "Subject"
 msgstr ""
 
 #: qml/pages/compose/Suggestions.qml:70
