@@ -334,6 +334,34 @@ Item {
             compare(opened.signalArguments[0][0], 12)
         }
 
+        function test_vertical_drag_on_a_row_scrolls_without_opening() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            waitForRendering(page)
+            const list = find("messageList", page)
+            const row = find("row-1", page)
+            const d = Qt.styleHints.startDragDistance * 4
+            opened.clear()
+            const y0 = row.height - 4
+            mousePress(row, 20, y0)
+            mouseMove(row, 20 + 2, y0 - d / 2)
+            mouseMove(row, 20 + 3, y0 - d)
+            mouseMove(row, 20 + 4, y0 - d * 2)
+            mouseRelease(row, 20 + 4, y0 - d * 2)
+            verify(list.contentY > 0, "contentY " + list.contentY)
+            compare(opened.count, 0)
+        }
+
+        function test_real_press_and_hold_selects_the_row() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            const row = find("row-11", page)
+            mousePress(row, 20, row.height / 2)
+            wait(Qt.styleHints.mousePressAndHoldInterval + 300)
+            mouseRelease(row, 20, row.height / 2)
+            compare(core.called("select").pop().args, [11, true])
+            compare(opened.count, 0)
+        }
+
         function test_press_and_hold_starts_selection() {
             core.messages.append(message(11))
             waitForRendering(page)

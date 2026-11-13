@@ -35,15 +35,6 @@ AbstractButton {
         id: holder
         implicitHeight: childrenRect.height
     }
-    // A sideways drag is not a tap: once the finger travels past the drag
-    // distance this handler takes the grab, the button cancels, and no
-    // `clicked` follows. It moves nothing, and vertical drags still scroll.
-    DragHandler {
-        target: null
-        xAxis.enabled: true
-        yAxis.enabled: false
-        dragThreshold: Qt.styleHints.startDragDistance
-    }
     // Built only for a row that has one, so a plain row carries no chevron.
     Loader {
         active: root.chevron
