@@ -131,6 +131,21 @@ Item {
             drawer.visible = false
         }
 
+        // #133: the drawer's visibility changes before `core` is bound, which
+        // logged a TypeError at startup. QtTest (Qt 5) cannot fail on a warning,
+        // so this checks that such a drawer builds and still works once bound.
+        function test_drawer_without_core_ignores_visibility() {
+            const drawer = createTemporaryObject(bareDrawer, root, { theme: thm })
+            verify(drawer !== null)
+            drawer.visible = false
+            drawer.visible = true
+            drawer.core = core
+            const before = core.called("listFolders").length
+            drawer.visible = false
+            drawer.visible = true
+            compare(core.called("listFolders").length, before + 1)
+        }
+
         function test_drawer_reports_its_account_while_open() {
             mouseClick(find("menuButton", page))
             const drawer = drawerOf(find("account-ann", page))
@@ -553,6 +568,15 @@ Item {
             core.outbox.clear()
         }
 
+        Component {
+            id: bareDrawer
+            FoldersDrawer {
+                core: null
+                expanded: "ann"
+                accounts: ListModel {}
+                folders: ListModel {}
+            }
+        }
         Component {
             id: spyComponent
             SignalSpy { signalName: "outboxRequested" }
