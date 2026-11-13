@@ -257,6 +257,28 @@ fn icons_sized_by_their_images_keep_their_columns() {
     }
 }
 
+const CARDS: &str = r#"<table><tr>
+    <td><img src="https://news.example/a.png" alt="A" width="100" height="80"> A flat by the river with a view</td>
+    <td><img src="https://news.example/b.png" alt="B" width="100" height="80"> A house with a garden</td>
+    </tr></table>"#;
+
+#[test]
+fn a_picture_with_a_caption_takes_the_width_of_the_text() {
+    for html in [clean(CARDS), with_images(CARDS)] {
+        assert_eq!(count(&html, "table"), 0, "{html}");
+        in_order(&html, &["A", "river", "B", "garden"]);
+    }
+}
+
+#[test]
+fn pictures_side_by_side_in_a_cell_add_up() {
+    let html = clean(
+        r#"<table><tr><td><img src="https://news.example/a.png" alt="A" width="100" height="40"><img src="https://news.example/b.png" alt="B" width="100" height="40"></td><td>Text</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["A", "B", "Text"]);
+}
+
 #[test]
 fn images_without_a_width_leave_their_cells_free() {
     let html = clean(

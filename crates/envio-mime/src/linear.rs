@@ -75,9 +75,9 @@ struct Frame {
 struct Cell {
     /// Its `width` in pixels.
     width: Option<u32>,
-    /// The widest picture in it.
+    /// The widths of the pictures in it, summed.
     pictures: Option<u32>,
-    /// It holds a picture without a width, a block or a nested table.
+    /// It holds text, a picture without a width, a block or a nested table.
     open_width: bool,
 }
 
@@ -96,9 +96,21 @@ impl Frame {
         self.layout = true;
         if let Some(cell) = &mut self.cell {
             match picture {
-                Some(Some(px)) => cell.pictures = cell.pictures.max(Some(px)),
+                Some(Some(px)) => {
+                    cell.pictures = Some(cell.pictures.unwrap_or(0).saturating_add(px));
+                }
                 _ => cell.open_width = true,
             }
+        }
+    }
+
+    /// Text in its own content (not an image's label): the open cell's
+    /// width is the text's, not its pictures'.
+    fn text(&mut self, text: &str) {
+        if let Some(cell) = &mut self.cell
+            && !text.replace("&nbsp;", " ").trim().is_empty()
+        {
+            cell.open_width = true;
         }
     }
 
@@ -162,12 +174,19 @@ pub(crate) fn layout_tables(html: &str, images: &[Placed]) -> Vec<bool> {
     let mut images = images.iter().copied().peekable();
     let mut pos = 0;
     while let Some((start, end)) = next_tag(html, pos) {
-        pos = end;
+        // The text before this tag, around the images' labels.
+        let mut from = pos;
         while let Some(image) = images.next_if(|image| image.at <= start) {
             if let Some(frame) = open.last_mut() {
+                frame.text(&html[from..image.at.max(from)]);
                 frame.content(Some(image.width));
             }
+            from = from.max(image.end);
         }
+        if let Some(frame) = open.last_mut() {
+            frame.text(&html[from..start.max(from)]);
+        }
+        pos = end;
         let raw = &html[start..end];
         let (closing, name) = name_of(raw);
         if name == "table" {

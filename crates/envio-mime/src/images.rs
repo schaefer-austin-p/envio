@@ -61,8 +61,9 @@ impl Tag {
 /// An image in [`fit`]'s result, shown or as its label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Placed {
-    /// Byte offset of the `img` tag or the label.
+    /// Byte range of the `img` tag or the label.
     pub(crate) at: usize,
+    pub(crate) end: usize,
     /// The width the message gave it, in pixels, before scaling.
     pub(crate) width: Option<u32>,
 }
@@ -95,7 +96,8 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             Some(tag) if tag.name == "img" => {
                 let at = out.html.len();
                 if let Some(width) = image(&tag, options, &mut out) {
-                    images.push(Placed { at, width });
+                    let end = out.html.len();
+                    images.push(Placed { at, end, width });
                 }
             }
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
