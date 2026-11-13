@@ -242,6 +242,30 @@ fn a_narrow_icon_column_beside_the_content_stays() {
     assert_eq!(count(&html, "td"), 2, "{html}");
 }
 
+const ICONS: &str = r#"<table><tr>
+    <td><img src="https://news.example/f.png" alt="F" width="32" height="32"></td>
+    <td><img src="https://news.example/t.png" alt="T" width="32" height="32"></td>
+    <td><img src="https://news.example/i.png" alt="I" width="32" height="32"></td>
+    </tr><tr><td><img src="https://news.example/logo.png" alt="Logo" width="40" height="40"></td><td>Acme Inc</td></tr></table>"#;
+
+#[test]
+fn icons_sized_by_their_images_keep_their_columns() {
+    // The cells have no width of their own; their images do.
+    for html in [clean(ICONS), with_images(ICONS)] {
+        assert_eq!(count(&html, "table"), 1, "{html}");
+        assert_eq!(count(&html, "td"), 5, "{html}");
+    }
+}
+
+#[test]
+fn images_without_a_width_leave_their_cells_free() {
+    let html = clean(
+        r#"<table><tr><td><img src="https://news.example/a.png" alt="A"></td><td><img src="https://news.example/b.png" alt="B"></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["A", "B"]);
+}
+
 #[test]
 fn two_free_width_columns_beside_an_icon_stack() {
     let html = clean(

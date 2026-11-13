@@ -16,7 +16,7 @@
 //! is no tree: [`layout_tables`] pre-scans for a verdict per table, and
 //! [`linearise`] rewrites with it, both in one forward pass.
 
-use crate::images::{parse_tag, pixels, tag_len};
+use crate::images::{Placed, parse_tag, pixels, tag_len};
 use crate::plain::escape_into;
 
 /// The most pixels a row's side columns may take, together, for the row to
@@ -66,10 +66,70 @@ struct Frame {
     /// The open row's pixel widths: their sum and the largest.
     fixed: u32,
     widest: u32,
+    /// The open cell, if any.
+    cell: Option<Cell>,
+}
+
+/// What the pre-scan tracks for a cell that is still open.
+#[derive(Default)]
+struct Cell {
+    /// Its `width` in pixels.
+    width: Option<u32>,
+    /// The widest picture in it.
+    pictures: Option<u32>,
+    /// It holds a picture without a width, a block or a nested table.
+    open_width: bool,
+}
+
+impl Cell {
+    /// Its pixel width: its own, else that of the pictures it holds alone
+    /// (an icon cell often leaves the width to its image).
+    fn pixels(&self) -> Option<u32> {
+        self.width.or(self.pictures.filter(|_| !self.open_width))
+    }
 }
 
 impl Frame {
+    /// A picture, a block or a nested table in its own content; a picture
+    /// has `Some(width)`, the width it declares.
+    fn content(&mut self, picture: Option<Option<u32>>) {
+        self.layout = true;
+        if let Some(cell) = &mut self.cell {
+            match picture {
+                Some(Some(px)) => cell.pictures = cell.pictures.max(Some(px)),
+                _ => cell.open_width = true,
+            }
+        }
+    }
+
+    fn start_cell(&mut self, raw: &str) {
+        match self.cells {
+            Some(n) => self.cells = Some(n + 1),
+            None => self.columns = true,
+        }
+        if self.cell.is_some() {
+            self.end_cell();
+        }
+        self.cell = Some(Cell {
+            width: cell_width(raw),
+            ..Cell::default()
+        });
+    }
+
+    fn end_cell(&mut self) {
+        match self.cell.take().and_then(|cell| cell.pixels()) {
+            Some(px) => {
+                self.fixed = self.fixed.saturating_add(px);
+                self.widest = self.widest.max(px);
+            }
+            None => self.free += 1,
+        }
+    }
+
     fn end_row(&mut self) {
+        if self.cell.is_some() {
+            self.end_cell();
+        }
         if self.cells != Some(1) {
             self.columns = true;
             let sides = match self.free {
@@ -93,18 +153,19 @@ impl Frame {
 /// `<table` start tag, in order. Such a table has no `th` and no `caption`,
 /// and either every one of its own rows has exactly one of its own cells
 /// (any `colspan`), or it is layout and some row has wide side columns
-/// (see [`Frame`]). `images` are the byte offsets of images, sorted (blocked
-/// ones are only text by now). Nested tables are judged on their own.
-pub(crate) fn layout_tables(html: &str, images: &[usize]) -> Vec<bool> {
+/// (see [`Frame`]). `images` are those `images::fit` wrote, in order
+/// (blocked ones are only text by now). Nested tables are judged on their
+/// own.
+pub(crate) fn layout_tables(html: &str, images: &[Placed]) -> Vec<bool> {
     let mut verdicts = Vec::new();
     let mut open: Vec<Frame> = Vec::new();
     let mut images = images.iter().copied().peekable();
     let mut pos = 0;
     while let Some((start, end)) = next_tag(html, pos) {
         pos = end;
-        while images.next_if(|&at| at <= start).is_some() {
+        while let Some(image) = images.next_if(|image| image.at <= start) {
             if let Some(frame) = open.last_mut() {
-                frame.layout = true;
+                frame.content(Some(image.width));
             }
         }
         let raw = &html[start..end];
@@ -116,7 +177,7 @@ pub(crate) fn layout_tables(html: &str, images: &[usize]) -> Vec<bool> {
                 }
             } else {
                 if let Some(outer) = open.last_mut() {
-                    outer.layout = true;
+                    outer.content(None);
                 }
                 open.push(Frame {
                     index: verdicts.len(),
@@ -139,21 +200,10 @@ pub(crate) fn layout_tables(html: &str, images: &[usize]) -> Vec<bool> {
                 frame.widest = 0;
             }
             (true, "tr") => frame.end_row(),
-            (false, "td") => {
-                match frame.cells {
-                    Some(n) => frame.cells = Some(n + 1),
-                    None => frame.columns = true,
-                }
-                match cell_width(raw) {
-                    Some(px) => {
-                        frame.fixed = frame.fixed.saturating_add(px);
-                        frame.widest = frame.widest.max(px);
-                    }
-                    None => frame.free += 1,
-                }
-            }
+            (false, "td") => frame.start_cell(raw),
+            (true, "td") if frame.cell.is_some() => frame.end_cell(),
             (false, "th" | "caption") => frame.data = true,
-            (false, name) if BLOCKS.contains(&name) => frame.layout = true,
+            (false, name) if BLOCKS.contains(&name) => frame.content(None),
             _ => {}
         }
     }
@@ -180,7 +230,7 @@ fn cell_width(raw: &str) -> Option<u32> {
 /// `div`s: the table and its cells keep `align` and `style`, its own
 /// `tbody`, `thead`, `tfoot`, `tr`, `colgroup` and `col` tags go, and the
 /// content stays in order.
-pub(crate) fn linearise(html: &str, images: &[usize]) -> String {
+pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
     let verdicts = layout_tables(html, images);
     if !verdicts.contains(&true) {
         return html.to_owned();
