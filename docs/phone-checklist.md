@@ -61,7 +61,9 @@ Pass: no unreadable text, no light patches in dark, colours match the boards.
 Do: add an account with a few thousand messages. Time the first sync. Read
 `ps` or the app log for memory after the sync and after scrolling the list.
 Pass: the first sync shows the newest mail at once and finishes without the
-app being killed. Record the time and the memory in the table.
+app being killed, and every number is within the Budgets table in the
+design spec (idle VmRSS 320 MB, peak VmHWM 340 MB, first rows 6 s, cold
+start 4 s). Record the time and the memory in the table.
 
 ## CA roots load confined (#31)
 
