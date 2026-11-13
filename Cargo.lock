@@ -492,6 +492,7 @@ dependencies = [
  "envio-sync",
  "futures",
  "gettext-rs",
+ "libc",
  "log",
  "rcgen",
  "rusqlite",
