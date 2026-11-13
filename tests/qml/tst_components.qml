@@ -242,6 +242,40 @@ Item {
             tryVerify(function() { return !dialog.visible })
         }
 
+        function messageText() {
+            return everything(dialog.contentItem, []).filter(function(o) { return o.text === dialog.message })[0]
+        }
+        function test_dialog_message_wraps_an_unbroken_word() {
+            dialog.message = "New fingerprint: 03:10:17:24:31:38:45:52:59:66:73:80:87:94:01:08:15:22:29:36:43:50:57:64:71:78:85:92:99:06:13:20"
+            dialog.open()
+            tryVerify(function() { return dialog.opened })
+            const t = messageText()
+            verify(t.contentWidth <= t.width, "contentWidth " + t.contentWidth + " > width " + t.width)
+            verify(t.lineCount >= 3)
+            dialog.close()
+            dialog.message = "Cancel is the safe choice."
+        }
+        // Ordinary prose still breaks at spaces: it wraps exactly as WordWrap would.
+        function test_dialog_message_keeps_word_breaks() {
+            dialog.message = "The server presented a certificate that is not the one you trusted before, so check it first."
+            dialog.open()
+            tryVerify(function() { return dialog.opened })
+            const t = messageText()
+            const ref = createTemporaryObject(wordWrapComponent, root, { text: t.text, width: t.width, fontFamily: t.font.family, pixelSize: t.font.pixelSize })
+            verify(t.lineCount >= 2)
+            compare(t.lineCount, ref.lineCount)
+            compare(t.contentWidth, ref.contentWidth)
+            dialog.close()
+            dialog.message = "Cancel is the safe choice."
+        }
+        function test_banner_wraps_an_unbroken_word() {
+            const b = createTemporaryObject(bannerComponent, root)
+            verify(b)
+            const label = everything(b, []).filter(function(o) { return o.text === b.text && o.wrapMode !== undefined })[0]
+            verify(label.contentWidth <= label.width, "contentWidth " + label.contentWidth + " > width " + label.width)
+            verify(label.lineCount >= 2)
+        }
+
         function test_password_field_keeps_its_hints() {
             pwField.inputMethodHints = Qt.ImhEmailCharactersOnly
             const h = pwField.effectiveHints
@@ -546,6 +580,22 @@ Item {
     Component { id: fieldComponent; Field { theme: thm; width: 300; y: 300 } }
     Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
+    Component {
+        id: bannerComponent
+        Banner { theme: thm; width: 300; text: "Certificate: 03:10:17:24:31:38:45:52:59:66:73:80:87:94:01:08:15:22:29:36:43:50:57:64:71:78:85:92:99:06:13:20" }
+    }
+    Component {
+        id: wordWrapComponent
+        Text {
+            property string fontFamily: ""
+            property int pixelSize: 15
+            textFormat: Text.PlainText
+            wrapMode: Text.WordWrap
+            lineHeight: 1.3
+            font.family: fontFamily
+            font.pixelSize: pixelSize
+        }
+    }
     Component {
         id: buttonComponent
         AppButton { theme: thm; text: "Continue"; width: 300; y: 450 }

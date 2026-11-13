@@ -38,7 +38,7 @@ Rectangle {
         anchors.rightMargin: root.theme.gu(2)
         anchors.verticalCenter: parent.verticalCenter
         text: root.text
-        wrapMode: Text.WordWrap
+        wrapMode: Text.Wrap
         lineHeight: 1.3
         color: root.theme.text
         font.family: root.theme.fontUi
