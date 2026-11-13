@@ -1,0 +1,47 @@
+name: Advisories
+
+# Security-only dependency watch: files one issue when cargo audit finds a
+# vulnerability in either Cargo.lock, closes it when both are clean.
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Branch whose lock files to audit
+        default: master
+
+# One run at a time, so two runs never both create the issue.
+concurrency:
+  group: advisories
+  cancel-in-progress: false
+
+jobs:
+  advisories:
+    runs-on: rust-ci
+    timeout-minutes: 15
+    steps:
+      # The script comes from the ref the workflow runs on; the lock files
+      # come from `base`, which may be a branch that has no script.
+      - uses: actions/checkout@v4
+        with:
+          path: tool
+          persist-credentials: false
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base || 'master' }}
+          path: audited
+          persist-credentials: false
+
+      # cargo audit exits 1 on a vulnerability; the script reads the reports.
+      - name: cargo audit
+        working-directory: audited
+        run: |
+          cargo audit --json > ../audit-root.json || true
+          cargo audit --json --file qt/Cargo.lock > ../audit-qt.json || true
+
+      - name: Update the advisory issue
+        run: node tool/tools/ci/advisory-issue.mjs root=audit-root.json qt=audit-qt.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

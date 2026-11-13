@@ -16,9 +16,10 @@ const ME: &str = "me@example.org";
 const C: ComposeId = ComposeId(1);
 const SAVE_MS: u64 = 1_000;
 /// Time a save may take past its due time. Tests here run in parallel and
-/// each save syncs a file, which on a CI runner has taken over 200 ms
-/// (#80). A save held up by the 3 s stall or a copy still misses it.
-const SLACK_MS: u64 = 800;
+/// each save syncs a file, which on a CI runner busy with a click build has
+/// taken over 800 ms (#80, #107). A save held up by the 6 s stall still
+/// misses it.
+const SLACK_MS: u64 = 2_000;
 
 struct S {
     h: Harness,
@@ -176,25 +177,28 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     });
     // The copy is under way (it waits for the pipe's writer).
     std::thread::sleep(Duration::from_millis(300));
-    let start = Instant::now();
+    // The copy stays blocked until `release` below, so order proves the
+    // point: a save or flush that waited for the copy cannot land before it.
     s.change(s.draft("typed while copying"));
-    let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
-    let saved = s.wait_for_draft(limit, |d| d.body == "typed while copying");
+    let saved = s.wait_for_draft(Duration::from_secs(10), |d| d.body == "typed while copying");
     s.change(s.draft("typed again"));
-    let flush_start = Instant::now();
-    s.h.send(Command::AppActive(false));
-    // The copy stays blocked until `release` below, so a flush that waited
-    // for it would take far longer than this.
-    let flushed = flush_start.elapsed() < Duration::from_millis(2_000)
-        && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
-    let on_time = start.elapsed() < limit + Duration::from_millis(500);
+    let core = s.h.core.as_ref().unwrap();
+    let (done, flushed_rx) = std::sync::mpsc::channel();
+    let flushed = std::thread::scope(|scope| {
+        scope.spawn(move || {
+            core.send(Command::AppActive(false));
+            let _ = done.send(());
+        });
+        flushed_rx.recv_timeout(Duration::from_secs(10)).is_ok()
+            && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again")
+    });
     // Let the copy end whatever the result, so nothing is left blocked.
     release(&slow, b"payload");
     let copy = s.h.wait(|e| match e {
         Event::Attached { path, .. } => Some(path.clone()),
         _ => None,
     });
-    assert!(saved && on_time, "a text save waited for the copy");
+    assert!(saved, "a text save waited for the copy");
     assert!(flushed, "the flush waited for the copy");
     assert_eq!(std::fs::read(copy).unwrap(), b"payload");
 }
@@ -202,7 +206,7 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
 #[test]
 fn a_change_is_saved_while_the_worker_is_stalled() {
     let s = started();
-    s.stall(3_000);
+    s.stall(6_000);
     s.change(s.draft("typed"));
     let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
     assert!(s.wait_for_draft(limit, |d| d.body == "typed"));
@@ -226,7 +230,7 @@ fn a_worker_panic_keeps_the_draft_id() {
     s.h.send(Command::Crash);
     s.h.wait(|e| matches!(e, Event::WorkerRestarted { .. }).then_some(()));
     s.change(s.draft("two"));
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "two"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "two"));
     let drafts = s.drafts();
     assert_eq!(drafts.len(), 1, "no ghost or duplicate file");
     assert_eq!(drafts[0].0, id);
@@ -240,7 +244,7 @@ fn send_deletes_the_draft_and_its_attachment_copies() {
     let mut draft = s.draft("with a file");
     draft.attachments = vec![copy.clone()];
     s.change(draft.clone());
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "with a file"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "with a file"));
     s.h.send(Command::Send { compose: C, draft });
     s.h.wait(|e| matches!(e, Event::Queued { .. }).then_some(()));
     assert!(s.drafts().is_empty());
@@ -259,7 +263,7 @@ fn a_failed_enqueue_keeps_the_draft_and_files() {
     let mut draft = s.draft("keep me");
     draft.attachments = vec![copy.clone()];
     s.change(draft.clone());
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "keep me"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "keep me"));
     // The Outbox folder is gone, so enqueueing fails.
     let outbox = s.h.paths().outbox();
     std::fs::remove_dir_all(&outbox).unwrap();
@@ -309,7 +313,7 @@ fn a_reopened_draft_saves_to_the_same_file() {
         compose: again,
         draft: s.draft("second"),
     });
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "second"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "second"));
     let drafts = s.drafts();
     assert_eq!(drafts.len(), 1);
     assert_eq!(drafts[0].0, id);
@@ -353,7 +357,7 @@ fn a_panicking_sink_does_not_stop_draft_saving() {
     h.core = Some(Core::start(h.config(), Arc::new(PanicOnce(AtomicBool::new(false)))).unwrap());
     let s = S { h, key };
     s.change(s.draft("first"));
-    assert!(s.wait_for_draft(Duration::from_secs(3), |d| d.body == "first"));
+    assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "first"));
     std::thread::sleep(Duration::from_millis(100));
     s.h.send(Command::DraftChanged {
         compose: ComposeId(2),

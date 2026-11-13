@@ -1,0 +1,55 @@
+name: Click
+
+# The arm64 .click package. Not a required check: on a PR it runs only when
+# something that goes into the package changes.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - clickable.yaml
+      - manifest.json
+      - envio.desktop
+      - envio.url-dispatcher
+      - "assets/**"
+      - envio.apparmor
+      - CMakeLists.txt
+      - "qt/**"
+      - ".forgejo/workflows/**"
+      - tools/ci/click.sh
+      - tools/ci/dind.sh
+
+concurrency:
+  group: click-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  click:
+    runs-on: docker
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Builds in clickable's image on the runner's dind daemon, then runs
+      # click-review (errors fail, warnings print).
+      - name: Build and review the click
+        run: tools/ci/click.sh
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: envio-click
+          path: build-click/*.click
+          retention-days: 30
+
+      # Also after a failed build or review, so the report is still there.
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: envio-click-review
+          path: build-click/click-review.txt
+          if-no-files-found: ignore
+          retention-days: 30
