@@ -184,3 +184,12 @@ fn bare_hex_bgcolor_sets_colours() {
     assert!(!sets_colours(r#"<td bgcolor="ffff">x</td>"#));
     assert!(!sets_colours(r#"<p style="background:ffffff">x</p>"#));
 }
+
+#[test]
+fn a_bare_hex_table_bgcolor_sets_colours_through_the_sanitiser() {
+    // The real path: linearise turns the cell's bgcolor into a style first.
+    assert!(own(
+        r#"<table><tr><td bgcolor="ffffff">hi</td></tr></table>"#
+    ));
+    assert!(own(r#"<table><tr bgcolor="fff"><td>hi</td></tr></table>"#));
+}

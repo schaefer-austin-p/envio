@@ -31,7 +31,9 @@ pub fn sets_colours(html: &str) -> bool {
         if let Some(style) = tag.attr("style") {
             for (name, value) in declarations(style) {
                 match name.as_str() {
-                    "background-color" if is_visible(value) => return true,
+                    // `linearise` moves a table's `bgcolor`, bare hex
+                    // included, into `background-color`.
+                    "background-color" if is_visible_attr(value) => return true,
                     "color" if is_dark(value) => return true,
                     _ => {}
                 }
@@ -57,7 +59,8 @@ fn is_visible(value: &str) -> bool {
     parse_rgba(value).is_some_and(|(_, _, _, a)| a > 0)
 }
 
-/// A `bgcolor` attribute value: HTML also accepts bare hex (`ffffff`) there.
+/// A `bgcolor` value, as an attribute or as the `background-color` that
+/// `linearise` turns it into: HTML also accepts bare hex (`ffffff`) there.
 fn is_visible_attr(value: &str) -> bool {
     let v = value.trim();
     let bare_hex = matches!(v.len(), 3 | 6) && v.bytes().all(|b| b.is_ascii_hexdigit());
