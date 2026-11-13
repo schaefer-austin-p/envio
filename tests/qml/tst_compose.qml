@@ -218,6 +218,59 @@ Item {
             verify(!shown("suggestion-0"), "Cc's text is not what the rows answer")
         }
 
+        // #138: Cc Bcc sits in the To row, Subject is a row like it.
+        function test_cc_bcc_button_is_in_the_to_row() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const btn = find("showCc")
+            verify(shown("showCc"))
+            let inTo = false
+            for (let p = btn.parent; p; p = p.parent) if (p === find("to")) inTo = true
+            verify(inTo, "the button is inside the To row")
+            verify(btn.height >= 44)
+            verify(!shown("ccField"))
+            mouseClick(btn)
+            waitForRendering(page)
+            verify(shown("ccField") && shown("bccField"), "Cc and Bcc show")
+            verify(!shown("showCc"), "the button hides")
+        }
+
+        function test_subject_is_an_inline_row_without_a_box() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            compare(find("subjectField").field.framed, false)
+            const label = find("subjectLabel")
+            verify(label !== undefined, "the label is in the row")
+            // Same column as From and To: text starts at the page margin, label column gu(6.5).
+            compare(label.mapToItem(page, 0, 0).x + label.leftPadding, find("fromLabel").mapToItem(page, 0, 0).x)
+            compare(label.width, thm.gu(6.5))
+            mouseClick(label)
+            verify(find("subjectField").input.activeFocus, "tapping the row focuses the input")
+            const n = mock.called("draftChanged").length
+            find("subjectField").input.text = "Hi"
+            verify(mock.called("draftChanged").length > n, "editing marks the draft edited")
+        }
+
+        // #138 review: with Cc Bcc showing, a long chip uses what the first line
+        // has left (line minus the button minus a small input), input beside it.
+        function test_long_chip_uses_the_line_beside_cc_bcc_at_360() {
+            root.width = 360
+            mock.composeReady(1, { account: "ann", to: ["Bartholomew Longname <bartholomew.longname@example.org>"], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            const chip = find("to-remove-0")
+            const input = to.input.mapToItem(chip.parent, 0, 0)
+            verify(shown("showCc"))
+            verify(chip.width >= 150 && chip.width >= to.width - thm.gu(16.5) - find("showCc").width - 2, "chip is " + chip.width + " wide")
+            compare(input.y, chip.y, "the input is on the chip's line")
+            verify(chip.x + chip.width + to.input.width <= chip.parent.width + 1)
+            verify(to.height <= find("fromRow").height + 2, "one line")
+            root.width = 400
+        }
+
         function test_typed_text_is_in_the_draft() {
             mock.composeReady(1, reply, "")
             find("to").input.text = "dave@exa"
@@ -421,8 +474,7 @@ Item {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
                                    inReplyTo: "", references: [], attachments: [] }, "")
             waitForRendering(page)
-            const margin = find("subjectField").mapToItem(page, 0, 0).x
-            verify(margin > 0)
+            const margin = thm.gu(2)
             compare(find("fromLabel").mapToItem(page, 0, 0).x, margin)
             mock.suggestions.append({ name: "Cy", address: "cy@example.org", fromContacts: false, lastSeen: 100, query: "cy" })
             find("to").input.text = "cy"

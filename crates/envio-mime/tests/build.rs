@@ -254,6 +254,97 @@ fn attachment_content_type_is_validated() {
     assert_eq!(text.matches("application/octet-stream").count(), 3);
 }
 
+/// The header block of the part that carries `filename`.
+fn part_headers(wire: &str, filename: &str) -> String {
+    let at = wire.find(&format!("filename=\"{filename}\"")).unwrap();
+    let start = wire[..at].rfind("\r\n--").unwrap();
+    let end = at + wire[at..].find("\r\n\r\n").unwrap();
+    wire[start..end].to_owned()
+}
+
+#[test]
+fn every_attachment_is_base64_and_text_ones_carry_a_charset() {
+    let mut o = simple();
+    let smuggle = "caf\u{e9}\r.\r\nMAIL FROM:<x@y>\r\n\0end"
+        .as_bytes()
+        .to_vec();
+    let bad_utf8 = vec![b'a', b',', 0xff, 0xfe, b'\r', b'\n'];
+    o.attachments = vec![
+        OutgoingAttachment {
+            filename: "a.txt".to_owned(),
+            content_type: "text/plain".to_owned(),
+            bytes: smuggle.clone(),
+        },
+        OutgoingAttachment {
+            filename: "b.csv".to_owned(),
+            content_type: "text/csv".to_owned(),
+            bytes: bad_utf8.clone(),
+        },
+        OutgoingAttachment {
+            filename: "c.ics".to_owned(),
+            content_type: "text/calendar".to_owned(),
+            bytes: b"a\r.\r\nMAIL FROM:<x@y>\r\n".to_vec(),
+        },
+    ];
+    let built = build(&o, 0, "x@example.org");
+    let wire = String::from_utf8(built.bytes.clone()).unwrap();
+    let ics = part_headers(&wire, "c.ics");
+    assert!(ics.contains("Content-Transfer-Encoding: base64"), "{ics}");
+    let txt = part_headers(&wire, "a.txt");
+    assert!(txt.contains("Content-Transfer-Encoding: base64"), "{txt}");
+    assert!(txt.contains("charset=\"utf-8\""), "{txt}");
+    let csv = part_headers(&wire, "b.csv");
+    assert!(csv.contains("Content-Transfer-Encoding: base64"), "{csv}");
+    assert!(!csv.contains("charset"), "{csv}");
+    assert!(!wire.contains("MAIL FROM"), "raw text leaked");
+    assert_eq!(attachment_bytes(&built.bytes, 0).unwrap(), smuggle);
+    // The parser re-decodes text parts as UTF-8, so check these bytes on the wire.
+    assert!(wire.contains("\r\n\r\nYSz//g0K"), "{wire}");
+}
+
+#[test]
+fn text_attachment_type_is_matched_case_insensitively() {
+    let mut o = simple();
+    o.attachments = vec![OutgoingAttachment {
+        filename: "d.txt".to_owned(),
+        content_type: "Text/Plain".to_owned(),
+        bytes: "caf\u{e9}".as_bytes().to_vec(),
+    }];
+    let built = build(&o, 0, "x@example.org");
+    let wire = String::from_utf8(built.bytes).unwrap();
+    let hdr = part_headers(&wire, "d.txt");
+    assert!(hdr.contains("charset=\"utf-8\""), "{hdr}");
+}
+
+#[test]
+fn long_base64_attachment_wraps_at_76_and_round_trips() {
+    // 1000 bytes: not a multiple of 3 (ends in "=="), several lines.
+    let bytes: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
+    let mut o = simple();
+    o.attachments = vec![OutgoingAttachment {
+        filename: "long.bin".to_owned(),
+        content_type: "application/octet-stream".to_owned(),
+        bytes: bytes.clone(),
+    }];
+    let built = build(&o, 0, "x@example.org");
+    let wire = String::from_utf8(built.bytes.clone()).unwrap();
+    let at = wire.find("filename=\"long.bin\"").unwrap();
+    let body_start = at + wire[at..].find("\r\n\r\n").unwrap() + 4;
+    let body_end = body_start + wire[body_start..].find("\r\n--").unwrap();
+    let body = &wire[body_start..body_end];
+    let lines: Vec<&str> = body.split("\r\n").collect();
+    assert!(lines.len() > 10, "{} lines", lines.len());
+    for line in &lines {
+        assert!(line.len() <= 76, "line of {}: {line}", line.len());
+        assert!(!line.contains(['\r', '\n']), "bare CR or LF: {line:?}");
+    }
+    for line in &lines[..lines.len() - 1] {
+        assert_eq!(line.len(), 76, "{line}");
+    }
+    assert!(body.ends_with("=="), "{body}");
+    assert_eq!(attachment_bytes(&built.bytes, 0).unwrap(), bytes);
+}
+
 #[test]
 fn message_id_domain_is_punycoded() {
     assert!(new_message_id("a@例え.jp").ends_with("@xn--r8jz45g.jp"));

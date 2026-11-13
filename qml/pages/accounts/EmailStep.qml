@@ -13,6 +13,13 @@ Item {
     property alias email: emailField.text
     signal continued()
     signal manualRequested()
+    // The manual path has no address field of its own, so both buttons wait.
+    // Same rule as the core: text before the last "@", a domain after it.
+    readonly property bool hasAddress: {
+        const t = emailField.text.trim()
+        const at = t.lastIndexOf("@")
+        return at > 0 && at < t.length - 1 && t.indexOf("@", at + 1) < 0
+    }
 
     KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
@@ -75,6 +82,7 @@ Item {
                 width: parent.width
                 theme: root.theme
                 text: qsTr("Set up manually")
+                enabled: root.hasAddress
                 onClicked: root.manualRequested()
             }
         }
@@ -92,7 +100,7 @@ Item {
         theme: root.theme
         primary: true
         text: qsTr("Continue")
-        enabled: !root.busy && emailField.text.indexOf("@") > 0
+        enabled: !root.busy && root.hasAddress
         onClicked: root.continued()
     }
     }

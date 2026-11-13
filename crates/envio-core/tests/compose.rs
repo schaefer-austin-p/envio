@@ -28,6 +28,10 @@ hello \r\nworld again\r\n";
 struct Seeded {
     h: Harness,
     key: String,
+    /// Opened once, after the core starts and before any change is sent.
+    /// `Drafts::open` deletes temp files, so a fresh handle per read could
+    /// delete the temp file of a save in flight (#126).
+    reader: Drafts,
 }
 
 fn seeded() -> Seeded {
@@ -54,7 +58,8 @@ fn seeded_raw(missing: bool, raw: &[u8]) -> Seeded {
             .unwrap();
     }
     h.start_core();
-    Seeded { h, key }
+    let reader = Drafts::open(&h.paths().drafts()).unwrap();
+    Seeded { h, key, reader }
 }
 
 impl Seeded {
@@ -69,10 +74,7 @@ impl Seeded {
     }
 
     fn drafts(&self) -> Vec<(String, envio_store::Draft)> {
-        Drafts::open(&self.h.paths().drafts())
-            .unwrap()
-            .list()
-            .unwrap()
+        self.reader.list().unwrap()
     }
 
     fn outbox(&self) -> Vec<envio_store::OutboxItem> {

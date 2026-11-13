@@ -120,8 +120,8 @@ colour in mail bodies).
 | --- | --- | --- | --- | --- | --- |
 | Airmail | Page border | ring | none | High | R1 |
 | Both | Top bar | close X left, title ("New message" / "Reply"), attach glyph, filled Send with paper-plane glyph (44 high, radius 8 / pill) | back arrow, title "Write", attach, more, grey Send without glyph (`ComposePage.qml:137-165`; p21) | High | Close glyph, title by mode, Send glyph; move "more" into a sheet |
-| Both | Header fields | rows: label (Carbon mono 12, Airmail Inter 13) at left, value at 14-16, hairline between, no frames | From row uses `ListRow`; Subject is a framed `Field` with label above (`ComposePage.qml:239`; p21) | High | Inline-label row component, no frame |
-| Both | To row | chips + live input, "Cc Bcc" text at the right | separate "Cc and Bcc" outlined chip under the row (p21) | Medium | Move into row end |
+| Both | Header fields | rows: label (Carbon mono 12, Airmail Inter 13) at left, value at 14-16, hairline between, no frames | From row uses `ListRow`; Subject is a framed `Field` with label above (`ComposePage.qml:239`; p21) | High | Done by #138: `SubjectRow.qml`, label column and no frame |
+| Both | To row | chips + live input, "Cc Bcc" text at the right | separate "Cc and Bcc" outlined chip under the row (p21) | Medium | Done by #138: `trailingText` on `RecipientField.qml` |
 | Airmail | Body | Lora about 16, unframed | framed Field (`ComposePage.qml:239`) | High | R4, unframed multi-line area |
 | Both | Recipient chips | 6 px (Carbon) / pill (Airmail) tintB chip, name + x | `RecipientField.qml:76-105` chip radius not branched | Medium | R5 |
 | Both | Suggestion popup | card, 8 px radius, shadow, name 15/600 plus mono address 12 | `Suggestions.qml:49-71` | Low | R3 |

@@ -4,9 +4,11 @@
 //! so nothing here panics on it.
 
 mod address;
+mod attach_part;
 mod attachments;
 mod build;
 mod colours;
+mod content_type;
 mod envelope;
 mod hidden;
 mod images;
@@ -30,6 +32,7 @@ pub use address::{Address, same_email};
 pub use attachments::{AttachmentInfo, attachment_bytes};
 pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use colours::{parse_colour, sets_colours};
+pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};

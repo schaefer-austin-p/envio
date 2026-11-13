@@ -27,6 +27,7 @@
         <file>pages/compose/QuoteFold.qml</file>
         <file>pages/compose/AttachmentChips.qml</file>
         <file>pages/compose/FromRow.qml</file>
+        <file>pages/compose/SubjectRow.qml</file>
         <file>pages/compose/DiscardActions.qml</file>
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>

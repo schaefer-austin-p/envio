@@ -168,6 +168,8 @@ fn drafts_are_saved_while_the_store_is_closed() {
     let _aside = block_accounts(&h);
     h.start_core();
     h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
+    // Opened before the change is sent: opening deletes temp files (#126).
+    let drafts = envio_store::Drafts::open(&h.paths().drafts()).unwrap();
     h.send(Command::DraftChanged {
         compose: envio_core::ComposeId(1),
         draft: envio_core::DraftInput {
@@ -178,7 +180,6 @@ fn drafts_are_saved_while_the_store_is_closed() {
             ..envio_core::DraftInput::default()
         },
     });
-    let drafts = envio_store::Drafts::open(&h.paths().drafts()).unwrap();
     let deadline = Instant::now() + Duration::from_secs(4);
     loop {
         if drafts.list().unwrap().iter().any(|(_, d)| d.body == "kept") {
