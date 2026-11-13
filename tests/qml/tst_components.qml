@@ -55,6 +55,13 @@ Item {
         name: "Components"
         when: windowShown
 
+        // Runs even when an assertion failed, so an open dialog cannot
+        // swallow the clicks of later tests.
+        function cleanup() {
+            dialog.close()
+            dialog.message = "Cancel is the safe choice."
+        }
+
         function init() {
             rowClicked.clear()
             rowHeld.clear()
@@ -252,8 +259,6 @@ Item {
             const t = messageText()
             verify(t.contentWidth <= t.width, "contentWidth " + t.contentWidth + " > width " + t.width)
             verify(t.lineCount >= 3)
-            dialog.close()
-            dialog.message = "Cancel is the safe choice."
         }
         // Ordinary prose still breaks at spaces: it wraps exactly as WordWrap would.
         function test_dialog_message_keeps_word_breaks() {
@@ -265,8 +270,6 @@ Item {
             verify(t.lineCount >= 2)
             compare(t.lineCount, ref.lineCount)
             compare(t.contentWidth, ref.contentWidth)
-            dialog.close()
-            dialog.message = "Cancel is the safe choice."
         }
         function test_banner_wraps_an_unbroken_word() {
             const b = createTemporaryObject(bannerComponent, root)
