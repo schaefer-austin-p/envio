@@ -1,6 +1,6 @@
 {
     "name": "envio.aps",
-    "description": "UT-First email client",
+    "description": "Private IMAP and SMTP email for Ubuntu Touch",
     "architecture": "$ENV{ARCH}",
     "title": "Envio",
     "hooks": {
