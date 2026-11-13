@@ -37,6 +37,7 @@ fn two_accounts() -> Ui {
         "a",
         vec![(10, FolderRole::Inbox), (11, FolderRole::Sent)],
     );
+    ui.set_drawer_account(Some("a".into()));
     ui
 }
 
@@ -108,7 +109,8 @@ fn another_accounts_answer_does_not_end_a_pending_list() {
     assert_eq!(list_of(&changed(&mut ui, &[10])).len(), 1);
     // The user opens b; its list lands while a's is outstanding.
     assert!(list_of(&shown(&mut ui, "b", vec![(20, FolderRole::Inbox)])).is_empty());
-    // b is shown now and gets its own list, not folded into a's.
+    // The drawer moves to b: it gets its own list, not folded into a's.
+    ui.set_drawer_account(Some("b".into()));
     assert_eq!(list_of(&changed(&mut ui, &[20])), ["b"]);
 }
 
@@ -123,5 +125,41 @@ fn a_pending_list_for_a_removed_account_does_not_block_the_next() {
         },
     );
     shown(&mut ui, "b", vec![(20, FolderRole::Inbox)]);
+    ui.set_drawer_account(Some("b".into()));
     assert_eq!(list_of(&changed(&mut ui, &[20])), ["b"]);
+}
+
+#[test]
+fn a_closed_drawer_lists_nothing() {
+    let mut ui = two_accounts();
+    ui.set_drawer_account(None);
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
+    let unread = Event::AccountUnread {
+        account: "a".into(),
+        unread: 2,
+    };
+    assert!(list_of(&feed(&mut ui, unread)).is_empty());
+}
+
+#[test]
+fn closing_the_drawer_while_a_list_is_pending_drops_the_follow_up() {
+    let mut ui = two_accounts();
+    assert_eq!(list_of(&changed(&mut ui, &[10])).len(), 1);
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
+    ui.set_drawer_account(None);
+    assert!(list_of(&shown(&mut ui, "a", vec![(10, FolderRole::Inbox)])).is_empty());
+}
+
+#[test]
+fn removing_the_drawers_account_clears_it() {
+    let mut ui = two_accounts();
+    feed(
+        &mut ui,
+        Event::AccountRemoved {
+            account: "a".into(),
+        },
+    );
+    // Same id again: a re-added account must not be listed unasked.
+    shown(&mut ui, "a", vec![(10, FolderRole::Inbox)]);
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
 }

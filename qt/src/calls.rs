@@ -133,6 +133,12 @@ impl qobject::EnvioCore {
         });
     }
 
+    pub fn drawer_account(mut self: Pin<&mut Self>, account: &QString) {
+        let account = s(account);
+        let account = (!account.is_empty()).then_some(account);
+        self.as_mut().rust_mut().ui.set_drawer_account(account);
+    }
+
     pub fn open_list(mut self: Pin<&mut Self>, kind: &QString, id: i64) {
         let Some(list) = cv::list_ref(&s(kind), id) else {
             return;

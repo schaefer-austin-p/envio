@@ -186,6 +186,9 @@ pub mod qobject {
         #[cxx_name = "listFolders"]
         fn list_folders(self: Pin<&mut EnvioCore>, account: &QString);
         #[qinvokable]
+        #[cxx_name = "drawerAccount"]
+        fn drawer_account(self: Pin<&mut EnvioCore>, account: &QString);
+        #[qinvokable]
         #[cxx_name = "openList"]
         fn open_list(self: Pin<&mut EnvioCore>, kind: &QString, id: i64);
         #[qinvokable]

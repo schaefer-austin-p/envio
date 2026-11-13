@@ -42,6 +42,8 @@ pub struct Ui {
     accounts: Vec<AccountRow>,
     names: HashMap<String, String>,
     folders_of: Option<String>,
+    /// The account the open drawer shows; `None` while it is closed.
+    drawer_account: Option<String>,
     /// The account a `ListFolders` is outstanding for.
     folders_pending: Option<String>,
     /// Counts changed while that list was outstanding: ask once more.

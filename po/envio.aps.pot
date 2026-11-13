@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 12:19+0100\n"
+"POT-Creation-Date: 2026-11-13 12:27+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:234
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:250
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -408,27 +408,27 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:70
+#: qml/pages/inbox/FoldersDrawer.qml:86
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:105 qml/pages/search/SearchPage.qml:100
+#: qml/pages/inbox/FoldersDrawer.qml:121 qml/pages/search/SearchPage.qml:100
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:116
+#: qml/pages/inbox/FoldersDrawer.qml:132
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:140 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:156 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:148
+#: qml/pages/inbox/FoldersDrawer.qml:164
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:241 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:257 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
