@@ -4,6 +4,27 @@ Run this on a real Ubuntu Touch phone before each release. Install with
 `cargo make click-install`. Take a screenshot as evidence for each item and
 record the result in the last section. A failed item becomes an issue.
 
+## Phone setup
+
+Synthetic mail only: the accounts are the throwaway Stalwart's `grace`,
+`heidi` and `ivan` at `envio.test`, never a real account.
+
+1. On the host, start the server: `eval "$(crates/envio-net/tests/stalwart/up.sh)"`.
+   It prints `STALWART_IMAPS_PORT`, `STALWART_SUBMISSIONS_PORT` and the other
+   published ports.
+2. With the phone on adb, forward the ports (the same number on both sides):
+   `adb reverse tcp:$STALWART_IMAPS_PORT tcp:$STALWART_IMAPS_PORT` and
+   `adb reverse tcp:$STALWART_SUBMISSIONS_PORT tcp:$STALWART_SUBMISSIONS_PORT`.
+3. Fill the mailboxes (Python 3, standard library only):
+   `python3 tools/phone/seed.py --port $STALWART_IMAPS_PORT --user heidi --password heidi-secret-1 --count 3000 --days 400`
+   for the large mailbox, and
+   `python3 tools/phone/seed.py --listing --port $STALWART_IMAPS_PORT --user grace --password grace-secret-1`
+   for the curated set behind the store screenshots. The same seed gives the
+   same subjects every run.
+4. In the app's wizard add grace and heidi: host `127.0.0.1`, the IMAPS and
+   submission ports from step 1, and accept the trust prompt (the server
+   certificate is self-signed).
+
 ## Content Hub, in
 
 Do: in a new message, tap Attach and pick a photo, then a PDF.
