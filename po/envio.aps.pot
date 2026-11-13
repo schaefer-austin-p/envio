@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 13:40+0100\n"
+"POT-Creation-Date: 2026-11-13 13:53+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:241
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:242
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -408,7 +408,7 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:55
+#: qml/pages/inbox/AccountTabs.qml:56 qml/pages/inbox/FoldersDrawer.qml:174
 msgid "%1, offline"
 msgstr ""
 
@@ -432,7 +432,7 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:248 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:249 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 

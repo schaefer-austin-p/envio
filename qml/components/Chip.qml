@@ -14,7 +14,8 @@ AbstractButton {
     readonly property real iconSpace: iconName !== "" ? theme.gu(2) + theme.gu(0.75) : 0
 
     implicitHeight: theme.touch
-    implicitWidth: label.implicitWidth + iconSpace + theme.gu(3)
+    // label.implicitWidth already includes its leftPadding (iconSpace).
+    implicitWidth: label.implicitWidth + theme.gu(3)
     Accessible.role: Accessible.RadioButton
     Accessible.checked: selected
 

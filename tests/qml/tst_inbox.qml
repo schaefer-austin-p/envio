@@ -411,6 +411,10 @@ Item {
             compare(chipIcon(bob).name, "offline")
             compare(chipIcon(bob).color, thm.accent)
             compare(bob.Accessible.name, "Bob, offline")
+            const unread = core.accounts.get(1).unreadText
+            core.accounts.setProperty(1, "unreadText", "3")
+            compare(bob.Accessible.name, "Bob  3, offline")
+            core.accounts.setProperty(1, "unreadText", unread)
             core.accounts.setProperty(1, "state", "ok")
         }
 
@@ -428,7 +432,7 @@ Item {
             const plain = bob.implicitWidth
             core.accounts.setProperty(1, "state", "offline")
             tryVerify(function() { return chipIcon(bob) !== null })
-            verify(bob.implicitWidth > plain, "the icon widens the chip")
+            fuzzyCompare(bob.implicitWidth - plain, bob.iconSpace, 0.5, "the icon widens the chip by its space, once")
             core.accounts.setProperty(1, "state", "ok")
             tryVerify(function() { return chipIcon(bob) === null })
             compare(bob.implicitWidth, plain)
@@ -443,6 +447,8 @@ Item {
             tryVerify(function() { return drawerIcon(bob) !== null })
             compare(drawerIcon(bob).name, "offline")
             compare(drawerIcon(ann), null)
+            verify(bob.Accessible.name.indexOf(", offline") > 0, bob.Accessible.name)
+            verify(ann.Accessible.name.indexOf("offline") < 0, ann.Accessible.name)
             core.accounts.setProperty(1, "state", "ok")
             tryVerify(function() { return drawerIcon(bob) === null })
             let drawer = ann

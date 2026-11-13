@@ -171,6 +171,7 @@ Rectangle {
                         chevron: true
                         chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
+                        Accessible.name: offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text
                         Icon {
                             id: offlineIcon
                             objectName: "offlineIcon"
