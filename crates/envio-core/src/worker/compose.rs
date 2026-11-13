@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use envio_mime::{Address, OutgoingAttachment};
+use envio_mime::{Address, OutgoingAttachment, content_type_for};
 
 use super::Worker;
 use super::start::displayed;
@@ -24,11 +24,12 @@ fn refusal(error: &ComposeError) -> String {
 
 /// A file to attach: its name and bytes.
 fn read_attachment(path: &Path) -> std::io::Result<OutgoingAttachment> {
+    let filename = path
+        .file_name()
+        .map_or_else(|| "attachment".into(), |n| n.to_string_lossy().into_owned());
     Ok(OutgoingAttachment {
-        filename: path
-            .file_name()
-            .map_or_else(|| "attachment".into(), |n| n.to_string_lossy().into_owned()),
-        content_type: "application/octet-stream".into(),
+        content_type: content_type_for(&filename).into(),
+        filename,
         bytes: std::fs::read(path)?,
     })
 }
@@ -226,6 +227,21 @@ mod tests {
     use super::*;
 
     const C: ComposeId = ComposeId(7);
+
+    #[test]
+    fn an_attachment_goes_out_with_the_type_of_its_name() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, want) in [
+            ("a.png", "image/png"),
+            ("b.bin", "application/octet-stream"),
+        ] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, b"x").unwrap();
+            let got = read_attachment(&path).unwrap();
+            assert_eq!(got.filename, name);
+            assert_eq!(got.content_type, want);
+        }
+    }
 
     /// What compose said (the worker also announces itself at start).
     fn said(sink: &Sink) -> Vec<Event> {

@@ -32,6 +32,8 @@ Rectangle {
     // Every opening lists the open account again, so its counts are current;
     // the core re-lists them while the drawer is open on an account.
     onVisibleChanged: {
+        // Visibility can change while the page is still being built.
+        if (!core) return
         if (!visible) {
             core.drawerAccount("")
             return

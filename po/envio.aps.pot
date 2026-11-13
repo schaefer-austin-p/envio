@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 18:00+0100\n"
+"POT-Creation-Date: 2026-11-13 18:02+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:263
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:265
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -157,23 +157,23 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:36
+#: qml/pages/accounts/EmailStep.qml:43
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:47
+#: qml/pages/accounts/EmailStep.qml:54
 msgid "Email address"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:77
+#: qml/pages/accounts/EmailStep.qml:84
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:87
+#: qml/pages/accounts/EmailStep.qml:95
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:94 qml/pages/accounts/SignInStep.qml:124
+#: qml/pages/accounts/EmailStep.qml:102 qml/pages/accounts/SignInStep.qml:124
 msgid "Continue"
 msgstr ""
 
@@ -407,31 +407,31 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:56 qml/pages/inbox/FoldersDrawer.qml:195
+#: qml/pages/inbox/AccountTabs.qml:56 qml/pages/inbox/FoldersDrawer.qml:197
 msgid "%1, offline"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:86
+#: qml/pages/inbox/FoldersDrawer.qml:88
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:121 qml/pages/search/SearchPage.qml:100
+#: qml/pages/inbox/FoldersDrawer.qml:123 qml/pages/search/SearchPage.qml:100
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:132
+#: qml/pages/inbox/FoldersDrawer.qml:134
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:156 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:164
+#: qml/pages/inbox/FoldersDrawer.qml:166
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:270 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:272 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 

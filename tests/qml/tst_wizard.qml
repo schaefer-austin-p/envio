@@ -350,20 +350,24 @@ Item {
             compare(wizard.serversConfirmed, false)
         }
 
-        function test_manual_setup_without_an_address_still_advances() {
-            // #60: no address typed, so `asked` is empty; the reply must still match.
-            mouseClick(find("manualButton"))
-            compare(wizard.step, "servers")
-            find("username").text = "ann"
-            find("imapHost").text = "imap.mine.example"
-            find("smtpHost").text = "smtp.mine.example"
-            find("serversPassword").text = "hunter2"
-            find("connectButton").clicked()
-            compare(connectCalls().length, 1)
-            compare(wizard.busy, true)
-            core.accountAdded("ann", "")
-            compare(wizard.busy, false)
-            compare(wizard.step, "options")
+        function test_manual_setup_needs_an_address() {
+            // #131: no address, no account.
+            const manual = find("manualButton")
+            compare(manual.enabled, false)
+            find("emailField").text = "ann"
+            compare(manual.enabled, false)
+            find("emailField").text = "ada@"
+            compare(manual.enabled, false)
+            compare(find("continueButton").enabled, false)
+            find("emailField").text = "ada@@"
+            compare(manual.enabled, false)
+            compare(find("continueButton").enabled, false)
+            typeEmail()
+            compare(manual.enabled, true)
+            find("emailField").text = ""
+            compare(manual.enabled, false)
+            mouseClick(manual)
+            compare(wizard.step, "email")
         }
 
         function test_servers_step_back_clears_its_password() {
