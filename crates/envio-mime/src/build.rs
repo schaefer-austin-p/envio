@@ -90,11 +90,12 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
         builder = builder.references(refs);
     }
     for file in &outgoing.attachments {
-        builder = builder.attachment(
+        let part = crate::attach_part::part(
             safe_content_type(&file.content_type),
             file.filename.as_str(),
-            file.bytes.as_slice(),
+            &file.bytes,
         );
+        builder.attachments.get_or_insert_with(Vec::new).push(part);
     }
     let mut bytes = Vec::new();
     builder.serialize(&mut bytes);
