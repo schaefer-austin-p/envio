@@ -4,6 +4,7 @@
 //! so nothing here panics on it.
 
 mod address;
+mod attach_part;
 mod attachments;
 mod build;
 mod colours;
