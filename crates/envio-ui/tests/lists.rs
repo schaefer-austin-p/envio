@@ -9,6 +9,13 @@ fn changed(ui: &mut Ui, folders: &[i64]) -> Vec<envio_ui::Output> {
     feed(ui, Event::MessagesChanged { folders })
 }
 
+/// The page requests among the outputs (folder lists are counted apart).
+fn message_lists(outs: &[envio_ui::Output]) -> usize {
+    outs.iter()
+        .filter(|o| matches!(o, envio_ui::Output::Send(Command::ListMessages { .. })))
+        .count()
+}
+
 #[test]
 fn a_stale_page_is_dropped() {
     let mut ui = Ui::new();
@@ -138,7 +145,7 @@ fn the_unified_inbox_reacts_to_any_inbox() {
         },
     );
     opened(&mut ui, ListRef::Inboxes, vec![msg(1, 10)], true);
-    assert_eq!(sends(&changed(&mut ui, &[7])), 1);
+    assert_eq!(message_lists(&changed(&mut ui, &[7])), 1);
     feed(
         &mut ui,
         page(ListRef::Inboxes, None, vec![msg(1, 10)], true),
@@ -157,7 +164,7 @@ fn a_change_in_an_unseen_folder_refreshes_the_unified_inbox() {
         },
     );
     opened(&mut ui, ListRef::Inboxes, vec![msg(1, 10)], true);
-    assert_eq!(sends(&changed(&mut ui, &[99])), 1);
+    assert_eq!(message_lists(&changed(&mut ui, &[99])), 1);
 }
 
 #[test]

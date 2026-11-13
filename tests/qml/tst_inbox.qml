@@ -110,6 +110,52 @@ Item {
             drawer.visible = false
         }
 
+        function shows(text, from) {
+            return everything(from, []).some(function(o) { return o.text === text && o.visible })
+        }
+        function drawerOf(item) {
+            let drawer = item
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            return drawer
+        }
+
+        function test_drawer_lists_the_open_account_on_every_opening() {
+            mouseClick(find("menuButton", page))
+            const drawer = drawerOf(find("account-ann", page))
+            compare(core.called("listFolders").length, 1)
+            drawer.visible = false
+            compare(core.called("listFolders").length, 1)
+            drawer.visible = true
+            compare(core.called("listFolders").length, 2)
+            compare(core.called("listFolders")[1].args, [drawer.expanded])
+            drawer.visible = false
+        }
+
+        function test_drawer_reports_its_account_while_open() {
+            mouseClick(find("menuButton", page))
+            const drawer = drawerOf(find("account-ann", page))
+            const last = function() { return core.called("drawerAccount").pop().args[0] }
+            compare(last(), drawer.expanded)
+            drawer.expand("bob")
+            compare(last(), "bob")
+            drawer.visible = false
+            compare(last(), "")
+            drawer.expand("ann")
+        }
+
+        function test_unified_count_is_the_sum_of_the_accounts() {
+            core.accounts.setProperty(0, "unread", 4)
+            core.accounts.setProperty(1, "unread", 1)
+            mouseClick(find("menuButton", page))
+            const drawer = drawerOf(find("account-ann", page))
+            const row = find("unifiedRow", page)
+            tryVerify(function() { return shows("5", row) })
+            core.accounts.setProperty(0, "unread", 0)
+            tryVerify(function() { return shows("1", row) })
+            compare(drawer.unreadTotal, 1)
+            drawer.visible = false
+        }
+
         function test_tab_switch_opens_the_list() {
             mouseClick(find("tab-all", page))
             compare(core.called("openList").pop().args, ["inboxes", 0])

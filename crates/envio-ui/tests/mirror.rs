@@ -121,6 +121,7 @@ fn an_opened_message_names_its_id() {
         html: String::new(),
         raw: false,
         blocked_images: 0,
+        own_colours: false,
         attachments: vec![],
     };
     let outs = feed(

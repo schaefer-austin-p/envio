@@ -50,7 +50,7 @@ QC.Popup {
             width: parent.width
             visible: root.title !== ""
             text: root.title
-            wrapMode: Text.WordWrap
+            wrapMode: Text.Wrap
             color: root.theme.heading
             font.family: root.theme.fontTitle
             font.pixelSize: 18
@@ -61,7 +61,7 @@ QC.Popup {
             width: parent.width
             visible: root.message !== ""
             text: root.message
-            wrapMode: Text.WordWrap
+            wrapMode: Text.Wrap
             color: root.theme.text
             font.family: root.theme.fontUi
             font.pixelSize: 15

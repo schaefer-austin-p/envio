@@ -26,9 +26,19 @@ Rectangle {
 
     function expand(key) {
         expanded = key
+        core.drawerAccount(key)
         core.listFolders(key)
     }
-    onVisibleChanged: if (visible && expanded === "" && probe.firstKey !== "") expand(probe.firstKey)
+    // Every opening lists the open account again, so its counts are current;
+    // the core re-lists them while the drawer is open on an account.
+    onVisibleChanged: {
+        if (!visible) {
+            core.drawerAccount("")
+            return
+        }
+        const key = expanded !== "" ? expanded : probe.firstKey
+        if (key !== "") expand(key)
+    }
 
     // The accounts' keys and unread counts, for the Unified inbox row.
     Repeater {
@@ -43,6 +53,17 @@ Rectangle {
             }
             total = n
             firstKey = count > 0 && itemAt(0) !== null ? itemAt(0).key : ""
+            // The open account is gone: fall back to the first one.
+            if (root.expanded !== "") {
+                let found = false
+                for (let i = 0; i < count; i++)
+                    if (itemAt(i) !== null && itemAt(i).key === root.expanded) found = true
+                if (!found) {
+                    root.expanded = ""
+                    if (root.visible && firstKey !== "") root.expand(firstKey)
+                    else if (root.visible) core.drawerAccount("")
+                }
+            }
         }
         model: root.accounts
         delegate: Item {

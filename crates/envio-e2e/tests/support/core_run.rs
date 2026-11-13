@@ -30,9 +30,37 @@ impl EventSink for ChannelSink {
 
 pub struct CoreRun {
     pub dir: TempDir,
-    pub core: Core,
+    core: Option<Core>,
     pub events: Receiver<Event>,
     level: LevelFilter,
+}
+
+/// How long a core may take to stop before the test fails.
+const STOP: Duration = Duration::from_secs(10);
+
+impl Drop for CoreRun {
+    fn drop(&mut self) {
+        stop(self.core.take());
+    }
+}
+
+/// `Core::drop` joins the worker with no bound: a stuck worker would hang
+/// the test for ever. Drop it on a helper thread and give up after `STOP`
+/// (#116): the test fails, unless it is already failing.
+fn stop(core: Option<Core>) {
+    let Some(core) = core else { return };
+    let (done, stopped) = channel();
+    std::thread::spawn(move || {
+        drop(core);
+        let _ = done.send(());
+    });
+    if stopped.recv_timeout(STOP).is_err() {
+        let message = "core did not stop within 10 s: the worker is stuck";
+        eprintln!("{message}");
+        if !std::thread::panicking() {
+            panic!("{message}");
+        }
+    }
 }
 
 fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
@@ -54,10 +82,15 @@ impl CoreRun {
         let (core, events) = begin(&dir, level);
         CoreRun {
             dir,
-            core,
+            core: Some(core),
             events,
             level,
         }
+    }
+
+    /// The running core.
+    pub fn core(&self) -> &Core {
+        self.core.as_ref().expect("the core runs until drop")
     }
 
     /// Stops the core (it flushes and joins) and starts a new one on the
@@ -67,20 +100,14 @@ impl CoreRun {
     }
 
     /// `restart`, with `between` run while no core is running.
-    pub fn restart_with(self, between: impl FnOnce(&StorePaths)) -> CoreRun {
+    pub fn restart_with(mut self, between: impl FnOnce(&StorePaths)) -> CoreRun {
         let paths = self.paths();
-        let CoreRun {
-            dir, core, level, ..
-        } = self;
-        drop(core);
+        stop(self.core.take());
         between(&paths);
-        let (core, events) = begin(&dir, level);
-        CoreRun {
-            dir,
-            core,
-            events,
-            level,
-        }
+        let (core, events) = begin(&self.dir, self.level);
+        self.core = Some(core);
+        self.events = events;
+        self
     }
 
     pub fn paths(&self) -> StorePaths {
@@ -130,7 +157,7 @@ impl CoreRun {
     pub fn add_account_with(&self, user: &str, setup: &AccountSetup) -> String {
         let mut accepted: Vec<(Service, String)> = Vec::new();
         loop {
-            self.core
+            self.core()
                 .send(connect(setup.clone(), user, accepted.clone()));
             let next = self.wait(NET, |event| match event {
                 Event::TrustPrompt { service, hex, .. } => Some(Some((*service, hex.clone()))),
@@ -160,7 +187,7 @@ impl CoreRun {
     pub fn folder(&self, account: &str, role: FolderRole) -> (FolderId, String) {
         let end = Instant::now() + NET;
         loop {
-            self.core.send(Command::ListFolders {
+            self.core().send(Command::ListFolders {
                 account: account.to_owned(),
             });
             let folders = self.wait(NET, |event| match event {
@@ -181,7 +208,7 @@ impl CoreRun {
         let mut all: Vec<MessageRow> = Vec::new();
         let mut after = None;
         loop {
-            self.core.send(Command::ListMessages { list, after });
+            self.core().send(Command::ListMessages { list, after });
             let (rows, end) = self.wait(NET, |event| match event {
                 Event::Messages {
                     list: l,

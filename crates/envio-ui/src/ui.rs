@@ -3,6 +3,7 @@
 //! handlers live in the submodules, one concern each.
 
 mod accounts;
+mod folder_counts;
 mod messages;
 mod older;
 mod search;
@@ -39,6 +40,12 @@ pub struct Ui {
     accounts: Vec<AccountRow>,
     names: HashMap<String, String>,
     folders_of: Option<String>,
+    /// The account the open drawer shows; `None` while it is closed.
+    drawer_account: Option<String>,
+    /// The account a `ListFolders` is outstanding for.
+    folders_pending: Option<String>,
+    /// Counts changed while that list was outstanding: ask once more.
+    folders_again: bool,
     /// Folder id to (account, role), from folder lists and Inbox rows.
     folder_roles: HashMap<i64, (String, FolderRole)>,
     current: Option<Current>,
@@ -104,6 +111,9 @@ impl Ui {
     pub fn apply(&mut self, event: Event, now: i64, utc_offset_s: i32) -> Vec<Output> {
         self.now = now;
         self.utc_offset_s = utc_offset_s;
+        if matches!(event, Event::Notice { .. }) {
+            self.folders_failed();
+        }
         if let Some(signal) = signal_of(&event) {
             return vec![Output::Signal(signal)];
         }
@@ -116,12 +126,25 @@ impl Ui {
                 text,
             } => self.account_status(account, &status, text),
             Event::AccountRemoved { account } => self.account_removed(&account),
-            Event::AccountUnread { account, unread } => self.account_unread(&account, unread),
-            Event::FoldersChanged { account } if self.folders_of.as_ref() == Some(&account) => {
-                vec![Output::Send(Command::ListFolders { account })]
+            Event::AccountUnread { account, unread } => {
+                let mut outs = self.account_unread(&account, unread);
+                outs.extend(self.counts_changed(&account));
+                outs
             }
-            Event::Folders { account, folders } => self.folders(account, &folders),
-            Event::MessagesChanged { folders } => self.messages_changed(&folders),
+            Event::FoldersChanged { account } if self.folders_of.as_ref() == Some(&account) => {
+                self.list_folders(account)
+            }
+            Event::Folders { account, folders } => {
+                let answered = account.clone();
+                let mut outs = self.folders(account, &folders);
+                outs.extend(self.folders_answered(&answered));
+                outs
+            }
+            Event::MessagesChanged { folders } => {
+                let mut outs = self.messages_changed(&folders);
+                outs.extend(self.folders_stale(&folders));
+                outs
+            }
             Event::Messages {
                 list,
                 after,

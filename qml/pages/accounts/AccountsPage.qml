@@ -79,7 +79,7 @@ Item {
                     objectName: "status"
                     width: parent.width
                     text: row.model.status
-                    wrapMode: Text.WordWrap
+                    wrapMode: Text.Wrap
                     color: row.model.state === "ok" ? root.theme.secondary : root.theme.accent
                     font.family: root.theme.fontUi
                     font.pixelSize: 13

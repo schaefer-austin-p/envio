@@ -93,23 +93,23 @@ fn handle(
         }
         Kind::Imap => {
             tls.write_all(b"* OK fake ready\r\n")?;
-            talk(tls, imap_reply, log)
+            talk(tls, imap_reply, true, log)
         }
         Kind::Mailbox => {
             tls.write_all(b"* OK fake ready\r\n")?;
-            talk(tls, mailbox_reply, log)
+            talk(tls, mailbox_reply, true, log)
         }
         Kind::Message => {
             tls.write_all(b"* OK fake ready\r\n")?;
-            talk(tls, message_reply, log)
+            talk(tls, message_reply, true, log)
         }
         Kind::Older => {
             tls.write_all(b"* OK fake ready\r\n")?;
-            talk(tls, older_reply, log)
+            talk(tls, older_reply, true, log)
         }
         Kind::Smtp => {
             tls.write_all(b"220 fake ESMTP\r\n")?;
-            talk(tls, smtp_reply, log)
+            talk(tls, smtp_reply, false, log)
         }
     }
 }
@@ -120,16 +120,34 @@ type Stream = StreamOwned<ServerConnection, TcpStream>;
 fn talk(
     tls: Stream,
     reply: fn(&str) -> (String, bool),
+    imap: bool,
     log: &Mutex<Vec<String>>,
 ) -> std::io::Result<()> {
     let mut reader = BufReader::new(tls);
     let mut line = String::new();
+    // The tag of an IDLE the client has not ended with DONE yet.
+    let mut idling: Option<String> = None;
     loop {
         line.clear();
         if reader.read_line(&mut line)? == 0 {
             return Ok(());
         }
         log.lock().unwrap().push(line.trim_end().to_owned());
+        if let Some(tag) = idling.take_if(|_| imap && line.trim_end().eq_ignore_ascii_case("DONE"))
+        {
+            reader
+                .get_mut()
+                .write_all(format!("{tag} OK idle done\r\n").as_bytes())?;
+            continue;
+        }
+        if imap
+            && let Some((tag, command)) = line.trim_end().split_once(' ')
+            && command.eq_ignore_ascii_case("IDLE")
+        {
+            idling = Some(tag.to_owned());
+            reader.get_mut().write_all(b"+ idling\r\n")?;
+            continue;
+        }
         let (text, last) = reply(line.trim_end());
         reader.get_mut().write_all(text.as_bytes())?;
         if last {

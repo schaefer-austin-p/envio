@@ -6,6 +6,7 @@
 mod address;
 mod attachments;
 mod build;
+mod colours;
 mod envelope;
 mod hidden;
 mod images;
@@ -28,6 +29,7 @@ mod widths;
 pub use address::{Address, same_email};
 pub use attachments::{AttachmentInfo, attachment_bytes};
 pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
+pub use colours::{parse_colour, sets_colours};
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};

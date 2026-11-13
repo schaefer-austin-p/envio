@@ -45,7 +45,10 @@ Item {
     readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
     // HTML, so this is the value to read).
-    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(theme.link), theme.bodyLineHeight) : ""
+    // Mail that sets its own colours (the core says so) sits on a light
+    // paper card in both themes; nothing here reads the HTML.
+    readonly property bool paper: view !== null && view.ownColours === true
+    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), theme.bodyLineHeight) : ""
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
@@ -179,10 +182,11 @@ Item {
                 accountName: root.accountName
             }
             Rectangle {
+                objectName: "bodyCard"
                 width: parent.width
                 height: body.height + root.theme.gu(3)
                 radius: root.theme.cardRadius
-                color: root.theme.surface
+                color: root.paper ? root.theme.paper : root.theme.surface
                 // A read-only TextEdit: Qt 5 lays rich text out about 6x
                 // faster there than in a Text. No cursor, focus or editing.
                 TextEdit {
@@ -200,7 +204,7 @@ Item {
                     text: root.bodyHtml
                     textFormat: TextEdit.RichText
                     wrapMode: TextEdit.Wrap
-                    color: root.theme.text
+                    color: root.paper ? root.theme.paperText : root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize
                     onLinkActivated: linkSheet.show(link)

@@ -155,16 +155,39 @@ fn slow_source(s: &S, name: &str) -> PathBuf {
     path
 }
 
-fn release(source: &Path, bytes: &[u8]) {
+/// Writes `bytes` into the pipe, at most once per `done` flag. The open is
+/// non-blocking and retried for 5 s, so a copy that never opened the pipe
+/// fails the test instead of hanging it.
+fn release(source: &Path, bytes: &[u8], done: &AtomicBool) {
     use std::io::Write;
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(source)
-        .unwrap()
-        .write_all(bytes)
-        .unwrap();
+    use std::os::unix::fs::OpenOptionsExt;
+    if done.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    let until = Instant::now() + Duration::from_secs(5);
+    let mut pipe = loop {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(source)
+        {
+            Ok(f) => break f,
+            // ENXIO: no reader has the pipe open yet.
+            Err(e) if e.raw_os_error() == Some(libc::ENXIO) && Instant::now() < until => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) if e.raw_os_error() == Some(libc::ENXIO) => {
+                panic!("the copy never opened the source")
+            }
+            Err(e) => panic!("opening the pipe: {e}"),
+        }
+    };
+    pipe.write_all(bytes).unwrap();
 }
 
+/// Every wait here is bounded: the flush is timed and judged against 10 s, a
+/// 15 s watchdog frees the pipe if the flush hangs, and `release` panics when
+/// no copy opens the pipe within 5 s.
 #[test]
 fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     let s = started();
@@ -182,18 +205,23 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     s.change(s.draft("typed while copying"));
     let saved = s.wait_for_draft(Duration::from_secs(10), |d| d.body == "typed while copying");
     s.change(s.draft("typed again"));
-    let core = s.h.core.as_ref().unwrap();
-    let (done, flushed_rx) = std::sync::mpsc::channel();
-    let flushed = std::thread::scope(|scope| {
-        scope.spawn(move || {
-            core.send(Command::AppActive(false));
-            let _ = done.send(());
+    // A detached watchdog frees the copy after 15 s, so a flush that blocks
+    // for ever on it returns and the `took` check fails.
+    let released = Arc::new(AtomicBool::new(false));
+    {
+        let (slow, released) = (slow.clone(), released.clone());
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(15));
+            release(&slow, b"payload", &released);
         });
-        flushed_rx.recv_timeout(Duration::from_secs(10)).is_ok()
-            && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again")
-    });
+    }
+    let t = Instant::now();
+    s.h.send(Command::AppActive(false));
+    let took = t.elapsed();
+    let flushed = took < Duration::from_secs(10)
+        && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
     // Let the copy end whatever the result, so nothing is left blocked.
-    release(&slow, b"payload");
+    release(&slow, b"payload", &released);
     let copy = s.h.wait(|e| match e {
         Event::Attached { path, .. } => Some(path.clone()),
         _ => None,

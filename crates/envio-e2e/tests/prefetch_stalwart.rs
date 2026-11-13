@@ -77,7 +77,7 @@ async fn recent_small_bodies_are_downloaded_and_open_without_the_server() {
         seen.store(true, Ordering::SeqCst);
     });
     proxy.cut();
-    run.core.send(Command::OpenMessage {
+    run.core().send(Command::OpenMessage {
         id: ids[0],
         images: ImagesChoice::Default,
         width_px: 360,
@@ -89,7 +89,7 @@ async fn recent_small_bodies_are_downloaded_and_open_without_the_server() {
     assert!(!fetched.load(Ordering::SeqCst), "the open fetched a body");
 
     // The big one was left for the open, which needs the server.
-    run.core.send(Command::OpenMessage {
+    run.core().send(Command::OpenMessage {
         id: big_id,
         images: ImagesChoice::Default,
         width_px: 360,

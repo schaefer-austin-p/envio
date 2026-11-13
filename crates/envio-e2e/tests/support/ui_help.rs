@@ -41,7 +41,7 @@ pub fn unified(run: &CoreRun) -> Vec<MessageRow> {
     let mut all: Vec<MessageRow> = Vec::new();
     let mut after = None;
     loop {
-        run.core.send(Command::ListMessages { list, after });
+        run.core().send(Command::ListMessages { list, after });
         let (rows, end) = run.wait(NET, |event| match event {
             Event::Messages {
                 list: l,
@@ -61,7 +61,7 @@ pub fn unified(run: &CoreRun) -> Vec<MessageRow> {
 
 /// Opens a new compose window on the account and waits until it is ready.
 pub fn compose_new(run: &CoreRun, compose: ComposeId, account: &str) {
-    run.core.send(Command::StartCompose {
+    run.core().send(Command::StartCompose {
         compose,
         from: StartFrom::New {
             account: account.to_owned(),
