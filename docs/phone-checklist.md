@@ -4,6 +4,27 @@ Run this on a real Ubuntu Touch phone before each release. Install with
 `cargo make click-install`. Take a screenshot as evidence for each item and
 record the result in the last section. A failed item becomes an issue.
 
+## Phone setup
+
+Synthetic mail only: the accounts are the throwaway Stalwart's `grace`,
+`heidi` and `ivan` at `envio.test`, never a real account.
+
+1. On the host, start the server: `eval "$(crates/envio-net/tests/stalwart/up.sh)"`.
+   It prints `STALWART_IMAPS_PORT`, `STALWART_SUBMISSIONS_PORT` and the other
+   published ports.
+2. With the phone on adb, forward the ports (the same number on both sides):
+   `adb reverse tcp:$STALWART_IMAPS_PORT tcp:$STALWART_IMAPS_PORT` and
+   `adb reverse tcp:$STALWART_SUBMISSIONS_PORT tcp:$STALWART_SUBMISSIONS_PORT`.
+3. Fill the mailboxes (Python 3, standard library only):
+   `python3 tools/phone/seed.py --port $STALWART_IMAPS_PORT --user heidi --password heidi-secret-1 --count 3000 --days 400`
+   for the large mailbox, and
+   `python3 tools/phone/seed.py --listing --port $STALWART_IMAPS_PORT --user grace --password grace-secret-1`
+   for the curated set behind the store screenshots. The same seed gives the
+   same subjects every run.
+4. In the app's wizard add grace and heidi: host `127.0.0.1`, the IMAPS and
+   submission ports from step 1, and accept the trust prompt (the server
+   certificate is self-signed).
+
 ## Content Hub, in
 
 Do: in a new message, tap Attach and pick a photo, then a PDF.
@@ -40,7 +61,9 @@ Pass: no unreadable text, no light patches in dark, colours match the boards.
 Do: add an account with a few thousand messages. Time the first sync. Read
 `ps` or the app log for memory after the sync and after scrolling the list.
 Pass: the first sync shows the newest mail at once and finishes without the
-app being killed. Record the time and the memory in the table.
+app being killed, and every number is within the Budgets table in the
+design spec (idle VmRSS 320 MiB, peak VmHWM 340 MiB, first rows 6 s, cold
+start 4 s). Record the time and the memory in the table.
 
 ## CA roots load confined (#31)
 
@@ -153,3 +176,41 @@ addresses are painted out or cropped. Phone: Ubuntu Touch 24.04, build
 Screenshots are in `docs/phone-runs/release-polish/`, synthetic accounts
 only; the user's own accounts are painted out. Phone: Ubuntu Touch 24.04,
 build 496a6fd, throwaway Stalwart through `adb reverse`, 2026-11-13.
+
+## 0.1.0 release run
+
+| Item | Result | Evidence |
+| ---- | ------ | -------- |
+| Clean install and first-run screen | Pass | On a clean install envio starts on "Add account" with an empty field and a disabled Continue, in Carbon light (`b01`) and dark (`fr-carbon-dark`). Setting up manually with the email field left empty saves an account with no address or name, so the chip, drawer header and Accounts row are blank: #131 (workaround: type the address first). Opening the drawer the first time logs a `drawerAccount` TypeError: #133. |
+| Content Hub in | Pass | The File Manager picker, opened on the synthetic folder only, offers `envio-test.png` (`ch05-folder`) and, after a second pick, the PDF too (`ch08-folder2`). Both attach (`ch06-png-attached`, `ch09-both-attached`). grace sends to heidi; the message arrives with both files, 12 kB and 20 kB (`ch12-recv-open`). The "Choose from" app list and the Pictures folder list also show the owner's apps and folders, so those shots are not kept. |
+| Content Hub out | Partial | Open on the received PDF shows the "Open with" app picker, Pass. Share shows the "Share to" picker (File Manager, TELEports, Print, LibreOffice, Messaging and more); nothing was sent, X returns to envio, Pass. Save hands the PDF to a Documents destination whose view is a library of the owner's files; that screen was left without completing it, so Save is not confirmed end to end. No shots kept: all three screens list the owner's apps or files. |
+| `mailto:` from the browser | Pass | A page on the host over `adb reverse` with a "Write to heidi" link (`ch23-morph`), tapped in Morph, opens the envio compose screen with To heidi, the subject and body filled and From grace (`ch24-mailto`). |
+| Suspend and resume, screen locked | Pass | Screen locked with the power key at 17:18; a message APPENDed from the PC at about 17:19 while locked. After unlocking, envio is the same process (same pid, RSS unchanged at about 298 MB) and the heidi list has "Sent while the phone was locked" at the top (`ch27-resume`). The journal shows only Qt warnings ("Cannot create children for a parent that is in a different thread (QInputInfoManagerMir)", "killTimer/startTimer from another thread"), no crash and no envio error; the source of the QInputInfo use is not looked into yet. |
+| Suspend and resume, draft behind another app | Pass | Compose half filled (`ch28-draft-before`), Morph opened through url-dispatcher for 60 s (`ch29-away`), envio started again: the draft is intact (`ch30-draft-back`); `drafts/*.json` was written while away. Sent, it arrives once in heidi, the draft file is removed and the Outbox is empty (`ch31-after-send`). |
+| Dark mode, four themes | Pass | Inbox and message in Carbon light and dark and Airmail light and dark (`th-carbon-light-inbox`, `th-carbon-light-message`, `th-carbon-dark-inbox`, `th-carbon-dark-message`, `th-airmail-light-inbox`, `th-airmail-light-message`, `th-airmail-dark-inbox`, `th-airmail-dark-message`); the drawer, compose, Appearance and grace views were checked in all four as well (24 shots, not all kept). #108 paper card: a plain mail on the dark card is readable in both dark themes (`th-carbon-dark-message`, `th-airmail-dark-message`). The `receipt-like` and `notice-like` mail was not kept as a shot in this run. The drawer heading reads "addr · addr" when name and address are the same: #139. |
+| #109 Check certificate, IMAP | Pass | After the server certificate was swapped, Accounts says "The certificate of the incoming mail server changed" with the old and new fingerprints whole (`c109-accounts`). Check certificate opens "Can't verify the incoming mail server (IMAP)", both fingerprints and the SHA-256 whole, Cancel as the primary button (`c109-check`); the new fingerprint matches `openssl` on the new certificate. Trust gives Ready and the lists resync to the new server (new UIDVALIDITY). |
+| #109 Check certificate, SMTP | Pass, gap | grace's Accounts row says "The certificate of the outgoing mail server changed" (`c109-accounts-smtp`); the dialog is titled "(SMTP)" (`c109-smtp-check`). A queued message sits in the Outbox as "Waiting to be sent" with Delete and no reason (`c109-outbox`): the same for a stopped changed certificate on the tab and drawer, which show no signal at all: #141. After Trust both accounts are Ready (`c109-trusted-both`) and the Outbox empties (`c109-outbox-after`); the message was delivered once (heidi INBOX 1, grace Sent Items 1, checked on the server). |
+| #110 unread counts, online and offline | Pass | Reading 3 unread grace messages in the app took the tab from 14 to 11, the drawer Inbox to 11 and the Unified inbox from 297 to 291 (`c110-before`, `c110-list-after`, `c110-drawer-online`). With the server gone the counts stay the same (`c110-drawer-offline`). The Stalwart backstop had ended the server just before, so the offline icons in the "online" shots are real. |
+| Edge swipes | Pass, with #142 | Swipes from the left, top and right edges open the launcher, the indicators and the app switcher as on any app; no shot kept (they show the owner's apps and settings). A sideways swipe across a list row opens the message (`h-before`, `h-after-ltr`, `h-after-rtl`): #142. A fix is in progress on branch `row-swipe-142`. |
+| Link sheet | Pass | Host in bold: `login.evil-example.net` (`l-sheet1`). The part before the @ is struck through with "Before the @ is decoration. This link opens evil-example.net." (`l-sheet2`). A long host wraps over lines (`l-sheet3`). Nothing opens until Open is tapped. |
+| Search on server | Pass; failure message not observed | A 300-day-old message ("The zephyrine lantern") APPENDed to heidi: 0 local results (`s-local`), 1 after "Search the servers too" (`s-found`, 17 Jan). With the server paused it shows "Searching the servers..." and Cancel, still running at 45 s (`s-paused-45`); Cancel stops it (`s-cancelled`). The failure message was not seen: removing `adb reverse` left the live connection answering (0 results, no error), and a paused server gave no timeout within 45 s. |
+| Trust dialog | Pass | Wizard, IMAP and SMTP, each named, with the SHA-256 whole and Cancel as the primary button (`trust-imap-wizard`, `trust-smtp-wizard`). Changed-pin form: see #109 above. |
+| CA roots line | Pass | `WARN envio_qt::lifecycle: CA roots: source system, 121 certificates` in `envio.log` on this build; matches #31. |
+| First sync, heidi (3000 messages, 400 days) | Pass, single run | 208 messages (the 30-day window) were in the database within 4 s of the SMTP trust tap, before the options step shows; sync starts at Connect, not at Done. The count stays 223 after Done. Time to Ready was not taken separately. Older rows without a preview keep an empty preview line until opened (cosmetic, not filed). |
+| Memory | Pass, single runs | `VmRSS` / `VmHWM` in kB: idle after first sync 218392 / 231964; after scrolling to the end and one Load older (cache 223 to 273) 203032 / 216944; after opening 20 older messages (5 of 16 fetched were HTML) 211760 / 223096; after 34 opened (28 fetched, 11 HTML) 212892 / 223096; after 10 min in the foreground 212892 / 223096, no growth. Each of these is one run, not a median of three. RSS after the suspend run was about 298 MB. |
+| Cold start | Pass | 2.36 / 2.34 / 2.27 s, median 2.34 s (launch request to first frame, phone clock); RSS about 196 MB. |
+| Open: prefetched vs fetched on open | Pass, coarse | Prefetched rows open with no fetch. A row fetched on open shows its `.eml` about 0.8-0.9 s after the tap call returns; the tap call itself took 4.25 s, so this is an upper bound only, single run. |
+| Open question: secret store | Answered: unavailable | `gnome-keyring-daemon` owns `org.freedesktop.secrets`, but the confined app gets AccessDenied ("An AppArmor policy prevents this sender...") and the journal logs `apparmor="DENIED"` for Introspect and Ping. Passwords stay in the 0600 file. |
+| Open question: `.ics` through Content Hub | Answered | `calendar.ubports` declares `{"destination": ["documents","events"]}`, so Calendar is an importer of the events type. Not built; 0.2.0. |
+| Open question: CA roots | Answered | 121 certificates from the system store (see the CA roots row). |
+| Found on the way | Open | #130 auto-load older mail on scroll (owner request, now one tap per 50), #131 empty email in manual setup, #132 the drawer lists folders as Trash, Drafts, Inbox, Junk, Sent (Inbox not first), #133 `drawerAccount` TypeError, #139 drawer heading "addr · addr", #141 no signal for a changed certificate while stopped, #142 row swipe opens the message. Remove account deletes at once; that is by design (undo instead of confirm), not filed. |
+
+Screenshots are in `docs/phone-runs/0.1.0-release/`, synthetic accounts
+only (grace, heidi and ivan at envio.test, `envio-test.png` and
+`envio-test.pdf`). Shots of the launcher, the app switcher, the
+indicators, File Manager, Document Viewer and app pickers are not kept
+because they show the owner's phone. Phone: Ubuntu Touch 24.04, build
+"envio 0.1.0 (706e3afe9d)", throwaway Stalwart through `adb reverse`,
+2026-11-13. The Stalwart server was replaced mid-run (its 2 h backstop
+ended) and reseeded, which is why the certificate swap, #109 and #110
+shots come after the server change.
