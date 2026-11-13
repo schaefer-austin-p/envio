@@ -55,6 +55,38 @@ mod tests {
     }
 
     #[test]
+    fn a_send_only_run_with_it_due_still_goes_without_a_folder_list() {
+        // Prefetch joining the list before the "only sends" check would
+        // make the run look like more than a send and add a LIST.
+        let mut with_sent = folders();
+        with_sent[1].sync = None;
+        let wants = Wants {
+            send: true,
+            ..Wants::default()
+        };
+        assert_eq!(
+            steps(&wants, &with_sent, &env()),
+            [Step::Send, Step::Prefetch(FolderId(2))]
+        );
+    }
+
+    #[test]
+    fn a_due_folder_list_comes_before_it() {
+        let wants = Wants {
+            folders: [FolderId(2)].into(),
+            ..Wants::default()
+        };
+        assert_eq!(
+            steps(&wants, &folders(), &env()),
+            [
+                Step::Folders,
+                Step::Folder(FolderId(2)),
+                Step::Prefetch(FolderId(2))
+            ]
+        );
+    }
+
+    #[test]
     fn it_comes_after_everything_else() {
         let wants = Wants {
             full: true,
