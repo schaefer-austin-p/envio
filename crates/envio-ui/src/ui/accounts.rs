@@ -99,6 +99,10 @@ impl Ui {
         }
         self.names.remove(key);
         self.folder_roles.retain(|_, (account, _)| account != key);
+        if self.folders_pending.as_deref() == Some(key) {
+            self.folders_pending = None;
+            self.folders_again = false;
+        }
         if self.folders_of.as_deref() == Some(key) {
             self.folders_of = None;
             outs.push(change(Model::Folders, Op::Reset(Vec::new())));

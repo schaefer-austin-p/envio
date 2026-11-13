@@ -28,7 +28,12 @@ Rectangle {
         expanded = key
         core.listFolders(key)
     }
-    onVisibleChanged: if (visible && expanded === "" && probe.firstKey !== "") expand(probe.firstKey)
+    // Every opening lists the open account again, so its counts are current.
+    onVisibleChanged: {
+        if (!visible) return
+        const key = expanded !== "" ? expanded : probe.firstKey
+        if (key !== "") expand(key)
+    }
 
     // The accounts' keys and unread counts, for the Unified inbox row.
     Repeater {
