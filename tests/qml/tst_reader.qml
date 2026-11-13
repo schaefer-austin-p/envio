@@ -39,6 +39,7 @@ Item {
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
     SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
+    SignalSpy { id: bodySet; signalName: "textChanged" }
 
     MockCore { id: shellCore }
     AppShell {
@@ -192,10 +193,13 @@ Item {
             v.html = '<p>Hi</p><img src="' + root.pixel + '" width="20" height="20">'
             v.remoteImages = [root.pixel]
             open(v)
-            const before = find("bodyText").text
+            // Qt's re-serialised text drops the redraw's empty comment, so
+            // count the sets instead of comparing the text.
+            bodySet.target = find("bodyText")
+            bodySet.clear()
             tryCompare(find("preloadedImage"), "status", Image.Ready)
             tryVerify(function() { return root.page.imageRedraws > 0 }, 2000)
-            verify(find("bodyText").text !== before)
+            verify(bodySet.count > 0)
         }
 
         function test_a_view_without_images_preloads_nothing() {
