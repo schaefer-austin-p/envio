@@ -394,48 +394,72 @@ Item {
             core.folders.clear()
         }
 
-        function test_offline_banner_asks_for_the_current_tab() {
+        // The chip's own icon, or null when it has none showing.
+        function chipIcon(chip) {
+            const hit = everything(chip, []).filter(function(o) { return o.objectName === "chipIcon" && o.visible })
+            return hit.length > 0 ? hit[0] : null
+        }
+        function drawerIcon(row) {
+            const hit = everything(row, []).filter(function(o) { return o.objectName === "offlineIcon" && o.visible })
+            return hit.length > 0 ? hit[0] : null
+        }
+
+        function test_offline_account_tab_shows_the_icon_and_name() {
             core.accounts.setProperty(1, "state", "offline")
-            const banner = find("offlineBanner", page)
-            page.showUnified()
-            tryCompare(banner, "text", "offline bob |  | -1 | 0")
-            page.showAccount("bob")
-            tryCompare(banner, "text", "offline bob | bob | -1 | 0")
-            page.showFolder(7, "Archive")
-            tryCompare(banner, "text", "offline bob | folder | 7 | 0")
-            core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
-            tryCompare(banner, "text", "offline bob | folder | 7 | 1")
-            page.showUnified()
+            const bob = find("tab-bob", page)
+            tryVerify(function() { return chipIcon(bob) !== null })
+            compare(chipIcon(bob).name, "offline")
+            compare(chipIcon(bob).color, thm.accent)
+            compare(bob.Accessible.name, "Bob, offline")
             core.accounts.setProperty(1, "state", "ok")
         }
 
-        function test_offline_banner_rereads_when_an_account_changes_state() {
-            page.showUnified()
-            const banner = find("offlineBanner", page)
-            verify(!banner.visible)
+        function test_online_tabs_and_all_have_no_icon() {
             core.accounts.setProperty(1, "state", "offline")
-            tryCompare(banner, "text", "offline bob |  | -1 | 0")
-            // The offline count stays one, the account differs.
-            core.accounts.setProperty(0, "state", "offline")
+            tryVerify(function() { return chipIcon(find("tab-bob", page)) !== null })
+            compare(chipIcon(find("tab-all", page)), null)
+            compare(chipIcon(find("tab-ann", page)), null)
             core.accounts.setProperty(1, "state", "ok")
-            tryCompare(banner, "text", "offline ann |  | -1 | 0")
-            core.accounts.setProperty(0, "state", "ok")
-            tryVerify(function() { return !banner.visible })
         }
 
-        function test_outbox_banner_shows_when_no_offline_banner() {
-            page.showUnified()
+        function test_tab_icon_follows_the_account_state() {
+            const bob = find("tab-bob", page)
+            compare(chipIcon(bob), null)
+            const plain = bob.implicitWidth
+            core.accounts.setProperty(1, "state", "offline")
+            tryVerify(function() { return chipIcon(bob) !== null })
+            verify(bob.implicitWidth > plain, "the icon widens the chip")
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return chipIcon(bob) === null })
+            compare(bob.implicitWidth, plain)
+            compare(bob.Accessible.name, "Bob")
+        }
+
+        function test_drawer_row_shows_the_icon_for_an_offline_account() {
+            core.accounts.setProperty(1, "state", "offline")
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            const bob = find("account-bob", page)
+            tryVerify(function() { return drawerIcon(bob) !== null })
+            compare(drawerIcon(bob).name, "offline")
+            compare(drawerIcon(ann), null)
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return drawerIcon(bob) === null })
+            let drawer = ann
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            drawer.visible = false
+        }
+
+        function test_outbox_banner_shows_while_an_account_is_offline() {
             const outbox = find("outboxBanner", page)
-            const offline = find("offlineBanner", page)
+            core.accounts.setProperty(1, "state", "offline")
+            verify(!outbox.visible)
             core.outbox.append({ id: "a", account: "ann", subject: "Hi", to: "x@y", status: "waiting", text: "" })
             tryVerify(function() { return outbox.visible })
-            verify(!offline.visible)
-            core.accounts.setProperty(1, "state", "offline")
-            tryVerify(function() { return offline.visible })
-            verify(!outbox.visible)
-            core.accounts.setProperty(1, "state", "ok")
-            tryVerify(function() { return outbox.visible })
+            compare(outbox.text, "waiting 1")
+            verify(!has("offlineBanner", page))
             core.outbox.clear()
+            core.accounts.setProperty(1, "state", "ok")
         }
 
         function test_outbox_banner_opens_the_outbox() {

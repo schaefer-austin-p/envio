@@ -49,6 +49,10 @@ Item {
             // The count is a number beside the name, not counted prose.
             text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
             selected: root.current === model.key
+            readonly property bool offline: model.state === "offline"
+            iconName: offline ? "offline" : ""
+            iconColor: root.theme.accent
+            Accessible.name: offline ? qsTr("%1, offline").arg(model.name) : text
             height: tabs.height
             onClicked: root.chosen(tab.model.key)
         }

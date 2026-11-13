@@ -263,11 +263,6 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "countText"]
         fn count_text(self: &EnvioCore, kind: &QString, n: i32) -> QString;
-        /// The offline banner of a tab: "" is the unified tab, "folder" the
-        /// folder `folder`, any other text an account key.
-        #[qinvokable]
-        #[cxx_name = "offlineText"]
-        fn offline_text(self: &EnvioCore, tab: &QString, folder: i32, waiting: i32) -> QString;
         #[qinvokable]
         #[cxx_name = "linkView"]
         fn link_view(self: &EnvioCore, url: &QString) -> QMap_QString_QVariant;

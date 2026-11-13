@@ -123,23 +123,6 @@ Item {
         onItemAdded: Qt.callLater(recount)
         onItemRemoved: Qt.callLater(recount)
     }
-    Repeater {
-        id: offlineProbe
-        // Bumped whenever any account's state changes: the offline banner
-        // binds to it and asks the core again.
-        property int revision: 0
-        function recount() { revision++ }
-        model: root.accounts
-        delegate: Item {
-            visible: false
-            required property var model
-            readonly property bool isOffline: model.state === "offline"
-            onIsOfflineChanged: offlineProbe.recount()
-        }
-        onItemAdded: recount()
-        onItemRemoved: recount()
-    }
-
     TopBar {
         id: bar
         theme: root.theme
@@ -187,24 +170,11 @@ Item {
         anchors.top: tabs.bottom
         width: parent.width
         Banner {
-            id: offlineBanner
-            objectName: "offlineBanner"
-            theme: root.theme
-            width: parent.width
-            kind: "warning"
-            visible: text !== ""
-            height: visible ? implicitHeight : 0
-            text: {
-                offlineProbe.revision
-                return root.core.offlineText(root.tab, root.folderId, root.waitingCount)
-            }
-        }
-        Banner {
             id: waiting
             objectName: "outboxBanner"
             theme: root.theme
             width: parent.width
-            visible: root.waitingCount > 0 && !offlineBanner.visible
+            visible: root.waitingCount > 0
             height: visible ? implicitHeight : 0
             text: root.core.countText("waiting", root.waitingCount)
             MouseArea { anchors.fill: parent; onClicked: root.outboxRequested() }

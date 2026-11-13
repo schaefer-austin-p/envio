@@ -4,7 +4,7 @@ import "../platform"
 // A line icon drawn on a canvas in a theme colour, so no icon set (and no
 // Suru) is needed. `name` is one of: back, forward, down, close, check,
 // plus, send, search, menu, alert, info, archive, trash, move, more, flag,
-// clip, mail, pencil.
+// clip, mail, pencil, offline.
 Canvas {
     id: root
     required property Theme theme
@@ -47,6 +47,16 @@ Canvas {
             "mail": [[4, 6], [20, 6], [20, 18], [4, 18], [4, 6], null, [4, 6], [12, 13], [20, 6]],
             "send": [[4, 12], [20, 4], [14, 20], [11, 14], [4, 12], null, [11, 14], [20, 4]],
             "pencil": [[4, 20], [5, 15], [16, 4], [20, 8], [9, 19], [4, 20]]
+        }
+        // Icons with arcs are SVG path strings (Lucide's, same 24 grid).
+        const svg = {
+            "offline": "m2 2 20 20 M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193 "
+                     + "M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"
+        }
+        if (svg[root.name] !== undefined) {
+            ctx.path = svg[root.name]
+            ctx.stroke()
+            return
         }
         const pts = paths[root.name] || []
         ctx.beginPath()
