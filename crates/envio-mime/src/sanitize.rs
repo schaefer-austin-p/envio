@@ -159,6 +159,9 @@ pub struct Rendered {
     pub blocked_images: usize,
     /// Tracking pixels removed (even when remote images are on).
     pub removed_trackers: usize,
+    /// The sanitised HTML sets its own background or dark text colour, so
+    /// the reader draws it on a light card (see [`crate::sets_colours`]).
+    pub own_colours: bool,
 }
 
 static CLEANER: LazyLock<Builder<'static>> = LazyLock::new(|| cleaner(&NO_EXTRA));
@@ -207,6 +210,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     let clean = clean.to_string();
     let mut rendered = crate::images::fit(&clean, options);
     rendered.html = crate::linear::linearise(&rendered.html);
+    rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }
 

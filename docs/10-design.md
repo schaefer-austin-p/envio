@@ -67,6 +67,13 @@ adjusted here first. `Theme.qml` has the roles plus `name` ("carbon" or
 "airmail"), `darkMode` ("system", "light" or "dark"), the injectable
 `systemDark`, and the fonts `fontUi`, `fontMono` and `fontTitle`.
 
+The paper card: HTML mail whose sanitised markup sets a background or a dark
+text colour (the core decides, `ownColours`) is drawn on the light theme's
+surface in both themes, with the light theme's text and link (`Theme.paper`,
+`paperText`, `paperLink`), because its colours assume a white page. Plain-text
+mail, raw mail and HTML that sets no colour keep the theme's card, so dark mode
+stays dark for them. In light mode nothing changes.
+
 ## Type
 
 | | Carbon | Airmail |

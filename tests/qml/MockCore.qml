@@ -77,6 +77,7 @@ Item {
     function updatePassword(account, password) { record("updatePassword", [account, password]) }
     function removeAccount(account, confirmed) { record("removeAccount", [account, confirmed]) }
     function listFolders(account) { record("listFolders", [account]) }
+    function drawerAccount(account) { record("drawerAccount", [account]) }
     function openList(kind, id) { record("openList", [kind, id]) }
     function more() { record("more", []) }
     function loadOlder() { record("loadOlder", []) }

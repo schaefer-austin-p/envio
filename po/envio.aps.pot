@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-12 22:17+0100\n"
+"POT-Creation-Date: 2026-11-13 12:27+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:122
+#: qml/pages/reader/ReaderPage.qml:125
 msgid "Archive"
 msgstr ""
 
@@ -92,11 +92,11 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:246
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:250
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:229
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:250
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -317,7 +317,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:154 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:138
+#: qml/pages/reader/ReaderPage.qml:141
 msgid "More actions"
 msgstr ""
 
@@ -408,27 +408,27 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:65
+#: qml/pages/inbox/FoldersDrawer.qml:86
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:100 qml/pages/search/SearchPage.qml:100
+#: qml/pages/inbox/FoldersDrawer.qml:121 qml/pages/search/SearchPage.qml:100
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:111
+#: qml/pages/inbox/FoldersDrawer.qml:132
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:135 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:156 qml/pages/inbox/OutboxPage.qml:24
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:143
+#: qml/pages/inbox/FoldersDrawer.qml:164
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:236 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:257 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
@@ -478,7 +478,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:130
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:133
 msgid "Delete"
 msgstr ""
 
@@ -576,7 +576,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:224
+#: qml/pages/reader/ReaderPage.qml:228
 msgid "Loading…"
 msgstr ""
 

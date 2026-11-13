@@ -170,6 +170,26 @@ Item {
             wait(100)
             return buttons()[0]
         }
+        // Core text: "...\nOld fingerprint: {old}\nNew fingerprint: {new}"; a
+        // fingerprint is one 95-character word with no break opportunity.
+        function test_a_changed_pin_status_wraps_inside_the_fingerprint() {
+            const fp1 = "03:10:17:24:31:38:45:52:59:66:73:80:87:94:01:08:15:22:29:36:43:50:57:64:71:78:85:92:99:06:13:20"  // digits only: no break after ":"
+            const fp2 = "02:27:4C:71:96:BB:E0:05:2A:4F:74:99:BE:E3:08:2D:52:77:9C:C1:E6:0B:30:55:7A:9F:C4:E9:0E:33:58:7D"
+            core.accounts.clear()
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+                                   status: "The server's certificate changed.\nOld fingerprint: " + fp1 + "\nNew fingerprint: " + fp2,
+                                   state: "pin", unread: 0, unreadText: "",
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
+            function statuses() {
+                return everything(page, []).filter(function(o) { return o.objectName === "status" && o.visible && o.text.indexOf("Old fingerprint") >= 0 })
+            }
+            tryVerify(function() { return statuses().length >= 1 })
+            const st = statuses()[0]
+            waitForRendering(page)
+            verify(st.contentWidth <= st.width, "contentWidth " + st.contentWidth + " > width " + st.width)
+            verify(st.lineCount >= 4, "lineCount " + st.lineCount)
+            verify(!st.truncated, "status is truncated")
+        }
         function test_pin_row_opens_trust_dialog() {
             const b = pinRow()
             verify(b.height >= 44)
