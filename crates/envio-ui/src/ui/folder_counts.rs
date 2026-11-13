@@ -66,7 +66,11 @@ impl Ui {
     /// came in meanwhile.
     pub(super) fn folders_answered(&mut self, account: &str) -> Vec<Output> {
         let outstanding = self.folders_pending.as_deref() == Some(account);
-        let late = self.folders_pending.is_none() && self.folders_again;
+        // Only the drawer's account's answer can carry its folded-in change:
+        // another account's answer must not use it up.
+        let late = self.folders_pending.is_none()
+            && self.folders_again
+            && self.drawer_account.as_deref() == Some(account);
         if !outstanding && !late {
             return Vec::new();
         }

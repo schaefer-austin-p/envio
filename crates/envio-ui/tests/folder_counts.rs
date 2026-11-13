@@ -197,3 +197,21 @@ fn an_unrelated_notice_keeps_a_folded_in_change() {
     let late = shown(&mut ui, "a", vec![(10, FolderRole::Inbox)]);
     assert_eq!(list_of(&late), ["a"]);
 }
+
+#[test]
+fn another_accounts_late_answer_keeps_the_folded_in_change() {
+    let mut ui = two_accounts();
+    assert_eq!(list_of(&changed(&mut ui, &[10])).len(), 1);
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
+    feed(
+        &mut ui,
+        Event::Notice {
+            text: "sent".into(),
+        },
+    );
+    // Account b's answer arrives first: it does not use up a's change.
+    let other = shown(&mut ui, "b", vec![(20, FolderRole::Inbox)]);
+    assert!(list_of(&other).is_empty());
+    let late = shown(&mut ui, "a", vec![(10, FolderRole::Inbox)]);
+    assert_eq!(list_of(&late), ["a"]);
+}
