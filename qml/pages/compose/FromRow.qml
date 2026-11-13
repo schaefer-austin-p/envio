@@ -13,6 +13,8 @@ Item {
     // The chosen account's key; `chosen` fires when the user picks another.
     property string account: ""
     property string email: ""
+    // Where the address starts: the page margin, the label and a gap.
+    property real labelColumn: theme.gu(9.5)
     signal chosen(string key)
 
     implicitHeight: theme.touch + 1
@@ -51,7 +53,7 @@ Item {
             Text {
                 textFormat: Text.PlainText
                 objectName: "fromLabel"
-                width: root.theme.gu(6.5) - root.theme.gu(2)
+                width: root.labelColumn - root.theme.gu(2)
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
                 text: qsTr("From")
@@ -62,7 +64,7 @@ Item {
             Text {
                 textFormat: Text.PlainText
                 objectName: "fromValue"
-                width: root.width - root.theme.gu(6.5) - fromRow.chevronSpace
+                width: root.width - root.labelColumn - fromRow.chevronSpace
                 height: parent.height
                 verticalAlignment: Text.AlignVCenter
                 text: root.email

@@ -17,6 +17,7 @@ Item {
         Icon { id: alert; theme: thm; name: "alert"; size: 48 }
         Icon { id: info; theme: thm; name: "info"; size: 48 }
         Icon { id: offline; theme: thm; name: "offline"; size: 48 }
+        Icon { id: clip; theme: thm; name: "clip"; size: 48 }
     }
 
     TestCase {
@@ -45,6 +46,14 @@ Item {
             verify(alpha(offline, 26, 38) > 0, "the cloud's base is drawn")
             compare(alpha(offline, 4, 44), 0, "outside the shape stays empty")
             compare(alpha(offline, 44, 4), 0, "the top-right corner stays empty")
+        }
+
+        // The paper clip is the design's: a rounded outer bend at the bottom
+        // left (the old one was an octagon with a corner there).
+        function test_clip_is_the_rounded_paper_clip() {
+            tryVerify(function() { return alpha(clip, 9, 39) > 0 }, 2000, "the outer bend is drawn")
+            compare(alpha(clip, 16, 32), 0, "inside the inner loop stays empty")
+            compare(alpha(clip, 4, 4), 0, "the top-left corner stays empty")
         }
     }
 }

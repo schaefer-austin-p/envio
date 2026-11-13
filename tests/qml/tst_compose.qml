@@ -243,14 +243,35 @@ Item {
             compare(find("subjectField").field.framed, false)
             const label = find("subjectLabel")
             verify(label !== undefined, "the label is in the row")
-            // Same column as From and To: text starts at the page margin, label column gu(6.5).
+            // Same column as From and To: text starts at the page margin, the
+            // label column is the page's.
             compare(label.mapToItem(page, 0, 0).x + label.leftPadding, find("fromLabel").mapToItem(page, 0, 0).x)
-            compare(label.width, thm.gu(6.5))
+            compare(label.width, page.labelColumn)
             mouseClick(label)
             verify(find("subjectField").input.activeFocus, "tapping the row focuses the input")
             const n = mock.called("draftChanged").length
             find("subjectField").input.text = "Hi"
             verify(mock.called("draftChanged").length > n, "editing marks the draft edited")
+        }
+
+        // Phone shot of a reply: "Subject" ran into "Re: …", and the From address,
+        // the To chip and the subject text started at three different x.
+        function test_header_values_share_one_column_after_the_labels() {
+            mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [],
+                                   subject: "Re: FW: a long subject that fills the whole row and more",
+                                   body: "", inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const col = page.labelColumn
+            verify(col >= thm.gu(9.5), "at least margin + 52 px label + gap, as designed")
+            compare(find("fromValue").mapToItem(page, 0, 0).x, col)
+            compare(find("to-remove-0").mapToItem(page, 0, 0).x, col)
+            const input = find("subjectField").input
+            compare(input.mapToItem(page, input.leftPadding, 0).x, col)
+            for (const name of ["subjectLabel", "fromLabel"]) {
+                const label = find(name)
+                const end = label.mapToItem(page, 0, 0).x + label.leftPadding + label.contentWidth
+                verify(end + thm.gu(1) <= col, name + " keeps a gap before its value")
+            }
         }
 
         // #138 review: with Cc Bcc showing, a long chip uses what the first line
@@ -264,7 +285,7 @@ Item {
             const chip = find("to-remove-0")
             const input = to.input.mapToItem(chip.parent, 0, 0)
             verify(shown("showCc"))
-            verify(chip.width >= 150 && chip.width >= to.width - thm.gu(16.5) - find("showCc").width - 2, "chip is " + chip.width + " wide")
+            verify(chip.width >= to.width - page.labelColumn - thm.gu(10) - find("showCc").width - 2, "chip is " + chip.width + " wide")
             compare(input.y, chip.y, "the input is on the chip's line")
             verify(chip.x + chip.width + to.input.width <= chip.parent.width + 1)
             verify(to.height <= find("fromRow").height + 2, "one line")
