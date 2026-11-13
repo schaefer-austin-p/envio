@@ -303,6 +303,35 @@ fn every_attachment_is_base64_and_text_ones_carry_a_charset() {
 }
 
 #[test]
+fn long_base64_attachment_wraps_at_76_and_round_trips() {
+    // 1000 bytes: not a multiple of 3 (ends in "=="), several lines.
+    let bytes: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
+    let mut o = simple();
+    o.attachments = vec![OutgoingAttachment {
+        filename: "long.bin".to_owned(),
+        content_type: "application/octet-stream".to_owned(),
+        bytes: bytes.clone(),
+    }];
+    let built = build(&o, 0, "x@example.org");
+    let wire = String::from_utf8(built.bytes.clone()).unwrap();
+    let at = wire.find("filename=\"long.bin\"").unwrap();
+    let body_start = at + wire[at..].find("\r\n\r\n").unwrap() + 4;
+    let body_end = body_start + wire[body_start..].find("\r\n--").unwrap();
+    let body = &wire[body_start..body_end];
+    let lines: Vec<&str> = body.split("\r\n").collect();
+    assert!(lines.len() > 10, "{} lines", lines.len());
+    for line in &lines {
+        assert!(line.len() <= 76, "line of {}: {line}", line.len());
+        assert!(!line.contains(['\r', '\n']), "bare CR or LF: {line:?}");
+    }
+    for line in &lines[..lines.len() - 1] {
+        assert_eq!(line.len(), 76, "{line}");
+    }
+    assert!(body.ends_with("=="), "{body}");
+    assert_eq!(attachment_bytes(&built.bytes, 0).unwrap(), bytes);
+}
+
+#[test]
 fn message_id_domain_is_punycoded() {
     assert!(new_message_id("a@例え.jp").ends_with("@xn--r8jz45g.jp"));
     assert!(new_message_id("a@bücher.example").ends_with("@xn--bcher-kva.example"));

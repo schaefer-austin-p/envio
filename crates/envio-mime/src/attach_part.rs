@@ -47,3 +47,23 @@ pub(crate) fn part<'a>(content_type: &'a str, filename: &'a str, bytes: &[u8]) -
         .attachment(filename)
         .transfer_encoding("base64")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::base64_lines;
+
+    #[test]
+    fn rfc4648_vectors() {
+        for (plain, coded) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+        ] {
+            assert_eq!(base64_lines(plain.as_bytes()), coded.as_bytes(), "{plain}");
+        }
+    }
+}
