@@ -16,9 +16,10 @@ const ME: &str = "me@example.org";
 const C: ComposeId = ComposeId(1);
 const SAVE_MS: u64 = 1_000;
 /// Time a save may take past its due time. Tests here run in parallel and
-/// each save syncs a file, which on a CI runner has taken over 200 ms
-/// (#80). A save held up by the 3 s stall or a copy still misses it.
-const SLACK_MS: u64 = 800;
+/// each save syncs a file, which on a CI runner busy with a click build has
+/// taken over 800 ms (#80, #107). A save held up by the 6 s stall still
+/// misses it.
+const SLACK_MS: u64 = 2_000;
 
 struct S {
     h: Harness,
@@ -205,7 +206,7 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
 #[test]
 fn a_change_is_saved_while_the_worker_is_stalled() {
     let s = started();
-    s.stall(3_000);
+    s.stall(6_000);
     s.change(s.draft("typed"));
     let limit = Duration::from_millis(SAVE_MS + SLACK_MS);
     assert!(s.wait_for_draft(limit, |d| d.body == "typed"));
