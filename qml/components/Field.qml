@@ -13,6 +13,9 @@ Column {
     property bool password: false
     // False: no box, for a field that sits inside a row of its own.
     property bool framed: true
+    // Space before the text: inside the box, or none without one, so a row's
+    // text lines up with its column.
+    property real inset: framed ? theme.gu(1.75) : 0
     readonly property int effectiveHints: input.inputMethodHints
     // Extra hints; a password field always keeps no-prediction and sensitive.
     property int inputMethodHints: Qt.ImhNone
@@ -50,7 +53,7 @@ Column {
             bottomPadding: 0
             selectByMouse: true
             persistentSelection: true
-            leftPadding: root.theme.gu(1.75)
+            leftPadding: root.inset
             rightPadding: root.theme.gu(1.75)
             anchors.fill: parent
             verticalAlignment: TextInput.AlignVCenter
