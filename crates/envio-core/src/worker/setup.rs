@@ -63,6 +63,22 @@ pub(crate) enum Refusal {
     Unconfirmed,
     BadFingerprint,
     Duplicate,
+    /// No usable email address.
+    BadAddress,
+}
+
+/// Text before the last `@` and a domain after it (a quoted local part may
+/// hold `@`, as in detect); the mail servers decide the rest.
+fn plausible_address(email: &str) -> bool {
+    match email.trim().rsplit_once('@') {
+        Some((local, domain)) => !local.is_empty() && !domain.is_empty() && !domain.contains('@'),
+        None => false,
+    }
+}
+
+/// The address is stored without the spaces around what the user typed.
+fn trim_address(setup: &mut AccountSetup) {
+    setup.email = setup.email.trim().to_owned();
 }
 
 /// What must hold before any connection is made; returns the fingerprints
@@ -71,6 +87,9 @@ pub(crate) fn check_request(
     request: &ConnectRequest,
     existing: &[Account],
 ) -> Result<Vec<(Service, Fingerprint)>, Refusal> {
+    if !plausible_address(&request.setup.email) {
+        return Err(Refusal::BadAddress);
+    }
     if request.setup.needs_confirm && !request.servers_confirmed {
         return Err(Refusal::Unconfirmed);
     }
@@ -83,7 +102,7 @@ pub(crate) fn check_request(
                 .ok_or(Refusal::BadFingerprint)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let email = &request.setup.email;
+    let email = request.setup.email.trim();
     // A broken entry holds no usable address.
     if existing
         .iter()
@@ -99,6 +118,7 @@ fn refusal_text(refusal: &Refusal) -> String {
         Refusal::Unconfirmed => text::setup::unconfirmed(),
         Refusal::BadFingerprint => text::setup::bad_fingerprint(),
         Refusal::Duplicate => text::setup::duplicate(),
+        Refusal::BadAddress => text::setup::bad_address(),
     }
 }
 
@@ -164,6 +184,7 @@ impl Worker<'_> {
     /// servers with the password.
     pub(crate) fn connect(&mut self, mut request: ConnectRequest) {
         // Do not trust the app's flag for servers that DNS gave us.
+        trim_address(&mut request.setup);
         request.setup.needs_confirm |= touches(&self.srv_hosts, &request.setup);
         let email = request.setup.email.clone();
         let accepted = match check_request(&request, self.store.accounts.list()) {
@@ -342,6 +363,43 @@ mod tests {
         elsewhere.imap.host = "imap.other.org".into();
         elsewhere.smtp.host = "smtp.other.org".into();
         assert!(!touches(&srv_hosts, &elsewhere));
+    }
+
+    #[test]
+    fn an_account_needs_an_address() {
+        for bad in [
+            "",
+            "  ",
+            "ada",
+            "@example.org",
+            "ada@",
+            "ada@@",
+            "a@b@",
+            "ada@ ",
+        ] {
+            let mut setup = setup_from(&found(Source::Ispdb, false), "ada@example.org");
+            setup.email = bad.into();
+            let refused = check_request(&request(setup, false, &[]), &[]);
+            assert_eq!(refused, Err(Refusal::BadAddress), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_quoted_local_part_may_hold_an_at() {
+        let mut setup = setup_from(&found(Source::Ispdb, false), "ada@example.org");
+        setup.email = "\"a@b\"@example.org".into();
+        assert_eq!(check_request(&request(setup, false, &[]), &[]), Ok(vec![]));
+    }
+
+    #[test]
+    fn the_address_is_stored_trimmed_and_checked_trimmed() {
+        let mut setup = setup_from(&found(Source::Ispdb, false), "ada@example.org");
+        setup.email = "  Ada@Example.org ".into();
+        trim_address(&mut setup);
+        assert_eq!(setup.email, "Ada@Example.org");
+        setup.email = " ada@example.org ".into();
+        let refused = check_request(&request(setup, false, &[]), &[existing("ada@example.org")]);
+        assert_eq!(refused, Err(Refusal::Duplicate));
     }
 
     #[test]
