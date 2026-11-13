@@ -6,14 +6,16 @@ All notable changes to Envio are listed here. The format follows
 Release milestone:
 https://code.austinschaefer.com/schaefera/envio/milestone/12
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-11-13
 
 First release. Envio is an IMAP and SMTP mail app for Ubuntu Touch 24.04.
 
 ### Added
 
-- Accounts with a password or app password: mailo, iCloud, Fastmail,
-  Google (app password) and any other IMAP and SMTP server.
+- Accounts with a password or app password on any IMAP and SMTP server.
+  Envio was used on a phone with real mailo and inbox.eu accounts during
+  the release run. Other providers, such as iCloud, Fastmail and Google
+  (app password), should work but were not tried for this release.
 - An account wizard that asks for the email address first and looks up the
   servers (Thunderbird ISPDB, the domain's autoconfig URL, DNS SRV). Manual
   setup is the fallback.
@@ -43,6 +45,8 @@ First release. Envio is an IMAP and SMTP mail app for Ubuntu Touch 24.04.
 - Mail servers are reached over TLS only. Self-signed certificates are
   pinned after you accept them.
 - Remote images are blocked and tracking content is removed.
+  "Always for this sender" trusts the From address, which a sender can
+  forge, so only use it for senders you know.
 - No telemetry.
 - Passwords are kept in a file readable only by the app (mode 0600). They
   are not in the mail database or the logs. The system secret store is not
@@ -58,6 +62,7 @@ First release. Envio is an IMAP and SMTP mail app for Ubuntu Touch 24.04.
 - No OpenPGP encryption or signing.
 - No use of the system address book. Contacts are stored inside Envio.
 - Save in the attachment menu was not confirmed end to end on a phone.
+- Inline images embedded in a message (`cid:`) are not shown yet.
 - Open bugs in the release milestone:
   - #141: when a server certificate changes, sync stops, but the inbox tab
     and drawer show no sign of it. The Accounts page does show it, and

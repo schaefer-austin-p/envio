@@ -62,11 +62,14 @@ What it does not do, and why:
   with an app password.
 - No encryption (OpenPGP) yet.
 - It does not use the system address book. It suggests addresses it has seen.
+- Inline images embedded in a message are not shown yet.
+- Saving an attachment through Content Hub was not tested end to end.
 
 Privacy:
 
 - Remote images are blocked until you decide otherwise. Tracking content is
-  removed.
+  removed. "Always for this sender" trusts the From address, which can be
+  forged, so use it only for senders you know.
 - Connections use TLS. A self-signed certificate is shown with its
   fingerprint and pinned only if you accept it.
 - No telemetry. Passwords are kept in a file only the app can read, never in
@@ -89,8 +92,10 @@ Not in this release: background sync and notifications, OAuth, OpenPGP.
 - Networking: to reach your IMAP and SMTP servers.
 - Connectivity: to see whether the phone is online, so Envio can show an
   account as offline and retry.
-- Content exchange: to attach files from other apps and to open, save or
-  share attachments. Files move through Content Hub; Envio cannot read other
+- Content exchange: to attach files from other apps.
+- Content exchange source: to hand attachments to other apps to open, save
+  or share them.
+  Files move through Content Hub in both directions; Envio cannot read other
   folders.
 
 ## Screenshots
