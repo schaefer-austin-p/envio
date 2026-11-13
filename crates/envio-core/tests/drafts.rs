@@ -24,6 +24,11 @@ const SLACK_MS: u64 = 2_000;
 struct S {
     h: Harness,
     key: String,
+    /// Opened once, before any save. `Drafts::open` deletes temp files, so
+    /// opening a fresh handle on every poll deletes the temp file of a save
+    /// in flight: its rename fails and the draft is retried a second later
+    /// (#126). Polling only reads through this handle.
+    reader: Drafts,
 }
 
 fn started() -> S {
@@ -32,7 +37,8 @@ fn started() -> S {
     h.start_core();
     // The worker is up before a test stalls or crashes it.
     h.wait(|e| matches!(e, Event::Started { .. }).then_some(()));
-    S { h, key }
+    let reader = Drafts::open(&h.paths().drafts()).unwrap();
+    S { h, key, reader }
 }
 
 impl S {
@@ -47,10 +53,7 @@ impl S {
     }
 
     fn drafts(&self) -> Vec<(String, envio_store::Draft)> {
-        Drafts::open(&self.h.paths().drafts())
-            .unwrap()
-            .list()
-            .unwrap()
+        self.reader.list().unwrap()
     }
 
     fn files_dir(&self) -> PathBuf {
@@ -383,7 +386,8 @@ fn a_panicking_sink_does_not_stop_draft_saving() {
     let mut h = Harness::unstarted();
     let key = h.seed_account(ME, Some("pw"));
     h.core = Some(Core::start(h.config(), Arc::new(PanicOnce(AtomicBool::new(false)))).unwrap());
-    let s = S { h, key };
+    let reader = Drafts::open(&h.paths().drafts()).unwrap();
+    let s = S { h, key, reader };
     s.change(s.draft("first"));
     assert!(s.wait_for_draft(Duration::from_secs(10), |d| d.body == "first"));
     std::thread::sleep(Duration::from_millis(100));
