@@ -58,9 +58,12 @@ pub struct MessageRow {
     /// Whether the message has attachments. The cache keeps no
     /// BODYSTRUCTURE yet, so this is `false` for now.
     pub has_attachments: bool,
-    /// The sender's name, else the address, else a placeholder.
+    /// The sender's name (the address when the name is missing or looks like
+    /// one), else the raw From line, else a placeholder.
     pub from: String,
-    /// The bare sender address; empty when there is none.
+    /// The sender's address, or the key the stamp is tinted by when the From
+    /// line does not parse; empty when there is no sender. Only the stamp
+    /// reads it.
     pub from_address: String,
     pub subject: String,
     pub preview: String,

@@ -146,3 +146,8 @@ fn receipt_like() {
 fn newsletter_like() {
     snapshot("newsletter-like.eml");
 }
+
+#[test]
+fn notice_like() {
+    snapshot("notice-like.eml");
+}

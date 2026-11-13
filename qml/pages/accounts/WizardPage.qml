@@ -20,6 +20,7 @@ Item {
     // setup may go without an address, and then `asked` is "" too.
     property bool attempting: false
     property string foundText: ""
+    property string serversText: ""
     property string setupJson: ""
     readonly property var setup: setupJson === "" ? ({}) : JSON.parse(setupJson)
     // True only after "Use these servers" for the hosts now in `setup`.
@@ -114,7 +115,7 @@ Item {
         // Editing the address ends the attempt for the old one.
         onEmailChanged: root.forget()
         // A detect still running is dropped: its answer must not move us.
-        onManualRequested: { root.forget(); root.step = "servers" }
+        onManualRequested: { root.forget(); servers.prefill(null); root.step = "servers" }
     }
     SignInStep {
         id: signIn
@@ -122,10 +123,12 @@ Item {
         anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "signin"
         foundText: root.foundText
+        serversText: root.serversText
         appPassword: root.setup.source === "provider"
         error: root.error
         busy: root.busy
         onContinued: root.submit()
+        onEditServersRequested: { root.forget(); servers.prefill(root.setup); root.step = "servers" }
     }
     ServersStep {
         objectName: "serversStep"
@@ -179,10 +182,11 @@ Item {
 
     Connections {
         target: root.core
-        function onDetected(email, text, needsConfirm, json) {
+        function onDetected(email, text, needsConfirm, json, serversText) {
             if (!root.current(email)) return
             root.busy = false
             root.foundText = text
+            root.serversText = serversText
             root.setupJson = json
             root.serversConfirmed = false
             root.step = "signin"

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close what the Plan 8b phone run and the 0.1.0 audit left open before the release: a server lookup that reads the hosts file four times (#97), a list row that shows a fake address as the sender's name (#92), an offline banner on every tab (#91), guessed servers that can't be checked or edited (#93), narrow text columns in Stripe-style mail (#90), two flaky timing tests (#99, #80); and on the CI side the arm64 click build (#7), security-only dependency updates (#25) and the empty test selection (#16).
+**Goal:** Close what the Plan 8b phone run and the 0.1.0 audit left open before the release: a server lookup that reads the hosts file four times (#97), a list row that shows a fake address as the sender's name (#92), an offline banner on every tab (#91), guessed servers that can't be checked or edited (#93), narrow text columns in Stripe-style mail (#90), two flaky timing tests (#99, #80), a 1-2 s wait on every first open (#102); and on the CI side the arm64 click build (#7), security-only dependency updates (#25) and the empty test selection (#16).
 
 **Architecture:** Two PRs, built in parallel from two worktrees. **Part A (app)** changes Rust and QML: #97 is in `envio-net` autoconfig (one resolver per Detect, lookups raced but answered in priority order), #92/#91/#93 put the decision and the text in `envio-core`/`envio-ui` and keep QML to showing it, #90 adds a linearising pass in `envio-mime`. **Part B (CI)** adds workflows and scripts only. No task in one part touches a file of the other part. This plan's own docs-only PR exercises #16.
 
 **Tech Stack:** Rust (envio-net with hickory-resolver 0.26 and futures, envio-mime, envio-core, envio-ui), cxx-qt in `qt/`, Qt 5.15 / QtQuick 2.15 on Ubuntu Touch 24.04, qmltestrunner offscreen, Stalwart in Docker; Forgejo Actions (dind), clickable, Renovate.
 
-**Spec:** docs/superpowers/specs/2026-11-07-envio-design.md ("Scope 0.1.0", "Error handling", "Testing and CI"). Issues: #97, #92, #91, #93, #90, #99, #80 (Part A); #7, #25, #16 (Part B).
+**Spec:** docs/superpowers/specs/2026-11-07-envio-design.md ("Scope 0.1.0", "Error handling", "Testing and CI"). Issues: #97, #92, #91, #93, #90, #99, #80, #102 (Part A); #7, #25, #16 (Part B).
 
 ## Global Constraints
 
@@ -164,6 +164,35 @@ From `CLAUDE.md` and the spec, verbatim where they bind:
 
 ---
 
+### Task A8: Recent Inbox bodies are downloaded ahead of the open (#102)
+
+Added after the plan merged: the user asked for it in 0.1.0 ("Put #102 in Plan 8c, I want it for 0.1.0"). Today a body is fetched only when the message is opened, so every first open waits one IMAP round trip (1-2 s on the phone). Thunderbird, K-9 and FairEmail fetch recent bodies ahead of time.
+
+**Files:** `crates/envio-store/src/messages.rs` (query), `crates/envio-core/src/worker/plan.rs` (step and rule), `crates/envio-core/src/worker/turn.rs` (candidates in, skip set), `crates/envio-core/src/worker/run/` (run the step; a new `prefetch.rs` if `mod.rs` or `sync.rs` would pass ~300 lines), `crates/envio-sync/src/driver/folders.rs` (one SELECT, several bodies). Tests next to each, plus one in `crates/envio-e2e/tests/` against Stalwart.
+
+**Interfaces:**
+- Store: `Messages::prefetch_candidates(&self, folder: FolderId, since_ms: i64, max_size: u32, limit: u32) -> Result<Vec<MessageRowId>>`: `BodyState::Missing`, `date >= since_ms`, `size <= max_size`, newest first (`ORDER BY date DESC, id DESC`).
+- Driver: `driver::prefetch_bodies(server, local, folder: FolderId, ids: &[MessageRowId]) -> Result<Vec<(MessageRowId, Option<Vec<u8>>)>>`: one `select`, the uidvalidity check `fetch_body` already does, then `server.fetch_body` per message. No `MailServer` trait change.
+- Plan: `Step::Prefetch(FolderId)`; `steps()` takes the candidate folder (`Option<FolderId>`) beside its current inputs.
+
+**Rule (pure, in `plan.rs`, unit-tested):** `Prefetch` is the last step: after searches, user bodies, older, replay, send, file and every folder sync. It is planned only in the foreground, when the account is not paused, the disk is not full, and the Inbox has candidates. Constants: `PREFETCH_DAYS = 7`, `PREFETCH_MAX_SIZE = 256 * 1024`, `PREFETCH_BATCH = 10` messages per step. Only the account's Inbox (`FolderRole::Inbox`) in 0.1.0.
+
+**Behaviour:**
+- One step fetches at most `PREFETCH_BATCH` bodies in one session, then the worker re-plans (as after any step), so a message the user opens meanwhile goes next and waits for at most one batch.
+- Each fetched body goes through the same store path as an opened one (`store.bodies` write, `set_body_state(Downloaded)`, search index), so the body sweep and search treat it the same. It emits no `MessageOpened`.
+- A message whose fetch fails or comes back empty (`None`, uidvalidity changed) goes into an in-memory skip set for the worker's lifetime and is not a candidate again; a connection error ends the step like any other step's and the normal retry applies.
+- When no candidates are left the step is not planned, so an idle account goes back to IDLE.
+
+**Tests:**
+- Store: Missing-only, the date and size bounds, newest first, the limit.
+- Plan: `Prefetch` comes after `Folders`, `Body`, `Send` and `Replay`; absent when paused, disk full, in the background, or with no candidates; a `Body(id)` added while candidates remain still comes first.
+- Turn: a failed id lands in the skip set and is not planned again.
+- e2e (Stalwart): after the first sync of an Inbox with 3 messages, all three bodies are `Downloaded` without an open; one above 256 KB stays `Missing`; opening a prefetched message emits `MessageOpened` with no IMAP FETCH (count the proxy's commands or assert the server saw no `BODY.PEEK[]` after the open).
+
+**Proving:** `cargo make ci`, `cargo make e2e-it`. The phone timing is in A7.
+
+---
+
 ### Task A7: Phone check (controller)
 
 The controller installs the build (`cargo make click-install`) and takes every screenshot with `ute2e shot` (never handed back to the user), both themes where the screen changed, kept in `docs/phone-runs/release-polish/`.
@@ -173,6 +202,7 @@ The controller installs the build (`cargo make click-install`) and takes every s
 - [ ] #91: with one account unreachable (no adb reverse): its tab shows "Offline.", the other account tabs show no banner, the unified tab names it.
 - [ ] #92: a synthetic message from `"billing@paypal.com" <x@evil.example>` sent to the test account: list row and reader header.
 - [ ] #90: the synthetic `notice-like` and `receipt-like` sent to the test account, reader at full width.
+- [ ] #102: with the inbox synced and the app idle for a minute, open a message from the last day: `timedopen.sh` first open under 300 ms (before: 1-2 s), on both real-shaped test accounts; screenshot of the opened message.
 - [ ] Update `docs/phone-checklist.md` rows for each.
 
 ---
@@ -227,11 +257,11 @@ No code. This plan is committed alone in a docs-only PR before Parts A and B sta
 
 ## Done when
 
-The plan PR is merged and #16 closed; Part A is merged with #97, #92, #91, #93, #90, #99 and #80 closed (phone screenshots named in each closing comment for #97, #93, #91, #92, #90; latencies for #80); Part B is merged with #7 closed (link to the master run and its artifact) and #25 closed with the chosen route and its proof runs; `docs/phone-checklist.md` has the new rows; CI is green on master.
+The plan PR is merged and #16 closed; Part A is merged with #97, #92, #91, #93, #90, #99, #80 and #102 closed (phone screenshots named in each closing comment for #97, #93, #91, #92, #90; latencies for #80); Part B is merged with #7 closed (link to the master run and its artifact) and #25 closed with the chosen route and its proof runs; `docs/phone-checklist.md` has the new rows; CI is green on master.
 
 ## Self-review
 
-- Coverage: #97 A1, #92 A2, #91 A3, #93 A4, #90 A5, #99 and #80 A6, phone A7; #7 B1, #25 B2, #16 B3.
+- Coverage: #97 A1, #92 A2, #91 A3, #93 A4, #90 A5, #99 and #80 A6, #102 A8, phone A7; #7 B1, #25 B2, #16 B3.
 - Type consistency: `BannerTab` ↔ `offlineText(tab, folder, waiting)` ↔ InboxPage `root.tab`/`root.folderId`; `Event::Detected.servers` ↔ `Signal::Detected.servers` ↔ qt `detected(…, servers)` ↔ WizardPage `onDetected(email, text, needsConfirm, json, servers)` ↔ `SignInStep.serversText`; `race::Settle` used only by `find`.
 - Numbers decided at run time have a rule: A5's notice height bound (3× measured), A6's note line (1.5 s logged).
 

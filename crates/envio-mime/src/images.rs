@@ -293,7 +293,7 @@ fn limit_width(tag: &mut Tag, max: u32) {
     tag.attrs = std::mem::take(&mut tag.attrs)
         .into_iter()
         .filter_map(|(name, value)| match name.as_str() {
-            "width" => widths::sane_attribute(&value, max).map(|w| (name, w)),
+            "width" => widths::sane_attribute(&tag.name, &value, max).map(|w| (name, w)),
             _ => Some((name, value)),
         })
         .collect();

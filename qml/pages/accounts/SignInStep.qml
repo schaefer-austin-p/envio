@@ -8,12 +8,15 @@ Item {
     id: root
     required property Theme theme
     property string foundText: ""
+    // The two guessed servers, one line each (chosen and translated in Rust).
+    property string serversText: ""
     // Detected.source is "provider": that provider wants an app password.
     property bool appPassword: false
     property string error: ""
     property bool busy: false
     property alias password: passwordField.text
     signal continued()
+    signal editServersRequested()
 
     KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
@@ -51,6 +54,26 @@ Item {
                     font.pixelSize: 14
                     lineHeight: 1.3
                 }
+            }
+            Text {
+                textFormat: Text.PlainText
+                objectName: "serversText"
+                width: parent.width
+                visible: root.serversText !== ""
+                text: root.serversText
+                wrapMode: Text.WordWrap
+                color: root.theme.secondary
+                font.family: root.theme.fontUi
+                font.pixelSize: 14
+                lineHeight: 1.3
+            }
+            AppButton {
+                objectName: "editServers"
+                width: parent.width
+                theme: root.theme
+                text: qsTr("Edit servers")
+                enabled: !root.busy
+                onClicked: root.editServersRequested()
             }
             Text {
                 textFormat: Text.PlainText

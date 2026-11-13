@@ -145,7 +145,13 @@ impl Worker<'_> {
                 if found.confirm {
                     self.srv_hosts.extend(hosts_of(&setup));
                 }
-                self.emit(Event::Detected { email, setup, text });
+                let servers = text::setup::servers(&setup.imap, &setup.smtp);
+                self.emit(Event::Detected {
+                    email,
+                    setup,
+                    text,
+                    servers,
+                });
             }
             Err(_) => self.emit(Event::SetupProblem {
                 email,

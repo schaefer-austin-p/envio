@@ -37,18 +37,26 @@ pub(crate) fn carry(tag: &mut Tag, max: u32) {
     if tag.attr("width").is_some() {
         return;
     }
-    if let Some(value) = attribute_value(&width, max) {
+    if let Some(value) = attribute_value(&width, max).filter(|v| keeps(&tag.name, v)) {
         tag.attrs.push(("width".to_owned(), value));
     }
 }
 
-/// A `width` attribute the message set, as it may stay: a percentage in
+/// Whether `tag` may keep this width. A percentage on a cell is dropped: Qt
+/// resolves it against the cell's minimum width, which squeezes a text
+/// column beside a fixed one to a few characters (#90). Tables keep it and
+/// cells keep pixel widths (spacers).
+fn keeps(tag: &str, value: &str) -> bool {
+    !(matches!(tag, "td" | "th") && value.ends_with('%'))
+}
+
+/// A `width` attribute the message set on `tag`, as it may stay: a percentage in
 /// (0, 100], or whole pixels above 0 and (when `max > 0`) at most `max`,
 /// written as bare digits. `None` drops it, so the column sizes itself.
-pub(crate) fn sane_attribute(value: &str, max: u32) -> Option<String> {
+pub(crate) fn sane_attribute(tag: &str, value: &str, max: u32) -> Option<String> {
     let value = value.trim();
     if value.ends_with('%') {
-        return attribute_value(value, max);
+        return attribute_value(value, max).filter(|v| keeps(tag, v));
     }
     pixels(value)
         .filter(|&w| w > 0 && (max == 0 || w <= max))

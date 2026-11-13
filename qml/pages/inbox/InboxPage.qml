@@ -36,7 +36,6 @@ Item {
     readonly property int outboxCount: outboxRows.count
     // Messages still to go out: sent-but-not-filed ones are not.
     readonly property int waitingCount: waitingProbe.toSend
-    readonly property int offlineCount: offlineProbe.offline
     readonly property bool selecting: list.selectedCount > 0
 
     function showUnified() {
@@ -126,12 +125,10 @@ Item {
     }
     Repeater {
         id: offlineProbe
-        property int offline: 0
-        function recount() {
-            let n = 0
-            for (let i = 0; i < count; i++) if (itemAt(i) !== null && itemAt(i).isOffline) n++
-            offline = n
-        }
+        // Bumped whenever any account's state changes: the offline banner
+        // binds to it and asks the core again.
+        property int revision: 0
+        function recount() { revision++ }
         model: root.accounts
         delegate: Item {
             visible: false
@@ -190,23 +187,24 @@ Item {
         anchors.top: tabs.bottom
         width: parent.width
         Banner {
+            id: offlineBanner
             objectName: "offlineBanner"
             theme: root.theme
             width: parent.width
             kind: "warning"
-            visible: root.offlineCount > 0
+            visible: text !== ""
             height: visible ? implicitHeight : 0
-            // TRANSLATORS: %1 is how many messages are waiting to be sent,
-            // e.g. "2 messages waiting"; it is left out when none are.
-            text: root.waitingCount > 0 ? qsTr("Offline. %1").arg(root.core.countText("waiting", root.waitingCount))
-                                       : qsTr("Offline.")
+            text: {
+                offlineProbe.revision
+                return root.core.offlineText(root.tab, root.folderId, root.waitingCount)
+            }
         }
         Banner {
             id: waiting
             objectName: "outboxBanner"
             theme: root.theme
             width: parent.width
-            visible: root.waitingCount > 0 && root.offlineCount === 0
+            visible: root.waitingCount > 0 && !offlineBanner.visible
             height: visible ? implicitHeight : 0
             text: root.core.countText("waiting", root.waitingCount)
             MouseArea { anchors.fill: parent; onClicked: root.outboxRequested() }

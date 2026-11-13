@@ -11,7 +11,7 @@ use envio_mime::{Address, Message as Mime, RenderOptions};
 use envio_store::{BodyState, Cursor, ListRef, Message, MessageRowId, PAGE};
 
 use super::Worker;
-use super::rows::rows;
+use super::rows::{rows, sender_label};
 use super::userdata::{is_known, loads_images};
 use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
@@ -37,12 +37,16 @@ fn names(list: &[Address]) -> Vec<String> {
 
 /// The header lines of a message that could not be parsed come from the
 /// cached envelope (`Name <address>` strings).
-fn stored_header(stored: &envio_store::Envelope, account: &str) -> MessageHeader {
+pub(super) fn stored_header(stored: &envio_store::Envelope, account: &str) -> MessageHeader {
     let from = Address::parse(&stored.from);
     MessageHeader {
         from: from.as_ref().map_or_else(
-            || envio_mime::strip_bidi_controls(&stored.from),
-            |a| a.name.clone().unwrap_or_else(|| a.email.clone()),
+            || {
+                envio_mime::strip_bidi_controls(&stored.from)
+                    .trim()
+                    .to_owned()
+            },
+            |a| sender_label(a.name.as_deref(), &a.email),
         ),
         from_address: from.map(|a| a.email).unwrap_or_default(),
         to: Vec::new(),
@@ -68,9 +72,7 @@ pub(crate) fn render_view(
     if let Mime::Parsed { envelope, .. } = &message {
         let sender = envelope.from.first();
         header = MessageHeader {
-            from: sender.map_or_else(String::new, |a| {
-                a.name.clone().unwrap_or_else(|| a.email.clone())
-            }),
+            from: sender.map_or_else(String::new, |a| sender_label(a.name.as_deref(), &a.email)),
             from_address: sender.map_or_else(String::new, |a| a.email.clone()),
             to: names(&envelope.to),
             cc: names(&envelope.cc),
@@ -448,6 +450,26 @@ mod tests {
         assert!(!header.from.contains('\u{202E}'), "{}", header.from);
         assert_eq!(header.subject, "Invoice fdp.exe");
         assert_eq!(header.from_address, "");
+    }
+
+    #[test]
+    fn the_reader_header_uses_the_same_label() {
+        let stored = envio_store::Envelope {
+            from: "\"billing@paypal.com\" <x@evil.example>".into(),
+            ..Default::default()
+        };
+        assert_eq!(stored_header(&stored, "me").from, "x@evil.example");
+        let raw = b"From: \"billing@paypal.com\" <x@evil.example>\r\nSubject: s\r\n\r\nbody\r\n";
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+        };
+        let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
+        assert_eq!(view.header.from, "x@evil.example");
+        assert_eq!(view.header.from_address, "x@evil.example");
     }
 
     #[test]

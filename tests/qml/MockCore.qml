@@ -41,7 +41,7 @@ Item {
     signal notice(string text)
     signal storeProblem(string text)
     signal workerRestarted(string text)
-    signal detected(string email, string text, bool needsConfirm, string setupJson)
+    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers)
     signal setupProblem(string email, string text)
     signal trustPrompt(string email, string service, string host, string title, string fingerprint, string hex, string text)
     signal accountAdded(string account, string email)
@@ -111,6 +111,16 @@ Item {
         record("linkView", [url])
         return linkViews[url] || { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                    "afterHost": url, "warning": "", "openable": true }
+    }
+    // "" while no account is offline, else a tag of the arguments and of the
+    // offline accounts (the core words the real text).
+    function offlineText(tab, folder, waiting) {
+        record("offlineText", [tab, folder, waiting])
+        const keys = []
+        for (let i = 0; i < accounts.count; i++)
+            if (accounts.get(i).state === "offline") keys.push(accounts.get(i).key)
+        if (keys.length === 0) return ""
+        return "offline " + keys.join(",") + " | " + tab + " | " + folder + " | " + waiting
     }
     function countText(kind, n) { return kind + " " + n }
     function dateBucket(unixSecs) { return "time" }

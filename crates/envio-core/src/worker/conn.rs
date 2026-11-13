@@ -1,6 +1,7 @@
 //! An account's connections: opening them, IDLE on the Inbox, and what the
 //! foreground and background do to them.
 
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -9,7 +10,7 @@ use std::time::Duration;
 use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
-use envio_store::{Account, FolderId, FolderRole, SyncState};
+use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
 
@@ -47,6 +48,12 @@ pub(crate) struct Live {
     pub relist: bool,
     /// A folder with parts left: it is synced again before the others.
     pub continuing: Option<FolderId>,
+    /// Messages whose body could not be prefetched: not tried again while
+    /// the worker lives.
+    pub prefetch_skip: BTreeSet<MessageRowId>,
+    /// Folders the server refused to select for a prefetch: not prefetched
+    /// again while the worker lives.
+    pub prefetch_off: BTreeSet<FolderId>,
 }
 
 impl Live {
@@ -61,6 +68,8 @@ impl Live {
             listed: false,
             relist: false,
             continuing: None,
+            prefetch_skip: BTreeSet::new(),
+            prefetch_off: BTreeSet::new(),
         }
     }
 }

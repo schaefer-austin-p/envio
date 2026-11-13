@@ -7,6 +7,10 @@ use envio_net::imap::IDLE_MAX;
 use envio_store::{Folder, FolderId, FolderRole, MessageRowId};
 use envio_sync::plan::folders::sync_order;
 
+mod prefetch;
+
+pub use prefetch::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
+
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
 
 /// What an account has been asked for since it last ran.
@@ -46,6 +50,8 @@ pub enum Step {
     Send,
     File,
     Folder(FolderId),
+    /// A batch of recent Inbox bodies, downloaded before they are opened.
+    Prefetch(FolderId),
 }
 
 impl Step {
@@ -60,6 +66,7 @@ impl Step {
             Step::Send => "send",
             Step::File => "file",
             Step::Folder(_) => "folder",
+            Step::Prefetch(_) => "prefetch",
         }
     }
 }
@@ -78,11 +85,25 @@ impl Wants {
     }
 }
 
+/// What the account is in, beside what it wants.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Env {
+    pub disk_full: bool,
+    /// Sent was refused last time: keep the folder list even for a run that
+    /// only sends.
+    pub relist: bool,
+    pub foreground: bool,
+    pub paused: bool,
+    /// The folder whose bodies are worth downloading, if it has some left.
+    pub prefetch: Option<FolderId>,
+}
+
 /// The steps for `wants`, in order. `full` stands for the folder list,
 /// actions, mail and every folder. With `disk_full` nothing is downloaded.
 /// `relist` (Sent was refused last time) keeps the folder list even for a
 /// run that only sends.
-pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool, relist: bool) -> Vec<Step> {
+pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
+    let (disk_full, relist) = (env.disk_full, env.relist);
     let mut out = Vec::new();
     // The user is waiting for these: they go first.
     out.extend(
@@ -122,6 +143,9 @@ pub fn steps(wants: &Wants, folders: &[Folder], disk_full: bool, relist: bool) -
     if !out.is_empty() && !(only_send && sent_known && !relist) {
         out.insert(0, Step::Folders);
     }
+    // Last: nothing the user or the sync waits for is held up by it. It
+    // needs no folder list, the Inbox is known.
+    out.extend(prefetch::step(env));
     out
 }
 
@@ -191,6 +215,19 @@ mod tests {
         ]
     }
 
+    fn env() -> Env {
+        Env {
+            foreground: true,
+            ..Env::default()
+        }
+    }
+
+    fn env_with(change: impl FnOnce(&mut Env)) -> Env {
+        let mut env = env();
+        change(&mut env);
+        env
+    }
+
     #[test]
     fn wanted_work_runs_before_idle() {
         let t = Timing {
@@ -210,7 +247,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false, false),
+            steps(&wants, &folders(), &env()),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
         );
     }
@@ -224,7 +261,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false, false),
+            steps(&wants, &folders(), &env()),
             [
                 Step::Folders,
                 Step::Body(MessageRowId(7)),
@@ -244,7 +281,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false, false),
+            steps(&wants, &folders(), &env()),
             [
                 Step::Folders,
                 Step::Body(MessageRowId(7)),
@@ -253,7 +290,10 @@ mod tests {
             ]
         );
         // Nothing is downloaded while storage is full.
-        assert!(!steps(&wants, &folders(), true, false).contains(&Step::Older(FolderId(2))));
+        assert!(
+            !steps(&wants, &folders(), &env_with(|e| e.disk_full = true))
+                .contains(&Step::Older(FolderId(2)))
+        );
     }
 
     #[test]
@@ -264,7 +304,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), false, false),
+            steps(&wants, &folders(), &env()),
             [
                 Step::Folders,
                 Step::SearchServer {
@@ -283,7 +323,7 @@ mod tests {
             folders: [FolderId(1), FolderId(2)].into(),
             ..Wants::default()
         };
-        let all = steps(&wants, &folders(), false, false);
+        let all = steps(&wants, &folders(), &env());
         let synced: Vec<Step> = all
             .iter()
             .filter(|s| matches!(s, Step::Folder(_)))
@@ -306,22 +346,19 @@ mod tests {
             send: true,
             ..Wants::default()
         };
-        assert_eq!(steps(&wants, &folders(), false, false), [Step::Send]);
+        assert_eq!(steps(&wants, &folders(), &env()), [Step::Send]);
         // Sent was refused last time: the list comes first again.
         assert_eq!(
-            steps(&wants, &folders(), false, true),
+            steps(&wants, &folders(), &env_with(|e| e.relist = true)),
             [Step::Folders, Step::Send]
         );
         // Folders not cached yet: the list comes first.
-        assert_eq!(
-            steps(&wants, &[], false, false),
-            [Step::Folders, Step::Send]
-        );
+        assert_eq!(steps(&wants, &[], &env()), [Step::Folders, Step::Send]);
     }
 
     #[test]
     fn nothing_wanted_is_no_steps() {
-        assert!(steps(&Wants::default(), &folders(), false, false).is_empty());
+        assert!(steps(&Wants::default(), &folders(), &env()).is_empty());
     }
 
     #[test]
@@ -332,7 +369,7 @@ mod tests {
             ..Wants::default()
         };
         assert_eq!(
-            steps(&wants, &folders(), true, false),
+            steps(&wants, &folders(), &env_with(|e| e.disk_full = true)),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
         );
     }

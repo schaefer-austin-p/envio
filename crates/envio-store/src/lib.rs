@@ -18,6 +18,7 @@ mod messages;
 mod migrate;
 mod outbox;
 mod paths;
+mod prefetch;
 mod rebuild;
 mod search;
 mod userdata;

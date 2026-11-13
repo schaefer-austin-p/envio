@@ -11,7 +11,7 @@ use crate::servers::Service;
 use crate::text;
 use crate::worker::Worker;
 
-fn imap_error(error: &envio_sync::SyncError) -> Problem {
+pub(super) fn imap_error(error: &envio_sync::SyncError) -> Problem {
     problem::from_sync(error, Service::Imap)
 }
 
@@ -63,13 +63,20 @@ pub(super) async fn folder(
         worker.floors.remove(&id);
         worker.emit(Event::OlderReset);
     }
-    if let Some(live) = worker.live.get_mut(account) {
-        live.continuing = synced.more.then_some(id);
-    }
+    folder_synced(worker, account, (id, synced.more));
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
     }
     Ok(())
+}
+
+/// A sync of the folder worked: it has parts left or not, and a prefetch
+/// the server refused for it is tried again.
+pub(super) fn folder_synced(worker: &mut Worker<'_>, account: &str, (id, more): (FolderId, bool)) {
+    if let Some(live) = worker.live.get_mut(account) {
+        live.continuing = more.then_some(id);
+        live.prefetch_off.remove(&id);
+    }
 }
 
 pub(super) async fn search_server(
@@ -87,6 +94,14 @@ pub(super) async fn search_server(
     });
     worker.search_found(account, query, &ids);
     Ok(())
+}
+
+/// Local search finds words in bodies: the text of the message, an HTML one
+/// through its text conversion. A failure only costs that.
+pub(super) fn index_body(worker: &Worker<'_>, id: MessageRowId, eml: &[u8]) {
+    if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
+        log::warn!("indexing a body: {e}");
+    }
 }
 
 pub(super) async fn body(
@@ -108,11 +123,7 @@ pub(super) async fn body(
         .await
         .map_err(|e| imap_error(&e))?;
     if let Some(eml) = &eml {
-        // Local search finds words in bodies: the text of the message, an
-        // HTML one through its text conversion. A failure only costs that.
-        if let Err(e) = worker.store.db.index_body(id, &envio_mime::quote_text(eml)) {
-            log::warn!("indexing a body: {e}");
-        }
+        index_body(worker, id, eml);
     }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],

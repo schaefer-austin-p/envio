@@ -8,7 +8,7 @@ use crate::health::{AccountStatus, Health};
 
 use super::Worker;
 use super::conn::Conn;
-use super::plan::{Next, POLL_MS, Step, Timing, Wants, next, steps};
+use super::plan::{Env, Next, POLL_MS, Step, Timing, Wants, next, steps};
 
 impl Worker<'_> {
     /// Timers that are not accounts' own: an Undo window ended, or a retry in
@@ -60,6 +60,7 @@ impl Worker<'_> {
     async fn pick_for(&mut self, account: &str, now: i64, disk_full: bool) -> Option<Step> {
         loop {
             let folders = self.store.db.folders(account).unwrap_or_default();
+            let prefetch = self.prefetch_due(account, &folders, (now, disk_full));
             let live = self.live.get_mut(account)?;
             // A message opened in the background is fetched now (and only
             // it), not when the app comes back.
@@ -81,7 +82,7 @@ impl Worker<'_> {
                 paused: live.health.is_paused(),
                 retry_at_ms: live.health.wake_at(),
                 next_full_ms: live.next_full_ms,
-                has_wants: !live.wants.is_empty(),
+                has_wants: !live.wants.is_empty() || prefetch.is_some(),
                 idle_capable: live.idle_capable
                     && folders.iter().any(|f| f.role == FolderRole::Inbox),
             };
@@ -112,7 +113,14 @@ impl Worker<'_> {
                     if live.listed {
                         live.wants.expand(&folders);
                     }
-                    let mut todo = steps(&live.wants, &folders, disk_full, live.relist)
+                    let env = Env {
+                        disk_full,
+                        relist: live.relist,
+                        foreground: self.foreground,
+                        paused: live.health.is_paused(),
+                        prefetch,
+                    };
+                    let mut todo = steps(&live.wants, &folders, &env)
                         .into_iter()
                         .find(|step| !(live.listed && *step == Step::Folders));
                     if let (Some(Step::Folder(_)), Some(id)) = (&todo, live.continuing) {
@@ -214,6 +222,51 @@ mod tests {
         // Not with a full disk, which has no room for it.
         let full = runtime.block_on(worker.pick_for(&account, now_ms(), true));
         assert_eq!(full, None);
+    }
+
+    #[test]
+    fn recent_inbox_bodies_are_prefetched_until_skipped() {
+        use envio_store::{Envelope, Flags, NewMessage};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let account = seeded.account.clone();
+        // The seeded message arrived just now.
+        let recent = NewMessage {
+            uid: 1,
+            size: 10,
+            envelope: Envelope {
+                subject: "hi".into(),
+                date: now_ms() / 1_000,
+                ..Envelope::default()
+            },
+            flags: Flags::default(),
+            preview: String::new(),
+        };
+        worker
+            .store
+            .db
+            .upsert_message(seeded.folder, &recent)
+            .unwrap();
+        worker.live.get_mut(&account).unwrap().next_full_ms = i64::MAX;
+        // In the background nothing is downloaded ahead.
+        let background = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(background, None);
+        worker.foreground = true;
+        let full = runtime.block_on(worker.pick_for(&account, now_ms(), true));
+        assert_eq!(full, None, "not with a full disk");
+        let step = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(step, Some(Step::Prefetch(seeded.folder)));
+        // A message whose body could not be had is not tried again.
+        let live = worker.live.get_mut(&account).unwrap();
+        live.prefetch_skip.insert(seeded.message);
+        let step = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(step, None);
     }
 
     #[test]

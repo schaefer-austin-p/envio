@@ -14,7 +14,7 @@ use crate::server::{Endpoint, Security};
 use crate::tls::{self, Roots};
 
 /// All of one fetch, redirects included.
-pub const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+pub const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// The body at `url`, following redirects, all within `limit`. Ok(None)
 /// when there is no file there.

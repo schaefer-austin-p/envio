@@ -4,6 +4,7 @@
 
 mod accounts;
 mod messages;
+mod offline;
 mod older;
 mod search;
 mod selection;
@@ -19,6 +20,7 @@ use crate::models::{Model, ModelChange, Op};
 use crate::rows::AccountRow;
 use crate::signals::{OlderRow, Signal};
 use messages::Current;
+pub use offline::BannerTab;
 use search::SearchState;
 
 /// What `Ui::apply` hands the glue, in order.

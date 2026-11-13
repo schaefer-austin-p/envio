@@ -133,6 +133,31 @@ fn a_second_detect_replaces_the_queued_one() {
 }
 
 #[test]
+fn detected_carries_the_servers_text() {
+    let h = Harness::start();
+    started(&h);
+    let email = "servers@example.org";
+    fake_setup(
+        email,
+        SetupFake {
+            delay: Duration::ZERO,
+            found: Some(found(false)),
+        },
+    );
+    h.send(Command::Detect {
+        email: email.into(),
+    });
+    let servers = h.wait(|e| match e {
+        Event::Detected { servers, .. } => Some(servers.clone()),
+        _ => None,
+    });
+    assert_eq!(
+        servers,
+        "Incoming (IMAP): imap.example.org:993, TLS\nOutgoing (SMTP): smtp.example.org:993, TLS"
+    );
+}
+
+#[test]
 fn setup_results_keep_the_srv_confirm_rule() {
     let h = Harness::start();
     started(&h);

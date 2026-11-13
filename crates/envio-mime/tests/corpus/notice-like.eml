@@ -1,0 +1,36 @@
+From: Example Co <notices@example.org>
+To: Pat Tester <pat@envio.test>
+Subject: Your Example Plan renews soon
+Date: Thu, 12 Nov 2026 09:00:00 +0000
+Message-ID: <notice-5678@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="ENVIO-NOTICE-BOUNDARY"
+
+--ENVIO-NOTICE-BOUNDARY
+Content-Type: text/plain; charset=utf-8
+
+Your Example Plan renews soon
+Your plan renews on 20 November 2026 for $12.00.
+
+--ENVIO-NOTICE-BOUNDARY
+Content-Type: text/html; charset=utf-8
+
+<!doctype html><html><body style="margin:0;background-color:#f6f9fc">
+<table align="left" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f6f9fc"><tr><td align="center">
+<table align="center" width="546" cellspacing="0" cellpadding="0" style="width:546px"><tr>
+<td width="76" valign="top" align="left"><table align="left" width="100%"><tr><td align="left"><table width="100%"><tr><td width="76" height="76" style="width:76px;font-size:12px;color:#697386">ILLUSTRATION</td></tr></table></td></tr></table></td>
+<td width="12">&nbsp;</td>
+<td valign="top" align="left">
+<table align="left" width="100%" cellspacing="0" cellpadding="0"><tr><td align="left" style="font-size:20px;font-weight:600;color:#1a1f36">Your Example Plan renews soon</td></tr></table>
+<table align="left" width="100%" cellspacing="0" cellpadding="0"><tr><td height="12">&nbsp;</td></tr></table>
+<table align="left" width="100%" cellspacing="0" cellpadding="0"><tr><td align="left" style="font-size:14px;color:#3c4257">NOTICE-BODY Hello Pat, this is a short reminder that your Example Plan renews on 20 November 2026 and that the renewal charge of $12.00 will be taken from the card on file. If you would like to change your plan, update your payment details or cancel before the renewal date, you can do so at any time from your account settings page.</td></tr></table>
+<table align="left" width="100%" cellspacing="0" cellpadding="0"><tr><td height="12">&nbsp;</td></tr></table>
+<table cellspacing="0" cellpadding="0"><tr><td align="center" style="background-color:#556cd6;padding:8px 16px"><a href="https://example.org/account" style="color:#ffffff;font-size:14px">Manage your plan</a></td></tr></table>
+<table align="left" width="100%" cellspacing="0" cellpadding="0"><tr><td align="left" style="font-size:12px;color:#697386">Questions? Reply to this email or visit example.org/help.</td></tr></table>
+</td>
+<td width="12">&nbsp;</td>
+</tr></table>
+</td></tr></table>
+</body></html>
+
+--ENVIO-NOTICE-BOUNDARY--

@@ -92,11 +92,13 @@ impl qobject::EnvioCore {
                 text,
                 needs_confirm,
                 setup,
+                servers,
             } => self.detected(
                 &q(&email),
                 &q(&text),
                 needs_confirm,
                 &q(&json::setup_to_json(&setup)),
+                &q(&servers),
             ),
             Signal::SetupProblem { email, text } => self.setup_problem(&q(&email), &q(&text)),
             Signal::TrustPrompt {

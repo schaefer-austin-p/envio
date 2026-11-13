@@ -114,7 +114,7 @@ fn ordinary_nesting_still_goes_through_ammonia() {
     let html = format!(
         "{}<b>cell</b>{}",
         "<table><tr><td>".repeat(n),
-        "</td></tr></table>".repeat(n)
+        "</td><td>x</td></tr></table>".repeat(n)
     );
     let out = clean(&html);
     assert_eq!(out.matches("<table>").count(), n);

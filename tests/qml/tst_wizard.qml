@@ -61,10 +61,12 @@ Item {
             wizardClosed.clear()
         }
         function typeEmail() { find("emailField").text = "ann@example.org" }
+        readonly property string serversLines:
+            "Incoming (IMAP): imap.example.org:993, TLS\nOutgoing (SMTP): smtp.example.org:587, STARTTLS"
         function toSignIn(json, needsConfirm) {
             typeEmail()
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", needsConfirm, json)
+            core.detected("ann@example.org", "Settings found", needsConfirm, json, serversLines)
             compare(wizard.step, "signin")
         }
         function dialogButton(dialogName, action) {
@@ -95,6 +97,79 @@ Item {
             verify(note.visible)
         }
 
+        function eachTheme(body) {
+            for (const name of ["carbon", "airmail"]) {
+                thm.name = name
+                body(name)
+            }
+            thm.name = "carbon"
+        }
+        function guessedJson() {
+            return JSON.stringify({
+                name: "Ann", email: "ann@example.org", username: "ann@login",
+                imapHost: "imap.guess.example", imapPort: 143, imapSecurity: "starttls",
+                smtpHost: "smtp.guess.example", smtpPort: 465, smtpSecurity: "tls",
+                source: "guess", needsConfirm: false })
+        }
+
+        function test_sign_in_shows_the_servers_text() {
+            eachTheme(function() {
+                init()
+                toSignIn(plainJson, false)
+                const t = find("serversText")
+                verify(t.visible)
+                compare(t.text, serversLines)
+                compare(t.textFormat, Text.PlainText)
+                verify(find("editServers").visible)
+            })
+        }
+
+        function test_edit_servers_opens_the_servers_step_prefilled() {
+            eachTheme(function() {
+                init()
+                toSignIn(guessedJson(), false)
+                mouseClick(find("editServers"))
+                compare(wizard.step, "servers")
+                compare(find("imapHost").text, "imap.guess.example")
+                compare(find("imapPort").text, "143")
+                compare(find("imapStarttls").checked, true)
+                compare(find("smtpHost").text, "smtp.guess.example")
+                compare(find("smtpPort").text, "465")
+                compare(find("smtpStarttls").checked, false)
+                compare(find("username").text, "ann@login")
+            })
+        }
+
+        function test_manual_setup_starts_empty_after_edit_servers() {
+            eachTheme(function() {
+                init()
+                toSignIn(guessedJson(), false)
+                mouseClick(find("editServers"))
+                back()
+                compare(wizard.step, "email")
+                typeEmail()
+                mouseClick(find("manualButton"))
+                compare(wizard.step, "servers")
+                compare(find("imapHost").text, "")
+                compare(find("smtpHost").text, "")
+                compare(find("imapPort").text, "993")
+                compare(find("smtpPort").text, "587")
+                compare(find("imapStarttls").checked, false)
+                compare(find("smtpStarttls").checked, true)
+            })
+        }
+
+        function test_edit_servers_is_disabled_while_busy() {
+            eachTheme(function() {
+                init()
+                toSignIn(plainJson, false)
+                wizard.busy = true
+                verify(!find("editServers").enabled)
+                wizard.busy = false
+                verify(find("editServers").enabled)
+            })
+        }
+
         function test_srv_hosts_need_confirmation() {
             toSignIn(srvJson, true)
             const dlg = find("confirmHosts")
@@ -112,7 +187,7 @@ Item {
 
             // Detected again; this time confirm.
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", true, srvJson)
+            core.detected("ann@example.org", "Settings found", true, srvJson, "")
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !dlg.visible })
             compare(wizard.serversConfirmed, true)
@@ -247,7 +322,7 @@ Item {
             // Another address: step 2 comes up empty and unconfirmed.
             find("emailField").text = "bob@example.net"
             mouseClick(find("continueButton"))
-            core.detected("bob@example.net", "Settings found", false, plainJson)
+            core.detected("bob@example.net", "Settings found", false, plainJson, "")
             compare(wizard.step, "signin")
             compare(find("passwordField").text, "")
             compare(wizard.serversConfirmed, false)
@@ -310,7 +385,7 @@ Item {
             core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server", "4F", "4f", "Late.")
             core.setupProblem("ann@example.org", "Late problem.")
             core.accountAdded("ann", "ann@example.org")
-            core.detected("ann@example.org", "Late", false, plainJson)
+            core.detected("ann@example.org", "Late", false, plainJson, "")
             wait(50)
             verify(!find("trustDialog").visible)
             compare(wizard.step, "email")
@@ -327,7 +402,7 @@ Item {
             find("emailField").text = "bob@example.org"
             mouseClick(find("continueButton"))
             core.detected("bob@example.org", "Settings found", false,
-                plainJson.replace(/ann@example.org/g, "bob@example.org"))
+                plainJson.replace(/ann@example.org/g, "bob@example.org"), "")
             compare(wizard.step, "signin")
             find("passwordField").text = "swordfish"
             mouseClick(find("signInContinue"))
@@ -369,7 +444,7 @@ Item {
             mouseClick(find("continueButton"))
             mouseClick(find("manualButton"))
             compare(wizard.step, "servers")
-            core.detected("ann@example.org", "Late", false, plainJson)
+            core.detected("ann@example.org", "Late", false, plainJson, "")
             compare(wizard.step, "servers")
         }
 
@@ -379,7 +454,7 @@ Item {
             tryVerify(function() { return !find("confirmHosts").visible })
             compare(wizard.serversConfirmed, true)
             // The same attempt is answered again, with hosts to confirm.
-            core.detected("ann@example.org", "Settings found", true, srvJson)
+            core.detected("ann@example.org", "Settings found", true, srvJson, "")
             compare(wizard.serversConfirmed, false)
             find("passwordField").text = "hunter2"
             wizard.submit()

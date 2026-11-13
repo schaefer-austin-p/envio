@@ -476,7 +476,17 @@ async fn an_open_whose_body_cannot_be_fetched_answers_with_a_failure() {
     };
     let proxy = Arc::new(Proxy::start(&server.host, server.imaps));
     let subject = unique("Never fetched");
-    deliver(&server, "grace", &subject).await;
+    // Over the prefetch size limit whatever the date, so only the open asks
+    // for its body.
+    {
+        let mut session = server.imap(&creds("grace")).await;
+        let id = message_id();
+        session
+            .append("INBOX", &[], &message(&id, &subject, 300_000))
+            .await
+            .unwrap();
+        session.logout().await.unwrap();
+    }
     let run = CoreRun::start(LevelFilter::Info);
     let account = run.add_account_with("grace", &setup_at(&server, "grace", proxy.port));
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
