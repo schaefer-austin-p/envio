@@ -102,8 +102,55 @@ fn parse_colour_reads_each_form() {
     assert_eq!(parse_colour("NAVY"), Some((0, 0, 128)));
     assert_eq!(parse_colour("WhiteSmoke"), Some((245, 245, 245)));
     assert_eq!(parse_colour("#1a1f36 !important"), Some((0x1a, 0x1f, 0x36)));
-    assert_eq!(parse_colour("papayawhip"), None);
+    assert_eq!(parse_colour("papayawhip"), Some((255, 239, 213)));
+    assert_eq!(parse_colour("notacolour"), None);
     assert_eq!(parse_colour("#12"), None);
+}
+
+#[test]
+fn dark_css_names_parse() {
+    assert_eq!(parse_colour("dimgray"), Some((105, 105, 105)));
+    assert_eq!(parse_colour("darkslategray"), Some((47, 79, 79)));
+    assert_eq!(parse_colour("darkblue"), Some((0, 0, 139)));
+    assert_eq!(parse_colour("DarkRed"), Some((139, 0, 0)));
+    assert_eq!(parse_colour("midnightblue"), Some((25, 25, 112)));
+    assert_eq!(parse_colour("rebeccapurple"), Some((102, 51, 153)));
+    assert_eq!(parse_colour("lightgoldenrodyellow"), Some((250, 250, 210)));
+    assert!(sets_colours(r#"<p style="color:dimgray">x</p>"#));
+    assert!(sets_colours(r#"<font color="midnightblue">x</font>"#));
+}
+
+#[test]
+fn four_and_eight_digit_hex_ignore_alpha() {
+    assert_eq!(parse_colour("#f00a"), Some((255, 0, 0)));
+    assert_eq!(parse_colour("#1a1f36cc"), Some((0x1a, 0x1f, 0x36)));
+    assert_eq!(parse_colour("#12345"), None);
+    assert!(sets_colours(r##"<p style="color:#000a">x</p>"##));
+}
+
+#[test]
+fn a_background_that_is_no_colour_is_no_evidence() {
+    let none = [
+        "transparent",
+        "inherit",
+        "initial",
+        "currentcolor",
+        "none",
+        "",
+        "garbage",
+        "#fff0",
+        "rgba(0,0,0,0)",
+    ];
+    for bg in none {
+        let style = format!(r#"<p style="color:#ddd; background-color:{bg}">x</p>"#);
+        assert!(!sets_colours(&style), "{bg}");
+    }
+    for bg in ["", "transparent", "garbage", "inherit"] {
+        let attr = format!(r#"<table bgcolor="{bg}"><tr><td>x</td></tr></table>"#);
+        assert!(!sets_colours(&attr), "bgcolor {bg:?}");
+    }
+    assert!(sets_colours(r#"<p style="background-color:white">x</p>"#));
+    assert!(sets_colours(r#"<td bgcolor="navy">x</td>"#));
 }
 
 #[test]
