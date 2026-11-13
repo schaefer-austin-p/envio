@@ -63,6 +63,16 @@ pub(crate) enum Refusal {
     Unconfirmed,
     BadFingerprint,
     Duplicate,
+    /// No usable email address.
+    BadAddress,
+}
+
+/// Something before and after one `@`; the mail servers decide the rest.
+fn plausible_address(email: &str) -> bool {
+    match email.trim().split_once('@') {
+        Some((local, domain)) => !local.is_empty() && !domain.is_empty() && !domain.contains('@'),
+        None => false,
+    }
 }
 
 /// What must hold before any connection is made; returns the fingerprints
@@ -71,6 +81,9 @@ pub(crate) fn check_request(
     request: &ConnectRequest,
     existing: &[Account],
 ) -> Result<Vec<(Service, Fingerprint)>, Refusal> {
+    if !plausible_address(&request.setup.email) {
+        return Err(Refusal::BadAddress);
+    }
     if request.setup.needs_confirm && !request.servers_confirmed {
         return Err(Refusal::Unconfirmed);
     }
@@ -99,6 +112,7 @@ fn refusal_text(refusal: &Refusal) -> String {
         Refusal::Unconfirmed => text::setup::unconfirmed(),
         Refusal::BadFingerprint => text::setup::bad_fingerprint(),
         Refusal::Duplicate => text::setup::duplicate(),
+        Refusal::BadAddress => text::setup::bad_address(),
     }
 }
 
@@ -342,6 +356,16 @@ mod tests {
         elsewhere.imap.host = "imap.other.org".into();
         elsewhere.smtp.host = "smtp.other.org".into();
         assert!(!touches(&srv_hosts, &elsewhere));
+    }
+
+    #[test]
+    fn an_account_needs_an_address() {
+        for bad in ["", "  ", "ada", "@example.org", "ada@", "ada@@"] {
+            let mut setup = setup_from(&found(Source::Ispdb, false), "ada@example.org");
+            setup.email = bad.into();
+            let refused = check_request(&request(setup, false, &[]), &[]);
+            assert_eq!(refused, Err(Refusal::BadAddress), "{bad:?}");
+        }
     }
 
     #[test]

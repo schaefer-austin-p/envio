@@ -13,6 +13,8 @@ Item {
     property alias email: emailField.text
     signal continued()
     signal manualRequested()
+    // The manual path has no address field of its own, so both buttons wait.
+    readonly property bool hasAddress: emailField.text.indexOf("@") > 0
 
     KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
@@ -75,6 +77,7 @@ Item {
                 width: parent.width
                 theme: root.theme
                 text: qsTr("Set up manually")
+                enabled: root.hasAddress
                 onClicked: root.manualRequested()
             }
         }
@@ -92,7 +95,7 @@ Item {
         theme: root.theme
         primary: true
         text: qsTr("Continue")
-        enabled: !root.busy && emailField.text.indexOf("@") > 0
+        enabled: !root.busy && root.hasAddress
         onClicked: root.continued()
     }
     }
