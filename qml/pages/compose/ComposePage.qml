@@ -207,6 +207,9 @@ Item {
                 core: root.core
                 suggestions: root.suggestions
                 label: qsTr("To")
+                trailingText: root.showCc ? "" : qsTr("Cc Bcc")
+                trailingObjectName: "showCc"
+                onTrailingClicked: root.showCc = true
                 onEdited: root.edited()
                 onAsked: { cc.asking = false; bcc.asking = false }
             }
@@ -236,22 +239,11 @@ Item {
                 onEdited: root.edited()
                 onAsked: { to.asking = false; cc.asking = false }
             }
-            AppButton {
-                objectName: "showCc"
-                x: root.theme.gu(2)
-                visible: !root.showCc
-                theme: root.theme
-                text: qsTr("Cc and Bcc")
-                onClicked: root.showCc = true
-            }
-            Field {
+            SubjectRow {
                 id: subject
                 objectName: "subjectField"
-                x: root.theme.gu(2)
-                width: parent.width - root.theme.gu(4)
-                topPadding: root.theme.gu(1.5)
+                width: parent.width
                 theme: root.theme
-                label: qsTr("Subject")
                 onTextChanged: root.edited()
             }
             AttachmentChips {

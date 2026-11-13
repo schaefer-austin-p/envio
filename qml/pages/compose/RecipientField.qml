@@ -16,6 +16,11 @@ Item {
     property string label: ""
     property var entries: []
     readonly property alias input: field.input
+    // A quiet action at the trailing end of the first line (Cc Bcc on To);
+    // empty text hides it.
+    property string trailingText: ""
+    property string trailingObjectName: ""
+    signal trailingClicked()
     signal edited()
     // This field started asking: the others stop showing suggestions.
     signal asked()
@@ -78,7 +83,7 @@ Item {
             }
             Flow {
                 id: flow
-                width: parent.width - root.theme.gu(6.5) - root.theme.gu(1)
+                width: parent.width - root.theme.gu(6.5) - root.theme.gu(1) - trailing.width
                 Repeater {
                     id: chips
                     model: root.entries
@@ -88,7 +93,7 @@ Item {
                         required property int index
                         objectName: root.objectName + "-remove-" + index
                         implicitHeight: root.theme.touch
-                        implicitWidth: Math.min(root.width - root.theme.gu(9), chipText.implicitWidth + root.theme.gu(6))
+                        implicitWidth: Math.min(trailing.visible ? flow.width - root.theme.gu(15) : root.width - root.theme.gu(9), chipText.implicitWidth + root.theme.gu(6))
                         Accessible.role: Accessible.Button
                         Accessible.name: qsTr("Remove %1").arg(modelData)
                         contentItem: Item {}
@@ -145,6 +150,28 @@ Item {
                         if (!field.input.activeFocus) root.commit(true)
                     }
                 }
+            }
+            AbstractButton {
+                id: trailing
+                objectName: root.trailingObjectName
+                visible: root.trailingText !== ""
+                width: visible ? trailingLabel.implicitWidth + root.theme.gu(2) + root.theme.gu(1) : 0
+                height: root.theme.touch
+                Accessible.role: Accessible.Button
+                Accessible.name: root.trailingText
+                contentItem: Item {}
+                background: Item {
+                    Text {
+                        id: trailingLabel
+                        textFormat: Text.PlainText
+                        anchors { left: parent.left; leftMargin: root.theme.gu(1); verticalCenter: parent.verticalCenter }
+                        text: root.trailingText
+                        color: trailing.down ? root.theme.text : root.theme.secondary
+                        font.family: root.theme.fontLabel
+                        font.pixelSize: 13
+                    }
+                }
+                onClicked: root.trailingClicked()
             }
         }
         Suggestions {
