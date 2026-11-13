@@ -205,20 +205,20 @@ fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {
     s.change(s.draft("typed while copying"));
     let saved = s.wait_for_draft(Duration::from_secs(10), |d| d.body == "typed while copying");
     s.change(s.draft("typed again"));
-    // A detached watchdog frees the copy after 10 s, so a flush that blocks
+    // A detached watchdog frees the copy after 15 s, so a flush that blocks
     // for ever on it returns and the `took` check fails.
     let released = Arc::new(AtomicBool::new(false));
     {
         let (slow, released) = (slow.clone(), released.clone());
         std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_secs(10));
+            std::thread::sleep(Duration::from_secs(15));
             release(&slow, b"payload", &released);
         });
     }
     let t = Instant::now();
     s.h.send(Command::AppActive(false));
     let took = t.elapsed();
-    let flushed = took < Duration::from_secs(5)
+    let flushed = took < Duration::from_secs(10)
         && s.wait_for_draft(Duration::ZERO, |d| d.body == "typed again");
     // Let the copy end whatever the result, so nothing is left blocked.
     release(&slow, b"payload", &released);

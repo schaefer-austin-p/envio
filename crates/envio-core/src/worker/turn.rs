@@ -58,8 +58,7 @@ impl Worker<'_> {
     }
 
     async fn pick_for(&mut self, account: &str, now: i64, disk_full: bool) -> Option<Step> {
-        // Empty plans reset so far in this call (see `after_plan`).
-        let mut resets = 0u8;
+        let mut backstop = Backstop::default();
         loop {
             let folders = self.store.db.folders(account).unwrap_or_default();
             let prefetch = self.prefetch_folder(account, &folders, now);
@@ -108,6 +107,8 @@ impl Worker<'_> {
                             return None;
                         }
                         // Recovery may have queued the Inbox: decide again.
+                        // The resets so far were of another pass.
+                        backstop.interrupted();
                         continue;
                     }
                     return None;
@@ -132,13 +133,13 @@ impl Worker<'_> {
                         // The next part of the folder in progress goes first.
                         todo = Some(Step::Folder(id));
                     }
-                    match after_plan(timing.has_wants, todo.is_none(), resets) {
+                    match backstop.plan(timing.has_wants, todo.is_none()) {
                         Pass::Run => return todo,
                         Pass::Stop => {
                             log::error!("planner wanted to run but had no step");
                             return None;
                         }
-                        Pass::ResetAndRetry => resets += 1,
+                        Pass::ResetAndRetry => {}
                     }
                     // Only downloads were wanted and the disk is full.
                     live.wants = Wants::default();
@@ -192,6 +193,28 @@ fn after_plan(has_wants: bool, steps_empty: bool, resets: u8) -> Pass {
         Pass::Stop
     } else {
         Pass::ResetAndRetry
+    }
+}
+
+/// Counts the consecutive empty plans of one `pick_for` call.
+#[derive(Default)]
+struct Backstop {
+    resets: u8,
+}
+
+impl Backstop {
+    fn plan(&mut self, has_wants: bool, steps_empty: bool) -> Pass {
+        let pass = after_plan(has_wants, steps_empty, self.resets);
+        if pass == Pass::ResetAndRetry {
+            self.resets += 1;
+        }
+        pass
+    }
+
+    /// A pass that was not a `Run` one (IDLE began): only consecutive empty
+    /// plans count.
+    fn interrupted(&mut self) {
+        self.resets = 0;
     }
 }
 
@@ -374,6 +397,17 @@ mod tests {
         assert_eq!(after_plan(true, true, 0), Pass::ResetAndRetry);
         assert_eq!(after_plan(true, true, 1), Pass::Stop);
         assert_eq!(after_plan(true, false, 1), Pass::Run);
+    }
+
+    #[test]
+    fn only_consecutive_empty_plans_count() {
+        // Run (empty, reset), IDLE began, Run (empty): the IDLE pass in
+        // between means this is the first empty plan again, not the second.
+        let mut backstop = Backstop::default();
+        assert_eq!(backstop.plan(true, true), Pass::ResetAndRetry);
+        backstop.interrupted();
+        assert_eq!(backstop.plan(true, true), Pass::ResetAndRetry);
+        assert_eq!(backstop.plan(true, true), Pass::Stop);
     }
 
     #[test]
