@@ -151,3 +151,122 @@ fn a_table_without_rows_is_kept() {
     let html = clean(r#"<table></table>"#);
     assert_eq!(count(&html, "table"), 1, "{html}");
 }
+
+fn with_images(html: &str) -> String {
+    let options = RenderOptions {
+        max_image_width: 360,
+        allow_remote_images: true,
+        ..RenderOptions::default()
+    };
+    sanitize_html(html, &options).html
+}
+
+/// A newsletter header: logo | picture | tagline, side by side at 600 px.
+const HEADER: &str = r#"<table width="600"><tr>
+    <td width="200"><img src="https://news.example/logo.png" alt="Logo" width="180" height="40"></td>
+    <td width="200"><img src="https://news.example/hero.png" alt="Hero" width="180" height="120"></td>
+    <td width="200">Find your next home</td>
+    </tr></table>"#;
+
+#[test]
+fn a_multi_column_row_of_images_stacks_whether_or_not_they_load() {
+    let blocked = clean(HEADER);
+    let shown = with_images(HEADER);
+    assert!(!blocked.contains("<img"), "{blocked}");
+    assert_eq!(count(&shown, "img"), 2, "{shown}");
+    for html in [blocked, shown] {
+        for tag in ["table", "tr", "td"] {
+            assert_eq!(count(&html, tag), 0, "{tag} left in {html}");
+        }
+        assert_eq!(count(&html, "div"), 4, "{html}");
+        in_order(&html, &["Logo", "Hero", "Find your next home"]);
+    }
+}
+
+#[test]
+fn a_nested_table_in_a_wide_row_stacks() {
+    let html = clean(
+        r#"<table><tr><td>left</td><td><table><tr><td>a</td><td>b</td></tr></table></td></tr></table>"#,
+    );
+    // The outer table stacks; the inner one holds short text and stays.
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+    in_order(&html, &["left", "<table", "a", "b"]);
+}
+
+#[test]
+fn block_content_in_a_wide_row_stacks() {
+    let html = clean(r#"<table><tr><td><h1>News</h1></td><td><p>Read more</p></td></tr></table>"#);
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["News", "Read more"]);
+}
+
+#[test]
+fn a_presentation_table_stacks_even_with_short_text() {
+    for role in ["presentation", "none", "Presentation"] {
+        let html = clean(&format!(
+            r#"<table role="{role}"><tr><td>Home</td><td>Search</td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{role}: {html}");
+        assert!(!html.contains("role="), "{role}: {html}");
+        in_order(&html, &["Home", "Search"]);
+    }
+}
+
+#[test]
+fn a_header_cell_keeps_a_presentation_table() {
+    let html = clean(
+        r#"<table role="presentation"><tr><th>Item</th><th>Price</th></tr><tr><td><p>Tea</p></td><td>$3</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}
+
+#[test]
+fn a_receipt_of_short_text_keeps_its_columns() {
+    let html = clean(
+        r#"<table width="100%"><tr><td>Tea</td><td align="right">$3.00</td></tr><tr><td><b>Total</b></td><td align="right"><b>$3.00</b></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 4, "{html}");
+}
+
+#[test]
+fn a_narrow_icon_column_beside_the_content_stays() {
+    // An avatar or icon at a small fixed width leaves the rest of a phone
+    // screen to the text, so the columns are kept.
+    let html = clean(
+        r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>Ada commented</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}
+
+#[test]
+fn two_free_width_columns_beside_an_icon_stack() {
+    let html = clean(
+        r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>one</p></td><td><p>two</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["A", "one", "two"]);
+}
+
+#[test]
+fn wide_fixed_side_columns_stack() {
+    let html = clean(
+        r#"<table><tr><td width="150"><p>left</p></td><td width="300"><p>main</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["left", "main"]);
+}
+
+#[test]
+fn a_hidden_table_does_not_shift_the_verdicts() {
+    // `fit` drops hidden elements; the table after one is still judged on
+    // its own content.
+    let html = clean(
+        r#"<div style="display:none"><table><tr><td><p>x</p></td><td><p>y</p></td></tr></table></div><table><tr><td>Tea</td><td>$3</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}

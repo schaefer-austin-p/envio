@@ -1,49 +1,127 @@
-//! Single-column layout tables become blocks. Qt resolves a `width="100%"`
-//! table nested in a cell against the cell's minimum width, so the text
-//! column of a layout-table notice shrinks to a few characters (#90). A
-//! table that only stacks its content has no columns to lay out, so it
-//! turns into `div`s, which take the full width.
+//! Layout tables become blocks. Qt resolves a `width="100%"` table nested
+//! in a cell against the cell's minimum width, so the text column of a
+//! layout-table notice shrinks to a few characters (#90). A table that only
+//! stacks its content has no columns to lay out, so it turns into `div`s,
+//! which take the full width.
+//!
+//! A newsletter built as a 600 px grid keeps its columns side by side at
+//! phone width and squeezes their text (#160). Its cells are stacked the
+//! same way, as responsive mail does on a small screen: a table whose cells
+//! hold pictures, nested tables or blocks, or that calls itself
+//! `role="presentation"`, is layout. A table of short text runs, such as a
+//! receipt, keeps its columns, and so does a row whose extra columns are
+//! narrow (an icon or avatar beside the text).
 //!
 //! Works on the balanced, double-quoted markup `images::fit` leaves. There
 //! is no tree: [`layout_tables`] pre-scans for a verdict per table, and
 //! [`linearise`] rewrites with it, both in one forward pass.
 
-use crate::images::{parse_tag, tag_len};
+use crate::images::{parse_tag, pixels, tag_len};
 use crate::plain::escape_into;
 
+/// The most pixels a row's side columns may take, together, for the row to
+/// keep its columns: what is left of a 360 px phone screen stays readable.
+const SIDE_MAX: u32 = 120;
+
+/// Content that makes a table cell layout rather than a run of text.
+const BLOCKS: &[&str] = &[
+    "blockquote",
+    "center",
+    "div",
+    "dl",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "ol",
+    "p",
+    "pre",
+    "ul",
+];
+
 /// What the pre-scan tracks for a table that is still open.
+#[derive(Default)]
 struct Frame {
     /// Index of its entry in the verdicts.
     index: usize,
-    /// It has a `th`, a `caption`, a row without exactly one cell, or no row.
+    /// It has a `th` or a `caption`: a data table, whatever else it holds.
     data: bool,
     rows: usize,
     /// Cells so far in the open row; `None` between rows.
     cells: Option<usize>,
+    /// A row without exactly one cell, or a cell outside a row.
+    columns: bool,
+    /// `role="presentation"`, or its own content has a picture, a nested
+    /// table or a block.
+    layout: bool,
+    /// A row with more than one cell has wide side columns: more than one
+    /// cell without a pixel width, or the cells beside the widest one
+    /// over [`SIDE_MAX`] together.
+    wide: bool,
+    /// The open row's cells without a pixel width.
+    free: usize,
+    /// The open row's pixel widths: their sum and the largest.
+    fixed: u32,
+    widest: u32,
 }
 
-/// Whether each table is a single-column layout table, one entry per
+impl Frame {
+    fn end_row(&mut self) {
+        if self.cells != Some(1) {
+            self.columns = true;
+            let sides = match self.free {
+                0 => self.fixed.saturating_sub(self.widest),
+                1 => self.fixed,
+                _ => u32::MAX,
+            };
+            self.wide |= self.cells.unwrap_or(0) > 1 && sides > SIDE_MAX;
+        }
+        self.cells = None;
+    }
+
+    /// Single column, or columns that only lay out pictures and blocks too
+    /// wide for a phone.
+    fn linear(&self) -> bool {
+        !self.data && self.rows > 0 && (!self.columns || (self.layout && self.wide))
+    }
+}
+
+/// Whether each table is a layout table to write as blocks, one entry per
 /// `<table` start tag, in order. Such a table has no `th` and no `caption`,
-/// and every one of its own rows has exactly one of its own cells (any
-/// `colspan`). Nested tables are judged on their own.
-pub(crate) fn layout_tables(html: &str) -> Vec<bool> {
+/// and either every one of its own rows has exactly one of its own cells
+/// (any `colspan`), or it is layout and some row has wide side columns
+/// (see [`Frame`]). `images` are the byte offsets of images, sorted (blocked
+/// ones are only text by now). Nested tables are judged on their own.
+pub(crate) fn layout_tables(html: &str, images: &[usize]) -> Vec<bool> {
     let mut verdicts = Vec::new();
     let mut open: Vec<Frame> = Vec::new();
+    let mut images = images.iter().copied().peekable();
     let mut pos = 0;
     while let Some((start, end)) = next_tag(html, pos) {
         pos = end;
-        let (closing, name) = name_of(&html[start..end]);
+        while images.next_if(|&at| at <= start).is_some() {
+            if let Some(frame) = open.last_mut() {
+                frame.layout = true;
+            }
+        }
+        let raw = &html[start..end];
+        let (closing, name) = name_of(raw);
         if name == "table" {
             if closing {
                 if let Some(frame) = open.pop() {
-                    verdicts[frame.index] = !frame.data && frame.rows > 0;
+                    verdicts[frame.index] = frame.linear();
                 }
             } else {
+                if let Some(outer) = open.last_mut() {
+                    outer.layout = true;
+                }
                 open.push(Frame {
                     index: verdicts.len(),
-                    data: false,
-                    rows: 0,
-                    cells: None,
+                    layout: presentation(raw),
+                    ..Frame::default()
                 });
                 verdicts.push(false);
             }
@@ -56,31 +134,54 @@ pub(crate) fn layout_tables(html: &str) -> Vec<bool> {
             (false, "tr") => {
                 frame.rows += 1;
                 frame.cells = Some(0);
+                frame.free = 0;
+                frame.fixed = 0;
+                frame.widest = 0;
             }
-            (true, "tr") => {
-                frame.data |= frame.cells != Some(1);
-                frame.cells = None;
-            }
-            (false, "td") => match frame.cells {
-                Some(n) => {
-                    frame.cells = Some(n + 1);
-                    frame.data |= n > 0;
+            (true, "tr") => frame.end_row(),
+            (false, "td") => {
+                match frame.cells {
+                    Some(n) => frame.cells = Some(n + 1),
+                    None => frame.columns = true,
                 }
-                None => frame.data = true,
-            },
+                match cell_width(raw) {
+                    Some(px) => {
+                        frame.fixed = frame.fixed.saturating_add(px);
+                        frame.widest = frame.widest.max(px);
+                    }
+                    None => frame.free += 1,
+                }
+            }
             (false, "th" | "caption") => frame.data = true,
+            (false, name) if BLOCKS.contains(&name) => frame.layout = true,
             _ => {}
         }
     }
     verdicts
 }
 
+/// Whether the `table` start tag `raw` has `role="presentation"` or
+/// `role="none"`.
+fn presentation(raw: &str) -> bool {
+    parse_tag(raw).is_some_and(|tag| {
+        tag.attr("role").is_some_and(|role| {
+            let role = role.trim();
+            role.eq_ignore_ascii_case("presentation") || role.eq_ignore_ascii_case("none")
+        })
+    })
+}
+
+/// The cell's `width` in pixels; `None` for a percentage or none.
+fn cell_width(raw: &str) -> Option<u32> {
+    parse_tag(raw)?.attr("width").and_then(pixels)
+}
+
 /// `html` with every table [`layout_tables`] calls a layout table written as
 /// `div`s: the table and its cells keep `align` and `style`, its own
 /// `tbody`, `thead`, `tfoot`, `tr`, `colgroup` and `col` tags go, and the
 /// content stays in order.
-pub(crate) fn linearise(html: &str) -> String {
-    let verdicts = layout_tables(html);
+pub(crate) fn linearise(html: &str, images: &[usize]) -> String {
+    let verdicts = layout_tables(html, images);
     if !verdicts.contains(&true) {
         return html.to_owned();
     }
@@ -205,13 +306,13 @@ mod tests {
     #[test]
     fn a_caption_makes_a_data_table() {
         let html = "<table><caption>c</caption><tr><td>a</td></tr></table>";
-        assert_eq!(layout_tables(html), [false]);
+        assert_eq!(layout_tables(html, &[]), [false]);
     }
 
     #[test]
     fn one_verdict_per_table_in_start_order() {
         let html = "<table><tr><td><table><tr><td>a</td><td>b</td></tr></table></td></tr></table>\
                     <table><tr><td>c</td></tr></table>";
-        assert_eq!(layout_tables(html), [true, false, true]);
+        assert_eq!(layout_tables(html, &[]), [true, false, true]);
     }
 }

@@ -58,8 +58,9 @@ impl Tag {
     }
 }
 
-/// Applies the image and width rules to sanitized HTML.
-pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
+/// Applies the image and width rules to sanitized HTML. Pushes to `images`
+/// the byte offset in the result of each image, shown or as its label.
+pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<usize>) -> Rendered {
     let mut out = Rendered {
         html: String::with_capacity(html.len()),
         ..Rendered::default()
@@ -82,7 +83,12 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
                 continue;
             }
             _ if is_unwrapped(raw) => {}
-            Some(tag) if tag.name == "img" => image(&tag, options, &mut out),
+            Some(tag) if tag.name == "img" => {
+                let at = out.html.len();
+                if image(&tag, options, &mut out) {
+                    images.push(at);
+                }
+            }
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
                 widths::carry(&mut tag, options.max_image_width);
                 limit_width(&mut tag, options.max_image_width);
@@ -154,13 +160,15 @@ fn unescape(value: &str) -> String {
         .replace("&amp;", "&")
 }
 
-fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
+/// Writes the image, or its label when it isn't loaded. Whether it stands
+/// for a picture: `false` for a tracker or an unusable `src`.
+fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> bool {
     let src = tag.attr("src").unwrap_or_default().trim();
     let width = size(tag, "width");
     let height = size(tag, "height");
     if is_tracker(src, width, height) {
         out.removed_trackers += 1;
-        return;
+        return false;
     }
     let lower = src.to_ascii_lowercase();
     let url = if lower.starts_with("cid:") {
@@ -170,18 +178,18 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
                 alt_or_label(tag, options, out);
-                return;
+                return true;
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
             alt_or_label(tag, options, out);
-            return;
+            return true;
         }
         src.to_owned()
     } else {
-        return;
+        return false;
     };
     let (width, height) = scale(width, height, options.max_image_width);
     let mut attrs = vec![("src".to_owned(), url)];
@@ -199,6 +207,7 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
         attrs,
     }
     .write(&mut out.html);
+    true
 }
 
 /// The loadable URL for a `cid:` reference, with or without angle brackets.

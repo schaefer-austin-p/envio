@@ -117,7 +117,10 @@ fn ordinary_nesting_still_goes_through_ammonia() {
         "</td><td>x</td></tr></table>".repeat(n)
     );
     let out = clean(&html);
-    assert_eq!(out.matches("<table>").count(), n);
+    // Each outer table lays out a nested one beside text, so it stacks into
+    // blocks; the innermost holds only short text and stays a table.
+    assert_eq!(out.matches("<table>").count(), 1, "{out}");
+    assert_eq!(out.matches("<td>").count(), 2, "{out}");
     assert!(out.contains("<b>cell</b>"));
     assert!(!out.contains("white-space"));
 }
