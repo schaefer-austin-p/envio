@@ -183,6 +183,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "id": id,
         "html": view.html,
         "blockedImages": view.blocked_images,
+        "remoteImages": view.remote_images,
         "ownColours": view.own_colours,
         "from": h.from,
         "fromAddress": h.from_address,
@@ -270,6 +271,7 @@ mod tests {
             html: String::new(),
             raw: false,
             blocked_images: 0,
+            remote_images: vec![],
             own_colours: false,
             attachments: vec![],
         };
@@ -293,10 +295,17 @@ mod tests {
             html: String::new(),
             raw: false,
             blocked_images: 0,
+            remote_images: vec![],
             own_colours: true,
             attachments: vec![],
         };
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
+        assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
+        view.remote_images = vec!["https://example.org/a.png".into()];
+        assert_eq!(
+            message_view_value(1, &view)["remoteImages"],
+            json!(["https://example.org/a.png"])
+        );
         view.own_colours = false;
         assert_eq!(message_view_value(1, &view)["ownColours"], false);
     }
