@@ -253,9 +253,14 @@ def main():
     ap.add_argument("--attachments", type=int, default=20)
     ap.add_argument("--listing", action="store_true",
                     help="append the curated listing set instead of bulk mail")
+    ap.add_argument("--allow-remote", action="store_true",
+                    help="allow a host other than loopback (never a real account)")
     args = ap.parse_args()
+    if args.host not in ("127.0.0.1", "::1", "localhost") and not args.allow_remote:
+        ap.error("refusing a non-loopback host without --allow-remote: "
+                 "this appends synthetic mail and must only hit a test server")
 
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now =datetime.now(timezone.utc).replace(microsecond=0)
     msgs = listing(args, now) if args.listing else bulk(args, random.Random(SEED), now)
 
     ctx = ssl.create_default_context()

@@ -210,28 +210,31 @@ this change. The 0.2.0 invite card board is still to add.
 
 ## Budgets
 
-Set from the 0.1.0 phone run (`docs/phone-checklist.md`, B2) as the
-measured value × 1.5, rounded up. The B2 numbers are single runs, not
-medians of several, except cold start (median of 3). A release whose phone
-run exceeds a budget needs a reason in the checklist or a fix.
+Set from the 0.1.0 release run (the results table in
+`docs/phone-checklist.md`) as the measured value × 1.5, rounded up. Those
+numbers are single runs, not medians of several, except cold start
+(median of 3). Memory is in MiB, as `/proc` reports it in KiB. A release
+whose phone run exceeds a budget needs a reason in the checklist or a fix.
 
 | Measure | Measured (0.1.0) | Budget |
 | ------- | ---------------- | ------ |
-| Idle memory (VmRSS) after first sync | about 213 MB | 320 MB |
-| Peak memory (VmHWM) | about 227 MB | 340 MB |
+| Idle memory (VmRSS) after first sync | about 213 MiB | 320 MiB |
+| Peak memory (VmHWM) | about 227 MiB | 340 MiB |
 | First sync, account add to first rows | 4 s (208 messages) | 6 s |
 | Cold start to the inbox | 2.34 s | 4 s |
 | First sync to Ready | not measured | none yet |
 
 ## Answered on the phone (0.1.0)
 
-- **System secret store:** no. `busctl --user list` shows no secret or
-  keyring service on the image, so passwords stay in the 0600 file.
+- **System secret store:** no. `gnome-keyring-daemon` owns
+  `org.freedesktop.secrets`, but AppArmor denies the confined app
+  (AccessDenied on Introspect and Ping), so passwords stay in the 0600
+  file.
 - **Calendar and `.ics`:** likely yes, untested. Calendar's Content Hub
   hook accepts `documents` and `events` as a destination. Sending an
   invite there is for the 0.2.0 invite work.
 - **System CA certificates under confinement:** yes. The log says
   "CA roots: source system, 121 certificates".
-- **Real memory use:** see Budgets. AppArmor denials for Envio were only
-  harmless reads (Mali config, the session's android.conf, the Qt shader
+- **Real memory use:** see Budgets. In normal use, AppArmor denials for
+  Envio were only harmless reads (Mali config, the session's android.conf, the Qt shader
   cache).
