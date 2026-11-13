@@ -176,3 +176,11 @@ fn too_deep_mail_does_not() {
     );
     assert!(!own(&html));
 }
+
+#[test]
+fn bare_hex_bgcolor_sets_colours() {
+    assert!(sets_colours(r#"<td bgcolor="ffffff">x</td>"#));
+    assert!(sets_colours(r#"<td bgcolor="fff">x</td>"#));
+    assert!(!sets_colours(r#"<td bgcolor="ffff">x</td>"#));
+    assert!(!sets_colours(r#"<p style="background:ffffff">x</p>"#));
+}

@@ -22,7 +22,7 @@ pub fn sets_colours(html: &str) -> bool {
         let raw = &rest[start..start + len];
         rest = &rest[start + len..];
         let Some(tag) = parse_tag(raw) else { continue };
-        if tag.attr("bgcolor").is_some_and(is_visible) {
+        if tag.attr("bgcolor").is_some_and(is_visible_attr) {
             return true;
         }
         if tag.name == "font" && tag.attr("color").is_some_and(is_dark) {
@@ -55,6 +55,17 @@ fn is_dark(value: &str) -> bool {
 /// A background value that parses to a colour that is not fully transparent.
 fn is_visible(value: &str) -> bool {
     parse_rgba(value).is_some_and(|(_, _, _, a)| a > 0)
+}
+
+/// A `bgcolor` attribute value: HTML also accepts bare hex (`ffffff`) there.
+fn is_visible_attr(value: &str) -> bool {
+    let v = value.trim();
+    let bare_hex = matches!(v.len(), 3 | 6) && v.bytes().all(|b| b.is_ascii_hexdigit());
+    if bare_hex {
+        is_visible(&format!("#{v}"))
+    } else {
+        is_visible(v)
+    }
 }
 
 fn luminance(r: u8, g: u8, b: u8) -> f64 {

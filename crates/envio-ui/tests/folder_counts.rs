@@ -180,3 +180,20 @@ fn removing_the_drawers_account_clears_it() {
     shown(&mut ui, "a", vec![(10, FolderRole::Inbox)]);
     assert!(list_of(&changed(&mut ui, &[10])).is_empty());
 }
+
+#[test]
+fn an_unrelated_notice_keeps_a_folded_in_change() {
+    let mut ui = two_accounts();
+    assert_eq!(list_of(&changed(&mut ui, &[10])).len(), 1);
+    // A change while the list is outstanding is folded in.
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
+    // An unrelated Notice, then the late answer: it still lists once more.
+    feed(
+        &mut ui,
+        Event::Notice {
+            text: "sent".into(),
+        },
+    );
+    let late = shown(&mut ui, "a", vec![(10, FolderRole::Inbox)]);
+    assert_eq!(list_of(&late), ["a"]);
+}

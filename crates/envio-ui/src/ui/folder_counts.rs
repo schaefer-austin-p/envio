@@ -55,16 +55,19 @@ impl Ui {
 
     /// A Notice arrived. A failed folder read ends in one and no `Folders`
     /// (it names no account), so an outstanding list may never be answered:
-    /// forget it. Worst case, one list is sent twice.
+    /// forget it, but keep a folded-in change, so a late answer still lists
+    /// once more. Worst case, one list is sent twice.
     pub(super) fn folders_failed(&mut self) {
         self.folders_pending = None;
-        self.folders_again = false;
     }
 
-    /// `account`'s folder list arrived: if it was the outstanding one, ask
-    /// once more when changes came in meanwhile.
+    /// `account`'s folder list arrived: if it was the outstanding one (or a
+    /// late answer after an unrelated Notice), ask once more when changes
+    /// came in meanwhile.
     pub(super) fn folders_answered(&mut self, account: &str) -> Vec<Output> {
-        if self.folders_pending.as_deref() != Some(account) {
+        let outstanding = self.folders_pending.as_deref() == Some(account);
+        let late = self.folders_pending.is_none() && self.folders_again;
+        if !outstanding && !late {
             return Vec::new();
         }
         self.folders_pending = None;
