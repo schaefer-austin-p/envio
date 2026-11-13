@@ -49,6 +49,11 @@ Item {
             // The count is a number beside the name, not counted prose.
             text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
             selected: root.current === model.key
+            readonly property bool offline: model.state === "offline"
+            iconName: offline ? "offline" : ""
+            // On a selected Carbon chip (filled primary) the accent would not read.
+            iconColor: selected && !root.theme.airmail ? root.theme.primaryText : root.theme.accent
+            Accessible.name: offline ? qsTr("%1, offline").arg(text) : text
             height: tabs.height
             onClicked: root.chosen(tab.model.key)
         }

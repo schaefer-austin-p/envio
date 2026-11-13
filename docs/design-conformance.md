@@ -73,7 +73,7 @@ colour in mail bodies).
 | Airmail | "New message" button | label "Write a message", pill, Inter 15/600 | label "New message", 12 px radius (`InboxPage.qml:208`, `AppButton.qml:50`) | High | R5 and the Airmail string |
 | Carbon | Footer | hairline, padding 10/16/16, button 52 radius 8 | hairline, gu(3) padding, 52 high, radius 8 (matches) | Low | none |
 | Airmail | Footer | no rule above | rule drawn (`InboxPage.qml:200`) | Low | skip the rule in Airmail |
-| Both | Offline banner | tintA, red cloud-off icon, "Offline." bold, 14 px | tintA, generic `alert` glyph (`Banner.qml:19-24`) | Low | add `cloud-off` icon |
+| Both | Offline banner | tintA, red cloud-off icon, "Offline." bold, 14 px | no banner: a cloud-off icon on the account's tab and drawer row (#122) | Low | none (owner's choice) |
 | Airmail | Undo toast | pill, heading-blue-dark fill, Inter | 8 px radius, mono action (`Toast.qml:31,65`) | Medium | R5, R3 |
 
 ## Folders drawer, search, selection

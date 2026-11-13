@@ -150,7 +150,7 @@ The core sorts each failure into one kind with a fixed response:
 
 | Kind | Examples | Response |
 | --- | --- | --- |
-| Temporary | network, timeout, server busy, suspension | Retry with backoff (1 s to 5 min, with jitter); "Offline, retrying" bar; no dialogs. |
+| Temporary | network, timeout, server busy, suspension | Retry with backoff (1 s to 5 min, with jitter); a cloud-off icon on the account's tab and drawer row (#122); no dialogs. |
 | Sign-in | wrong or revoked password | Pause the account; "Sign-in failed, update password"; no retry loop. |
 | Certificate | pin changed | Stop, as above. |
 | Refused by server | quota, size, rejected recipient | Error on that item (Outbox entry with Edit and Retry). |

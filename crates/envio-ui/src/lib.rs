@@ -17,4 +17,4 @@ pub use link::{LinkView, link_view};
 pub use models::{Model, ModelChange, Op};
 pub use rows::{AccountRow, FolderRowUi, MessageRowUi, OutboxRowUi, Row, RowValue, SuggestionRow};
 pub use signals::{OlderRow, Signal};
-pub use ui::{BannerTab, Output, Ui};
+pub use ui::{Output, Ui};

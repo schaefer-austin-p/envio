@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import "../platform"
 
-// An inline status under the top bar: offline, images blocked, Outbox
+// An inline status under the top bar: images blocked, Outbox
 // waiting. `kind` "warning" uses tint A and an accent alert icon, "info"
 // the selected colour. The text comes ready-made (counts from Rust).
 Rectangle {

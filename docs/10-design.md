@@ -35,7 +35,7 @@ repeats these values, since the core is Qt-free.
 | field border | `#C9C6BD` | `#3A4049` | text fields, outlined buttons |
 | accent | `#B8342C` | `#E36A60` | unread dot, links, destructive |
 | primary | `#1E2A38` on `#F8F6F1` | `#E8E5DE` on `#15181D` | primary buttons, selected tab |
-| tint A | `#F4E3E1` | `#3A2526` | offline and warning banners |
+| tint A | `#F4E3E1` | `#3A2526` | warning banners |
 | tint B | `#E3E6EA` | `#26303B` | info banners |
 | selected | `#ECE9E1` | `#232932` | selected rows |
 | scrim | `rgba(30,42,56,.45)` | `rgba(0,0,0,.55)` | behind sheets and dialogs |
@@ -55,7 +55,7 @@ repeats these values, since the core is Qt-free.
 | accent | `#B23A33` | `#E58C84` | unread, links, destructive |
 | primary | `#1F3A5F` on `#FBF8F1` | `#A9C1E3` on `#141C27` | primary buttons, selected tab |
 | chevron (red) / chevron blue | `#B23A33` / `#1F3A5F` | `#C4473F` / `#5B7FB3` | the airmail border |
-| tint A | `#F3E2DF` | `#3A2427` | offline and warning banners |
+| tint A | `#F3E2DF` | `#3A2427` | warning banners |
 | tint B | `#E0E7F0` | `#1F2D42` | info banners |
 | selected | `#F1EADB` | `#1F2A38` | selected rows |
 | scrim | `rgba(34,48,63,.45)` | `rgba(0,0,0,.55)` | behind sheets and dialogs |
@@ -100,7 +100,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (later); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
 | Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.2.0. Drafts save on their own. |
 | Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
-| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline banner and Undo toast. |
+| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. |
 | Contacts | `*-contacts` | Superseded in part, see below. |
 | Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". |
 | Dark | `*-dark` | Inbox, reader and sync settings in each dark theme. |
@@ -113,8 +113,9 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
   selection and the reader's buttons.
 - **Undo instead of confirm.** Archive, delete and move show an Undo toast
   for about 5 s before they reach the server.
-- **Offline is a banner, not a dialog.** It says how many messages wait in
-  the Outbox.
+- **Offline is an icon, not a dialog.** An offline account shows a cloud-off
+  icon on its tab and its drawer row. The Outbox banner says how many
+  messages wait.
 - **Errors sit with their item.** A refused send shows on its Outbox entry
   with Edit and Retry.
 

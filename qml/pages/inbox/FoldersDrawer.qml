@@ -192,9 +192,22 @@ Rectangle {
                         chevron: true
                         chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
-                        Text {
-                            textFormat: Text.PlainText
+                        Accessible.name: offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text
+                        Icon {
+                            id: offlineIcon
+                            objectName: "offlineIcon"
+                            visible: acct.model.state === "offline"
+                            theme: root.theme
+                            name: "offline"
+                            color: root.theme.accent
+                            size: root.theme.gu(2.5)
                             x: root.theme.gu(2.5)
+                            y: root.theme.gu(1.75) + (accountName.height - height) / 2
+                        }
+                        Text {
+                            id: accountName
+                            textFormat: Text.PlainText
+                            x: root.theme.gu(2.5) + (offlineIcon.visible ? offlineIcon.width + root.theme.gu(1) : 0)
                             y: root.theme.gu(1.75)
                             width: parent.width - x - group.chevronSpace
                             text: acct.model.name + " · " + acct.model.email

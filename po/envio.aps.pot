@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 12:27+0100\n"
+"POT-Creation-Date: 2026-11-13 15:28+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:250
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:263
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -408,6 +408,10 @@ msgstr ""
 msgid "All"
 msgstr ""
 
+#: qml/pages/inbox/AccountTabs.qml:56 qml/pages/inbox/FoldersDrawer.qml:195
+msgid "%1, offline"
+msgstr ""
+
 #: qml/pages/inbox/FoldersDrawer.qml:86
 msgid "Mail"
 msgstr ""
@@ -428,23 +432,23 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:257 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:270 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:153
+#: qml/pages/inbox/InboxPage.qml:136
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:160
+#: qml/pages/inbox/InboxPage.qml:143
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:234
+#: qml/pages/inbox/InboxPage.qml:204
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:280
+#: qml/pages/inbox/InboxPage.qml:250
 msgid "Undo"
 msgstr ""
 
@@ -979,12 +983,12 @@ msgid "Outgoing (SMTP)"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:63
-#: crates/envio-core/src/text/status.rs:75
+#: crates/envio-core/src/text/status.rs:37
 msgid "incoming mail"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:64
-#: crates/envio-core/src/text/status.rs:76
+#: crates/envio-core/src/text/status.rs:38
 msgid "outgoing mail"
 msgstr ""
 
@@ -1054,95 +1058,75 @@ msgid ""
 "were sent but not yet filed in Sent."
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:14
+#: crates/envio-core/src/text/status.rs:13
 msgid ""
 "This account's settings cannot be read ({reason}). Remove it and add it again"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:21
+#: crates/envio-core/src/text/status.rs:20
 msgid "Ready"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:22
+#: crates/envio-core/src/text/status.rs:21
 msgid "Syncing"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:23
+#: crates/envio-core/src/text/status.rs:22
 msgid "Offline, retrying"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:25
+#: crates/envio-core/src/text/status.rs:24
 msgid "Can't read the saved mail on this phone. Retrying."
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:27
+#: crates/envio-core/src/text/status.rs:26
 msgid "Sign-in failed, update password"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:29
+#: crates/envio-core/src/text/status.rs:28
 msgid "The server certificate needs your attention"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:30
+#: crates/envio-core/src/text/status.rs:29
 msgid "Storage is full, downloads stopped"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:31
+#: crates/envio-core/src/text/status.rs:30
 msgid "Removing account"
 msgstr ""
 
-#. TRANSLATORS: {offline} is the offline sentence; {waiting} is how
-#. many messages wait to be sent, e.g. "2 messages waiting to send".
 #: crates/envio-core/src/text/status.rs:44
-msgid "{offline} {waiting}"
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:51
-msgid "Offline."
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:60
-msgid "{email} is offline."
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:63
-msgid "{n} account is offline: {emails}"
-msgid_plural "{n} accounts are offline: {emails}"
-msgstr[0] ""
-msgstr[1] ""
-
-#: crates/envio-core/src/text/status.rs:82
 msgid ""
 "The certificate of the {service} server changed.\n"
 "Old fingerprint: {old}\n"
 "New fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:92
+#: crates/envio-core/src/text/status.rs:54
 msgid ""
 "The certificate of the {service} server is not trusted: {reason}.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:101
+#: crates/envio-core/src/text/status.rs:63
 msgid ""
 "The certificate of the {service} server is not trusted.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:109
+#: crates/envio-core/src/text/status.rs:71
 msgid "self-signed or from an unknown authority"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:110
+#: crates/envio-core/src/text/status.rs:72
 msgid "expired"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:111
+#: crates/envio-core/src/text/status.rs:73
 msgid "issued for another server name"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:112
+#: crates/envio-core/src/text/status.rs:74
 msgid "not valid"
 msgstr ""
 
