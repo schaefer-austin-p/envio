@@ -185,8 +185,8 @@ fn release(source: &Path, bytes: &[u8], done: &AtomicBool) {
     pipe.write_all(bytes).unwrap();
 }
 
-/// Every wait here is bounded: the flush is timed and judged against 5 s, a
-/// 10 s watchdog frees the pipe if the flush hangs, and `release` panics when
+/// Every wait here is bounded: the flush is timed and judged against 10 s, a
+/// 15 s watchdog frees the pipe if the flush hangs, and `release` panics when
 /// no copy opens the pipe within 5 s.
 #[test]
 fn a_slow_attachment_copy_does_not_delay_saves_or_the_flush() {

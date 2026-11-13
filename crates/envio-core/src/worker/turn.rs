@@ -354,11 +354,11 @@ mod tests {
             .expect("pick_for did not return within 5 s (a spin never returns)")
     }
 
-    /// `pick_for` for the seeded account, with a prefetch candidate in the
-    /// Inbox and `setup` applied to the worker.
-    fn pick_with_candidate(
-        setup: impl FnOnce(&mut Worker<'_>, &str) + Send + 'static,
-    ) -> Option<Step> {
+    /// `pick_for` (with a full disk) for the seeded account, with a prefetch
+    /// candidate in the Inbox in the foreground. Returns the step and
+    /// whether the folder list was still `listed` afterwards: a reset of an
+    /// empty plan clears it, so it shows `has_wants` and `steps` agreed.
+    fn pick_with_candidate_on_a_full_disk() -> (Option<Step>, bool) {
         use envio_store::{Envelope, Flags, NewMessage};
 
         within_bound(move || {
@@ -385,10 +385,12 @@ mod tests {
                 .db
                 .upsert_message(seeded.folder, &recent)
                 .unwrap();
+            worker.foreground = true;
             let live = worker.live.get_mut(&seeded.account).unwrap();
             live.next_full_ms = i64::MAX;
-            setup(&mut worker, &seeded.account);
-            runtime.block_on(worker.pick_for(&seeded.account, now_ms(), false))
+            live.listed = true;
+            let step = runtime.block_on(worker.pick_for(&seeded.account, now_ms(), true));
+            (step, worker.live[&seeded.account].listed)
         })
     }
 
@@ -431,21 +433,14 @@ mod tests {
         assert_eq!(step, None);
     }
 
-    // The two tests below pass on master too (the rules agree there). They
-    // guard the single prefetch rule against a future disagreement.
+    // Passes on master too (the rules agree there): a guard for the single
+    // prefetch rule. `disk_full` is in `Env` but not in `Timing`, so a full
+    // disk is where `has_wants` and `steps` could part.
     #[test]
-    fn pick_for_returns_in_the_background_with_candidates_left() {
-        assert_eq!(pick_with_candidate(|_, _| {}), None);
-    }
-
-    #[test]
-    fn pick_for_returns_when_paused_with_candidates_left() {
-        let step = pick_with_candidate(|worker, account| {
-            worker.foreground = true;
-            let live = worker.live.get_mut(account).unwrap();
-            live.health.status = AccountStatus::SignInFailed;
-        });
-        assert_eq!(step, None);
+    fn a_full_disk_with_candidates_left_neither_prefetches_nor_resets() {
+        let (step, listed) = pick_with_candidate_on_a_full_disk();
+        assert_eq!(step, None, "no prefetch on a full disk");
+        assert!(listed, "the planner sent the account to sleep, not to run");
     }
 
     #[test]

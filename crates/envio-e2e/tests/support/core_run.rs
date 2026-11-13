@@ -39,22 +39,26 @@ pub struct CoreRun {
 const STOP: Duration = Duration::from_secs(10);
 
 impl Drop for CoreRun {
-    /// `Core::drop` joins the worker with no bound: a stuck worker would
-    /// hang the test for ever. Drop it on a helper thread and give up
-    /// after `STOP` (#116).
     fn drop(&mut self) {
-        let Some(core) = self.core.take() else { return };
-        let (done, stopped) = channel();
-        std::thread::spawn(move || {
-            drop(core);
-            let _ = done.send(());
-        });
-        if stopped.recv_timeout(STOP).is_err() {
-            let message = "core did not stop within 10 s: the worker is stuck";
-            eprintln!("{message}");
-            if !std::thread::panicking() {
-                panic!("{message}");
-            }
+        stop(self.core.take());
+    }
+}
+
+/// `Core::drop` joins the worker with no bound: a stuck worker would hang
+/// the test for ever. Drop it on a helper thread and give up after `STOP`
+/// (#116): the test fails, unless it is already failing.
+fn stop(core: Option<Core>) {
+    let Some(core) = core else { return };
+    let (done, stopped) = channel();
+    std::thread::spawn(move || {
+        drop(core);
+        let _ = done.send(());
+    });
+    if stopped.recv_timeout(STOP).is_err() {
+        let message = "core did not stop within 10 s: the worker is stuck";
+        eprintln!("{message}");
+        if !std::thread::panicking() {
+            panic!("{message}");
         }
     }
 }
@@ -98,7 +102,7 @@ impl CoreRun {
     /// `restart`, with `between` run while no core is running.
     pub fn restart_with(mut self, between: impl FnOnce(&StorePaths)) -> CoreRun {
         let paths = self.paths();
-        drop(self.core.take());
+        stop(self.core.take());
         between(&paths);
         let (core, events) = begin(&self.dir, self.level);
         self.core = Some(core);
