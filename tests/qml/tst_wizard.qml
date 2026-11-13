@@ -356,6 +356,12 @@ Item {
             compare(manual.enabled, false)
             find("emailField").text = "ann"
             compare(manual.enabled, false)
+            find("emailField").text = "ada@"
+            compare(manual.enabled, false)
+            compare(find("continueButton").enabled, false)
+            find("emailField").text = "ada@@"
+            compare(manual.enabled, false)
+            compare(find("continueButton").enabled, false)
             typeEmail()
             compare(manual.enabled, true)
             find("emailField").text = ""

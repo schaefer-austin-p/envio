@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 17:11+0100\n"
+"POT-Creation-Date: 2026-11-13 17:18+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -157,23 +157,23 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:38
+#: qml/pages/accounts/EmailStep.qml:43
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:49
+#: qml/pages/accounts/EmailStep.qml:54
 msgid "Email address"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:79
+#: qml/pages/accounts/EmailStep.qml:84
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:90
+#: qml/pages/accounts/EmailStep.qml:95
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:97 qml/pages/accounts/SignInStep.qml:124
+#: qml/pages/accounts/EmailStep.qml:102 qml/pages/accounts/SignInStep.qml:124
 msgid "Continue"
 msgstr ""
 

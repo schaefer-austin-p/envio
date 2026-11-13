@@ -14,7 +14,12 @@ Item {
     signal continued()
     signal manualRequested()
     // The manual path has no address field of its own, so both buttons wait.
-    readonly property bool hasAddress: emailField.text.indexOf("@") > 0
+    // Same rule as the core: text before the last "@", a domain after it.
+    readonly property bool hasAddress: {
+        const t = emailField.text.trim()
+        const at = t.lastIndexOf("@")
+        return at > 0 && at < t.length - 1 && t.indexOf("@", at + 1) < 0
+    }
 
     KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
