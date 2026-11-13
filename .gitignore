@@ -4,5 +4,6 @@
 .idea
 build
 build-ci/
+build-click/
 build-docker/
 .qmlls.ini
