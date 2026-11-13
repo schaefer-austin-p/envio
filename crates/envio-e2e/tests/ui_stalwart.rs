@@ -56,7 +56,7 @@ async fn search_on_server_finds_mail_older_than_the_window() {
     // The window is thirty days: sync did not fetch it, so a local search
     // misses it.
     let scope = SearchScope::Account(account.clone());
-    run.core.send(Command::Search {
+    run.core().send(Command::Search {
         scope: scope.clone(),
         query: word.clone(),
     });
@@ -71,7 +71,7 @@ async fn search_on_server_finds_mail_older_than_the_window() {
     assert!(local.is_empty(), "{local:?}");
 
     // Search on server finds it, and caches it.
-    run.core.send(Command::SearchServer {
+    run.core().send(Command::SearchServer {
         scope: scope.clone(),
         query: word.clone(),
     });
@@ -122,7 +122,7 @@ async fn a_draft_survives_a_slow_first_sync() {
         ..DraftInput::default()
     };
     let start = Instant::now();
-    run.core.send(Command::DraftChanged { compose, draft });
+    run.core().send(Command::DraftChanged { compose, draft });
     while !draft_texts(&run).iter().any(|t| t.contains(&body)) {
         assert!(
             // The proxy holds each batch for 3 s, so a save that waited
@@ -220,7 +220,7 @@ async fn autocomplete_suggests_a_synced_sender() {
 
     // The first letters of the address, then a word of the name.
     for typed in [word[..word.len() - 3].to_owned(), "quentin".to_owned()] {
-        run.core.send(Command::Autocomplete {
+        run.core().send(Command::Autocomplete {
             query: typed.clone(),
         });
         let items = run.wait(NET, |event| match event {
@@ -253,7 +253,7 @@ async fn an_attachment_round_trips_through_send() {
 
     let compose = ComposeId(1);
     compose_new(&run, compose, &account);
-    run.core.send(Command::Attach {
+    run.core().send(Command::Attach {
         compose,
         path: source,
     });
@@ -274,7 +274,7 @@ async fn an_attachment_round_trips_through_send() {
         attachments: vec![copy],
         ..DraftInput::default()
     };
-    run.core.send(Command::Send { compose, draft });
+    run.core().send(Command::Send { compose, draft });
     run.wait(NET, |event| match event {
         Event::Queued { .. } => Some(()),
         Event::ComposeRefused { text, .. } => panic!("refused: {text}"),
@@ -283,7 +283,7 @@ async fn an_attachment_round_trips_through_send() {
 
     let (sent, _) = run.folder(&account, FolderRole::Sent);
     let row = run.row_with(sent, &subject);
-    run.core.send(Command::OpenMessage {
+    run.core().send(Command::OpenMessage {
         id: row.id,
         images: ImagesChoice::Default,
         width_px: 360,
@@ -295,7 +295,7 @@ async fn an_attachment_round_trips_through_send() {
     assert_eq!(view.attachments.len(), 1, "{:?}", view.attachments);
     assert_eq!(view.attachments[0].name, "blob.bin");
     let out = tempfile::tempdir().unwrap();
-    run.core.send(Command::SaveAttachment {
+    run.core().send(Command::SaveAttachment {
         id: row.id,
         index: 0,
         dir: out.path().to_owned(),

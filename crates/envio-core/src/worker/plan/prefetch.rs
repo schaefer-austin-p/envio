@@ -13,7 +13,7 @@ pub const PREFETCH_BATCH: u32 = 10;
 
 /// The prefetch step, if one is due: in the foreground, the account not
 /// paused, storage not full, and the Inbox has bodies left.
-pub(super) fn step(env: &Env) -> Option<Step> {
+pub fn step(env: &Env) -> Option<Step> {
     let folder = env.prefetch?;
     (env.foreground && !env.paused && !env.disk_full).then_some(Step::Prefetch(folder))
 }

@@ -8,7 +8,7 @@ use crate::health::{AccountStatus, Health};
 
 use super::Worker;
 use super::conn::Conn;
-use super::plan::{Env, Next, POLL_MS, Step, Timing, Wants, next, steps};
+use super::plan::{Env, Next, POLL_MS, Step, Timing, Wants, next, prefetch_step, steps};
 
 impl Worker<'_> {
     /// Timers that are not accounts' own: an Undo window ended, or a retry in
@@ -58,9 +58,11 @@ impl Worker<'_> {
     }
 
     async fn pick_for(&mut self, account: &str, now: i64, disk_full: bool) -> Option<Step> {
+        // Empty plans reset so far in this call (see `after_plan`).
+        let mut resets = 0u8;
         loop {
             let folders = self.store.db.folders(account).unwrap_or_default();
-            let prefetch = self.prefetch_due(account, &folders, (now, disk_full));
+            let prefetch = self.prefetch_folder(account, &folders, now);
             let live = self.live.get_mut(account)?;
             // A message opened in the background is fetched now (and only
             // it), not when the app comes back.
@@ -76,13 +78,23 @@ impl Worker<'_> {
                 }
                 return Some(Step::Body(id));
             }
+            // The one prefetch rule: `has_wants` and `steps` both ask it.
+            let env = Env {
+                disk_full,
+                relist: live.relist,
+                foreground: self.foreground,
+                paused: live.health.is_paused(),
+                prefetch,
+            };
             let timing = Timing {
                 foreground: self.foreground,
                 can_run: live.health.can_run(now),
                 paused: live.health.is_paused(),
                 retry_at_ms: live.health.wake_at(),
                 next_full_ms: live.next_full_ms,
-                has_wants: !live.wants.is_empty() || prefetch.is_some(),
+                has_wants: forced_wants()
+                    || !live.wants.is_empty()
+                    || prefetch_step(&env).is_some(),
                 idle_capable: live.idle_capable
                     && folders.iter().any(|f| f.role == FolderRole::Inbox),
             };
@@ -113,13 +125,6 @@ impl Worker<'_> {
                     if live.listed {
                         live.wants.expand(&folders);
                     }
-                    let env = Env {
-                        disk_full,
-                        relist: live.relist,
-                        foreground: self.foreground,
-                        paused: live.health.is_paused(),
-                        prefetch,
-                    };
                     let mut todo = steps(&live.wants, &folders, &env)
                         .into_iter()
                         .find(|step| !(live.listed && *step == Step::Folders));
@@ -127,8 +132,13 @@ impl Worker<'_> {
                         // The next part of the folder in progress goes first.
                         todo = Some(Step::Folder(id));
                     }
-                    if todo.is_some() {
-                        return todo;
+                    match after_plan(timing.has_wants, todo.is_none(), resets) {
+                        Pass::Run => return todo,
+                        Pass::Stop => {
+                            log::error!("planner wanted to run but had no step");
+                            return None;
+                        }
+                        Pass::ResetAndRetry => resets += 1,
                     }
                     // Only downloads were wanted and the disk is full.
                     live.wants = Wants::default();
@@ -159,6 +169,46 @@ impl Worker<'_> {
         }
         wake.map(|at| at.max(now))
     }
+}
+
+/// What `pick_for` does with the plan `steps` made.
+#[derive(Debug, PartialEq, Eq)]
+enum Pass {
+    /// Run the step.
+    Run,
+    /// Nothing to run though the planner said run: forget the wants, decide
+    /// again.
+    ResetAndRetry,
+    /// An empty plan again after a reset: give up, or the loop never ends.
+    Stop,
+}
+
+/// The loop decision of `pick_for`. A reset ends what is wanted, so wants
+/// that still disagree with the plan afterwards are a planner bug (#116).
+fn after_plan(has_wants: bool, steps_empty: bool, resets: u8) -> Pass {
+    if !steps_empty {
+        Pass::Run
+    } else if has_wants && resets >= 1 {
+        Pass::Stop
+    } else {
+        Pass::ResetAndRetry
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Test hook: `Timing.has_wants` is true whatever the planner says.
+    static FORCE_WANTS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+fn forced_wants() -> bool {
+    FORCE_WANTS.with(std::cell::Cell::get)
+}
+
+#[cfg(not(test))]
+fn forced_wants() -> bool {
+    false
 }
 
 /// Whether an account needs the loop to wake for it: not in the background,
@@ -266,6 +316,101 @@ mod tests {
         let live = worker.live.get_mut(&account).unwrap();
         live.prefetch_skip.insert(seeded.message);
         let step = runtime.block_on(worker.pick_for(&account, now_ms(), false));
+        assert_eq!(step, None);
+    }
+
+    /// Runs `body` (which builds its own worker: it is not `Send`) on a
+    /// thread, so a spinning `pick_for` fails the test instead of hanging.
+    fn within_a_second<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
+        let (done, result) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = done.send(body());
+        });
+        result
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .expect("pick_for did not return within 1 s")
+    }
+
+    /// `pick_for` for the seeded account, with a prefetch candidate in the
+    /// Inbox and `setup` applied to the worker.
+    fn pick_with_candidate(
+        setup: impl FnOnce(&mut Worker<'_>, &str) + Send + 'static,
+    ) -> Option<Step> {
+        use envio_store::{Envelope, Flags, NewMessage};
+
+        within_a_second(move || {
+            let dir = tempfile::tempdir().unwrap();
+            let (config, seeded) = seed(dir.path());
+            let sink = Sink::default();
+            let mut worker = open(&config, &sink);
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap();
+            let recent = NewMessage {
+                uid: 1,
+                size: 10,
+                envelope: Envelope {
+                    subject: "hi".into(),
+                    date: now_ms() / 1_000,
+                    ..Envelope::default()
+                },
+                flags: Flags::default(),
+                preview: String::new(),
+            };
+            worker
+                .store
+                .db
+                .upsert_message(seeded.folder, &recent)
+                .unwrap();
+            let live = worker.live.get_mut(&seeded.account).unwrap();
+            live.next_full_ms = i64::MAX;
+            setup(&mut worker, &seeded.account);
+            runtime.block_on(worker.pick_for(&seeded.account, now_ms(), false))
+        })
+    }
+
+    #[test]
+    fn a_second_empty_plan_stops() {
+        assert_eq!(after_plan(true, true, 0), Pass::ResetAndRetry);
+        assert_eq!(after_plan(true, true, 1), Pass::Stop);
+        assert_eq!(after_plan(true, false, 1), Pass::Run);
+    }
+
+    #[test]
+    fn pick_for_ends_when_wants_and_steps_disagree() {
+        // The #116 disagreement: `has_wants` says run, `steps` is empty.
+        let step = within_a_second(|| {
+            FORCE_WANTS.with(|force| force.set(true));
+            let dir = tempfile::tempdir().unwrap();
+            let (config, seeded) = seed(dir.path());
+            let sink = Sink::default();
+            let mut worker = open(&config, &sink);
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap();
+            worker.foreground = true;
+            let live = worker.live.get_mut(&seeded.account).unwrap();
+            live.wants = Wants::default();
+            live.next_full_ms = i64::MAX;
+            runtime.block_on(worker.pick_for(&seeded.account, now_ms(), false))
+        });
+        assert_eq!(step, None);
+    }
+
+    // The two tests below pass on master too (the rules agree there). They
+    // guard the single prefetch rule against a future disagreement.
+    #[test]
+    fn pick_for_returns_in_the_background_with_candidates_left() {
+        assert_eq!(pick_with_candidate(|_, _| {}), None);
+    }
+
+    #[test]
+    fn pick_for_returns_when_paused_with_candidates_left() {
+        let step = pick_with_candidate(|worker, account| {
+            worker.foreground = true;
+            let live = worker.live.get_mut(account).unwrap();
+            live.health.status = AccountStatus::SignInFailed;
+        });
         assert_eq!(step, None);
     }
 

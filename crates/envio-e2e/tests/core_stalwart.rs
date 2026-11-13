@@ -118,7 +118,7 @@ fn offered(
     ids: Vec<envio_core::MessageRowId>,
     action: UserAction,
 ) -> envio_core::UndoId {
-    run.core.send(Command::Act { ids, action });
+    run.core().send(Command::Act { ids, action });
     run.wait(NET, |event| match event {
         Event::UndoOffer { undo, .. } => Some(*undo),
         _ => None,
@@ -141,21 +141,22 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
     // Setup with trust on first use: IMAP, then SMTP.
     let run = CoreRun::start(LevelFilter::Info);
     let setup = setup(&server, "grace");
-    run.core.send(connect(setup.clone(), "grace", vec![]));
+    run.core().send(connect(setup.clone(), "grace", vec![]));
     let (service, hex) = run.wait(NET, |event| match event {
         Event::TrustPrompt { service, hex, .. } => Some((*service, hex.clone())),
         _ => None,
     });
     assert_eq!((service, hex.as_str()), (Service::Imap, pin.as_str()));
     let imap = vec![(Service::Imap, pin.clone())];
-    run.core.send(connect(setup.clone(), "grace", imap.clone()));
+    run.core()
+        .send(connect(setup.clone(), "grace", imap.clone()));
     let (service, hex) = run.wait(NET, |event| match event {
         Event::TrustPrompt { service, hex, .. } => Some((*service, hex.clone())),
         _ => None,
     });
     assert_eq!((service, hex.as_str()), (Service::Smtp, pin.as_str()));
     let both = vec![(Service::Imap, pin.clone()), (Service::Smtp, pin.clone())];
-    run.core.send(connect(setup, "grace", both));
+    run.core().send(connect(setup, "grace", both));
     let account = run.wait(NET, |event| match event {
         Event::AccountAdded { account } => Some(account.key.clone()),
         _ => None,
@@ -184,7 +185,7 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
     // Delete, then Undo inside the window: the row is back, the server
     // never moved it.
     let undo = offered(&run, vec![keep_row.id], UserAction::Delete);
-    run.core.send(Command::Undo { undo });
+    run.core().send(Command::Undo { undo });
     assert!(closed(&run, undo));
     run.row_with(inbox, &keep);
     server_settles(&server, "INBOX", &keep_id, |n| n == 1).await;
@@ -215,7 +216,7 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
     // it arrives in the Inbox.
     let subject = unique("To myself");
     let compose = ComposeId(1);
-    run.core.send(Command::StartCompose {
+    run.core().send(Command::StartCompose {
         compose,
         from: StartFrom::New {
             account: account.clone(),
@@ -233,7 +234,7 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
         body: "Hello, me.".to_owned(),
         ..DraftInput::default()
     };
-    run.core.send(Command::Send { compose, draft });
+    run.core().send(Command::Send { compose, draft });
     run.wait(NET, |event| {
         matches!(event, Event::Queued { .. }).then_some(())
     });
@@ -242,7 +243,7 @@ async fn add_account_sync_act_undo_send_and_find_in_sent() {
         Event::Outbox { items } if items.is_empty() => Some(()),
         _ => None,
     });
-    run.core.send(Command::ListOutbox);
+    run.core().send(Command::ListOutbox);
     run.wait(NET, |event| match event {
         Event::Outbox { items } => {
             assert!(items.is_empty(), "{items:?}");
@@ -339,7 +340,7 @@ async fn a_wrong_password_pauses_for_sign_in() {
     };
     run.wait(NET, signed_out);
     // Another wrong one is tried once and refused.
-    run.core.send(Command::UpdatePassword {
+    run.core().send(Command::UpdatePassword {
         account: account.clone(),
         password: SecretString::from("not-the-password".to_owned()),
     });
@@ -353,7 +354,7 @@ async fn a_wrong_password_pauses_for_sign_in() {
         tried,
         "the core tried to sign in again by itself"
     );
-    run.core.send(Command::UpdatePassword {
+    run.core().send(Command::UpdatePassword {
         account,
         password: SecretString::from(password("grace")),
     });
@@ -463,7 +464,7 @@ async fn mail_that_arrives_before_the_idle_select_is_not_missed() {
         .join()
         .unwrap();
     });
-    run.core.send(Command::Refresh {
+    run.core().send(Command::Refresh {
         account: Some(account),
     });
     run.row_with(inbox, &late);
@@ -494,7 +495,7 @@ async fn an_open_whose_body_cannot_be_fetched_answers_with_a_failure() {
     // The connection dies as the body is about to be fetched.
     let cut = Arc::clone(&proxy);
     hooks::before_next(Point::BodyFetch, &account, move || cut.cut());
-    run.core.send(Command::OpenMessage {
+    run.core().send(Command::OpenMessage {
         id: row.id,
         images: ImagesChoice::Default,
         width_px: 360,
@@ -534,7 +535,7 @@ async fn a_first_sync_in_parts_lets_a_list_through() {
     let inbox = std::cell::Cell::new(None);
     while Instant::now() < end && changed.get() < 3 {
         let began = Instant::now();
-        run.core.send(Command::ListFolders {
+        run.core().send(Command::ListFolders {
             account: account.clone(),
         });
         run.wait(Duration::from_secs(2), |event| match event {

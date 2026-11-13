@@ -8,22 +8,9 @@ use super::Worker;
 use super::plan::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
 
 impl Worker<'_> {
-    /// The Inbox, if bodies are to be downloaded ahead now: in the
-    /// foreground, the account running, the disk not full.
-    pub(super) fn prefetch_due(
-        &self,
-        account: &str,
-        folders: &[Folder],
-        (now_ms, disk_full): (i64, bool),
-    ) -> Option<FolderId> {
-        let live = self.live.get(account)?;
-        if !self.foreground || disk_full || live.health.is_paused() {
-            return None;
-        }
-        self.prefetch_folder(account, folders, now_ms)
-    }
-
-    /// The Inbox, if the next prefetch batch is not empty. Only a synced
+    /// The Inbox, if the next prefetch batch is not empty. Whether it may be
+    /// fetched now (foreground, not paused, disk) is `plan::prefetch::step`'s
+    /// rule alone. Only a synced
     /// folder (its UIDVALIDITY is known) can be fetched from.
     pub(super) fn prefetch_folder(
         &self,

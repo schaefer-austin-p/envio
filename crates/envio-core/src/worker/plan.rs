@@ -9,6 +9,7 @@ use envio_sync::plan::folders::sync_order;
 
 mod prefetch;
 
+pub use prefetch::step as prefetch_step;
 pub use prefetch::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
 
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
