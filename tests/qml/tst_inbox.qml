@@ -426,6 +426,21 @@ Item {
             core.accounts.setProperty(1, "state", "ok")
         }
 
+        function test_selected_carbon_tab_draws_the_icon_in_its_text_colour() {
+            core.accounts.setProperty(1, "state", "offline")
+            const bob = find("tab-bob", page)
+            tryVerify(function() { return chipIcon(bob) !== null })
+            compare(chipIcon(bob).color, thm.accent)
+            mouseClick(bob)
+            tryVerify(function() { return bob.selected })
+            // A selected Carbon chip is filled with the primary colour.
+            compare(chipIcon(bob).color, thm.primaryText)
+            thm.name = "airmail"
+            compare(chipIcon(bob).color, thm.accent)
+            mouseClick(find("tab-all", page))
+            core.accounts.setProperty(1, "state", "ok")
+        }
+
         function test_tab_icon_follows_the_account_state() {
             const bob = find("tab-bob", page)
             compare(chipIcon(bob), null)
