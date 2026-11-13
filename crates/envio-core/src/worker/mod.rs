@@ -4,6 +4,7 @@ mod act;
 mod compose;
 mod conn;
 mod dispatch;
+mod folder_order;
 mod older;
 mod outbox;
 mod plan;

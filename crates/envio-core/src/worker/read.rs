@@ -11,6 +11,7 @@ use envio_mime::{Address, Message as Mime, RenderOptions};
 use envio_store::{BodyState, Cursor, ListRef, Message, MessageRowId, PAGE};
 
 use super::Worker;
+use super::folder_order::drawer_order;
 use super::rows::{rows, sender_label};
 use super::userdata::{is_known, loads_images};
 use crate::api::command::ImagesChoice;
@@ -201,7 +202,8 @@ impl Worker<'_> {
 
     pub(super) fn list_folders(&self, account: &str) {
         match self.store.db.folders(account) {
-            Ok(folders) => {
+            Ok(mut folders) => {
+                drawer_order(&mut folders);
                 let unread = self.store.db.unread_counts(account).unwrap_or_else(|e| {
                     log::warn!("counting unread messages: {e}");
                     Default::default()
