@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 17:18+0100\n"
+"POT-Creation-Date: 2026-11-13 18:02+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -330,24 +330,19 @@ msgstr ""
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:222 qml/pages/reader/HeaderBlock.qml:19
+#: qml/pages/compose/ComposePage.qml:210
+msgid "Cc Bcc"
+msgstr ""
+
+#: qml/pages/compose/ComposePage.qml:225 qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:235
+#: qml/pages/compose/ComposePage.qml:238
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:244
-msgid "Cc and Bcc"
-msgstr ""
-
-#: qml/pages/compose/ComposePage.qml:254
-#: crates/envio-core/src/text/compose.rs:43
-msgid "Subject"
-msgstr ""
-
-#: qml/pages/compose/ComposePage.qml:273
+#: qml/pages/compose/ComposePage.qml:265
 msgid "Write your message"
 msgstr ""
 
@@ -392,8 +387,12 @@ msgstr ""
 msgid "Remove quoted text"
 msgstr ""
 
-#: qml/pages/compose/RecipientField.qml:93
+#: qml/pages/compose/RecipientField.qml:98
 msgid "Remove %1"
+msgstr ""
+
+#: qml/pages/compose/SubjectRow.qml:24 crates/envio-core/src/text/compose.rs:43
+msgid "Subject"
 msgstr ""
 
 #: qml/pages/compose/Suggestions.qml:70
