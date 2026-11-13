@@ -42,5 +42,6 @@ test("arguments name the lock file explicitly", () => {
     { lock: "qt/Cargo.lock", file: "b.json" },
   ]);
   assert.throws(() => parseArgs(["a.json"]));
+  assert.throws(() => parseArgs(["cargo=a.json"]), /bad argument/);
   assert.throws(() => parseArgs([]));
 });
