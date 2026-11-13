@@ -40,7 +40,10 @@ fn base64_lines(bytes: &[u8]) -> Vec<u8> {
 /// valid UTF-8.
 pub(crate) fn part<'a>(content_type: &'a str, filename: &'a str, bytes: &[u8]) -> MimePart<'a> {
     let mut ct = ContentType::new(content_type);
-    if content_type.starts_with("text/") && std::str::from_utf8(bytes).is_ok() {
+    let is_text = content_type
+        .get(..5)
+        .is_some_and(|p| p.eq_ignore_ascii_case("text/"));
+    if is_text && std::str::from_utf8(bytes).is_ok() {
         ct = ct.attribute("charset", "utf-8");
     }
     MimePart::new(ct, BodyPart::Binary(base64_lines(bytes).into()))

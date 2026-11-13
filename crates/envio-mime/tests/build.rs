@@ -303,6 +303,20 @@ fn every_attachment_is_base64_and_text_ones_carry_a_charset() {
 }
 
 #[test]
+fn text_attachment_type_is_matched_case_insensitively() {
+    let mut o = simple();
+    o.attachments = vec![OutgoingAttachment {
+        filename: "d.txt".to_owned(),
+        content_type: "Text/Plain".to_owned(),
+        bytes: "caf\u{e9}".as_bytes().to_vec(),
+    }];
+    let built = build(&o, 0, "x@example.org");
+    let wire = String::from_utf8(built.bytes).unwrap();
+    let hdr = part_headers(&wire, "d.txt");
+    assert!(hdr.contains("charset=\"utf-8\""), "{hdr}");
+}
+
+#[test]
 fn long_base64_attachment_wraps_at_76_and_round_trips() {
     // 1000 bytes: not a multiple of 3 (ends in "=="), several lines.
     let bytes: Vec<u8> = (0..=255u8).cycle().take(1000).collect();
