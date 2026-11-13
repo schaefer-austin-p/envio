@@ -321,14 +321,14 @@ mod tests {
 
     /// Runs `body` (which builds its own worker: it is not `Send`) on a
     /// thread, so a spinning `pick_for` fails the test instead of hanging.
-    fn within_a_second<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
+    fn within_bound<T: Send + 'static>(body: impl FnOnce() -> T + Send + 'static) -> T {
         let (done, result) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let _ = done.send(body());
         });
         result
-            .recv_timeout(std::time::Duration::from_secs(1))
-            .expect("pick_for did not return within 1 s")
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("pick_for did not return within 5 s (a spin never returns)")
     }
 
     /// `pick_for` for the seeded account, with a prefetch candidate in the
@@ -338,7 +338,7 @@ mod tests {
     ) -> Option<Step> {
         use envio_store::{Envelope, Flags, NewMessage};
 
-        within_a_second(move || {
+        within_bound(move || {
             let dir = tempfile::tempdir().unwrap();
             let (config, seeded) = seed(dir.path());
             let sink = Sink::default();
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn pick_for_ends_when_wants_and_steps_disagree() {
         // The #116 disagreement: `has_wants` says run, `steps` is empty.
-        let step = within_a_second(|| {
+        let step = within_bound(|| {
             FORCE_WANTS.with(|force| force.set(true));
             let dir = tempfile::tempdir().unwrap();
             let (config, seeded) = seed(dir.path());
