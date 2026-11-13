@@ -13,9 +13,9 @@ First release. Envio is an IMAP and SMTP mail app for Ubuntu Touch 24.04.
 ### Added
 
 - Accounts with a password or app password on any IMAP and SMTP server.
-  Tested on a phone with mailo and inbox.eu. Other providers, such as
-  iCloud, Fastmail and Google (app password), should work but were not
-  tested for this release.
+  Envio was used on a phone with real mailo and inbox.eu accounts during
+  the release run. Other providers, such as iCloud, Fastmail and Google
+  (app password), should work but were not tried for this release.
 - An account wizard that asks for the email address first and looks up the
   servers (Thunderbird ISPDB, the domain's autoconfig URL, DNS SRV). Manual
   setup is the fallback.
