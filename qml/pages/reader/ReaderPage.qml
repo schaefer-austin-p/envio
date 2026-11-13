@@ -44,7 +44,8 @@ Item {
     onSettledChanged: if (settled) everSettled = true
     readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
-    // HTML, so this is the value to read).
+    // HTML, so this is the value to read; an image redraw adds only an empty
+    // comment).
     // Mail that sets its own colours (the core says so) sits on a light
     // paper card in both themes; nothing here reads the HTML.
     readonly property bool paper: view !== null && view.ownColours === true
@@ -56,6 +57,8 @@ Item {
     // different string, so the TextEdit lays out) and draws them from there.
     property int imageRedraws: 0
     readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
+    // A redraw due for the last message must not lay out the next one.
+    onViewChanged: imageRedraw.stop()
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
@@ -225,10 +228,10 @@ Item {
                     cursorVisible: false
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    // A trailing space after an image redraw: same layout,
+                    // An empty comment after an image redraw: same layout,
                     // but a new string, so the TextEdit takes the images
                     // from the cache.
-                    text: root.bodyHtml + (root.imageRedraws % 2 === 1 ? " " : "")
+                    text: root.bodyHtml + (root.imageRedraws % 2 === 1 ? "<!---->" : "")
                     textFormat: TextEdit.RichText
                     wrapMode: TextEdit.Wrap
                     color: root.paper ? root.theme.paperText : root.theme.text
