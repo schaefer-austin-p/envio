@@ -183,6 +183,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "id": id,
         "html": view.html,
         "blockedImages": view.blocked_images,
+        "ownColours": view.own_colours,
         "from": h.from,
         "fromAddress": h.from_address,
         "to": h.to,
@@ -269,8 +270,34 @@ mod tests {
             html: String::new(),
             raw: false,
             blocked_images: 0,
+            own_colours: false,
             attachments: vec![],
         };
         assert_eq!(message_view_value(41, &view)["id"], 41);
+    }
+
+    #[test]
+    fn message_view_value_carries_own_colours() {
+        use envio_core::MessageHeader;
+        let mut view = MessageView {
+            header: MessageHeader {
+                from: "f".into(),
+                from_address: "f@example.org".into(),
+                to: vec![],
+                cc: vec![],
+                subject: "s".into(),
+                date: None,
+                account: "a".into(),
+                sender_known: false,
+            },
+            html: String::new(),
+            raw: false,
+            blocked_images: 0,
+            own_colours: true,
+            attachments: vec![],
+        };
+        assert_eq!(message_view_value(1, &view)["ownColours"], true);
+        view.own_colours = false;
+        assert_eq!(message_view_value(1, &view)["ownColours"], false);
     }
 }

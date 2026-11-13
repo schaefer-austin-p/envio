@@ -159,6 +159,52 @@ Item {
             thm.darkMode = "system"
         }
 
+        function test_mail_with_own_colours_uses_the_paper_card_data() {
+            return [
+                { tag: "carbon dark", airmail: false, paper: "#FFFFFF", text: "#1E2A38", link: "#B8342C" },
+                { tag: "airmail dark", airmail: true, paper: "#FFFFFF", text: "#22303F", link: "#1F3A5F" }
+            ]
+        }
+
+        // #108: the mail's own dark text assumes a white page.
+        function test_mail_with_own_colours_uses_the_paper_card(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            thm.darkMode = "dark"
+            const v = view([], 0)
+            v.ownColours = true
+            open(v)
+            compare(String(find("bodyCard").color).toUpperCase(), data.paper)
+            compare(find("bodyCard").color, thm.paper)
+            compare(String(find("bodyText").color).toUpperCase(), data.text)
+            compare(find("bodyText").color, thm.paperText)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.paperLink) + "}") === 0)
+            compare(String(thm.paperLink).toUpperCase(), data.link)
+            thm.name = "carbon"
+            thm.darkMode = "system"
+        }
+
+        function test_plain_mail_keeps_the_theme_card_in_dark() {
+            thm.darkMode = "dark"
+            const v = view([], 0)
+            v.ownColours = false
+            open(v)
+            compare(find("bodyCard").color, thm.surface)
+            compare(find("bodyText").color, thm.text)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:" + String(thm.link) + "}") === 0)
+            thm.darkMode = "system"
+        }
+
+        function test_light_mode_is_unchanged() {
+            thm.darkMode = "light"
+            const v = view([], 0)
+            v.ownColours = true
+            open(v)
+            compare(find("bodyCard").color, thm.surface)
+            compare(find("bodyText").color, thm.text)
+            compare(thm.paperLink, thm.link)
+            thm.darkMode = "system"
+        }
+
         function test_header_stamp_is_airmail_only() {
             open(view([], 0))
             compare(find("headerStamp").item, null)

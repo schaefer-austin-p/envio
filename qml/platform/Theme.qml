@@ -157,6 +157,14 @@ Control {
     // Links in a message body: no board shows one, so Carbon takes accent and
     // Airmail its heading blue (readable on the dark ground too).
     readonly property color link: airmail ? heading : accent
+    // The paper card: mail that sets its own colours assumes a white page,
+    // so the reader draws it on the light theme's surface in both themes,
+    // with the light theme's text and link. In light mode these equal
+    // surface, text and link.
+    readonly property var paperRoles: roles[airmail ? "airmail" : "carbon"].light
+    readonly property color paper: paperRoles.surface
+    readonly property color paperText: paperRoles.text
+    readonly property color paperLink: airmail ? roles.airmail.light.heading : roles.carbon.light.accent
     readonly property color primary: current.primary
     readonly property color primaryText: current.primaryText
     readonly property color tintA: current.tintA

@@ -91,6 +91,9 @@ pub struct MessageView {
     pub raw: bool,
     /// Remote images left out.
     pub blocked_images: usize,
+    /// The mail sets its own colours, so the reader draws it on a light
+    /// card. Always false for a raw message.
+    pub own_colours: bool,
     pub attachments: Vec<AttachmentRow>,
 }
 

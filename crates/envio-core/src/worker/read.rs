@@ -110,6 +110,7 @@ pub(crate) fn render_view(
         html: rendered.html,
         raw,
         blocked_images: rendered.blocked_images,
+        own_colours: rendered.own_colours,
         attachments,
     }
 }
@@ -470,6 +471,23 @@ mod tests {
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
         assert_eq!(view.header.from, "x@evil.example");
         assert_eq!(view.header.from_address, "x@evil.example");
+    }
+
+    #[test]
+    fn the_view_says_when_the_mail_sets_colours() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+        };
+        let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
+            <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
+        assert!(render_view(html, ImagesChoice::Default, 300, &ctx).own_colours);
+        let text = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
+        assert!(!render_view(text, ImagesChoice::Default, 300, &ctx).own_colours);
     }
 
     #[test]
