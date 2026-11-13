@@ -137,3 +137,19 @@ through `adb reverse`.
 Screenshots are in `docs/phone-runs/daily-use/`. The user's own account
 addresses are painted out or cropped. Phone: Ubuntu Touch 24.04, build
 3fe8913, throwaway Stalwart through `adb reverse`.
+
+## Release-polish run (Plan 8c)
+
+| Item | Result | Evidence |
+| ---- | ------ | -------- |
+| Spoofed display name (#92) | Pass | `"billing@paypal.com" <x@evil.example>`: the row and the reader header show `x@evil.example` (XE avatar), and "billing@paypal.com" appears nowhere (`spoof-row-airmail`, `spoof-reader-*`, `offline-spoof-row-carbon`). |
+| Offline banner per tab (#91) | Pass | With the local Stalwart stopped, the grace tab says "Offline." (`offline-grace-airmail`, `offline-spoof-row-carbon`), the All tab says "2 accounts are offline: grace@envio.test, heidi@envio.test" (`offline-unified-airmail`), and the real account's tab, still online, shows no banner. Dropping `adb reverse` alone kept the open connections; stopping the server was needed. |
+| Guessed servers can be checked and edited (#93) | Pass | ivan@envio.test (no autoconfig): Sign in says "No settings found. These are a guess, please check them" and lists `imap.envio.test:993, TLS` and `smtp.envio.test:465, TLS` with Edit servers (`wizard-guess-carbon`); Edit servers opens the server form filled in (`wizard-servers-carbon`). Carbon only; the Airmail screens share the same QML. |
+| Server lookup (#97) | Pass, rough | Continue to Sign in took at most about 14 s including the ~10 s screenshot overhead; not measurable more finely with the screenshot tool. |
+| Layout-table mail uses the width (#90) | Pass | The synthetic `receipt-like` and `notice-like` mail: the item names and the notice paragraph take most of the 360 px column (`receipt-airmail`, `notice-airmail`). In dark mode the mail's own dark text colours are unreadable on the dark card (`dark-*`): #108. |
+| Recent mail is prefetched (#102) | Pass | Never-opened messages on grace and heidi opened with their body while the server was stopped or paused (`prefetch-grace-airmail`, `prefetch-heidi-airmail`), so their bodies were downloaded ahead. Open time isn't measurable here (each screenshot takes about 10 s); before this change a first open took 1-2 s on the real accounts. |
+| Found on the way | Open | Long certificate fingerprints clip at the right edge on the Accounts page and in Check certificate (`fingerprint-clip-carbon`): #109. The menu's Inbox and Unified inbox counts don't follow messages read in the app: #110. |
+
+Screenshots are in `docs/phone-runs/release-polish/`, synthetic accounts
+only; the user's own accounts are painted out. Phone: Ubuntu Touch 24.04,
+build 496a6fd, throwaway Stalwart through `adb reverse`, 2026-11-13.
