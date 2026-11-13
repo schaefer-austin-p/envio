@@ -113,6 +113,9 @@ impl Ui {
     pub fn apply(&mut self, event: Event, now: i64, utc_offset_s: i32) -> Vec<Output> {
         self.now = now;
         self.utc_offset_s = utc_offset_s;
+        if matches!(event, Event::Notice { .. }) {
+            self.folders_failed();
+        }
         if let Some(signal) = signal_of(&event) {
             return vec![Output::Signal(signal)];
         }

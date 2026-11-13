@@ -14,7 +14,8 @@ impl Ui {
     }
 
     /// Mail changed in these folders: the drawer's account's list is stale if
-    /// one of them is its own or not listed yet.
+    /// one of them is its own. A folder not listed yet is nobody's here: new
+    /// folders arrive as `FoldersChanged`, which lists separately.
     pub(super) fn folders_stale(&mut self, folders: &[FolderId]) -> Vec<Output> {
         let Some(account) = self.drawer_account.clone() else {
             return Vec::new();
@@ -22,7 +23,7 @@ impl Ui {
         let touched = folders.iter().any(|f| {
             self.folder_roles
                 .get(&f.0)
-                .is_none_or(|(owner, _)| *owner == account)
+                .is_some_and(|(owner, _)| *owner == account)
         });
         if touched {
             self.list_folders(account)
@@ -50,6 +51,14 @@ impl Ui {
         self.folders_pending = Some(account.clone());
         self.folders_again = false;
         vec![Output::Send(Command::ListFolders { account })]
+    }
+
+    /// A Notice arrived. A failed folder read ends in one and no `Folders`
+    /// (it names no account), so an outstanding list may never be answered:
+    /// forget it. Worst case, one list is sent twice.
+    pub(super) fn folders_failed(&mut self) {
+        self.folders_pending = None;
+        self.folders_again = false;
     }
 
     /// `account`'s folder list arrived: if it was the outstanding one, ask

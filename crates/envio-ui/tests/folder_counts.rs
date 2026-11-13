@@ -48,9 +48,26 @@ fn reading_in_a_shown_folder_lists_the_folders_again() {
 }
 
 #[test]
-fn a_folder_not_listed_yet_lists_the_folders() {
+fn a_folder_not_listed_yet_lists_nothing() {
+    // It is not known to be the drawer account's; new folders arrive as
+    // FoldersChanged, which lists separately.
     let mut ui = two_accounts();
-    assert_eq!(list_of(&changed(&mut ui, &[99])), ["a"]);
+    assert!(list_of(&changed(&mut ui, &[99])).is_empty());
+}
+
+#[test]
+fn a_failed_list_does_not_freeze_the_counts() {
+    let mut ui = two_accounts();
+    assert_eq!(list_of(&changed(&mut ui, &[10])).len(), 1);
+    assert!(list_of(&changed(&mut ui, &[10])).is_empty());
+    // The core could not read the folders: a Notice, no Folders.
+    feed(
+        &mut ui,
+        Event::Notice {
+            text: "could not read".into(),
+        },
+    );
+    assert_eq!(list_of(&changed(&mut ui, &[10])), ["a"]);
 }
 
 #[test]
