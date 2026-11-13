@@ -257,6 +257,25 @@ fn icons_sized_by_their_images_keep_their_columns() {
     }
 }
 
+/// The same icons, pretty-printed, with a spacer `&nbsp;` beside one.
+const SPACED_ICONS: &str = "<table><tr>
+    <td>
+        <img src=\"https://news.example/f.png\" alt=\"F\" width=\"32\" height=\"32\">
+    </td>
+    <td>&nbsp;<img src=\"https://news.example/t.png\" alt=\"T\" width=\"32\" height=\"32\">&nbsp; </td>
+    <td>
+        <img src=\"https://news.example/i.png\" alt=\"I\" width=\"32\" height=\"32\">
+    </td>
+    </tr></table>";
+
+#[test]
+fn whitespace_and_spacers_beside_an_icon_are_not_text() {
+    for html in [clean(SPACED_ICONS), with_images(SPACED_ICONS)] {
+        assert_eq!(count(&html, "table"), 1, "{html}");
+        assert_eq!(count(&html, "td"), 3, "{html}");
+    }
+}
+
 const CARDS: &str = r#"<table><tr>
     <td><img src="https://news.example/a.png" alt="A" width="100" height="80"> A flat by the river with a view</td>
     <td><img src="https://news.example/b.png" alt="B" width="100" height="80"> A house with a garden</td>
