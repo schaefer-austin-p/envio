@@ -26,43 +26,48 @@ pub(crate) async fn run_one(worker: &mut Worker<'_>, account: &str, step: Step) 
     }
     match run_step(worker, account, &step).await {
         Ok(()) => succeeded(worker, account, &step),
-        Err(problem) => {
-            // A part of a big folder that failed is not continued first.
-            if let Some(live) = worker.live.get_mut(account) {
-                live.continuing = None;
-            }
-            let response = failed(worker, account, step.kind(), &problem);
-            search_failed(worker, account, &step, &problem);
-            older_failed(worker, account, &step, &problem);
-            if matches!(
-                response,
-                Response::ItemError | Response::StopDownloads | Response::Rebuild
-            ) {
-                // Waiting would only repeat it; the next full run tries again.
-                finished(worker, account, &step);
-            }
-            if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
-                worker.open_failed(Some(account));
-            }
-            if let Problem::Refused(reason) = &problem
-                && !reason.is_empty()
-            {
-                worker.emit(Event::Notice {
-                    text: text::notice::refused(reason),
-                });
-            }
-            if response == Response::Rebuild {
-                rebuild(worker);
-            }
-            if response == Response::StopDownloads {
-                worker.disk_full_until = Some(now_ms() + POLL_MS);
-                worker.emit(Event::Notice {
-                    text: text::notice::disk_full(),
-                });
-            }
-        }
+        Err(problem) => step_failed(worker, account, &step, &problem),
     }
     worker.report(account, &before);
+}
+
+/// What a failed step does: the account's health, the notices, the rebuild.
+fn step_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Problem) {
+    // A part of a big folder that failed is not continued first.
+    if let Some(live) = worker.live.get_mut(account) {
+        live.continuing = None;
+    }
+    let response = failed(worker, account, step.kind(), problem);
+    search_failed(worker, account, step, problem);
+    older_failed(worker, account, step, problem);
+    if matches!(
+        response,
+        Response::ItemError | Response::StopDownloads | Response::Rebuild
+    ) {
+        // Waiting would only repeat it; the next full run tries again.
+        finished(worker, account, step);
+    }
+    if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
+        worker.open_failed(Some(account));
+    }
+    // Prefetch is background work nobody asked for: its failure is no news.
+    if let Problem::Refused(reason) = problem
+        && !reason.is_empty()
+        && !matches!(step, Step::Prefetch(_))
+    {
+        worker.emit(Event::Notice {
+            text: text::notice::refused(reason),
+        });
+    }
+    if response == Response::Rebuild {
+        rebuild(worker);
+    }
+    if response == Response::StopDownloads {
+        worker.disk_full_until = Some(now_ms() + POLL_MS);
+        worker.emit(Event::Notice {
+            text: text::notice::disk_full(),
+        });
+    }
 }
 
 /// The user waits for a server search: no retry, and one unreachable

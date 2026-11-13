@@ -74,13 +74,13 @@ fn settle(
         return Ok(());
     };
     let problem = imap_error(&error);
-    // A refusal is the message's own (the one after the done ones): it is
-    // not asked for again. A lost connection is not, and the normal retry
-    // applies.
-    if matches!(problem, Problem::Refused(_)) {
-        let next: Vec<MessageRowId> = ids.iter().skip(batch.done.len()).take(1).copied().collect();
-        give_up(worker, account, &next);
-    }
+    // The error is on the message after the done ones. Whatever it was, that
+    // one is not asked for again (opening it still fetches it): a message
+    // that times out would otherwise be retried at every backoff, and each
+    // failure would flip the account Offline. A lost connection also fails
+    // the step, so the normal retry applies to the rest.
+    let next: Vec<MessageRowId> = ids.iter().skip(batch.done.len()).take(1).copied().collect();
+    give_up(worker, account, &next);
     Err(problem)
 }
 
@@ -96,7 +96,9 @@ mod tests {
     use envio_net::NetError;
     use envio_store::{Envelope, Flags, NewMessage};
 
+    use super::super::{rebuild, step_failed};
     use super::*;
+    use crate::worker::plan::Step;
     use crate::worker::testing::{Sink, open, seed};
 
     /// A worker whose Inbox holds two recent small messages, and their ids.
@@ -201,7 +203,48 @@ mod tests {
         let result = settle(&mut worker, (&account, folder), &ids, Ok(stopped));
         assert!(matches!(result, Err(Problem::Temporary)), "{result:?}");
         assert!(changed(&sink));
-        assert!(worker.live[&account].prefetch_skip.is_empty());
+        // The message the connection broke on is not asked for again.
+        assert_eq!(worker.live[&account].prefetch_skip, [ids[1]].into());
+    }
+
+    #[test]
+    fn a_timed_out_fetch_is_planned_no_more() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, folder, ids) = two_candidates(dir.path(), &sink);
+        let stopped = batch(Vec::new(), Some(NetError::Timeout));
+        let result = settle(&mut worker, (&account, folder), &ids, Ok(stopped));
+        assert!(result.is_err());
+        let planned = worker.prefetch_batch(&account, folder, now_ms());
+        assert_eq!(planned, [ids[1]], "{} retried", ids[0].0);
+    }
+
+    #[test]
+    fn a_failed_prefetch_shows_no_notice() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, folder, _) = two_candidates(dir.path(), &sink);
+        let refused = Problem::Refused("[SERVERBUG] nope".into());
+        step_failed(&mut worker, &account, &Step::Prefetch(folder), &refused);
+        let notice = |e: &Event| matches!(e, Event::Notice { .. });
+        assert!(!sink.events().iter().any(notice), "{:?}", sink.events());
+        // Other steps still tell the user.
+        step_failed(&mut worker, &account, &Step::Replay, &refused);
+        assert!(sink.events().iter().any(notice));
+    }
+
+    #[test]
+    fn a_cache_rebuild_lets_prefetch_start_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, account, folder, ids) = two_candidates(dir.path(), &sink);
+        let live = worker.live.get_mut(&account).unwrap();
+        live.prefetch_skip.insert(ids[0]);
+        live.prefetch_off.insert(folder);
+        rebuild(&mut worker);
+        let live = &worker.live[&account];
+        assert!(live.prefetch_skip.is_empty(), "{:?}", live.prefetch_skip);
+        assert!(live.prefetch_off.is_empty(), "{:?}", live.prefetch_off);
     }
 
     #[test]
