@@ -328,3 +328,83 @@ proptest! {
         let _ = parse_invite(&bytes);
     }
 }
+
+#[test]
+fn second_vevent_never_leaks_into_the_first() {
+    let raw = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:one\r\nDTSTART:20261116T100000Z\r\nATTENDEE:mailto:bob@example.org\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nLOCATION:Elsewhere\r\nRRULE:FREQ=DAILY\r\nSTATUS:CANCELLED\r\nORGANIZER:mailto:eve@example.org\r\nATTENDEE:mailto:extra@example.org\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let invite = parse_invite(raw.as_bytes()).unwrap();
+    assert_eq!(invite.location, "");
+    assert!(!invite.repeats);
+    assert!(!invite.cancelled);
+    assert_eq!(invite.organizer, None);
+    assert_eq!(invite.attendees.len(), 1);
+    assert_eq!(invite.attendees[0].email, "bob@example.org");
+}
+
+#[test]
+fn huge_durations_do_not_overflow() {
+    for dur in [
+        "PT9223372036854775807S",
+        "P99999999999D",
+        "P99999999999999999999W",
+    ] {
+        let timed = request(&format!(
+            "UID:u1\r\nDTSTART:20261116T100000Z\r\nDURATION:{dur}"
+        ));
+        assert_eq!(
+            timed.when,
+            When::Timed {
+                start: 1_794_823_200,
+                end: 1_794_823_200,
+                zone_unknown: false
+            }
+        );
+        assert!(matches!(
+            request(&format!(
+                "UID:u1\r\nDTSTART;VALUE=DATE:20261116\r\nDURATION:{dur}"
+            ))
+            .when,
+            When::AllDay {
+                end: (2026, 11, 17),
+                ..
+            }
+        ));
+        assert!(matches!(
+            request(&format!(
+                "UID:u1\r\nDTSTART:20261116T100000\r\nDURATION:{dur}"
+            ))
+            .when,
+            When::Floating { .. }
+        ));
+        let _ = request(&format!(
+            "UID:u1\r\nDTSTART;TZID=Europe/Berlin:20261116T100000\r\nDURATION:{dur}"
+        ));
+    }
+}
+
+#[test]
+fn end_before_start_is_clamped_and_bidi_stripped() {
+    let invite = request(
+        "UID:u1\r\nDTSTART:20261116T100000Z\r\nDTEND:20261116T090000Z\r\nSUMMARY:a\u{202e}b",
+    );
+    assert_eq!(
+        invite.when,
+        When::Timed {
+            start: 1_794_823_200,
+            end: 1_794_823_200,
+            zone_unknown: false
+        }
+    );
+    assert_eq!(invite.summary, "ab");
+}
+
+#[test]
+fn exactly_ten_thousand_lines_are_accepted() {
+    let head = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:u1\r\nDTSTART:20261116T100000Z\r\n";
+    let tail = "END:VEVENT\r\nEND:VCALENDAR\r\n";
+    // head 5 lines + tail 2 lines + fill.
+    let fill = "X-A:b\r\n".repeat(10_000 - 7);
+    assert!(parse_invite(format!("{head}{fill}{tail}").as_bytes()).is_some());
+    let over = "X-A:b\r\n".repeat(10_000 - 6);
+    assert!(parse_invite(format!("{head}{over}{tail}").as_bytes()).is_none());
+}

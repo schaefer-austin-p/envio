@@ -4,9 +4,12 @@ use super::lines::{Prop, split, unescape, unfold};
 use super::when::read;
 use super::zones::VTimezone;
 use super::{Invite, InviteMethod, PartStat, Person};
+use crate::link::strip_bidi_controls;
 
 const MAX_BYTES: usize = 256 * 1024;
 const MAX_LINES: usize = 10_000;
+/// Stack marker for a VEVENT after the first.
+const SKIPPED: &str = "VEVENT (skipped)";
 const MAX_TEXT: usize = 500;
 const MAX_ATTENDEES: usize = 500;
 
@@ -106,7 +109,13 @@ impl Scan {
         if kind == "VCALENDAR" {
             return;
         }
-        if kind == "VEVENT" && !self.seen_event && self.stack.is_empty() {
+        if kind == "VEVENT" && self.stack.is_empty() {
+            if self.seen_event {
+                // Later events do not count; a marker keeps their
+                // properties out of the first one.
+                self.stack.push(SKIPPED.to_owned());
+                return;
+            }
             self.seen_event = true;
         } else if kind == "STANDARD" && self.stack == ["VTIMEZONE"] {
             self.in_standard = true;
@@ -129,7 +138,8 @@ impl Scan {
                 standard_offset_s: off,
             });
         }
-        if self.stack.last().is_some_and(|k| k == kind) {
+        let skipped_event = kind == "VEVENT" && self.stack.last().is_some_and(|k| k == SKIPPED);
+        if skipped_event || self.stack.last().is_some_and(|k| k == kind) {
             self.stack.pop();
         }
     }
@@ -181,7 +191,7 @@ fn person(p: &Prop) -> Option<Person> {
             _ => None,
         });
     Some(Person {
-        email: unescape(email, MAX_TEXT),
+        email: strip_bidi_controls(&email.chars().take(MAX_TEXT).collect::<String>()),
         name: p
             .param("CN")
             .map_or_else(String::new, |cn| unescape(cn, MAX_TEXT)),

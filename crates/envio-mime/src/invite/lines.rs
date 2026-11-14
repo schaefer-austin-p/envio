@@ -21,10 +21,14 @@ impl Prop {
     }
 }
 
+use crate::link::strip_bidi_controls;
+
 /// Lines with CRLF or LF folds (a newline then one space or tab) removed.
 /// `None` when there are more than `max_lines` physical lines.
 pub(super) fn unfold(text: &str, max_lines: usize) -> Option<Vec<String>> {
     let mut out: Vec<String> = Vec::new();
+    // A final newline ends the last line; it does not start another.
+    let text = text.strip_suffix('\n').unwrap_or(text);
     for (n, line) in text.split('\n').enumerate() {
         if n >= max_lines {
             return None;
@@ -102,6 +106,7 @@ fn split_unquoted(s: &str, sep: char) -> Vec<&str> {
 pub(super) fn unescape(value: &str, max_chars: usize) -> String {
     let mut out = String::new();
     let mut count = 0;
+    let value = strip_bidi_controls(value);
     let mut chars = value.chars();
     while let Some(c) = chars.next() {
         if count >= max_chars {

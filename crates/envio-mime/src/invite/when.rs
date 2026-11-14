@@ -4,6 +4,8 @@
 use super::lines::Prop;
 use super::zones::{self, VTimezone};
 
+const MAX_DURATION_S: i64 = 10_000_000_000;
+
 /// A local wall-clock time with no zone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NaiveParts {
@@ -189,7 +191,8 @@ fn duration(value: &str) -> Option<i64> {
         total = total.checked_add(n.take()?.checked_mul(unit)?)?;
         seen = true;
     }
-    (seen && n.is_none()).then_some(total * sign)
+    // Beyond about 300 years is nonsense, and keeps every sum below in range.
+    (seen && n.is_none() && total <= MAX_DURATION_S).then_some(total * sign)
 }
 
 fn add_days(d: (i32, u8, u8), days: i64) -> (i32, u8, u8) {
@@ -235,7 +238,7 @@ pub(super) fn read(
             };
             When::Timed {
                 start: a,
-                end: b,
+                end: b.max(a),
                 zone_unknown: !ok,
             }
         }
@@ -251,7 +254,7 @@ pub(super) fn read(
             };
             When::Timed {
                 start: a,
-                end: b,
+                end: b.max(a),
                 zone_unknown: !(ok_a && ok_b),
             }
         }
@@ -264,7 +267,7 @@ pub(super) fn read(
             };
             When::Floating {
                 start: p,
-                end: NaiveParts::from_utc_secs(b),
+                end: NaiveParts::from_utc_secs(b.max(a)),
             }
         }
     })
