@@ -7,6 +7,7 @@ use envio_store::{
     load_invites, record_invite,
 };
 use envio_sync::UNDO_MS;
+use envio_sync::plan::outbox::held;
 
 use super::Worker;
 use crate::api::command::{Answer, ImagesChoice};
@@ -225,7 +226,7 @@ impl Worker<'_> {
                 log::warn!("queueing an invite answer: {e}");
                 not_queued()
             })?;
-        let previous = self.remembered_answer(&account, &invite.uid);
+        let current = self.remembered_answer(&account, &invite.uid);
         let remembered = InviteAnswer {
             account: account.clone(),
             uid: invite.uid.clone(),
@@ -243,6 +244,11 @@ impl Worker<'_> {
             }
             return Err(not_queued());
         }
+        // One held reply per invite: a new answer replaces an earlier one
+        // that is still held, and Undo goes back to before the first.
+        let previous = self
+            .replace_held_answer(&account, &invite.uid)
+            .unwrap_or(current);
         let undo = self.undo.offer(Offer {
             what: Offered::Answer {
                 message: id,
@@ -265,6 +271,37 @@ impl Worker<'_> {
         Ok(())
     }
 
+    /// Withdraws the live answer offer for (account, uid), if any: its held
+    /// reply leaves the Outbox and its offer closes. Returns the answer that
+    /// offer would have restored.
+    fn replace_held_answer(&mut self, account: &str, uid: &str) -> Option<Option<InviteAnswer>> {
+        let (old, offered) = self.undo.take_answer(account, uid)?;
+        let Offered::Answer {
+            outbox_item,
+            previous,
+            ..
+        } = offered
+        else {
+            return None;
+        };
+        let now = now_ms();
+        let still_held = self
+            .store
+            .outbox
+            .items()
+            .ok()
+            .and_then(|items| items.into_iter().find(|i| i.id == outbox_item))
+            .is_some_and(|i| i.meta.state == SendState::Queued && held(&i.meta, now));
+        if still_held && let Err(e) = self.store.outbox.remove(&outbox_item) {
+            log::warn!("replacing a held reply: {e}");
+        }
+        self.emit(Event::UndoClosed {
+            undo: old,
+            undone: false,
+        });
+        Some(previous)
+    }
+
     /// `Command::Undo` on an answer: the held reply is deleted and the
     /// earlier answer comes back.
     pub(super) fn undo_answer(&mut self, undo: crate::api::command::UndoId, offered: Offered) {
@@ -284,9 +321,10 @@ impl Worker<'_> {
             .items()
             .ok()
             .and_then(|items| items.into_iter().find(|i| i.id == outbox_item));
+        // Gone (sent and removed) or past Queued: too late.
         if item
             .as_ref()
-            .is_some_and(|i| i.meta.state != SendState::Queued)
+            .is_none_or(|i| i.meta.state != SendState::Queued)
         {
             self.emit(Event::UndoClosed {
                 undo,
@@ -296,9 +334,7 @@ impl Worker<'_> {
                 text: text::undo::too_late(),
             });
         }
-        if item.is_some()
-            && let Err(e) = self.store.outbox.remove(&outbox_item)
-        {
+        if let Err(e) = self.store.outbox.remove(&outbox_item) {
             log::warn!("deleting a held reply: {e}");
             self.emit(Event::UndoClosed {
                 undo,
@@ -313,13 +349,14 @@ impl Worker<'_> {
             Some(answer) => record_invite(&path, answer, now_ms()),
             None => forget_invite(&path, &account, &uid),
         };
+        let undone = restored.is_ok();
         if let Err(e) = restored {
             log::warn!("restoring an invite answer: {e}");
             self.emit(Event::Notice {
                 text: text::undo::cannot_undo(),
             });
         }
-        self.emit(Event::UndoClosed { undo, undone: true });
+        self.emit(Event::UndoClosed { undo, undone });
         self.emit(Event::OutboxChanged);
         self.emit_outbox();
         self.reshow(message);

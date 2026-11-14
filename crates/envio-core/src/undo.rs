@@ -47,6 +47,20 @@ impl UndoBook {
         id
     }
 
+    /// Removes and returns the answer offer for (account, uid), if any.
+    pub fn take_answer(&mut self, account: &str, uid: &str) -> Option<(UndoId, Offered)> {
+        let id = self
+            .offers
+            .iter()
+            .find_map(|(id, offer)| match &offer.what {
+                Offered::Answer {
+                    account: a, uid: u, ..
+                } if a == account && u == uid => Some(*id),
+                _ => None,
+            })?;
+        self.offers.remove(&id).map(|offer| (id, offer.what))
+    }
+
     /// The offer, if its window is still open. An expired one is dropped
     /// either way: its expiry has been or is being handled by `expire`.
     pub fn take(&mut self, id: UndoId, now_ms: i64) -> Option<Offer> {

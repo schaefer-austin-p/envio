@@ -226,19 +226,20 @@ fn undo_of_a_changed_answer_restores_the_previous_one() {
     let id = s.id_of(1);
     s.open(id);
     s.answer(id, Answer::Accepted, "");
-    s.offer();
-    s.card_of(id);
+    let first = s.offer();
+    // The first answer's window ends: it is final.
+    let wait = u64::try_from(first.expires_at_ms - support::now_ms()).unwrap_or(0) + 300;
+    std::thread::sleep(Duration::from_millis(wait));
+    assert!(!s.closed(first.undo));
     s.answer(id, Answer::Declined, "");
     let second = s.offer();
     let card = s.card_of(id).unwrap();
     assert_eq!(card.answer, Some(Answer::Declined));
-    assert_eq!(s.items().len(), 2);
     s.h.send(Command::Undo { undo: second.undo });
     assert!(s.closed(second.undo));
     let card = s.card_of(id).unwrap();
     assert_eq!(card.state, CardState::Answered);
     assert_eq!(card.answer, Some(Answer::Accepted));
-    assert_eq!(s.items().len(), 1);
     let remembered = load_invites(&s.h.paths().invites()).unwrap();
     assert_eq!(remembered.len(), 1);
     assert_eq!(remembered[0].answer, "accepted");
@@ -264,6 +265,74 @@ fn window_end_closes_the_offer_and_sends() {
     assert_eq!(load_invites(&s.h.paths().invites()).unwrap().len(), 1);
 }
 
+#[test]
+fn a_second_answer_replaces_the_held_reply() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Accepted, "");
+    let first = s.offer();
+    s.card_of(id);
+    s.answer(id, Answer::Declined, "");
+    assert!(
+        !s.closed(first.undo),
+        "the replaced offer closes, not undone"
+    );
+    s.offer();
+    let items = s.items();
+    assert_eq!(items.len(), 1);
+    let eml = String::from_utf8(s.outbox().eml(&items[0].id).unwrap()).unwrap();
+    assert!(eml.contains("Subject: Declined: Planning"), "{eml}");
+    let remembered = load_invites(&s.h.paths().invites()).unwrap();
+    assert_eq!(remembered.len(), 1);
+    assert_eq!(remembered[0].reply_message_id, items[0].meta.message_id);
+}
+
+#[test]
+fn undo_of_a_double_answer_goes_back_to_before_the_first() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Accepted, "");
+    s.offer();
+    s.answer(id, Answer::Declined, "");
+    let second = s.offer();
+    s.h.send(Command::Undo { undo: second.undo });
+    assert!(s.closed(second.undo));
+    assert!(s.items().is_empty());
+    assert!(load_invites(&s.h.paths().invites()).unwrap().is_empty());
+    let card = s.open(id).unwrap();
+    assert_eq!(card.state, CardState::Open);
+}
+
+#[test]
+fn undo_is_refused_when_the_reply_is_no_longer_queued() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Accepted, "");
+    let offer = s.offer();
+    let item = s.items().remove(0);
+    s.outbox().set_state(&item.id, SendState::Sending).unwrap();
+    s.h.send(Command::Undo { undo: offer.undo });
+    assert!(!s.closed(offer.undo));
+    assert_eq!(s.items().len(), 1);
+    assert_eq!(load_invites(&s.h.paths().invites()).unwrap().len(), 1);
+}
+
+#[test]
+fn undo_is_refused_when_the_reply_is_gone() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Accepted, "");
+    let offer = s.offer();
+    let item = s.items().remove(0);
+    s.outbox().remove(&item.id).unwrap();
+    s.h.send(Command::Undo { undo: offer.undo });
+    assert!(!s.closed(offer.undo));
+    assert_eq!(load_invites(&s.h.paths().invites()).unwrap().len(), 1);
+}
 #[test]
 fn answer_offer_has_reader_scope_and_actions_have_list_scope() {
     let s = seeded(&[request(0)]);
