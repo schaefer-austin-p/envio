@@ -98,7 +98,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Inbox and accounts | `*-inbox` | Unified inbox, per-account tabs (All, then each account), unread dot, "New message" at the bottom. |
 | Add account | `*-wizard` | Email first, autodetect, then password; manual server settings behind "Set up manually". |
 | Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (later); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
-| Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.2.0. Drafts save on their own. |
+| Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.3.0. Drafts save on their own. |
 | Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
 | Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. |
 | Contacts | `*-contacts` | Superseded in part, see below. |
@@ -129,4 +129,4 @@ From the canvas notes; these win over what the boards show.
 - Sync "Push, when available" reads "While Envio is open" until a push relay
   exists.
 - No swipe actions on list rows (see above).
-- Share into Envio is 0.2.0; `mailto:` links are 0.1.0.
+- Share into Envio is 0.3.0; `mailto:` links are 0.1.0.
