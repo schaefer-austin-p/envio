@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:186
+#: qml/pages/reader/ReaderPage.qml:187
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:344
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:345
 msgid "Try again"
 msgstr ""
 
@@ -341,7 +341,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:202
+#: qml/pages/reader/ReaderPage.qml:203
 msgid "More actions"
 msgstr ""
 
@@ -483,7 +483,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:194
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:195
 msgid "Delete"
 msgstr ""
 
@@ -581,11 +581,11 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:322
+#: qml/pages/reader/ReaderPage.qml:323
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:352
+#: qml/pages/reader/ReaderPage.qml:353
 msgid "Load anyway"
 msgstr ""
 

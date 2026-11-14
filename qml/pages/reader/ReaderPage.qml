@@ -51,7 +51,8 @@ Item {
     // Mail that sets its own colours (the core says so) sits on a light
     // paper card in both themes; nothing here reads the HTML.
     readonly property bool paper: view !== null && view.ownColours === true
-    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), theme.bodyLineHeight) : ""
+    // Paper mail is the sender's own design: no injected line height (#173).
+    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), paper ? 1.0 : theme.bodyLineHeight) : ""
 
     // Qt 5's rich TextEdit reserves a remote image's space but never draws
     // it once it arrives (#163). Hidden Images load the same URLs into Qt's

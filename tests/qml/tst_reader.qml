@@ -774,6 +774,27 @@ Item {
             compare(root.page.bodyHtml.indexOf("line-height"), -1)
         }
 
+        // #173: sender-designed (paper) mail keeps its own spacing; only
+        // plain-text mail gets the board's body line height.
+        function test_paper_mail_gets_no_injected_line_height() {
+            thm.name = "airmail"
+            const v = view([], 0)
+            v.ownColours = true
+            open(v)
+            compare(root.page.bodyHtml.indexOf("line-height"), -1)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:") === 0)
+            thm.name = "carbon"
+        }
+
+        function test_plain_mail_keeps_the_airmail_line_height() {
+            thm.name = "airmail"
+            const v = view([], 0)
+            v.ownColours = false
+            open(v)
+            verify(root.page.bodyHtml.indexOf("p,li,div{line-height:160%}") > 0, root.page.bodyHtml)
+            thm.name = "carbon"
+        }
+
         // #165: a long press selects a word and offers Copy; a drag or tap
         // never selects (selectByMouse stays off so a flick scrolls).
         function entry(menu, name) {
