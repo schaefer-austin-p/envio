@@ -358,6 +358,49 @@ mod tests {
     }
 
     #[test]
+    fn the_whole_message_of_a_big_one_is_not_shown_in_the_reader() {
+        use super::succeeded;
+        use crate::api::command::ImagesChoice;
+        use crate::worker::plan::Step;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let (account, id) = (seeded.account.clone(), seeded.message);
+        let big = envio_store::NewMessage {
+            uid: 1,
+            size: envio_sync::driver::PARTIAL_ABOVE + 1,
+            envelope: envio_store::Envelope::default(),
+            flags: envio_store::Flags::default(),
+            preview: String::new(),
+        };
+        worker.store.db.upsert_message(seeded.folder, &big).unwrap();
+        worker.open_message(id, ImagesChoice::Default, 300);
+        assert!(worker.opening.contains_key(&id));
+        // A forward's whole step answers the open too.
+        worker
+            .live
+            .get_mut(&account)
+            .unwrap()
+            .wants
+            .whole
+            .insert(id);
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nthe whole 40 MB"), true);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        let shown = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageOpened { .. }));
+        assert!(!shown, "the whole message was rendered in the reader");
+        // The reader still waits, and gets the partial body next.
+        assert!(worker.opening.contains_key(&id));
+        let live = &worker.live[&account];
+        assert!(live.wants.bodies.contains(&id));
+        assert!(!live.wants.whole.contains(&id));
+    }
+
+    #[test]
     fn a_failed_rebuild_is_noticed() {
         let dir = tempfile::tempdir().unwrap();
         let (config, _) = seed(dir.path());

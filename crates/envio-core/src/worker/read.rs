@@ -378,6 +378,21 @@ impl Worker<'_> {
     /// body gone from the server.
     pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>, whole: bool) {
         self.compose_body_fetched(id, raw, whole);
+        if !self.opening.contains_key(&id) {
+            return;
+        }
+        // The whole message of a big one is the forward's. The reader gets
+        // the partial body in a step of its own, made when this one ends.
+        if whole
+            && self
+                .store
+                .db
+                .message(id)
+                .is_ok_and(|m| envio_sync::driver::is_big(m.size))
+        {
+            self.open_again.insert(id);
+            return;
+        }
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
@@ -403,6 +418,7 @@ impl Worker<'_> {
             .collect();
         for id in waiting {
             self.opening.remove(&id);
+            self.open_again.remove(&id);
             for live in self.live.values_mut() {
                 live.wants.bodies.retain(|b| *b != id);
                 live.wants.whole.remove(&id);

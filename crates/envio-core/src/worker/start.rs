@@ -148,7 +148,7 @@ impl Worker<'_> {
             .with_file_name(format!("forward-{}", compose.0));
         for info in attachments.iter().filter(|a| !a.inline) {
             let staged = std::fs::create_dir_all(&stage)
-                .and_then(|()| self.write_attachment(id, info.index, &stage));
+                .and_then(|()| super::attachment::write_attachment_of(raw, info.index, &stage));
             match staged {
                 Ok(path) => {
                     self.book
@@ -212,7 +212,16 @@ impl Worker<'_> {
     /// The body step of `id` ended well: a forward that needs the whole
     /// message makes the want again.
     pub(super) fn ask_whole_again(&mut self, id: MessageRowId) {
+        let open = self.open_again.remove(&id);
         if !self.whole_again.remove(&id) {
+            if open {
+                let live = self
+                    .account_of(id)
+                    .and_then(|account| self.live.get_mut(&account));
+                if let Some(live) = live.filter(|l| !l.wants.bodies.contains(&id)) {
+                    live.wants.bodies.push(id);
+                }
+            }
             return;
         }
         let live = self

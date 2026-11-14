@@ -87,6 +87,9 @@ pub(crate) struct Worker<'s> {
     /// Messages whose running body step found a forward that needs the
     /// whole message (see `Worker::wait_for_whole`).
     whole_again: BTreeSet<MessageRowId>,
+    /// Open messages that got a whole big message and still wait for their
+    /// partial body (see `Worker::body_fetched`).
+    open_again: BTreeSet<MessageRowId>,
     /// The thread that does the network half of account setup.
     setup: Arc<SetupThread>,
     /// The newest `Detect` ticket by address: an older answer is dropped.
@@ -213,6 +216,7 @@ impl<'s> Worker<'s> {
             book: Arc::clone(book),
             composing: BTreeMap::new(),
             whole_again: BTreeSet::new(),
+            open_again: BTreeSet::new(),
             setup: Arc::clone(setup),
             detecting: BTreeMap::new(),
             probing: BTreeMap::new(),

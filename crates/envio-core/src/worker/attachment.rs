@@ -42,9 +42,16 @@ impl Worker<'_> {
             .bodies
             .read(message.folder, message.uid)
             .map_err(io::Error::other)?;
-        let bytes = envio_mime::attachment_bytes(&raw, index)
+        write_attachment_of(&raw, index, dir)
+    }
+}
+
+/// Writes attachment `index` of the message `raw` into `dir` under a safe name.
+pub(super) fn write_attachment_of(raw: &[u8], index: usize, dir: &Path) -> io::Result<PathBuf> {
+    {
+        let bytes = envio_mime::attachment_bytes(raw, index)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such attachment"))?;
-        let filename = match envio_mime::parse(&raw) {
+        let filename = match envio_mime::parse(raw) {
             Mime::Parsed { attachments, .. } => attachments
                 .into_iter()
                 .find(|a| a.index == index)
@@ -55,7 +62,9 @@ impl Worker<'_> {
         std::fs::create_dir_all(dir)?;
         write_new(dir, &name, &bytes)
     }
+}
 
+impl Worker<'_> {
     /// The server fetch that saves attachment `index` of `id`, when the
     /// cached message holds only a stub of it.
     fn stub_want(&self, id: MessageRowId, index: usize, dir: &Path) -> Option<PartWant> {
