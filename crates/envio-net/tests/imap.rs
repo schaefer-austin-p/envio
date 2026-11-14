@@ -382,3 +382,65 @@ async fn new_mail_caught_by_done_is_a_change() {
     assert_eq!(woke, Woke::Changed);
     session.logout().await.unwrap();
 }
+
+/// Opens a session on a fake server and returns it with the transcript.
+async fn fetching(script: Script) -> (ImapSession, support::fake_imap::Transcript) {
+    let cert = Cert::self_signed("localhost");
+    let (port, transcript) = serve(
+        &cert,
+        Script {
+            implicit: true,
+            fetch_flags: true,
+            ..script
+        },
+    )
+    .await;
+    let endpoint = Endpoint {
+        pin: Some(Fingerprint::of(&cert.der)),
+        ..Endpoint::new("localhost", port, Security::Tls)
+    };
+    let credentials = Credentials::new("alice", "s3cret");
+    let session = ImapSession::open(&endpoint, &Roots::empty(), &credentials)
+        .await
+        .unwrap();
+    (session, transcript)
+}
+
+/// Every other UID, so no runs collapse and the set needs several chunks.
+fn fragmented_uids() -> Vec<u32> {
+    (0..3000).map(|n| n * 2 + 1).collect()
+}
+
+fn fetch_commands(transcript: &support::fake_imap::Transcript) -> usize {
+    transcript
+        .lines()
+        .iter()
+        .filter(|(_, line)| line.contains("UID FETCH"))
+        .count()
+}
+
+#[tokio::test]
+async fn fetch_flags_over_several_chunks_merges_every_update() {
+    let uids = fragmented_uids();
+    let (mut session, transcript) = fetching(Script::default()).await;
+    let updates = session.fetch_flags(&uids, None).await.unwrap();
+    let got: Vec<u32> = updates.iter().map(|u| u.uid).collect();
+    // The fake numbers replies per command, but every chunk's UIDs arrive,
+    // in order.
+    assert_eq!(got, uids);
+    assert!(fetch_commands(&transcript) >= 2, "one chunk only");
+}
+
+#[tokio::test]
+async fn fetch_flags_fails_when_a_later_chunk_fails() {
+    let uids = fragmented_uids();
+    let (mut session, transcript) = fetching(Script {
+        fetch_fails_from: 2,
+        ..Script::default()
+    })
+    .await;
+    let result = session.fetch_flags(&uids, None).await;
+    assert!(result.is_err(), "{result:?}");
+    // It stopped at the failing chunk.
+    assert_eq!(fetch_commands(&transcript), 2);
+}

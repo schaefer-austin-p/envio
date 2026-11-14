@@ -44,8 +44,12 @@ impl MessageFlags {
     }
 }
 
-/// `1:3,7,9:10` for UIDs in any order; None for no UIDs.
-pub fn uid_set(uids: &[u32]) -> Option<String> {
+/// Longest UID set sent in one command. Servers cap a command line (often
+/// 8 to 64 KiB); this leaves room for the tag, command and fetch items.
+pub const MAX_SET_LEN: usize = 4096;
+
+/// The sorted, deduplicated UIDs as `start` or `start:end` runs.
+fn uid_runs(uids: &[u32]) -> Vec<String> {
     let mut sorted = uids.to_vec();
     sorted.sort_unstable();
     sorted.dedup();
@@ -62,7 +66,35 @@ pub fn uid_set(uids: &[u32]) -> Option<String> {
             format!("{start}:{end}")
         });
     }
+    parts
+}
+
+/// `1:3,7,9:10` for UIDs in any order; None for no UIDs.
+pub fn uid_set(uids: &[u32]) -> Option<String> {
+    let parts = uid_runs(uids);
     (!parts.is_empty()).then(|| parts.join(","))
+}
+
+/// Like [`uid_set`], split into sets of at most `max_len` bytes each (a
+/// single run is never split, and one is at most 21 bytes), each with how
+/// many UIDs it names. Empty for no UIDs.
+pub fn uid_set_chunks(uids: &[u32], max_len: usize) -> Vec<(String, usize)> {
+    let mut chunks: Vec<(String, usize)> = Vec::new();
+    for run in uid_runs(uids) {
+        let named = match run.split_once(':') {
+            Some((a, b)) => b.parse::<usize>().unwrap_or(0) - a.parse::<usize>().unwrap_or(0) + 1,
+            None => 1,
+        };
+        match chunks.last_mut() {
+            Some((last, count)) if last.len() + 1 + run.len() <= max_len => {
+                last.push(',');
+                last.push_str(&run);
+                *count += named;
+            }
+            _ => chunks.push((run, named)),
+        }
+    }
+    chunks
 }
 
 /// An IMAP quoted string. Non-ASCII goes through [`search_text`] instead.
@@ -311,6 +343,47 @@ mod tests {
             uid_set(&[u32::MAX - 1, u32::MAX]).as_deref(),
             Some("4294967294:4294967295")
         );
+    }
+
+    #[test]
+    fn uid_set_chunks_respect_the_limit() {
+        assert!(uid_set_chunks(&[], 10).is_empty());
+        let sets = |uids: &[u32], max| uid_set_chunks(uids, max);
+        assert_eq!(sets(&[1, 2, 3, 9], 100), [("1:3,9".to_string(), 4)]);
+        // "1,3" is 3 bytes: exactly full, so 5 starts a new chunk.
+        assert_eq!(
+            sets(&[1, 3, 5], 3),
+            [("1,3".to_string(), 2), ("5".to_string(), 1)]
+        );
+        assert_eq!(
+            sets(&[1, 3, 5, 7], 3),
+            [("1,3".to_string(), 2), ("5,7".to_string(), 2)]
+        );
+        // A run longer than the limit still goes out whole.
+        assert_eq!(
+            sets(&[10, 11, 12, 20], 3),
+            [("10:12".to_string(), 3), ("20".to_string(), 1)]
+        );
+    }
+
+    #[test]
+    fn fragmented_50k_uids_chunk_losslessly() {
+        // Every other UID: 50k runs, none collapse.
+        let uids: Vec<u32> = (0..50_000).map(|n| n * 2 + 1).collect();
+        let chunks = uid_set_chunks(&uids, MAX_SET_LEN);
+        assert!(chunks.len() > 1);
+        assert!(
+            chunks
+                .iter()
+                .all(|(c, n)| !c.is_empty() && c.len() <= MAX_SET_LEN && *n > 0)
+        );
+        assert_eq!(chunks.iter().map(|(_, n)| n).sum::<usize>(), uids.len());
+        let back: Vec<u32> = chunks
+            .iter()
+            .flat_map(|(c, _)| c.split(','))
+            .map(|n| n.parse().unwrap())
+            .collect();
+        assert_eq!(back, uids);
     }
 
     #[test]
