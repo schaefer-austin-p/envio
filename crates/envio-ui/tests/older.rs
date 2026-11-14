@@ -165,3 +165,73 @@ fn an_older_reset_brings_the_load_older_row_back_from_done() {
     assert_eq!(rows(&feed(&mut ui, Event::OlderReset)), [OlderRow::Ready]);
     assert!(ui.load_older().is_some());
 }
+
+// Reaching the end of the list loads older mail by itself (#130).
+
+fn offline() -> Event {
+    Event::OlderFailed {
+        list: F1,
+        text: "offline".into(),
+    }
+}
+
+#[test]
+fn reaching_the_end_loads_one_older_page() {
+    let mut ui = Ui::new();
+    // Not at the end of the list yet: the row is hidden, nothing is asked.
+    let _ = ui.open_list(F1);
+    let _ = feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], false));
+    assert!(ui.load_older_near_end().is_none());
+    let _ = ui.more().unwrap();
+    let last = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+    assert_eq!(rows(&feed(&mut ui, last)), [OlderRow::Ready]);
+    // One scroll can fire several times (a fling): exactly one page is asked.
+    let (command, outs) = ui.load_older_near_end().unwrap();
+    assert!(matches!(command, Command::LoadOlder { list } if list == F1));
+    assert_eq!(rows(&outs), [OlderRow::Loading]);
+    assert!(ui.load_older_near_end().is_none());
+    assert!(ui.load_older_near_end().is_none());
+}
+
+#[test]
+fn a_page_that_arrived_allows_the_next_automatic_load() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    let _ = feed(&mut ui, loaded(50, false));
+    let page_in = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+    assert_eq!(rows(&feed(&mut ui, page_in)), [OlderRow::Ready]);
+    assert!(ui.load_older_near_end().is_some());
+}
+
+#[test]
+fn a_failed_automatic_load_is_not_retried_but_the_row_still_works() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    assert_eq!(rows(&feed(&mut ui, offline())), [OlderRow::Ready]);
+    // Scrolling again does not loop; tapping the row is the fallback.
+    assert!(ui.load_older_near_end().is_none());
+    assert!(ui.load_older().is_some());
+}
+
+#[test]
+fn an_empty_automatic_batch_is_not_asked_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    // Nothing cached and the server may have more: no automatic loop.
+    assert_eq!(rows(&feed(&mut ui, loaded(0, false))), [OlderRow::Ready]);
+    assert!(ui.load_older_near_end().is_none());
+}
+
+#[test]
+fn opening_another_list_allows_an_automatic_load_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    let _ = feed(&mut ui, offline());
+    assert!(ui.load_older_near_end().is_none());
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    assert!(ui.load_older_near_end().is_some());
+}

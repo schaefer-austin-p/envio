@@ -19,6 +19,19 @@ impl Ui {
         Some((Command::LoadOlder { list }, outs))
     }
 
+    /// The list was scrolled near its end: ask for a batch, like a tap, but
+    /// only once until rows arrive (a fling fires this many times) and never
+    /// again after a failed or empty batch, so offline there is no retry
+    /// loop and the row stays for a tap.
+    pub fn load_older_near_end(&mut self) -> Option<(Command, Vec<Output>)> {
+        if self.older_auto_spent || self.older != OlderRow::Ready {
+            return None;
+        }
+        let asked = self.load_older()?;
+        self.older_auto_spent = true;
+        Some(asked)
+    }
+
     /// Moves the row to `to`; the output is empty if it is there already.
     pub(super) fn set_older(&mut self, to: OlderRow) -> Vec<Output> {
         if self.older == to {
@@ -32,6 +45,7 @@ impl Ui {
     pub(super) fn older_reset(&mut self) -> Vec<Output> {
         self.older_done = false;
         self.older_paging = false;
+        self.older_auto_spent = false;
         self.set_older(OlderRow::Hidden)
     }
 
@@ -39,6 +53,7 @@ impl Ui {
     /// holds, so the row can be pressed again.
     pub(super) fn older_dropped(&mut self) -> Vec<Output> {
         self.older_done = false;
+        self.older_auto_spent = false;
         if self.older == OlderRow::Done {
             return self.set_older(OlderRow::Ready);
         }
@@ -104,6 +119,7 @@ impl Ui {
         self.older_done = exhausted;
         if fetched > 0 {
             cur.end = false;
+            self.older_auto_spent = false;
             self.older_paging = true;
             let mut outs = self.set_older(OlderRow::Hidden);
             outs.extend(self.older_page_in());

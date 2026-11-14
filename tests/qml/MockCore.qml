@@ -81,6 +81,7 @@ Item {
     function openList(kind, id) { record("openList", [kind, id]) }
     function more() { record("more", []) }
     function loadOlder() { record("loadOlder", []) }
+    function loadOlderNearEnd() { record("loadOlderNearEnd", []) }
     function setSyncWindow(days) { record("setSyncWindow", [days]) }
     function select(id, on) { record("select", [id, on]) }
     function clearSelection() { record("clearSelection", []) }

@@ -58,7 +58,16 @@ Item {
         clip: true
         model: root.messages
         boundsBehavior: Flickable.DragOverBounds
-        onAtYEndChanged: if (atYEnd && count > 0) root.core.more()
+        // The end of the list asks for the next cached page and, once the
+        // list is at the end of the cache, for older mail from the server
+        // (the core asks for one batch only until rows arrive).
+        onAtYEndChanged: if (atYEnd && count > 0) { root.core.more(); root.core.loadOlderNearEnd() }
+        Connections {
+            target: root.core
+            function onOlderRowChanged() {
+                if (list.atYEnd && list.count > 0) root.core.loadOlderNearEnd()
+            }
+        }
         onDragEnded: if (contentY < -root.theme.gu(10)) root.core.refresh("")
         footer: LoadOlderRow {
             theme: root.theme

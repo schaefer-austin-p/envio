@@ -61,6 +61,9 @@ pub struct Ui {
     /// Rows Load older cached are to be paged in: asked as soon as the
     /// list can take a page.
     older_paging: bool,
+    /// The scroll already started a Load older that has not brought rows
+    /// since (failed or empty): no automatic retry loop, the row is tapped.
+    older_auto_spent: bool,
     mirror: Mirror,
     /// Certificates accepted for the account being set up; the next
     /// `Connect` carries them.
