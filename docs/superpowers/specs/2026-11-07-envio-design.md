@@ -48,13 +48,18 @@ book of its own, encryption (OpenPGP).
 
 ### 0.2.0
 
-- Share into envio (a file shared from another app opens compose with it
-  attached).
 - Meeting invites (iMIP): invite card in the reader with Accept, Maybe,
   Decline and an optional note; reply sent as `METHOD:REPLY` through the
   Outbox; updates and cancellations shown on the card. "Add to calendar" only
   once the platform route is checked on a phone (Content Hub `.ics` handoff
   or reserved calendar access).
+
+Design: `2026-11-14-envio-invites-design.md`.
+
+### 0.3.0
+
+- Share into envio (a file shared from another app opens compose with it
+  attached). Moved from 0.2.0 on 2026-11-14 (#201).
 
 ### Later
 
