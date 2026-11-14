@@ -1,10 +1,9 @@
 //! Folder list and folder sync, and fetching one body on open.
 
 use envio_net::imap::{FlagUpdate, Summary};
-use envio_store::{BodyState, Folder, FolderId, Message, MessageRowId};
+use envio_store::{Folder, FolderId, MessageRowId};
 
 use super::Local;
-use crate::convert::with_body;
 use crate::error::Result;
 use crate::plan::folders::plan_folders;
 use crate::plan::pending::Pending;
@@ -184,43 +183,4 @@ pub(super) fn apply_flags(
         db.delete_messages(id, &changes.remove)
     })?;
     Ok(changes.set.len() + changes.remove.len())
-}
-
-/// Downloads a message's body when it's opened: written to disk, then the
-/// row gets its preview and is marked downloaded. `None` when the message
-/// is gone from the server (its row is dropped) or the folder needs a sync
-/// first (its UIDVALIDITY changed).
-pub async fn fetch_body(
-    server: &mut impl MailServer,
-    local: &mut Local<'_>,
-    id: MessageRowId,
-) -> Result<Option<Vec<u8>>> {
-    let message = local.db.message(id)?;
-    let folder = local.db.folder(message.folder)?;
-    let state = server.select(&folder.path).await?;
-    if folder.sync.map(|sync| sync.uidvalidity) != Some(state.uid_validity) {
-        return Ok(None);
-    }
-    let size = usize::try_from(message.size).unwrap_or(usize::MAX);
-    let Some(eml) = server.fetch_body(message.uid, size).await? else {
-        local
-            .db
-            .step(|db| db.delete_messages(folder.id, &[message.uid]))?;
-        return Ok(None);
-    };
-    store_body(local, &message, &eml)?;
-    Ok(Some(eml))
-}
-
-/// Writes a downloaded body to disk, then gives the row its preview and
-/// marks it downloaded.
-pub(super) fn store_body(local: &Local<'_>, message: &Message, eml: &[u8]) -> Result<()> {
-    local.bodies.write(message.folder, message.uid, eml)?;
-    let row = with_body(message, eml);
-    local.db.step(|db| {
-        db.upsert_message(message.folder, &row)?;
-        db.set_has_attachments(message.id, row.envelope.has_attachments)?;
-        db.set_body_state(message.id, BodyState::Downloaded)
-    })?;
-    Ok(())
 }

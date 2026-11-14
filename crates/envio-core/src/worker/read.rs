@@ -104,6 +104,19 @@ pub(crate) fn render_view(
         max_image_width: width_px,
     };
     let rendered = envio_mime::render(&message, &options);
+    let mut html = rendered.html;
+    if matches!(
+        message,
+        Mime::Parsed {
+            truncated: true,
+            ..
+        }
+    ) {
+        html.push_str(&format!(
+            "<p><i>{}</i></p>",
+            escape(&text::read::text_cut_short())
+        ));
+    }
     let (raw, attachments) = match &message {
         Mime::Raw(_) => (true, Vec::new()),
         Mime::Parsed { attachments, .. } => (
@@ -121,7 +134,7 @@ pub(crate) fn render_view(
     };
     let view = MessageView {
         header,
-        html: rendered.html,
+        html,
         raw,
         blocked_images: rendered.blocked_images,
         remote_images: rendered.remote_images,
@@ -129,6 +142,12 @@ pub(crate) fn render_view(
         attachments,
     };
     (view, rendered.unsized_images)
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Unicode format characters (category Cf): invisible, and some reverse
@@ -175,7 +194,7 @@ fn numbered(name: &str, n: u32) -> String {
 }
 
 /// Writes `bytes` to a new file in `dir`, never over an existing one.
-fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+pub(super) fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     use io::Write;
     for n in 1..=1000 {
         let path = dir.join(numbered(name, n));
@@ -205,20 +224,6 @@ fn folder_name(path: &str) -> String {
         Some(last) if !last.is_empty() => last.to_owned(),
         _ => path.to_owned(),
     }
-}
-
-/// Messages above this many bytes (RFC822.SIZE) are not fetched or parsed
-/// until the user asks: the whole body is held in memory, and the HTML is
-/// converted on top of it, against a budget of a few hundred MiB.
-const OPEN_CAP_BYTES: u32 = 20 * 1024 * 1024;
-
-fn over_cap(size: u32) -> bool {
-    size > OPEN_CAP_BYTES
-}
-
-/// `size` in whole megabytes, rounded to the nearest.
-fn megabytes(size: u32) -> u32 {
-    size.saturating_add(500_000) / 1_000_000
 }
 
 impl Worker<'_> {
@@ -331,29 +336,16 @@ impl Worker<'_> {
         }
     }
 
+    /// A big message is cached as a partial body (see `BodyState::Partial`),
+    /// which shows like a whole one.
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
-        self.open_message_with(id, (images, width_px), false);
-    }
-
-    /// `anyway` lifts the size cap: the user asked for the big message.
-    pub(super) fn open_message_with(
-        &mut self,
-        id: MessageRowId,
-        (images, width_px): (ImagesChoice, u32),
-        anyway: bool,
-    ) {
+        let (images, width_px) = (images, width_px);
         self.store.open_message = Some(id);
         self.forget_other_shown(id);
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
-        if !anyway && over_cap(message.size) {
-            return self.emit(Event::MessageTooLarge {
-                id,
-                text: text::read::message_too_large(megabytes(message.size)),
-            });
-        }
-        if message.body == BodyState::Downloaded {
+        if message.body != BodyState::Missing {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
                     let shown = self.view(&message, &raw, (images, width_px));
@@ -384,8 +376,23 @@ impl Worker<'_> {
 
     /// A body step ended: show the message that waited for it. `None` is a
     /// body gone from the server.
-    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
-        self.compose_body_fetched(id, raw);
+    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>, whole: bool) {
+        self.compose_body_fetched(id, raw, whole);
+        if !self.opening.contains_key(&id) {
+            return;
+        }
+        // The whole message of a big one is the forward's. The reader gets
+        // the partial body in a step of its own, made when this one ends.
+        if whole
+            && self
+                .store
+                .db
+                .message(id)
+                .is_ok_and(|m| envio_sync::driver::is_big(m.size))
+        {
+            self.open_again.insert(id);
+            return;
+        }
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
@@ -411,50 +418,14 @@ impl Worker<'_> {
             .collect();
         for id in waiting {
             self.opening.remove(&id);
+            self.open_again.remove(&id);
             for live in self.live.values_mut() {
                 live.wants.bodies.retain(|b| *b != id);
+                live.wants.whole.remove(&id);
             }
             self.unavailable(id);
         }
-    }
-
-    pub(super) fn save_attachment(&self, id: MessageRowId, index: usize, dir: &Path) {
-        match self.write_attachment(id, index, dir) {
-            Ok(path) => self.emit(Event::AttachmentSaved { id, index, path }),
-            Err(e) => {
-                log::warn!("saving an attachment: {e}");
-                self.emit(Event::AttachmentFailed { id, index });
-                self.emit(Event::Notice {
-                    text: text::read::attachment_not_saved(),
-                });
-            }
-        }
-    }
-
-    pub(super) fn write_attachment(
-        &self,
-        id: MessageRowId,
-        index: usize,
-        dir: &Path,
-    ) -> io::Result<PathBuf> {
-        let message = self.store.db.message(id).map_err(io::Error::other)?;
-        let raw = self
-            .store
-            .bodies
-            .read(message.folder, message.uid)
-            .map_err(io::Error::other)?;
-        let bytes = envio_mime::attachment_bytes(&raw, index)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such attachment"))?;
-        let filename = match envio_mime::parse(&raw) {
-            Mime::Parsed { attachments, .. } => attachments
-                .into_iter()
-                .find(|a| a.index == index)
-                .and_then(|a| a.filename),
-            Mime::Raw(_) => None,
-        };
-        let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
-        std::fs::create_dir_all(dir)?;
-        write_new(dir, &name, &bytes)
+        self.parts_failed(account);
     }
 }
 
@@ -505,7 +476,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         fs::create_dir_all(&b_dir).unwrap();
         fs::write(b_dir.join("0.png"), b"hello").unwrap();
         // A's body arrives.
-        worker.body_fetched(seeded.message, Some(WITH_IMAGE));
+        worker.body_fetched(seeded.message, Some(WITH_IMAGE), false);
         assert!(b_dir.join("0.png").exists());
         let a_dir = worker
             .store
@@ -579,6 +550,28 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx).0;
         assert_eq!(view.header.from, "x@evil.example");
         assert_eq!(view.header.from_address, "x@evil.example");
+    }
+
+    #[test]
+    fn the_view_says_when_a_text_was_cut_short() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+        };
+        let cut = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\
+            X-Envio-Truncated: 9999999\r\n\r\nHi\r\n";
+        let whole = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
+        let note = text::read::text_cut_short();
+        let shown = render_view(cut, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(shown.contains(&note), "{shown}");
+        let shown = render_view(whole, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(!shown.contains(&note), "{shown}");
     }
 
     #[test]

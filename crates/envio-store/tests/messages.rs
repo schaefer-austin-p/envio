@@ -55,6 +55,17 @@ fn a_message_round_trips() {
 }
 
 #[test]
+fn a_partial_body_is_its_own_state_and_survives_an_upsert() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = inbox(&db, "a1");
+    let id = db.upsert_message(folder, &message(5, "Old", 1)).unwrap();
+    db.set_body_state(id, BodyState::Partial).unwrap();
+    assert_eq!(db.message(id).unwrap().body, BodyState::Partial);
+    db.upsert_message(folder, &message(5, "New", 2)).unwrap();
+    assert_eq!(db.message(id).unwrap().body, BodyState::Partial);
+}
+
+#[test]
 fn upsert_updates_by_uid_and_keeps_the_body_state() {
     let db = Db::open_in_memory().unwrap();
     let folder = inbox(&db, "a1");

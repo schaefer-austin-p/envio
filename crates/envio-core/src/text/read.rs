@@ -7,16 +7,13 @@ pub fn blocked_images() -> String {
     tr("Image not loaded")
 }
 
-pub fn message_unavailable() -> String {
-    tr("This message is not available right now. Check your connection and try again")
+/// Shown after a message's text that envio kept only the start of.
+pub fn text_cut_short() -> String {
+    tr("The rest of this long text is not shown")
 }
 
-/// `megabytes` is the message's size, rounded.
-pub fn message_too_large(megabytes: u32) -> String {
-    fill(
-        &tr("This message is {megabytes} MB. Opening it may use a lot of memory."),
-        &[("megabytes", &megabytes.to_string())],
-    )
+pub fn message_unavailable() -> String {
+    tr("This message is not available right now. Check your connection and try again")
 }
 
 pub fn attachment_not_saved() -> String {

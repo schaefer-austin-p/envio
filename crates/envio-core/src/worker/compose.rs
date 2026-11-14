@@ -123,6 +123,25 @@ impl Worker<'_> {
             waiting.retain(|(c, _)| *c != compose);
             !waiting.is_empty()
         });
+        let composing = &self.composing;
+        self.whole_again.retain(|id| composing.contains_key(id));
+        // A whole fetch queued for a forward nobody waits for any more is
+        // withdrawn (one already running finishes, its result is dropped).
+        for live in self.live.values_mut() {
+            let gone: Vec<envio_store::MessageRowId> = live
+                .wants
+                .whole
+                .iter()
+                .copied()
+                .filter(|id| !composing.contains_key(id))
+                .collect();
+            for id in gone {
+                live.wants.whole.remove(&id);
+                if !self.opening.contains_key(&id) {
+                    live.wants.bodies.retain(|b| *b != id);
+                }
+            }
+        }
     }
 
     pub(super) fn send(&mut self, compose: ComposeId, draft: &DraftInput) {
@@ -281,8 +300,109 @@ mod tests {
         assert!(worker.live[&account].wants.bodies.contains(&id));
         worker.forget_waiting(C);
         assert!(worker.composing.is_empty());
-        worker.compose_body_fetched(id, None);
+        worker.compose_body_fetched(id, None, false);
         assert!(said(&sink).is_empty());
+    }
+
+    const WITH_PDF: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/plain\r\n\r\nhi\r\n\
+--XX\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\n\
+Content-Disposition: attachment; filename=\"big.pdf\"\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
+    /// A forward of the seeded (big) message waits for its body, which is
+    /// `state` in the cache.
+    fn forwarding<'a>(
+        dir: &std::path::Path,
+        sink: &'a Sink,
+        state: BodyState,
+    ) -> (Worker<'a>, envio_store::MessageRowId) {
+        let (config, seeded) = seed(dir);
+        let mut worker = open(&config, sink);
+        let id = seeded.message;
+        worker.store.db.set_body_state(id, state).unwrap();
+        let big = envio_store::NewMessage {
+            uid: 1,
+            size: envio_sync::driver::PARTIAL_ABOVE + 1,
+            envelope: envio_store::Envelope::default(),
+            flags: envio_store::Flags::default(),
+            preview: String::new(),
+        };
+        worker.store.db.upsert_message(seeded.folder, &big).unwrap();
+        worker.start_compose(C, StartFrom::Forward { id }, (None, None));
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        (worker, id)
+    }
+
+    #[test]
+    fn a_forward_of_a_big_message_keeps_its_attachments() {
+        for state in [BodyState::Missing, BodyState::Partial] {
+            let dir = tempfile::tempdir().unwrap();
+            let sink = Sink::default();
+            let (mut worker, id) = forwarding(dir.path(), &sink, state);
+            if state == BodyState::Partial {
+                // What the cache holds: the text and a stub of the file.
+                let message = worker.store.db.message(id).unwrap();
+                let stub =
+                    b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nhi\r\n";
+                worker
+                    .store
+                    .bodies
+                    .write(message.folder, message.uid, stub)
+                    .unwrap();
+            }
+            worker.compose_body_fetched(id, Some(WITH_PDF), true);
+            let events = said(&sink);
+            assert!(
+                events.iter().any(|e| matches!(e, Event::Attached { .. })),
+                "{state:?}: {events:?}"
+            );
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| matches!(e, Event::AttachFailed { .. })),
+                "{state:?}: {events:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn closing_a_forward_waiting_for_the_whole_message_forgets_the_ask() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = forwarding(dir.path(), &sink, BodyState::Partial);
+        worker.whole_again.insert(id);
+        worker.forget_waiting(C);
+        assert!(worker.whole_again.is_empty());
+    }
+
+    #[test]
+    fn closing_a_forward_withdraws_a_whole_fetch_not_yet_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = forwarding(dir.path(), &sink, BodyState::Missing);
+        let account = worker.account_of(id).unwrap();
+        assert!(worker.live[&account].wants.whole.contains(&id));
+        worker.forget_waiting(C);
+        let wants = &worker.live[&account].wants;
+        assert!(!wants.whole.contains(&id), "the whole fetch stays queued");
+        assert!(!wants.bodies.contains(&id));
+    }
+
+    #[test]
+    fn closing_a_forward_keeps_the_fetch_an_open_reader_waits_for() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = forwarding(dir.path(), &sink, BodyState::Missing);
+        let account = worker.account_of(id).unwrap();
+        worker
+            .opening
+            .insert(id, (crate::api::command::ImagesChoice::Default, 300));
+        worker.forget_waiting(C);
+        let wants = &worker.live[&account].wants;
+        assert!(wants.bodies.contains(&id));
+        assert!(!wants.whole.contains(&id));
     }
 
     #[test]

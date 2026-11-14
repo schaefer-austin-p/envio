@@ -42,6 +42,10 @@ pub struct Script {
     /// With `fetch_flags`: the 1-based UID FETCH from which the
     /// connection is dropped mid-command; 0 for never.
     pub fetch_fails_from: usize,
+    /// With `fetch_flags`: when not empty, the nth UID FETCH is answered
+    /// with the nth of these (untagged lines, each ending in CRLF) instead
+    /// of the flags; the commands after the last get no untagged line.
+    pub fetch_canned: &'static [&'static str],
 }
 
 impl Default for Script {
@@ -60,6 +64,7 @@ impl Default for Script {
             before_idle_ok: "",
             fetch_flags: false,
             fetch_fails_from: 0,
+            fetch_canned: &[],
         }
     }
 }
@@ -226,6 +231,10 @@ fn fetch_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -
     let nth = *fetches;
     if script.fetch_fails_from != 0 && nth >= script.fetch_fails_from {
         return None;
+    }
+    if !script.fetch_canned.is_empty() {
+        let canned = script.fetch_canned.get(nth - 1).copied().unwrap_or("");
+        return Some(format!("{canned}{tag} OK done\r\n"));
     }
     let set = command.split(' ').nth(3).unwrap_or("");
     let body: String = uids_in(set)

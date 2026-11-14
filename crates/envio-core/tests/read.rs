@@ -623,8 +623,17 @@ fn folders_are_listed_role_first() {
 /// A cached message whose server size is `size` bytes (the cached body is
 /// small: the size is what the cap looks at).
 fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
+    seeded_sized_with(size, Some("pw"), false)
+}
+
+fn seeded_sized_with(
+    size: u32,
+    password: Option<&str>,
+    foreground: bool,
+) -> (Seeded, MessageRowId) {
     let mut h = Harness::unstarted();
-    let key = h.seed_account(ME, Some("pw"));
+    h.foreground = foreground;
+    let key = h.seed_account(ME, password);
     let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
     conn.execute("UPDATE messages SET size = ?1", [size])
@@ -637,71 +646,65 @@ fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
 }
 
 #[test]
-fn a_message_over_the_cap_is_not_opened_until_asked() {
+fn a_big_message_opens() {
     let (s, id) = seeded_sized(30 * 1000 * 1000);
     s.h.send(Command::OpenMessage {
         id,
         images: ImagesChoice::Default,
         width_px: 300,
     });
-    let text = s.h.wait(|e| match e {
-        Event::MessageTooLarge { id: i, text } if *i == id => Some(text.clone()),
+    s.h.wait(|e| match e {
+        Event::MessageOpened { id: i, .. } if *i == id => Some(()),
         _ => None,
     });
-    assert!(text.contains("30 MB"), "{text}");
-    s.h.send(Command::OpenMessageAnyway {
-        id,
-        images: ImagesChoice::Default,
-        width_px: 300,
-    });
-    let view = s.h.wait(|e| match e {
-        Event::MessageOpened { id: i, view } if *i == id => Some(view.clone()),
-        _ => None,
-    });
-    assert!(view.html.contains("Hello"));
 }
 
 #[test]
-fn open_anyway_fetches_a_body_that_is_not_on_disk() {
-    let server = serve(Kind::Message);
-    let mut h = Harness::unstarted();
-    h.foreground = true;
-    let key = h.seed_account_at(ME, Some("pw"), server.port);
-    h.pin_imap(&key, &server.hex);
-    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
-    let db = Db::open(&h.paths().db()).unwrap();
-    let folder = db.folders(&key).unwrap()[0].id;
-    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
-    db.set_body_state(id, BodyState::Missing).unwrap();
+fn a_partial_body_opens_from_disk() {
+    let (s, id) = seeded_sized(30 * 1000 * 1000);
+    let db = Db::open(&s.h.paths().db()).unwrap();
+    db.set_body_state(id, BodyState::Partial).unwrap();
     drop(db);
-    let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
-    conn.execute("UPDATE messages SET size = ?1", [30 * 1000 * 1000_u32])
+    let view = s.open(id, ImagesChoice::Default);
+    assert!(view.html.contains("Hello"));
+}
+
+const STUBBED: &str = "From: a@x.test\r\nSubject: message 1\r\nMIME-Version: 1.0\r\n\
+    Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+    --b\r\nContent-Type: text/plain\r\n\r\nHello\r\n\
+    --b\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\n\
+    Content-Disposition: attachment; filename=\"big.pdf\"\r\n\
+    Content-Transfer-Encoding: base64\r\n\
+    X-Envio-Section: 2\r\nX-Envio-Size: 31457280\r\n\r\n\r\n--b--\r\n";
+
+/// The attachment of a partial body is on the server: with no connection it
+/// is not saved, and no empty file stands in for it.
+#[test]
+fn a_stubbed_attachment_is_not_saved_as_an_empty_file_without_a_session() {
+    let (s, id) = seeded_sized_with(30 * 1000 * 1000, None, true);
+    let db = Db::open(&s.h.paths().db()).unwrap();
+    let message = db.message(id).unwrap();
+    db.set_body_state(id, BodyState::Partial).unwrap();
+    drop(db);
+    envio_store::Bodies::new(s.h.paths().bodies())
+        .write(message.folder, message.uid, STUBBED.as_bytes())
         .unwrap();
-    drop(conn);
-    h.start_core();
-    h.send(Command::OpenMessage {
+    let dir = s.h.paths().db().parent().unwrap().join("saved");
+    s.h.send(Command::SaveAttachment {
         id,
-        images: ImagesChoice::Default,
-        width_px: 300,
+        index: 0,
+        dir: dir.clone(),
     });
-    h.wait(|e| match e {
-        Event::MessageTooLarge { id: i, .. } if *i == id => Some(()),
+    s.h.wait(|e| match e {
+        Event::AttachmentSaved { .. } => panic!("saved without the server"),
+        Event::AttachmentFailed { id: i, .. } if *i == id => Some(()),
         _ => None,
     });
-    h.send(Command::OpenMessageAnyway {
-        id,
-        images: ImagesChoice::Default,
-        width_px: 300,
-    });
-    // The fetch completes and the message opens; no second cap notice.
-    let opened = h.wait(|e| match e {
-        Event::MessageTooLarge { id: i, .. } if *i == id => Some(false),
-        Event::MessageOpened { id: i, .. } if *i == id => Some(true),
-        _ => None,
-    });
-    assert!(opened, "MessageTooLarge came again");
-    let db = Db::open(&h.paths().db()).unwrap();
-    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+    assert!(
+        !dir.exists(),
+        "{:?}",
+        std::fs::read_dir(&dir).map(|d| d.count())
+    );
 }
 
 #[test]
