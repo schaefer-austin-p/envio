@@ -130,14 +130,14 @@ impl Worker<'_> {
         };
         self.compose_ready(compose, draft, quoted);
         if matches!(from, StartFrom::Forward { .. }) {
-            self.attach_originals(compose, id, raw);
+            self.attach_originals(compose, raw);
         }
     }
 
     /// Forward with attachments: each non-inline attachment of the original
     /// goes through the same path as a picked file (a copy under a safe name
     /// in the draft's folder, `Attached` or `AttachFailed`).
-    fn attach_originals(&mut self, compose: ComposeId, id: MessageRowId, raw: &[u8]) {
+    fn attach_originals(&mut self, compose: ComposeId, raw: &[u8]) {
         let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(raw) else {
             return;
         };
