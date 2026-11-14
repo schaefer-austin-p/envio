@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 19:28+0100\n"
+"POT-Creation-Date: 2026-11-14 22:27+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:385
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:392
 msgid "Try again"
 msgstr ""
 
@@ -579,6 +579,70 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
+#: qml/pages/reader/InviteCard.qml:28 qml/pages/reader/ReplyBar.qml:21
+msgid "Reply"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:29
+msgid "Updated"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:30
+msgid "Cancelled"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:31
+msgid "Invitation"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:48 qml/pages/reader/InviteCard.qml:59
+msgid "%1 to %2"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:64
+msgid "%1 · Repeats"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:152
+msgid "Time zone not recognised"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:185
+msgid "Change"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:193
+msgid "Sending…"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:211
+msgid "Not sent, see Outbox"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:229
+msgid "Accept"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:236
+msgid "Maybe"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:243
+msgid "Decline"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:251
+msgid "Hide note"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:251
+msgid "Add a note"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:260
+msgid "Note to %1"
+msgstr ""
+
 #: qml/pages/reader/LinkSheet.qml:21
 msgid "Open this link?"
 msgstr ""
@@ -591,16 +655,12 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:363
+#: qml/pages/reader/ReaderPage.qml:370
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:393
+#: qml/pages/reader/ReaderPage.qml:400
 msgid "Load anyway"
-msgstr ""
-
-#: qml/pages/reader/ReplyBar.qml:21
-msgid "Reply"
 msgstr ""
 
 #: qml/pages/reader/ReplyBar.qml:28

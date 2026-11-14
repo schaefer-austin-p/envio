@@ -89,6 +89,7 @@ Item {
     // False: the selected row is gone, nothing was acted on.
     property bool actRuns: true
     function act(action, folder) { record("act", [action, folder]); return actRuns }
+    function answerInvite(id, answer, note) { record("answerInvite", [id, answer, note]) }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function openAnyway(id, loadImages, widthPx) { record("openAnyway", [id, loadImages, widthPx]) }

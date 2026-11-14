@@ -283,6 +283,13 @@ Item {
                 view: root.view !== null ? root.view : root.noView
                 accountName: root.accountName
             }
+            InviteCard {
+                objectName: "inviteCard"
+                width: parent.width
+                theme: root.theme
+                core: root.core
+                view: root.view
+            }
             Rectangle {
                 objectName: "bodyCard"
                 // Above the attachment chips: the end handle can reach below the card.

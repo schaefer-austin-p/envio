@@ -128,6 +128,19 @@ Item {
             compare(find("headerSubject").text, evil)
         }
 
+        function test_invite_card_shows_only_with_an_invite() {
+            open(view([], 0))
+            verify(!shown("inviteCard"))
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 0 }
+            open(v)
+            verify(shown("inviteCard"))
+        }
+
         function test_opens_the_message_on_show() {
             const calls = mock.called("open")
             compare(calls.length, 1)
