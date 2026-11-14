@@ -125,6 +125,23 @@ impl Worker<'_> {
         });
         let composing = &self.composing;
         self.whole_again.retain(|id| composing.contains_key(id));
+        // A whole fetch queued for a forward nobody waits for any more is
+        // withdrawn (one already running finishes, its result is dropped).
+        for live in self.live.values_mut() {
+            let gone: Vec<envio_store::MessageRowId> = live
+                .wants
+                .whole
+                .iter()
+                .copied()
+                .filter(|id| !composing.contains_key(id))
+                .collect();
+            for id in gone {
+                live.wants.whole.remove(&id);
+                if !self.opening.contains_key(&id) {
+                    live.wants.bodies.retain(|b| *b != id);
+                }
+            }
+        }
     }
 
     pub(super) fn send(&mut self, compose: ComposeId, draft: &DraftInput) {
@@ -358,6 +375,34 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         worker.whole_again.insert(id);
         worker.forget_waiting(C);
         assert!(worker.whole_again.is_empty());
+    }
+
+    #[test]
+    fn closing_a_forward_withdraws_a_whole_fetch_not_yet_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = forwarding(dir.path(), &sink, BodyState::Missing);
+        let account = worker.account_of(id).unwrap();
+        assert!(worker.live[&account].wants.whole.contains(&id));
+        worker.forget_waiting(C);
+        let wants = &worker.live[&account].wants;
+        assert!(!wants.whole.contains(&id), "the whole fetch stays queued");
+        assert!(!wants.bodies.contains(&id));
+    }
+
+    #[test]
+    fn closing_a_forward_keeps_the_fetch_an_open_reader_waits_for() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = forwarding(dir.path(), &sink, BodyState::Missing);
+        let account = worker.account_of(id).unwrap();
+        worker
+            .opening
+            .insert(id, (crate::api::command::ImagesChoice::Default, 300));
+        worker.forget_waiting(C);
+        let wants = &worker.live[&account].wants;
+        assert!(wants.bodies.contains(&id));
+        assert!(!wants.whole.contains(&id));
     }
 
     #[test]
