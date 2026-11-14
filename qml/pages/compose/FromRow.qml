@@ -89,8 +89,12 @@ Item {
                 theme: root.theme
                 width: sheet.width
                 onClicked: { sheet.close(); root.chosen(model.key) }
+                // Inset like the sheet's title and centred in the row.
                 Column {
-                    width: parent.width
+                    objectName: "accountText-" + pick.model.key
+                    x: root.theme.gu(2.5)
+                    y: root.theme.gu(1.75)
+                    width: parent.width - root.theme.gu(5)
                     Text {
                         textFormat: Text.PlainText
                         width: parent.width
