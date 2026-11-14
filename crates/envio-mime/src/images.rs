@@ -77,6 +77,9 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
     };
     let mut rest = html;
     let mut ends: Option<Ends> = None;
+    // The pixel width of each open table cell, so a percentage image
+    // width is a share of its cell rather than of the whole reader.
+    let mut cells: Vec<Option<u32>> = Vec::new();
     while let Some(start) = rest.find('<') {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
@@ -95,7 +98,8 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             _ if is_unwrapped(raw) => {}
             Some(tag) if tag.name == "img" => {
                 let at = out.html.len();
-                if let Some(width) = image(&tag, options, &mut out) {
+                let cell = cells.iter().rev().find_map(|w| *w);
+                if let Some(width) = image(&tag, options, cell, &mut out) {
                     let end = out.html.len();
                     images.push(Placed { at, end, width });
                 }
@@ -103,9 +107,17 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
                 widths::carry(&mut tag, options.max_image_width);
                 limit_width(&mut tag, options.max_image_width);
+                if matches!(tag.name.as_str(), "td" | "th") {
+                    cells.push(tag.attr("width").and_then(pixels));
+                }
                 tag.write(&mut out.html);
             }
-            _ => out.html.push_str(raw),
+            _ => {
+                if raw.starts_with("</td") || raw.starts_with("</th") {
+                    cells.pop();
+                }
+                out.html.push_str(raw);
+            }
         }
         rest = &rest[start + len..];
     }
@@ -174,7 +186,12 @@ fn unescape(value: &str) -> String {
 /// Writes the image, or its label when it isn't loaded. `Some` with the
 /// declared width when it stands for a picture; `None` for a tracker or an
 /// unusable `src`.
-fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Option<u32>> {
+fn image(
+    tag: &Tag,
+    options: &RenderOptions,
+    cell: Option<u32>,
+    out: &mut Rendered,
+) -> Option<Option<u32>> {
     let src = tag.attr("src").unwrap_or_default().trim();
     let width = size(tag, "width");
     let height = size(tag, "height");
@@ -207,7 +224,12 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
         return None;
     };
     let declared = width;
-    let (width, height) = match (width, share_of(tag, options.max_image_width)) {
+    let room = match (options.max_image_width, cell) {
+        (0, _) => 0,
+        (max, Some(cell)) => cell.min(max),
+        (max, None) => max,
+    };
+    let (width, height) = match (width, share_of(tag, room)) {
         // Qt's rich text has no percentage or max-width for an image and
         // would draw it at the file's size; the height in another unit
         // would distort it, so only the width is set.
@@ -232,7 +254,8 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
     Some(declared)
 }
 
-/// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`,
+/// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`
+/// (the reader, or the image's cell when narrower),
 /// capped by a pixel `max-width`; `None` without one or when `max` is 0.
 fn share_of(tag: &Tag, max: u32) -> Option<u32> {
     let style = tag.attr("style");

@@ -180,6 +180,29 @@ fn percentage_widths_become_a_share_of_the_reader() {
     }
 }
 
+/// A social icon in a 32 px cell must not grow to the reader's width.
+#[test]
+fn a_percentage_width_is_a_share_of_its_cell() {
+    let html = r#"<table><tr><td width="32"><img src="https://example.com/a.png" style="width:100%"></td><td><img src="https://example.com/b.png" style="width:100%"></td></tr></table>"#;
+    let out = sanitize_html(html, &allowed()).html;
+    assert!(
+        out.contains(r#"<img src="https://example.com/a.png" width="32">"#),
+        "{out}"
+    );
+    // Outside the narrow cell, the share is of the reader again.
+    assert!(
+        out.contains(r#"<img src="https://example.com/b.png" width="600">"#),
+        "{out}"
+    );
+    // A cell wider than the reader is capped by the reader.
+    let html = r#"<table><tr><td width="580"><img src="https://example.com/a.png" width="50%"></td></tr></table>"#;
+    assert!(
+        sanitize_html(html, &allowed())
+            .html
+            .contains(r#"<img src="https://example.com/a.png" width="290">"#)
+    );
+}
+
 #[test]
 fn a_percentage_width_is_left_alone_without_a_limit() {
     let options = RenderOptions {
