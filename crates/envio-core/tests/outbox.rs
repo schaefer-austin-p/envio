@@ -28,6 +28,7 @@ fn seed_item(h: &Harness, account: &str, state: SendState) -> String {
     let item = outbox
         .enqueue(
             NewOutboxItem {
+                send_after_ms: 0,
                 account: account.to_owned(),
                 message_id: "<q1@example.org>".into(),
                 queued_at_ms: 5_000,

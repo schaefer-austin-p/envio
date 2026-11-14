@@ -4,7 +4,7 @@
 //! resends on its own. Pure.
 
 use envio_net::smtp::SendError;
-use envio_store::SendState;
+use envio_store::{OutboxMeta, SendState};
 
 use crate::error::{ErrorKind, net_kind};
 
@@ -31,6 +31,25 @@ pub fn item_step(state: &SendState) -> ItemStep {
         SendState::Sending | SendState::MayHaveBeenSent => ItemStep::Resolve,
         SendState::Failed { .. } => ItemStep::Wait,
     }
+}
+
+/// Whether the item waits out its send-after time (an invite answer that can
+/// still be undone). A held item is not due: callers skip it for `Send`.
+pub fn held(meta: &OutboxMeta, now_ms: i64) -> bool {
+    meta.send_after_ms > now_ms
+}
+
+/// The earliest send-after time past `after_ms` among Queued items: when the
+/// loop must wake to send what was held.
+pub fn next_release<'a>(
+    metas: impl IntoIterator<Item = &'a OutboxMeta>,
+    after_ms: i64,
+) -> Option<i64> {
+    metas
+        .into_iter()
+        .filter(|meta| meta.state == SendState::Queued && meta.send_after_ms > after_ms.max(0))
+        .map(|meta| meta.send_after_ms)
+        .min()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +126,36 @@ mod tests {
         assert_eq!(item_step(&SendState::Sending), ItemStep::Resolve);
         let failed = SendState::Failed { reason: "x".into() };
         assert_eq!(item_step(&failed), ItemStep::Wait);
+    }
+
+    fn meta(send_after_ms: i64) -> OutboxMeta {
+        OutboxMeta {
+            account: "1".into(),
+            message_id: "<a@example.org>".into(),
+            queued_at_ms: 0,
+            state: SendState::Queued,
+            from: "ada@example.org".into(),
+            recipients: vec!["bob@example.org".into()],
+            send_after_ms,
+        }
+    }
+
+    #[test]
+    fn held_is_true_until_send_after() {
+        assert!(!held(&meta(0), 0));
+        assert!(!held(&meta(0), 5_000));
+        assert!(held(&meta(5_000), 4_999));
+        assert!(!held(&meta(5_000), 5_000));
+    }
+
+    #[test]
+    fn the_next_release_is_the_earliest_queued_one_past_the_mark() {
+        let mut sent = meta(1_000);
+        sent.state = SendState::Accepted;
+        let all = [meta(0), meta(9_000), meta(4_000), sent];
+        assert_eq!(next_release(&all, i64::MIN), Some(4_000));
+        assert_eq!(next_release(&all, 4_000), Some(9_000));
+        assert_eq!(next_release(&all, 9_000), None);
     }
 
     fn fp(byte: u8) -> Fingerprint {

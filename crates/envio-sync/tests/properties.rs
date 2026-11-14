@@ -130,6 +130,7 @@ async fn unsent_mail_is_never_lost_or_resent() {
                 0 => {
                     let id = format!("m{step}");
                     let item = NewOutboxItem {
+                        send_after_ms: 0,
                         account: ACCOUNT.into(),
                         message_id: format!("<{id}@example.org>"),
                         queued_at_ms: now,
@@ -164,6 +165,7 @@ async fn unsent_mail_is_never_lost_or_resent() {
                         let id = filed[rng.below(filed.len() as u64) as usize].clone();
                         let short = id.trim_end_matches("@example.org");
                         let item = NewOutboxItem {
+                            send_after_ms: 0,
                             account: ACCOUNT.into(),
                             message_id: format!("<{id}>"),
                             queued_at_ms: now,

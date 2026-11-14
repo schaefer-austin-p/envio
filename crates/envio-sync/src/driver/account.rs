@@ -7,7 +7,7 @@ use super::folders::{Synced, sync_folder, sync_folders};
 use super::replay::{Replayed, replay};
 use crate::error::{ErrorKind, Result};
 use crate::plan::folders::sync_order;
-use crate::plan::outbox::{ItemStep, item_step};
+use crate::plan::outbox::{ItemStep, held, item_step};
 use crate::schedule::Key;
 use crate::server::MailServer;
 
@@ -62,12 +62,13 @@ pub async fn sync_account(
     Ok(synced)
 }
 
-/// Whether a run needs SMTP: an Outbox item of the account is Queued and
-/// past its backoff.
+/// Whether a run needs SMTP: an Outbox item of the account is Queued, past
+/// its backoff and past its send-after time.
 pub fn has_due_mail(local: &Local<'_>, account: &str, now_ms: i64) -> Result<bool> {
     Ok(local.outbox.items()?.iter().any(|item| {
         item.meta.account == account
             && item_step(&item.meta.state) == ItemStep::Send
+            && !held(&item.meta, now_ms)
             && local.schedule.is_due(&Key::Outbox(item.id.clone()), now_ms)
     }))
 }

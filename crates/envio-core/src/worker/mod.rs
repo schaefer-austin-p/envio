@@ -69,6 +69,8 @@ pub(crate) struct Worker<'s> {
     unfiled: BTreeSet<String>,
     /// The schedule entry already acted on.
     handled_due_ms: i64,
+    /// The held Outbox release time already acted on (its own watermark).
+    handled_release_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
     /// Servers found through DNS (SRV) by `Detect`: connecting to them
@@ -202,6 +204,7 @@ impl<'s> Worker<'s> {
             asked: BTreeSet::new(),
             unfiled: BTreeSet::new(),
             handled_due_ms: i64::MIN,
+            handled_release_ms: i64::MIN,
             last_ran: None,
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),

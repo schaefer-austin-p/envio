@@ -190,6 +190,7 @@ impl Worker<'_> {
             &envio_mime::new_message_id(&settings.email),
         );
         let new = envio_store::NewOutboxItem {
+            send_after_ms: 0,
             account: draft.account.clone(),
             message_id: envio_sync::convert::bracketed(&built.message_id),
             queued_at_ms: now,

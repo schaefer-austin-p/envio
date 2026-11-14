@@ -246,6 +246,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
     /// path, so the grep test's single call stays the only call.)
     fn item(w: &Worker<'_>, t: &T, eml: &[u8], state: SendState) -> String {
         let new = NewOutboxItem {
+            send_after_ms: 0,
             account: t.account.clone(),
             message_id: "<a@example.org>".into(),
             queued_at_ms: 1,
