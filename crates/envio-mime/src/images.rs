@@ -211,14 +211,14 @@ fn image(
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
-                image_label::write(tag, (width, height), options, &mut out.html);
+                image_label::write(tag, options, &mut out.html);
                 return Some(width);
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
-            image_label::write(tag, (width, height), options, &mut out.html);
+            image_label::write(tag, options, &mut out.html);
             return Some(width);
         }
         if !out.remote_images.iter().any(|seen| seen == src) {
@@ -356,7 +356,7 @@ fn size(tag: &Tag, name: &str) -> Option<u32> {
     })
 }
 
-fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
+pub(crate) fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
     style.split(';').find_map(|declaration| {
         let (prop, value) = declaration.split_once(':')?;
         prop.trim().eq_ignore_ascii_case(name).then_some(value)

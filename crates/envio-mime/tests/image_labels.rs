@@ -38,6 +38,33 @@ fn a_small_image_that_is_not_shown_leaves_nothing() {
 }
 
 #[test]
+fn a_side_declared_in_another_unit_counts_as_large() {
+    // Only pixel lengths can make an image small: a percentage, `auto` or
+    // junk beside a small pixel side may be a wide banner.
+    for img in [
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" width="100%" height="40">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" style="width:100%;height:40px">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" width="auto" height="30">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" style="width:auto;height:30px">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" width="wide" height="30">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" width="40" height="10em">"#,
+        r#"<img src="https://example.com/b.png" alt="Autumn sale" style="width:40px;height:50%">"#,
+    ] {
+        assert_eq!(clean(img), label("Autumn sale"), "{img}");
+    }
+}
+
+#[test]
+fn a_zero_side_is_a_tracker_and_leaves_nothing() {
+    for img in [
+        r#"<img src="https://example.com/b.png" alt="x" width="0" height="40">"#,
+        r#"<img src="https://example.com/b.png" alt="x" style="width:0;height:40px">"#,
+    ] {
+        assert_eq!(clean(img), "", "{img}");
+    }
+}
+
+#[test]
 fn a_small_blocked_image_still_counts_as_blocked() {
     let r = sanitize_html(
         r#"<img src="https://example.com/i.png" alt="x" width="40">"#,

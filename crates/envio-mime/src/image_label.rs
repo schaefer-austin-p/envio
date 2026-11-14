@@ -6,24 +6,41 @@
 //! underlined: inside a link Qt would underline it, and a row of linked
 //! labels reads as a stack of links.
 
-use crate::images::Tag;
+use crate::images::{Tag, pixels, style_value};
 use crate::plain::escape_into;
 use crate::sanitize::RenderOptions;
 
-/// An image that declares a size and no side larger than this, in pixels,
-/// shows no label. A banner or a logo has one small side only.
+/// An image that declares a side in pixels no larger than this, and no
+/// other side larger or in another unit, shows no label. A banner or a
+/// logo has one small side only.
 const SMALL_MAX: u32 = 48;
 
+/// A side as the label sees it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Side {
+    Undeclared,
+    Small,
+    /// Over [`SMALL_MAX`] pixels, or not a pixel length (`100%`, `auto`,
+    /// junk): it may be as wide as the reader.
+    Large,
+}
+
+/// The tag's `name` side: its attribute, else its `style` declaration.
+fn side(tag: &Tag, name: &str) -> Side {
+    let declared = tag
+        .attr(name)
+        .or_else(|| tag.attr("style").and_then(|s| style_value(s, name)));
+    match declared.map(pixels) {
+        None => Side::Undeclared,
+        Some(Some(px)) if px <= SMALL_MAX => Side::Small,
+        Some(_) => Side::Large,
+    }
+}
+
 /// Writes the label for an image that is not shown, if it gets one.
-/// `(width, height)` is the size it declares, in pixels.
-pub(crate) fn write(
-    tag: &Tag,
-    (width, height): (Option<u32>, Option<u32>),
-    options: &RenderOptions,
-    out: &mut String,
-) {
-    let small = |side: Option<u32>| side.is_none_or(|px| px <= SMALL_MAX);
-    if (width.is_some() || height.is_some()) && small(width) && small(height) {
+pub(crate) fn write(tag: &Tag, options: &RenderOptions, out: &mut String) {
+    let sides = [side(tag, "width"), side(tag, "height")];
+    if sides.contains(&Side::Small) && !sides.contains(&Side::Large) {
         return;
     }
     let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
