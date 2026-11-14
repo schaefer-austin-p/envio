@@ -183,9 +183,13 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
         return None;
     }
     let lower = src.to_ascii_lowercase();
+    let mut natural = None;
     let url = if lower.starts_with("cid:") {
         match cid_url(&src[4..], options) {
-            Some(url) => url.to_owned(),
+            Some((url, w)) => {
+                natural = w;
+                url.to_owned()
+            }
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
@@ -207,7 +211,14 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
         return None;
     };
     let declared = width;
-    let (width, height) = scale(width, height, options.max_image_width);
+    let (mut width, height) = scale(width, height, options.max_image_width);
+    // Qt draws an image with no width at its natural size, so a large inline
+    // picture overflows the reader. (With a height but no width it scales
+    // proportionally already.)
+    let max = options.max_image_width;
+    if width.is_none() && height.is_none() && max > 0 && natural.is_some_and(|n| n > max) {
+        width = Some(max);
+    }
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {
         attrs.push(("alt".to_owned(), alt.to_owned()));
@@ -226,7 +237,6 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
     Some(declared)
 }
 
-/// The loadable URL for a `cid:` reference, with or without angle brackets.
 /// An image that isn't shown: its alt text, or the caller's label.
 fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
@@ -238,9 +248,12 @@ fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     escape_into(label, &mut out.html);
 }
 
-fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<&'o str> {
+/// The loadable URL for a `cid:` reference (with or without angle brackets)
+/// and the image's natural width, when known.
+fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<(&'o str, Option<u32>)> {
     let id = crate::thread::normalize_id(cid)?;
-    options.cid_urls.get(&id).map(String::as_str)
+    let url = options.cid_urls.get(&id)?;
+    Some((url, options.cid_widths.get(&id).copied()))
 }
 
 fn is_tracker(src: &str, width: Option<u32>, height: Option<u32>) -> bool {

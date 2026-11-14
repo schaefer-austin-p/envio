@@ -2,7 +2,6 @@
 //! Nothing here writes the journal; the only network use is the body step
 //! an `OpenMessage` asks the account's runtime for.
 
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -87,16 +86,17 @@ pub(crate) fn render_view(
     }
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
     let load = loads_images(ctx.settings, images, &header.from_address);
-    let cid_urls = match (&message, ctx.inline_dir) {
+    let inlined = match (&message, ctx.inline_dir) {
         (Mime::Parsed { attachments, .. }, Some(dir)) => {
             super::inline::write(dir, raw, attachments)
         }
         (Mime::Raw(_), Some(dir)) => super::inline::write(dir, raw, &[]),
-        _ => HashMap::new(),
+        _ => super::inline::Inlined::default(),
     };
     let options = RenderOptions {
         allow_remote_images: load,
-        cid_urls,
+        cid_urls: inlined.urls,
+        cid_widths: inlined.widths,
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };

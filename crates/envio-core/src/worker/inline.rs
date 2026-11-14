@@ -55,52 +55,69 @@ pub(super) fn clear_except(root: &Path, keep: Option<&str>) {
     }
 }
 
+/// The inline images of one message, by Content-ID.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(super) struct Inlined {
+    /// `file://` URL of each image written.
+    pub urls: HashMap<String, String>,
+    /// Natural pixel width, for the images whose header gave one.
+    pub widths: HashMap<String, u32>,
+}
+
 /// Writes the message's inline images into `dir` (dropping other messages'
-/// folders) and returns Content-ID to `file://` URL. A part that can't be
-/// written is left out (shown as a missing image), as is any part whose
-/// Content-ID another part already has. A file already there with the part's
-/// size is kept: the reader may be loading it.
-pub(super) fn write(
-    dir: &Path,
-    raw: &[u8],
-    attachments: &[AttachmentInfo],
-) -> HashMap<String, String> {
+/// folders) and returns Content-ID to `file://` URL, with each image's
+/// natural width read from its bytes. A part that can't be written is left
+/// out (shown as a missing image), as is any part whose Content-ID another
+/// part already has. A file already there with the part's size is kept: the
+/// reader may be loading it.
+pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> Inlined {
     if let (Some(root), Some(keep)) = (dir.parent(), dir.file_name().and_then(|n| n.to_str())) {
         clear_except(root, Some(keep));
     }
-    let mut urls = HashMap::new();
-    let mut todo = Vec::new();
-    let parts = attachments
+    let mut out = Inlined::default();
+    // Index, Content-ID, path and whether the file is already there.
+    let mut parts = Vec::new();
+    let wanted = attachments
         .iter()
         .filter_map(|a| Some((a, a.content_id.as_ref()?, extension(&a.content_type)?)))
         .filter(|(a, _, _)| a.size <= MAX_BYTES)
         .take(MAX_IMAGES);
-    for (info, cid, ext) in parts {
-        if urls.contains_key(cid) {
+    for (info, cid, ext) in wanted {
+        if out.urls.contains_key(cid) {
             continue;
         }
         let path = dir.join(format!("{}.{ext}", info.index));
-        urls.insert(cid.clone(), file_url(&path));
+        out.urls.insert(cid.clone(), file_url(&path));
         let have = fs::metadata(&path).is_ok_and(|m| m.len() == info.size as u64);
-        if !have {
-            todo.push((info.index, cid, path));
-        }
+        parts.push((info.index, cid, path, have));
     }
-    if todo.is_empty() {
-        return urls;
+    if parts.is_empty() {
+        return out;
     }
-    if let Err(e) = fs::create_dir_all(dir) {
+    if parts.iter().any(|(_, _, _, have)| !have)
+        && let Err(e) = fs::create_dir_all(dir)
+    {
         // Only reachable if the folder vanishes meanwhile: files already
         // there keep their URLs, the rest show as missing.
         log::warn!("creating the inline image folder: {e}");
-        for (_, cid, _) in &todo {
-            urls.remove(*cid);
+        for (_, cid, _, have) in &parts {
+            if !have {
+                out.urls.remove(*cid);
+            }
         }
-        return urls;
+        parts.retain(|(_, _, _, have)| *have);
     }
-    let indexes: Vec<usize> = todo.iter().map(|(i, _, _)| *i).collect();
+    // One parse of the message gives every part's bytes: the widths come
+    // from them even for a file kept from an earlier open.
+    let indexes: Vec<usize> = parts.iter().map(|(i, _, _, _)| *i).collect();
     let bytes = envio_mime::attachments_bytes(raw, &indexes);
-    for ((_, cid, path), bytes) in todo.into_iter().zip(bytes) {
+    for ((_, cid, path, have), bytes) in parts.into_iter().zip(bytes) {
+        if let Some(w) = bytes.as_deref().and_then(envio_mime::image_width) {
+            out.widths.insert(cid.clone(), w);
+        }
+        if have {
+            continue;
+        }
         let written = bytes
             .ok_or_else(|| io::Error::other("part gone"))
             .and_then(|b| {
@@ -114,10 +131,11 @@ pub(super) fn write(
             });
         if let Err(e) = written {
             log::warn!("writing an inline image: {e}");
-            urls.remove(cid);
+            out.urls.remove(cid);
+            out.widths.remove(cid);
         }
     }
-    urls
+    out
 }
 
 /// `file://` plus the path, with bytes outside the unreserved set encoded.
@@ -160,7 +178,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
     #[test]
     fn images_are_written_and_named_by_content_id() {
         let dir = tempfile::tempdir().unwrap();
-        let urls = write(&dir.path().join("1"), MAIL, &infos());
+        let urls = write(&dir.path().join("1"), MAIL, &infos()).urls;
         assert_eq!(urls.len(), 1, "{urls:?}");
         let url = &urls["logo@example.org"];
         assert!(url.ends_with(".png"), "{url}");
@@ -179,11 +197,11 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
     fn a_file_of_the_right_size_is_not_written_again() {
         let dir = tempfile::tempdir().unwrap();
         let one = dir.path().join("1");
-        let urls = write(&one, MAIL, &infos());
+        let urls = write(&one, MAIL, &infos()).urls;
         let path = path_of(&urls["logo@example.org"]).to_owned();
         // Same size, other bytes: only a skipped write leaves this.
         fs::write(&path, b"HELLO").unwrap();
-        let again = write(&one, MAIL, &infos());
+        let again = write(&one, MAIL, &infos()).urls;
         assert_eq!(again, urls);
         assert_eq!(fs::read(&path).unwrap(), b"HELLO");
         // A wrong size is replaced, and no temp file stays.
@@ -202,6 +220,95 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
         write(&dir.path().join("2"), MAIL, &infos());
         assert!(!dir.path().join("1").exists());
         assert!(dir.path().join("2").exists());
+    }
+
+    /// A related message with one PNG part per `(Content-ID, base64 body)`.
+    fn mail_with(parts: &[(String, &str)]) -> Vec<u8> {
+        let mut m = String::from(
+            "From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/html\r\n\r\n<p>x</p>\r\n",
+        );
+        for (cid, body) in parts {
+            m.push_str(&format!(
+                "--XX\r\nContent-Type: image/png\r\nContent-ID: <{cid}>\r\n\
+Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
+            ));
+        }
+        m.push_str("--XX--\r\n");
+        m.into_bytes()
+    }
+
+    fn infos_of(raw: &[u8]) -> Vec<AttachmentInfo> {
+        match envio_mime::parse(raw) {
+            envio_mime::Message::Parsed { attachments, .. } => attachments,
+            envio_mime::Message::Raw(_) => panic!("parses"),
+        }
+    }
+
+    #[test]
+    fn a_part_over_the_size_limit_is_not_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        let mut parts = infos();
+        // The size comes from the parse; claiming more than the limit
+        // avoids building a 10 MB message.
+        parts[0].size = MAX_BYTES + 1;
+        let out = write(&one, MAIL, &parts);
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(!one.exists());
+        parts[0].size = MAX_BYTES;
+        assert_eq!(write(&one, MAIL, &parts).urls.len(), 1);
+    }
+
+    #[test]
+    fn only_the_first_images_up_to_the_limit_are_written() {
+        let parts: Vec<_> = (0..MAX_IMAGES + 3)
+            .map(|i| (format!("img{i}@example.org"), "aGVsbG8="))
+            .collect();
+        let raw = mail_with(&parts);
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        let out = write(&one, &raw, &infos_of(&raw));
+        assert_eq!(out.urls.len(), MAX_IMAGES);
+        assert!(out.urls.contains_key("img0@example.org"));
+        assert!(
+            out.urls
+                .contains_key(&format!("img{}@example.org", MAX_IMAGES - 1))
+        );
+        assert!(
+            !out.urls
+                .contains_key(&format!("img{MAX_IMAGES}@example.org"))
+        );
+        assert_eq!(fs::read_dir(&one).unwrap().count(), MAX_IMAGES);
+    }
+
+    #[test]
+    fn a_duplicate_content_id_is_skipped_and_the_first_wins() {
+        let raw = mail_with(&[
+            ("dup@example.org".to_owned(), "aGVsbG8="),
+            ("dup@example.org".to_owned(), "d29ybGQ="),
+        ]);
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        let out = write(&one, &raw, &infos_of(&raw));
+        assert_eq!(out.urls.len(), 1, "{:?}", out.urls);
+        let url = &out.urls["dup@example.org"];
+        assert_eq!(fs::read(path_of(url)).unwrap(), b"hello");
+        assert_eq!(fs::read_dir(&one).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn the_natural_width_comes_from_the_bytes_even_for_a_kept_file() {
+        // A PNG header, width 2000.
+        let body = "iVBORw0KGgoAAAANSUhEUgAAB9AAAAAHCAYAAAA=";
+        let raw = mail_with(&[("p@example.org".to_owned(), body)]);
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        for _ in 0..2 {
+            let out = write(&one, &raw, &infos_of(&raw));
+            assert_eq!(out.widths["p@example.org"], 2000);
+        }
     }
 
     #[test]
