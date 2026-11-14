@@ -10,8 +10,8 @@ use crate::images::Tag;
 use crate::plain::escape_into;
 use crate::sanitize::RenderOptions;
 
-/// An image this small (declared width or height, in pixels) shows no
-/// label.
+/// An image that declares a size and no side larger than this, in pixels,
+/// shows no label. A banner or a logo has one small side only.
 const SMALL_MAX: u32 = 48;
 
 /// Writes the label for an image that is not shown, if it gets one.
@@ -22,7 +22,8 @@ pub(crate) fn write(
     options: &RenderOptions,
     out: &mut String,
 ) {
-    if width.is_some_and(|w| w <= SMALL_MAX) || height.is_some_and(|h| h <= SMALL_MAX) {
+    let small = |side: Option<u32>| side.is_none_or(|px| px <= SMALL_MAX);
+    if (width.is_some() || height.is_some()) && small(width) && small(height) {
         return;
     }
     let alt = tag.attr("alt").map(str::trim).unwrap_or_default();

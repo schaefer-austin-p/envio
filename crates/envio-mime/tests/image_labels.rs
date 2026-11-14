@@ -27,8 +27,9 @@ fn a_small_image_that_is_not_shown_leaves_nothing() {
         r#"<img src="https://example.com/i.png" alt="info icon" width="40" height="40">"#,
         r#"<img src="https://example.com/i.png" alt="info icon" width="48">"#,
         r#"<img src="https://example.com/i.png" alt="info icon" height="48">"#,
-        r#"<img src="https://example.com/i.png" alt="info icon" width="600" height="20">"#,
+        r#"<img src="https://example.com/i.png" alt="info icon" width="16" height="16">"#,
         r#"<img src="https://example.com/i.png" alt="info icon" style="width:24px">"#,
+        r#"<img src="https://example.com/i.png" alt="info icon" height="24">"#,
         r#"<img src="https://example.com/i.png" width="32" height="32">"#,
         r#"<img src="cid:gone@example.org" alt="Logo" width="40">"#,
     ] {
@@ -56,6 +57,19 @@ fn a_large_or_unsized_image_shows_its_label_not_underlined() {
             r#"<img src="https://example.com/h.png" alt="Hero" width="49">"#,
             "Hero",
         ),
+        // Only one side is small: a banner or a logo, not an icon.
+        (
+            r#"<img src="https://example.com/b.png" alt="Autumn sale" width="600" height="40">"#,
+            "Autumn sale",
+        ),
+        (
+            r#"<img src="https://example.com/l.png" alt="Acme" width="180" height="40">"#,
+            "Acme",
+        ),
+        (
+            r#"<img src="https://example.com/l.png" alt="Acme" style="width:40px;height:120px">"#,
+            "Acme",
+        ),
         (
             r#"<img src="https://example.com/h.png" alt=" Hero ">"#,
             "Hero",
@@ -70,10 +84,11 @@ fn a_large_or_unsized_image_shows_its_label_not_underlined() {
     }
 }
 
+/// An image-only call to action: a 200x44 button picture in a link.
 #[test]
 fn a_linked_label_is_escaped_and_not_underlined() {
     let html = clean(
-        r#"<a href="https://example.com/"><img src="https://example.com/h.png" alt="Read &lt;more&gt;" width="200"></a>"#,
+        r#"<a href="https://example.com/"><img src="https://example.com/h.png" alt="Read &lt;more&gt;" width="200" height="44"></a>"#,
     );
     assert_eq!(
         html,

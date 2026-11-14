@@ -167,3 +167,77 @@ fn without_a_background_nothing_changes() {
     let input = r#"<div style="color:#fff"><p>a</p><p>b</p></div>"#;
     assert_eq!(clean(input), input);
 }
+
+/// Every `<p` tag in `html`: bare, or with only a pushed `#rrggbb`.
+fn assert_paragraphs_safe(html: &str, input: &str) {
+    for (at, _) in html.match_indices("<p") {
+        let tag = &html[at..at + html[at..].find('>').unwrap() + 1];
+        if tag == "<p>" {
+            continue;
+        }
+        let hex = tag
+            .strip_prefix(r#"<p style="background-color:#"#)
+            .and_then(|rest| rest.strip_suffix(r#"">"#))
+            .unwrap_or_else(|| panic!("{tag} from {input}"));
+        assert!(
+            hex.len() == 6 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
+            "{tag} from {input}"
+        );
+    }
+}
+
+const HOSTILE: &[&str] = &[
+    "#222&quot;><script>x()</script>",
+    "#222\" onclick=\"x()",
+    "#222\"",
+    "#222>",
+    "#222'",
+    "url(https://x.example/a.png)",
+    "#222 url(x)",
+    "expression(alert(1))",
+    "#222;color:red",
+    "red;position:fixed",
+    "rgb(1,2,3);color:red",
+    "#222 !important; color:red",
+    "#22222g",
+    "\\23 222",
+];
+
+#[test]
+fn a_hostile_background_value_pushes_nothing_or_a_normalised_hex() {
+    for value in HOSTILE {
+        let escaped = value.replace('"', "&quot;");
+        for input in [
+            format!(r#"<div style="background-color:{escaped}"><p>a</p><p>b</p></div>"#),
+            format!(r#"<table><tr><td bgcolor="{escaped}"><p>a</p><p>b</p></td></tr></table>"#),
+            format!(
+                r#"<table><tr><th>k</th><td bgcolor="{escaped}"><p>a</p><p>b</p></td></tr></table>"#
+            ),
+            format!(r#"<table bgcolor="{escaped}"><tr><th>k</th><td><p>a</p></td></tr></table>"#),
+        ] {
+            let html = clean(&input);
+            assert_paragraphs_safe(&html, &input);
+            // The container's own attribute is the sanitiser's (escaped,
+            // inert); what this pass writes is checked above.
+            assert!(!html.contains("<script"), "{html} from {input}");
+        }
+    }
+}
+
+#[test]
+fn deep_nesting_near_the_limit_finishes_with_one_background_per_block() {
+    let depth = 250;
+    let input = format!(
+        r#"<div style="background-color:#000">{}text{}</div>"#,
+        "<div>".repeat(depth),
+        "</div>".repeat(depth)
+    );
+    let html = clean(&input);
+    assert_eq!(
+        count(&html, r#"<div style="background-color:#000000">"#),
+        depth,
+        "{html}"
+    );
+    assert!(html.contains("text"));
+    assert!(html.len() < input.len() * 10, "{} bytes", html.len());
+}
