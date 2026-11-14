@@ -207,7 +207,13 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
         return None;
     };
     let declared = width;
-    let (width, height) = scale(width, height, options.max_image_width);
+    let (width, height) = match (width, share_of(tag, options.max_image_width)) {
+        // Qt's rich text has no percentage or max-width for an image and
+        // would draw it at the file's size; the height in another unit
+        // would distort it, so only the width is set.
+        (None, Some(share)) => (Some(share), None),
+        _ => scale(width, height, options.max_image_width),
+    };
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {
         attrs.push(("alt".to_owned(), alt.to_owned()));
@@ -224,6 +230,40 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
     }
     .write(&mut out.html);
     Some(declared)
+}
+
+/// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`,
+/// capped by a pixel `max-width`; `None` without one or when `max` is 0.
+fn share_of(tag: &Tag, max: u32) -> Option<u32> {
+    let style = tag.attr("style");
+    let percent = tag.attr("width").and_then(percent).or_else(|| {
+        style
+            .and_then(|s| style_value(s, "width"))
+            .and_then(percent)
+    })?;
+    if max == 0 {
+        return None;
+    }
+    let cap = style
+        .and_then(|s| style_value(s, "max-width"))
+        .and_then(pixels)
+        .filter(|&w| w > PIXEL_MAX)
+        .map_or(max, |w| w.min(max));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let px = (f64::from(max) * percent / 100.0).round() as u32;
+    Some(px.clamp(1, cap))
+}
+
+/// A percentage in (0, 100], with an optional trailing `!important`.
+fn percent(value: &str) -> Option<f64> {
+    let value = value.trim().to_ascii_lowercase();
+    let value = value.split('!').next().unwrap_or_default().trim();
+    let number = value.strip_suffix('%')?.trim();
+    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let n = number.parse::<f64>().ok()?;
+    (n > 0.0).then_some(n.min(100.0))
 }
 
 /// The loadable URL for a `cid:` reference, with or without angle brackets.

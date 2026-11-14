@@ -26,7 +26,7 @@ const STYLE_PROPS: &[&str] = &[
 
 /// Also kept on `img`, so the image pass can spot 1x1 pixels and size the
 /// image; it turns them into attributes (Qt ignores CSS width on images).
-const IMG_SIZE_PROPS: &[&str] = &["width", "height"];
+const IMG_SIZE_PROPS: &[&str] = &["width", "height", "max-width"];
 
 /// Substrings that make a CSS value unsafe, checked in lower case.
 const BAD_CSS: &[&str] = &[
