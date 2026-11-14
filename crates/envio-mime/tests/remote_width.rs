@@ -82,7 +82,10 @@ fn a_blocked_image_stays_a_label() {
         ..options()
     };
     let r = sanitize_html(&format!(r#"<img src="{BIG}">"#), &blocked);
-    assert_eq!(r.html, "[image]");
+    assert_eq!(
+        r.html,
+        r#"<span style="text-decoration:none">[image]</span>"#
+    );
 }
 
 fn with_size(size: (u32, u32)) -> RenderOptions {
