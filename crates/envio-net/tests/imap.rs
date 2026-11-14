@@ -444,3 +444,40 @@ async fn fetch_flags_fails_when_a_later_chunk_fails() {
     // It stopped at the failing chunk.
     assert_eq!(fetch_commands(&transcript), 2);
 }
+
+#[tokio::test]
+async fn a_reply_without_the_structure_is_an_error_not_a_gone_message() {
+    // The fake answers every FETCH with a flags-only line for the UID, as a
+    // server does with an unsolicited update: the message is there, only
+    // its BODYSTRUCTURE is not.
+    let (mut session, _) = fetching(Script::default()).await;
+    assert!(session.fetch_partial(7).await.is_err());
+}
+
+const STRUCTURE: &str = "* 1 FETCH (UID 7 BODYSTRUCTURE (\"TEXT\" \"PLAIN\" (\"CHARSET\" \"utf-8\") NIL NIL \"7BIT\" 5 1))\r\n";
+const HEADER: &str = "* 1 FETCH (UID 7 BODY[HEADER] {15}\r\nSubject: Hi\r\n\r\n)\r\n";
+
+#[tokio::test]
+async fn a_text_part_missing_from_the_reply_is_an_error_not_a_stub() {
+    let (mut session, _) = fetching(Script {
+        fetch_canned: &[STRUCTURE, HEADER, "* 1 FETCH (UID 7 FLAGS (\\Seen))\r\n"],
+        ..Script::default()
+    })
+    .await;
+    assert!(session.fetch_partial(7).await.is_err());
+}
+
+#[tokio::test]
+async fn a_text_part_in_the_reply_is_kept() {
+    let (mut session, _) = fetching(Script {
+        fetch_canned: &[
+            STRUCTURE,
+            HEADER,
+            "* 1 FETCH (UID 7 BODY[1]<0> {5}\r\nhello)\r\n",
+        ],
+        ..Script::default()
+    })
+    .await;
+    let eml = session.fetch_partial(7).await.unwrap().unwrap();
+    assert!(String::from_utf8(eml).unwrap().ends_with("hello"));
+}

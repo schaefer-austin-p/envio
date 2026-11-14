@@ -8,6 +8,7 @@ use futures::TryStreamExt;
 use super::client::map_error;
 use super::names;
 use super::query::{self, Flag, MessageFlags};
+use super::untrusted::neutralize;
 use super::{FlagUpdate, Folder, FolderState, ImapSession, Summary};
 use crate::connect;
 use crate::error::{NetError, Result};
@@ -182,11 +183,13 @@ impl ImapSession {
                 .try_collect()
                 .await
                 .map_err(map_error)?;
+            // The reply that carries the body (an unsolicited update for the
+            // same UID may come first).
             Ok(fetches
                 .iter()
-                .find(|fetch| fetch.uid == Some(uid))
-                .and_then(|fetch| fetch.body())
-                .map(<[u8]>::to_vec))
+                .filter(|fetch| fetch.uid == Some(uid))
+                .find_map(|fetch| fetch.body())
+                .map(|body| neutralize(body).into_owned()))
         })
         .await
     }

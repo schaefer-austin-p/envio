@@ -7,11 +7,16 @@
 //! X-Envio-Size: 31457280
 //! ```
 //!
-//! envio-mime reads them (`AttachmentInfo::section`, `size`).
+//! envio-mime reads them (`AttachmentInfo::section`, `size`). A text part cut
+//! at [`TEXT_CAP`] gets `X-Envio-Truncated: <its size>` so the reader can say
+//! so. Headers of those names that came from the server are renamed first
+//! (see [`neutralize`]): only the ones written here count.
 
 use std::collections::HashMap;
 
+use super::plan::TEXT_CAP;
 use super::structure::{Kind, Node};
+use crate::imap::untrusted::neutralize;
 
 /// The downloaded bytes by name: `1.2` for a part's body, `1.2.MIME` for its
 /// headers. The message's own headers come separately.
@@ -23,7 +28,7 @@ pub fn assemble(root: &Node, header: &[u8], fetched: &Fetched) -> Vec<u8> {
     let mut out = Vec::new();
     match &root.kind {
         Kind::Multipart { .. } => {
-            out.extend_from_slice(&without_content_type(header));
+            out.extend_from_slice(&without_content_type(&neutralize(header)));
             multipart(&mut out, root, fetched);
         }
         Kind::Leaf(_) => leaf(&mut out, root, header, fetched),
@@ -58,13 +63,18 @@ fn leaf(out: &mut Vec<u8>, node: &Node, header: &[u8], f: &Fetched) {
     let Kind::Leaf(info) = &node.kind else {
         return;
     };
+    let header = neutralize(header);
     match f.get(&node.section) {
         Some(body) => {
-            out.extend_from_slice(&with_blank_line(header));
+            out.extend_from_slice(&without_blank_line(&header));
+            if info.octets > TEXT_CAP {
+                out.extend_from_slice(format!("X-Envio-Truncated: {}\r\n", info.octets).as_bytes());
+            }
+            out.extend_from_slice(b"\r\n");
             out.extend_from_slice(body);
         }
         None => {
-            out.extend_from_slice(&without_blank_line(header));
+            out.extend_from_slice(&without_blank_line(&header));
             out.extend_from_slice(
                 format!(
                     "X-Envio-Section: {}\r\nX-Envio-Size: {}\r\n\r\n",
@@ -75,14 +85,6 @@ fn leaf(out: &mut Vec<u8>, node: &Node, header: &[u8], f: &Fetched) {
             );
         }
     }
-}
-
-/// `header` ending in exactly one blank line (a part with no headers gets
-/// just the blank line).
-fn with_blank_line(header: &[u8]) -> Vec<u8> {
-    let mut out = without_blank_line(header);
-    out.extend_from_slice(b"\r\n");
-    out
 }
 
 /// `header` without its closing blank line, every line ending in CRLF.

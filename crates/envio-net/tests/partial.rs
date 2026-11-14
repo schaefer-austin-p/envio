@@ -98,3 +98,85 @@ async fn a_single_part_message_is_a_stub_or_its_text() {
     assert!(String::from_utf8(part).unwrap().ends_with("QUJD\r\n"));
     session.logout().await.unwrap();
 }
+
+/// A message of `parts` (each a header block and a body) under `extra`
+/// message headers.
+fn multipart(id: &str, extra: &str, parts: &[(&str, &str)]) -> Vec<u8> {
+    let mut eml = format!(
+        "From: Alice <{ALICE}>\r\nTo: Bob <{BOB}>\r\nSubject: Crafted\r\nMessage-ID: {id}\r\n\
+         Date: Sun, 08 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\n{extra}\
+         Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n"
+    );
+    for (header, body) in parts {
+        eml.push_str(&format!("--b\r\n{header}\r\n\r\n{body}\r\n"));
+    }
+    eml.push_str("--b--\r\n");
+    eml.into_bytes()
+}
+
+#[tokio::test]
+async fn a_sender_cannot_pass_its_own_stub_marks_off_as_envios() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let id = message_id();
+    let eml = multipart(
+        &id,
+        "X-Envio-Section: 7\r\n",
+        &[
+            (
+                "Content-Type: text/plain\r\nX-Envio-Section: 1\r\nX-Envio-Size: 99",
+                "hello",
+            ),
+            (
+                "Content-Type: application/zip\r\nContent-Disposition: attachment; filename=a.zip\r\n\
+                 Content-Transfer-Encoding: base64\r\nx-envio-section: 5\r\nX-Envio-Size: 99",
+                "UEsDBA==",
+            ),
+        ],
+    );
+    session.append("INBOX", &[], &eml).await.unwrap();
+    session.select("INBOX").await.unwrap();
+    let uid = session.search_message_id(&id).await.unwrap()[0];
+
+    let whole = session.fetch_body(uid, eml.len()).await.unwrap().unwrap();
+    let text = String::from_utf8(whole).unwrap().to_ascii_lowercase();
+    assert!(!text.contains("\nx-envio-"), "{text}");
+    assert!(text.contains("x-untrusted-envio-section: 7"), "{text}");
+
+    let partial = session.fetch_partial(uid).await.unwrap().unwrap();
+    let text = String::from_utf8(partial).unwrap();
+    // The zip is not text, so its stub mark is envio's own (section 2); the
+    // sender's marks, on the text, the zip and the message, are not.
+    assert_eq!(text.matches("\nX-Envio-Section: ").count(), 1, "{text}");
+    assert!(text.contains("\nX-Envio-Section: 2\r\n"), "{text}");
+    assert!(text.contains("\r\n\r\nhello"), "{text}");
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_text_part_cut_at_the_cap_says_so() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let mut session = server.imap(&alice()).await;
+    let id = message_id();
+    let long = "abcdefghij".repeat(220_000);
+    let eml = multipart(&id, "", &[("Content-Type: text/plain", &long)]);
+    session.append("INBOX", &[], &eml).await.unwrap();
+    session.select("INBOX").await.unwrap();
+    let uid = session.search_message_id(&id).await.unwrap()[0];
+    let text = String::from_utf8(session.fetch_partial(uid).await.unwrap().unwrap()).unwrap();
+    assert!(text.contains("\nX-Envio-Truncated: "), "{}", &text[..400]);
+    assert!(text.len() < 2_200_000, "{} bytes", text.len());
+
+    let id = message_id();
+    let eml = multipart(&id, "", &[("Content-Type: text/plain", "short")]);
+    session.append("INBOX", &[], &eml).await.unwrap();
+    session.select("INBOX").await.unwrap();
+    let uid = session.search_message_id(&id).await.unwrap()[0];
+    let text = String::from_utf8(session.fetch_partial(uid).await.unwrap().unwrap()).unwrap();
+    assert!(!text.contains("X-Envio-Truncated"), "{text}");
+    session.logout().await.unwrap();
+}

@@ -16,13 +16,11 @@ use futures::TryStreamExt;
 use super::ImapSession;
 use super::client::map_error;
 use crate::connect;
-use crate::error::Result;
+use crate::error::{NetError, Result};
 
 use assemble::{Fetched, assemble};
 use plan::plan;
 use structure::{Kind, Node, from_proto};
-
-pub use plan::TEXT_CAP;
 
 /// Most parts asked for in one FETCH, so the command line stays short.
 const PARTS_PER_FETCH: usize = 40;
@@ -99,13 +97,17 @@ impl ImapSession {
                 .try_collect()
                 .await
                 .map_err(map_error)?;
-            let Some(fetch) = fetches.iter().find(|f| f.uid == Some(uid)) else {
+            // The reply that carries the part (an unsolicited update for the
+            // same UID may come first).
+            let found = fetches
+                .iter()
+                .filter(|f| f.uid == Some(uid))
+                .find_map(|f| Some((f.section(&mime)?, f.section(&body)?)));
+            let Some((mime, body)) = found else {
                 return Ok(None);
             };
-            let (Some(mime), Some(body)) = (fetch.section(&mime), fetch.section(&body)) else {
-                return Ok(None);
-            };
-            let mut out = mime.to_vec();
+            let mut out = Vec::with_capacity(mime.len() + body.len());
+            out.extend_from_slice(mime);
             out.extend_from_slice(body);
             Ok(Some(out))
         })
@@ -122,11 +124,21 @@ impl ImapSession {
                 .try_collect()
                 .await
                 .map_err(map_error)?;
-            Ok(fetches
-                .iter()
-                .find(|f| f.uid == Some(uid))
-                .and_then(|f| f.bodystructure())
-                .map(from_proto))
+            // None only when the server has no such message; a reply for
+            // it without a BODYSTRUCTURE is an error to retry.
+            let mut replied = false;
+            for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
+                replied = true;
+                if let Some(structure) = fetch.bodystructure() {
+                    return Ok(Some(from_proto(structure)));
+                }
+            }
+            if replied {
+                return Err(NetError::Protocol(
+                    "FETCH reply without BODYSTRUCTURE".into(),
+                ));
+            }
+            Ok(None)
         })
         .await
     }
@@ -141,11 +153,17 @@ impl ImapSession {
                 .try_collect()
                 .await
                 .map_err(map_error)?;
-            Ok(fetches
-                .iter()
-                .find(|f| f.uid == Some(uid))
-                .and_then(|f| f.header())
-                .map(<[u8]>::to_vec))
+            let mut replied = false;
+            for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
+                replied = true;
+                if let Some(header) = fetch.header() {
+                    return Ok(Some(header.to_vec()));
+                }
+            }
+            if replied {
+                return Err(NetError::Protocol("FETCH reply without the header".into()));
+            }
+            Ok(None)
         })
         .await
     }
@@ -211,29 +229,92 @@ impl ImapSession {
                     .await
                     .map_err(map_error)?;
                 let mut got = HashMap::new();
-                let Some(fetch) = fetches.iter().find(|f| f.uid == Some(uid)) else {
-                    return Ok(got);
-                };
-                for (section, limit, want) in parts {
-                    if *want && *limit == 0 {
-                        got.insert(section.clone(), Vec::new());
+                let mut replied = false;
+                // Every reply for the UID counts: the parts may come split
+                // over several lines, with an unsolicited update among them.
+                for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
+                    replied = true;
+                    for (section, limit, want) in parts {
+                        if *want && *limit == 0 {
+                            got.insert(section.clone(), Vec::new());
+                        }
+                        if let Some(path) = section_path(section, Some(MessageSection::Mime))
+                            && let Some(data) = fetch.section(&path)
+                        {
+                            got.insert(format!("{section}.MIME"), data.to_vec());
+                        }
+                        if *want
+                            && let Some(path) = section_path(section, None)
+                            && let Some(data) = fetch.section(&path)
+                        {
+                            got.insert(section.clone(), data.to_vec());
+                        }
                     }
-                    if let Some(path) = section_path(section, Some(MessageSection::Mime))
-                        && let Some(data) = fetch.section(&path)
-                    {
-                        got.insert(format!("{section}.MIME"), data.to_vec());
-                    }
-                    if *want
-                        && let Some(path) = section_path(section, None)
-                        && let Some(data) = fetch.section(&path)
-                    {
-                        got.insert(section.clone(), data.to_vec());
-                    }
+                }
+                if !replied {
+                    return Err(NetError::Protocol("FETCH reply without the message".into()));
                 }
                 Ok(got)
             })
             .await?;
+        if let Some(name) = missing(parts, &got, items.contains(".MIME")) {
+            // Not a stub: that would cache a message missing its text.
+            return Err(NetError::Protocol(format!(
+                "FETCH reply without part {name}"
+            )));
+        }
         out.extend(got);
         Ok(())
+    }
+}
+
+/// The first thing asked for that the reply lacks: the body of a wanted part,
+/// and (when `headers` were asked) the headers of every part.
+fn missing(
+    parts: &[(String, u32, bool)],
+    got: &HashMap<String, Vec<u8>>,
+    headers: bool,
+) -> Option<String> {
+    parts.iter().find_map(|(section, _, want)| {
+        if *want && !got.contains_key(section) {
+            return Some(section.clone());
+        }
+        (headers && !got.contains_key(&format!("{section}.MIME")))
+            .then(|| format!("{section}.MIME"))
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn part(section: &str, limit: u32, want: bool) -> (String, u32, bool) {
+        (section.to_owned(), limit, want)
+    }
+
+    fn reply(names: &[&str]) -> HashMap<String, Vec<u8>> {
+        names
+            .iter()
+            .map(|n| ((*n).to_owned(), Vec::new()))
+            .collect()
+    }
+
+    #[test]
+    fn a_wanted_part_missing_from_the_reply_is_named() {
+        let parts = [part("1", 10, true), part("2", 0, false)];
+        assert_eq!(
+            missing(&parts, &reply(&["1.MIME", "2.MIME"]), true).as_deref(),
+            Some("1")
+        );
+        assert_eq!(
+            missing(&parts, &reply(&["1", "1.MIME"]), true).as_deref(),
+            Some("2.MIME")
+        );
+        assert_eq!(
+            missing(&parts, &reply(&["1", "1.MIME", "2.MIME"]), true),
+            None
+        );
+        // A single-part message's bodies come without part headers.
+        assert_eq!(missing(&parts[..1], &reply(&["1"]), false), None);
     }
 }

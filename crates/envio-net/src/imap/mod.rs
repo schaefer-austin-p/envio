@@ -11,6 +11,7 @@ mod ops;
 mod partial;
 pub mod query;
 mod sign_in;
+mod untrusted;
 mod window;
 
 use async_imap::Session;
@@ -24,7 +25,6 @@ use client::{Stream, map_error};
 pub use idle::{IDLE_MAX, Woke};
 pub use names::Role;
 pub use ops::SCAN;
-pub use partial::TEXT_CAP;
 pub use query::{Flag, MessageFlags};
 
 /// The extensions envio uses when the server has them.
