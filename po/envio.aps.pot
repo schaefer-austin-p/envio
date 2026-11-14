@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 22:02+0100\n"
+"POT-Creation-Date: 2026-11-14 22:36+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -933,37 +933,41 @@ msgstr ""
 msgid "Image not loaded"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:11
+#: crates/envio-core/src/text/read.rs:12
+msgid "The rest of this long text is not shown"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:16
 msgid ""
 "This message is not available right now. Check your connection and try again"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:15
+#: crates/envio-core/src/text/read.rs:20
 msgid "Could not save the attachment"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:19
+#: crates/envio-core/src/text/read.rs:24
 msgid "Could not read your mail from this phone"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:23
+#: crates/envio-core/src/text/read.rs:28
 msgid "This folder can't be searched on the server right now"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:27
+#: crates/envio-core/src/text/read.rs:32
 msgid "Couldn't load older messages. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:33
+#: crates/envio-core/src/text/read.rs:38
 msgid ""
 "Couldn't load older messages for {accounts}. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:40
+#: crates/envio-core/src/text/read.rs:45
 msgid "(no sender)"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:45
+#: crates/envio-core/src/text/read.rs:50
 msgid "(no subject)"
 msgstr ""
 

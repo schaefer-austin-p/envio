@@ -104,6 +104,19 @@ pub(crate) fn render_view(
         max_image_width: width_px,
     };
     let rendered = envio_mime::render(&message, &options);
+    let mut html = rendered.html;
+    if matches!(
+        message,
+        Mime::Parsed {
+            truncated: true,
+            ..
+        }
+    ) {
+        html.push_str(&format!(
+            "<p><i>{}</i></p>",
+            escape(&text::read::text_cut_short())
+        ));
+    }
     let (raw, attachments) = match &message {
         Mime::Raw(_) => (true, Vec::new()),
         Mime::Parsed { attachments, .. } => (
@@ -121,7 +134,7 @@ pub(crate) fn render_view(
     };
     let view = MessageView {
         header,
-        html: rendered.html,
+        html,
         raw,
         blocked_images: rendered.blocked_images,
         remote_images: rendered.remote_images,
@@ -129,6 +142,12 @@ pub(crate) fn render_view(
         attachments,
     };
     (view, rendered.unsized_images)
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Unicode format characters (category Cf): invisible, and some reverse
@@ -515,6 +534,28 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx).0;
         assert_eq!(view.header.from, "x@evil.example");
         assert_eq!(view.header.from_address, "x@evil.example");
+    }
+
+    #[test]
+    fn the_view_says_when_a_text_was_cut_short() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+        };
+        let cut = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\
+            X-Envio-Truncated: 9999999\r\n\r\nHi\r\n";
+        let whole = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
+        let note = text::read::text_cut_short();
+        let shown = render_view(cut, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(shown.contains(&note), "{shown}");
+        let shown = render_view(whole, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(!shown.contains(&note), "{shown}");
     }
 
     #[test]
