@@ -41,6 +41,16 @@ fn stub_header<'a>(part: &'a MessagePart<'_>, name: &str) -> Option<&'a str> {
         .and_then(|h| h.value().as_text())
 }
 
+const TRUNCATED_HEADER: &str = "x-envio-truncated";
+
+/// Whether envio cut a text part of this message short.
+pub(crate) fn is_truncated(message: &Parsed<'_>) -> bool {
+    message
+        .parts
+        .iter()
+        .any(|part| stub_header(part, TRUNCATED_HEADER).is_some())
+}
+
 fn is_stub(part: &MessagePart<'_>) -> bool {
     stub_header(part, SECTION_HEADER).is_some()
 }

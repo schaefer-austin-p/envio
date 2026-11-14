@@ -70,3 +70,18 @@ fn a_single_part_stub_is_listed() {
     assert_eq!(list[0].section.as_deref(), Some("1"));
     assert_eq!(list[0].size, 9_000_000);
 }
+
+#[test]
+fn a_text_part_cut_short_by_envio_says_so() {
+    let cut = "From: a@x.test\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+        --b\r\nContent-Type: text/plain\r\nX-Envio-Truncated: 3000000\r\n\r\nhello\r\n--b--\r\n";
+    let whole = cut.replace("X-Envio-Truncated: 3000000\r\n", "");
+    let single =
+        "From: a@x.test\r\nContent-Type: text/plain\r\nX-Envio-Truncated: 3000000\r\n\r\nhello\r\n";
+    for (raw, expected) in [(cut, true), (single, true), (whole.as_str(), false)] {
+        let Message::Parsed { truncated, .. } = parse(raw.as_bytes()) else {
+            panic!("did not parse");
+        };
+        assert_eq!(truncated, expected, "{raw}");
+    }
+}
