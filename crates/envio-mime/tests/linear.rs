@@ -375,3 +375,133 @@ fn a_hidden_table_does_not_shift_the_verdicts() {
     assert_eq!(count(&html, "table"), 1, "{html}");
     assert_eq!(count(&html, "td"), 2, "{html}");
 }
+
+#[test]
+fn a_layout_tables_align_does_not_centre_its_text() {
+    let html = clean(
+        r#"<table align="center" width="480"><tr><td><p>Item</p><ul><li>x</li></ul></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    assert!(!html.contains(r#"align="center""#), "{html}");
+    in_order(&html, &["Item", "x"]);
+}
+
+#[test]
+fn a_cells_own_align_still_applies() {
+    let html = clean(r#"<table align="center"><tr><td align="right">price</td></tr></table>"#);
+    assert!(html.contains(r#"<div align="right""#), "{html}");
+    assert!(!html.contains(r#"align="center""#), "{html}");
+}
+
+#[test]
+fn a_bare_hex_bgcolor_becomes_a_css_colour() {
+    let html = clean(r#"<table><tr><td bgcolor="ffcc00">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#ffcc00"), "{html}");
+    let html = clean(r#"<table><tr bgcolor="fff"><td>hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#fff"), "{html}");
+    let html = clean(r#"<table><tr><td bgcolor="ffffff">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#ffffff"), "{html}");
+}
+
+#[test]
+fn a_bgcolor_name_is_kept_and_junk_dropped() {
+    let html = clean(r#"<table><tr><td bgcolor="navy">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:navy"), "{html}");
+    let html = clean(r#"<table><tr><td bgcolor="ffcc0">hi</td></tr></table>"#);
+    assert!(!html.contains("background-color"), "{html}");
+}
+
+#[test]
+fn a_padded_button_cell_stays_a_table() {
+    let html = clean(
+        r#"<table role="presentation"><tr><td bgcolor="1a1f36" style="padding:12px 24px"><a href="https://example.com/plan">Manage your plan</a></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert!(html.contains("padding:12px 24px"), "{html}");
+    assert!(html.contains("Manage your plan"), "{html}");
+}
+
+#[test]
+fn a_padded_cell_with_blocks_is_still_linearised() {
+    let html = clean(
+        r#"<table><tr><td bgcolor="eeeeee" style="padding:12px"><p>one</p><p>two</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+}
+
+#[test]
+fn only_a_real_padded_background_cell_is_a_button() {
+    for cell in [
+        r#"<td bgcolor="1a1f36" style="padding:0">"#,
+        r#"<td bgcolor="zzz1" style="padding:12px">"#,
+        r#"<td bgcolor="zz!1" style="padding:12px;border:1px solid red">"#,
+        r#"<td style="padding:12px;border:1px solid red">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+    let html = clean(
+        r#"<table role="presentation"><tr><td style="padding-top:8px;background-color:#556cd6"><a href="https://example.com/x">go</a></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+}
+
+#[test]
+fn a_boxed_cell_beside_another_cell_is_still_linearised() {
+    let html = clean(
+        r#"<table role="presentation" width="600"><tr><td width="300" bgcolor="1a1f36" style="padding:12px">a</td><td width="300">b</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+}
+
+#[test]
+fn a_buttons_padding_may_come_from_cellpadding() {
+    let html = clean(
+        r##"<table cellpadding="12"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    for pad in ["0", "", "x"] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(count(&html, "table"), 0, "cellpadding {pad:?}: {html}");
+    }
+}
+
+#[test]
+fn a_transparent_background_is_not_a_button() {
+    for cell in [
+        r#"<td bgcolor="transparent" style="padding:12px">"#,
+        r#"<td style="padding:12px;background-color:transparent">"#,
+        r#"<td style="padding:12px;background-color:inherit">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+}
+
+#[test]
+fn cellpadding_reads_its_leading_digits() {
+    for (pad, button) in [
+        ("12", true),
+        ("12px", true),
+        (" 12 ", true),
+        ("0", false),
+        ("0px", false),
+        ("", false),
+        ("x", false),
+    ] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(
+            count(&html, "table"),
+            usize::from(button),
+            "{pad:?}: {html}"
+        );
+    }
+}

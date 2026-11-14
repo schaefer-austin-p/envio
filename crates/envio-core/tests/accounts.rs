@@ -217,6 +217,23 @@ fn remove_asks_first_when_work_is_unsent() {
 }
 
 #[test]
+fn removing_an_account_clears_the_inline_images() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    h.start_core();
+    started(&h);
+    let folder = h.paths().inline().join("3");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("0.png"), b"x").unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    assert!(!h.paths().inline().join("3").exists());
+}
+
+#[test]
 fn remove_confirmed_deletes_outbox_drafts_journal_and_password() {
     let mut h = Harness::unstarted();
     let key = h.seed_account(EMAIL, Some("pw"));

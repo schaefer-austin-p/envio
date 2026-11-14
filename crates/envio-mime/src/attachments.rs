@@ -48,6 +48,31 @@ pub fn attachment_bytes(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     Some(message.attachment(index)?.contents().to_vec())
 }
 
+/// The decoded bytes of each attachment in `indexes`, from one parse of
+/// `raw`; `None` for an index the message does not have. Gives what
+/// [`attachment_bytes`] gives per index.
+pub fn attachments_bytes(raw: &[u8], indexes: &[usize]) -> Vec<Option<Vec<u8>>> {
+    let mut out = Vec::with_capacity(indexes.len());
+    with_attachments(raw, indexes, |_, bytes| {
+        out.push(bytes.map(<[u8]>::to_vec));
+    });
+    out
+}
+
+/// Calls `f` with each of `indexes` (its position in the slice, and the
+/// decoded bytes borrowed from one parse of `raw`, `None` for an index the
+/// message does not have), in order. Copies nothing.
+pub fn with_attachments(raw: &[u8], indexes: &[usize], mut f: impl FnMut(usize, Option<&[u8]>)) {
+    let message = parse_mail(raw).filter(|m| !is_broken_multipart(m));
+    for (n, &i) in indexes.iter().enumerate() {
+        let bytes = message.as_ref().and_then(|m| {
+            let i = u32::try_from(i).ok()?;
+            Some(m.attachment(i)?.contents())
+        });
+        f(n, bytes);
+    }
+}
+
 fn info(index: usize, part: &MessagePart<'_>) -> AttachmentInfo {
     let content_type = part.content_type().map_or_else(
         || "application/octet-stream".to_owned(),

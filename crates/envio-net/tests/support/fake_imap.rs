@@ -36,6 +36,12 @@ pub struct Script {
     /// Untagged lines (each ending in CRLF) sent after the client's DONE,
     /// before IDLE's tagged OK.
     pub before_idle_ok: &'static str,
+    /// UID FETCH is answered with `* n FETCH (UID u FLAGS (\Seen))` for
+    /// every UID in the set.
+    pub fetch_flags: bool,
+    /// With `fetch_flags`: the 1-based UID FETCH from which the
+    /// connection is dropped mid-command; 0 for never.
+    pub fetch_fails_from: usize,
 }
 
 impl Default for Script {
@@ -52,6 +58,8 @@ impl Default for Script {
             plain_accepts: "\0alice\0pässwort",
             keepalive: false,
             before_idle_ok: "",
+            fetch_flags: false,
+            fetch_fails_from: 0,
         }
     }
 }
@@ -144,6 +152,7 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     log: &Transcript,
 ) {
     let mut signed_in = false;
+    let mut fetches = 0;
     while let Some(command) = line(io, true, log).await {
         let (tag, verb) = split(&command);
         // "UID COPY ...": the word after UID, for the commands that need it.
@@ -177,6 +186,12 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
+            "UID" if answers_fetch(&script, &sub_verb) => {
+                let Some(reply) = fetch_reply(&command, &tag, &script, &mut fetches) else {
+                    return;
+                };
+                reply
+            }
             "IDLE" => idle_reply(io, log, &tag, &script).await,
             // Accepted and recorded; the tests read the transcript.
             _ if accepted(&verb, &sub_verb) => format!("{tag} OK done\r\n"),
@@ -198,6 +213,40 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
             return;
         }
     }
+}
+
+fn answers_fetch(script: &Script, sub_verb: &str) -> bool {
+    script.fetch_flags && sub_verb == "FETCH"
+}
+
+/// The flags of every UID in the command's set; None from the fetch
+/// that is to drop the connection.
+fn fetch_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -> Option<String> {
+    *fetches += 1;
+    let nth = *fetches;
+    if script.fetch_fails_from != 0 && nth >= script.fetch_fails_from {
+        return None;
+    }
+    let set = command.split(' ').nth(3).unwrap_or("");
+    let body: String = uids_in(set)
+        .iter()
+        .enumerate()
+        .map(|(n, uid)| format!("* {} FETCH (UID {uid} FLAGS (\\Seen))\r\n", n + 1))
+        .collect();
+    Some(format!("{body}{tag} OK done\r\n"))
+}
+
+/// The UIDs a set like `1:3,7` names.
+fn uids_in(set: &str) -> Vec<u32> {
+    set.split(',')
+        .flat_map(|run| match run.split_once(':') {
+            Some((a, b)) => a.parse().unwrap_or(1)..=b.parse().unwrap_or(0),
+            None => {
+                let n = run.parse().unwrap_or(0);
+                n..=n
+            }
+        })
+        .collect()
 }
 
 /// The commands that are accepted and recorded, nothing more.

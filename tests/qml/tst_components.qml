@@ -35,6 +35,16 @@ Item {
     SignalSpy { id: chevRowClicked; target: chevRow; signalName: "clicked" }
     Chevron { id: lone; theme: thm; y: 300 }
     SignalSpy { id: rowHeld; target: row; signalName: "pressAndHold" }
+    property bool boundOn: true
+    ListRow {
+        id: boundRow
+        theme: thm
+        visible: false
+        width: 300
+        enabled: root.boundOn
+        Text { text: "Bound" }
+    }
+    SignalSpy { id: boundClicked; target: boundRow; signalName: "clicked" }
 
     Toast { id: toast; theme: thm; width: 300 }
     SignalSpy { id: toastExpired; target: toast; signalName: "expired" }
@@ -205,6 +215,29 @@ Item {
                        "swipe actions on " + obj)
             }
             verify(row.height >= 44)
+        }
+
+        // A sideways drag cancels the tap without replacing the row's own
+        // `enabled` binding (the From row's follows the account count).
+        function test_sideways_drag_keeps_an_enabled_binding() {
+            const far = Qt.styleHints.startDragDistance * 3
+            row.visible = false
+            boundRow.visible = true
+            boundClicked.clear()
+            mouseClick(boundRow, 20, boundRow.height / 2)
+            compare(boundClicked.count, 1, "a tap opens")
+            boundClicked.clear()
+            mousePress(boundRow, 20, boundRow.height / 2)
+            mouseMove(boundRow, 20 + far / 2, boundRow.height / 2)
+            mouseMove(boundRow, 20 + far, boundRow.height / 2)
+            mouseRelease(boundRow, 20 + far, boundRow.height / 2)
+            compare(boundClicked.count, 0, "the swipe is not a tap")
+            root.boundOn = false
+            compare(boundRow.enabled, false, "the binding still disables the row")
+            root.boundOn = true
+            compare(boundRow.enabled, true)
+            boundRow.visible = false
+            row.visible = true
         }
 
         function test_toast_defaults_to_five_seconds() {

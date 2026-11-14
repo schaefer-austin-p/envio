@@ -61,7 +61,7 @@ fn is_visible(value: &str) -> bool {
 
 /// A `bgcolor` value, as an attribute or as the `background-color` that
 /// `linearise` turns it into: HTML also accepts bare hex (`ffffff`) there.
-fn is_visible_attr(value: &str) -> bool {
+pub(crate) fn is_visible_attr(value: &str) -> bool {
     let v = value.trim();
     let bare_hex = matches!(v.len(), 3 | 6) && v.bytes().all(|b| b.is_ascii_hexdigit());
     if bare_hex {

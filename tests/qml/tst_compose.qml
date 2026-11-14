@@ -524,6 +524,48 @@ Item {
             compare(find("suggestionNote-0").mapToItem(page, 0, 0).x, margin)
         }
 
+        // #145: Enter made a chip but the cursor and keyboard went away, so a
+        // second address typed next went nowhere.
+        function test_enter_keeps_focus_in_the_field() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            to.input.forceActiveFocus()
+            verify(to.input.activeFocus)
+            // On the phone the platform drops focus once Enter is handled
+            // (offscreen it does not): do the same after the field's own
+            // handler, so the field has to take focus back.
+            const drop = function() { to.input.focus = false }
+            to.input.accepted.connect(drop)
+            keyClick("a"); keyClick("@"); keyClick("e"); keyClick("x")
+            keyClick(Qt.Key_Return)
+            to.input.accepted.disconnect(drop)
+            compare(to.entries, ["a@ex"])
+            compare(to.input.text, "")
+            tryVerify(function() { return to.input.activeFocus }, 1000, "the field keeps focus after Enter")
+            keyClick("b")
+            compare(to.input.text, "b")
+            compare(to.entries, ["a@ex"], "the refocus did not commit the new text")
+        }
+
+        // Enter on an empty field is the user dismissing the keyboard: it must
+        // not be forced back open.
+        function test_enter_on_an_empty_field_does_not_take_focus_back() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            to.input.forceActiveFocus()
+            const drop = function() { to.input.focus = false }
+            to.input.accepted.connect(drop)
+            keyClick(Qt.Key_Return)
+            to.input.accepted.disconnect(drop)
+            wait(100)
+            compare(to.entries, [])
+            verify(!to.input.activeFocus, "an empty Enter does not refocus")
+        }
+
         function test_recipient_row_is_one_line_beside_a_chip() {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
                                    inReplyTo: "", references: [], attachments: [] }, "")

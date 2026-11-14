@@ -137,7 +137,19 @@ Item {
                         return left >= root.theme.gu(8) ? left : flow.width - root.theme.gu(1)
                     }
                     inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                    onAccepted: root.commit(true)
+                    // Enter makes a chip and stays: the cursor and the keyboard
+                    // are kept for the next address. The refocus is deferred so
+                    // it runs after whatever the platform does on Enter.
+                    onAccepted: {
+                        // Only when a chip was made: Enter on an empty field
+                        // may be the user closing the keyboard.
+                        const before = root.entries.length
+                        root.commit(true)
+                        if (root.entries.length > before) Qt.callLater(function() {
+                            field.input.forceActiveFocus()
+                            Qt.inputMethod.show()
+                        })
+                    }
                 }
                 Connections {
                     target: field.input

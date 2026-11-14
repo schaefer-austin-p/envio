@@ -18,25 +18,6 @@ ListRow {
     objectName: "row-" + model.id
     selected: model.selected
 
-    // A sideways drag is not a tap. A passive handler watches the finger;
-    // once it travels past the drag distance the row is disabled and enabled
-    // again, which drops the button's grab so it cancels and emits no
-    // `clicked`. It never takes a grab itself, so press-and-hold and the
-    // list's vertical scroll are untouched.
-    PointHandler {
-        id: swipeWatch
-        property bool cut: false
-        onActiveChanged: if (active) cut = false
-        onPointChanged: {
-            if (!active || cut) return
-            if (Math.abs(point.position.x - point.pressPosition.x) > Qt.styleHints.startDragDistance) {
-                cut = true
-                root.enabled = false
-                root.enabled = true
-            }
-        }
-    }
-
     // The slot: an 8 px dot, or the checkbox.
     Rectangle {
         objectName: "unreadDot"
