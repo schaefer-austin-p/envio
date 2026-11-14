@@ -197,6 +197,9 @@ pub mod qobject {
         #[cxx_name = "loadOlder"]
         fn load_older(self: Pin<&mut EnvioCore>);
         #[qinvokable]
+        #[cxx_name = "loadOlderNearEnd"]
+        fn load_older_near_end(self: Pin<&mut EnvioCore>);
+        #[qinvokable]
         #[cxx_name = "setSyncWindow"]
         fn set_sync_window(self: Pin<&mut EnvioCore>, days: i32);
         #[qinvokable]
