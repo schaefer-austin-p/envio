@@ -40,6 +40,7 @@ Item {
     SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
     SignalSpy { id: bodySet; signalName: "textChanged" }
+    TextEdit { id: pasteTarget; visible: false; textFormat: TextEdit.PlainText }
 
     MockCore { id: shellCore }
     AppShell {
@@ -701,6 +702,52 @@ Item {
             thm.name = "carbon"
             compare(thm.bodyLineHeight, 1.0)
             compare(root.page.bodyHtml.indexOf("line-height"), -1)
+        }
+
+        // #165: a long press selects a word and offers Copy; a drag or tap
+        // never selects (selectByMouse stays off so a flick scrolls).
+        function entry(menu, name) {
+            for (let i = 0; i < menu.count; i++)
+                if (menu.itemAt(i).objectName === name) return menu.itemAt(i)
+            verify(false, "no menu entry " + name)
+        }
+        function test_long_press_selects_a_word_and_shows_handles() {
+            const v = view([], 0)
+            v.html = "<p>Order 48213 shipped</p>"
+            open(v)
+            const body = find("bodyText")
+            const handles = find("bodyHandles")
+            compare(handles.visible, false)
+            const r = body.positionToRectangle(body.text.length > 0 ? 8 : 0)
+            root.page.holdBody(r.x + 1, r.y + r.height / 2)
+            compare(body.selectedText, "48213")
+            compare(handles.visible, true)
+            verify(find("bodyMenu").visible || find("bodyMenu").opened)
+            compare(find("bodyMenu").copyOnly, true)
+        }
+
+        function test_copy_puts_the_selection_on_the_clipboard_as_plain_text() {
+            const v = view([], 0)
+            v.html = "<p>Code <b>7391</b> inside</p>"
+            open(v)
+            const body = find("bodyText")
+            body.select(0, body.length)
+            const menu = find("bodyMenu")
+            menu.open()
+            entry(menu, "editCopy").triggered()
+            pasteTarget.text = ""
+            pasteTarget.paste()
+            compare(pasteTarget.text, "Code 7391 inside")
+        }
+
+        function test_the_body_menu_offers_no_cut_or_paste() {
+            open(view([], 0))
+            const menu = find("bodyMenu")
+            menu.open()
+            compare(entry(menu, "editCut").visible, false)
+            compare(entry(menu, "editPaste").visible, false)
+            compare(entry(menu, "editCopy").visible, true)
+            compare(entry(menu, "editSelectAll").visible, true)
         }
 
         function test_body_is_read_only_and_links_open_the_sheet() {

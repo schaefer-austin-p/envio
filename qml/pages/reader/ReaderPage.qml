@@ -100,6 +100,13 @@ Item {
     }
     // A forward carries the message's attachments; the compose page shows
     // them as chips the user can remove.
+    // A long press on the body at (x, y) in its own coordinates: the word
+    // under the finger is selected and the Copy menu opens beside it.
+    function holdBody(x, y) {
+        body.cursorPosition = body.positionAt(x, y)
+        body.selectWord()
+        if (body.selectedText !== "") bodyMenu.popup(body, x, y)
+    }
     function forward() { compose("forward") }
     function save(mode) {
         pendingMode = mode
@@ -223,9 +230,12 @@ Item {
                     y: root.theme.gu(1.5)
                     width: parent.width - root.theme.gu(3)
                     readOnly: true
+                    // Selection is by long press (the TapHandler below), never
+                    // by drag: a drag on the body scrolls the page.
                     activeFocusOnPress: false
                     selectByMouse: false
                     cursorVisible: false
+                    persistentSelection: true
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
                     // An empty comment after an image redraw: same layout,
@@ -238,6 +248,26 @@ Item {
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize
                     onLinkActivated: linkSheet.show(link)
+                    // A long press selects the word under the finger and
+                    // opens Copy / Select all. A tap or a flick is not one.
+                    TapHandler {
+                        objectName: "bodyHold"
+                        longPressThreshold: 0.5
+                        onLongPressed: root.holdBody(point.position.x, point.position.y)
+                    }
+                    EditMenu {
+                        id: bodyMenu
+                        objectName: "bodyMenu"
+                        theme: root.theme
+                        field: body
+                        copyOnly: true
+                    }
+                }
+                SelectionHandles {
+                    objectName: "bodyHandles"
+                    theme: root.theme
+                    edit: body
+                    flick: flick
                 }
             }
             AttachmentList {
