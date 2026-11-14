@@ -15,6 +15,7 @@ mod hidden;
 mod image_label;
 mod image_size;
 mod images;
+mod invite;
 mod linear;
 mod link;
 mod mail;
@@ -39,6 +40,9 @@ pub use colours::{parse_colour, sets_colours};
 pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
 pub use image_size::size as image_size;
+pub use invite::{
+    Invite, InviteMethod, NaiveParts, PartStat, Person, When, invite_of, parse_invite,
+};
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};
 pub use message::{Body, Message, parse, quote_text};

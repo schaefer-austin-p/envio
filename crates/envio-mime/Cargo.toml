@@ -32,3 +32,4 @@ mail-parser = { version = "0.11.9", features = ["full_encoding"] }
 
 [dev-dependencies]
 insta = "1.49"
+proptest = "1.12.0"
