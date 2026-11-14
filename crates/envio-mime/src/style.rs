@@ -26,7 +26,7 @@ const STYLE_PROPS: &[&str] = &[
 
 /// Also kept on `img`, so the image pass can spot 1x1 pixels and size the
 /// image; it turns them into attributes (Qt ignores CSS width on images).
-const IMG_SIZE_PROPS: &[&str] = &["width", "height"];
+const IMG_SIZE_PROPS: &[&str] = &["width", "height", "max-width"];
 
 /// Substrings that make a CSS value unsafe, checked in lower case.
 const BAD_CSS: &[&str] = &[
@@ -88,6 +88,11 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             if prop.starts_with("margin") {
                 return vertical_margins(&prop, value);
             }
+            if prop == "font-size"
+                && let Some(size) = fitted_font_size(value)
+            {
+                return Some(format!("font-size:{size}"));
+            }
             Some(format!("{prop}:{value}"))
         })
         .collect();
@@ -121,6 +126,44 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
         .filter_map(|(side, v)| v.filter(|v| *v != "auto").map(|v| format!("{side}:{v}")))
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
+}
+
+/// The largest font size kept, in px: a heading above it wraps mid-word in a
+/// phone column (#177).
+const MAX_FONT_PX: f64 = 26.0;
+
+/// `font-size` `value` rewritten when Qt would misread it: a zero size
+/// or below 1px becomes `1px` (Qt 5 ignores 0 and may truncate a smaller
+/// size to it, so a spacer would be a blank line, #176),
+/// and a size above [`MAX_FONT_PX`] is clamped. `None` leaves it as is
+/// (other units, keywords and sizes in range).
+fn fitted_font_size(value: &str) -> Option<String> {
+    // `!important` may be written `! important`; nothing after `!` is a size.
+    let lower = value
+        .split('!')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let lower = lower.trim();
+    let lower = lower.strip_prefix('+').unwrap_or(lower);
+    let end = lower
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(lower.len());
+    let n: f64 = lower[..end].parse().ok()?;
+    let px = match &lower[end..] {
+        "px" => n,
+        "pt" => n * 4.0 / 3.0,
+        "em" | "rem" => n * 16.0,
+        _ if n == 0.0 => 0.0,
+        _ => return None,
+    };
+    if px < 1.0 {
+        Some("1px".to_owned())
+    } else if px > MAX_FONT_PX {
+        Some("26px".to_owned())
+    } else {
+        None
+    }
 }
 
 fn safe_css_value(value: &str) -> bool {

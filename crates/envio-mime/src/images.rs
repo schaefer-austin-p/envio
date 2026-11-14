@@ -77,6 +77,9 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
     };
     let mut rest = html;
     let mut ends: Option<Ends> = None;
+    // The pixel width of each open table cell, so a percentage image
+    // width is a share of its cell rather than of the whole reader.
+    let mut cells: Vec<Option<u32>> = Vec::new();
     while let Some(start) = rest.find('<') {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
@@ -95,7 +98,8 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             _ if is_unwrapped(raw) => {}
             Some(tag) if tag.name == "img" => {
                 let at = out.html.len();
-                if let Some(width) = image(&tag, options, &mut out) {
+                let cell = cells.iter().rev().find_map(|w| *w);
+                if let Some(width) = image(&tag, options, cell, &mut out) {
                     let end = out.html.len();
                     images.push(Placed { at, end, width });
                 }
@@ -103,9 +107,17 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
                 widths::carry(&mut tag, options.max_image_width);
                 limit_width(&mut tag, options.max_image_width);
+                if matches!(tag.name.as_str(), "td" | "th") {
+                    cells.push(tag.attr("width").and_then(pixels));
+                }
                 tag.write(&mut out.html);
             }
-            _ => out.html.push_str(raw),
+            _ => {
+                if closes_cell(raw) {
+                    cells.pop();
+                }
+                out.html.push_str(raw);
+            }
         }
         rest = &rest[start + len..];
     }
@@ -174,7 +186,12 @@ fn unescape(value: &str) -> String {
 /// Writes the image, or its label when it isn't loaded. `Some` with the
 /// declared width when it stands for a picture; `None` for a tracker or an
 /// unusable `src`.
-fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Option<u32>> {
+fn image(
+    tag: &Tag,
+    options: &RenderOptions,
+    cell: Option<u32>,
+    out: &mut Rendered,
+) -> Option<Option<u32>> {
     let src = tag.attr("src").unwrap_or_default().trim();
     let width = size(tag, "width");
     let height = size(tag, "height");
@@ -211,13 +228,22 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
         return None;
     };
     let declared = width;
-    let (mut width, height) = scale(width, height, options.max_image_width);
-    // Qt draws an image with no width at its natural size, so a large inline
-    // picture overflows the reader. (With a height but no width it scales
-    // proportionally already.)
-    let max = options.max_image_width;
-    if width.is_none() && height.is_none() && max > 0 && natural.is_some_and(|n| n > max) {
-        width = Some(max);
+    let room = match (options.max_image_width, cell) {
+        (0, _) => 0,
+        (max, Some(cell)) => cell.min(max),
+        (max, None) => max,
+    };
+    let (mut width, height) = match (width, share_of(tag, room)) {
+        // Qt's rich text has no percentage or max-width for an image and
+        // would draw it at the file's size; the height in another unit
+        // would distort it, so only the width is set.
+        (None, Some(share)) => (Some(share), None),
+        _ => scale(width, height, options.max_image_width),
+    };
+    // Likewise a cid image with no width: draw it at the room if its file is
+    // wider. (With a height but no width Qt scales it proportionally.)
+    if width.is_none() && height.is_none() && room > 0 && natural.is_some_and(|n| n > room) {
+        width = Some(room);
     }
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {
@@ -237,6 +263,51 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) -> Option<Optio
     Some(declared)
 }
 
+/// Whether `raw` is a `</td>` or `</th>` end tag (not `</thead>`).
+fn closes_cell(raw: &str) -> bool {
+    ["</td", "</th"].iter().any(|end| {
+        raw.strip_prefix(end)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| c == '>' || c.is_ascii_whitespace())
+    })
+}
+
+/// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`
+/// (the reader, or the image's cell when narrower),
+/// capped by a pixel `max-width`; `None` without one or when `max` is 0.
+fn share_of(tag: &Tag, max: u32) -> Option<u32> {
+    let style = tag.attr("style");
+    let percent = tag.attr("width").and_then(percent).or_else(|| {
+        style
+            .and_then(|s| style_value(s, "width"))
+            .and_then(percent)
+    })?;
+    if max == 0 {
+        return None;
+    }
+    let cap = style
+        .and_then(|s| style_value(s, "max-width"))
+        .and_then(pixels)
+        .filter(|&w| w > PIXEL_MAX)
+        .map_or(max, |w| w.min(max));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let px = (f64::from(max) * percent / 100.0).round() as u32;
+    Some(px.clamp(1, cap))
+}
+
+/// A percentage in (0, 100], with an optional trailing `!important`.
+fn percent(value: &str) -> Option<f64> {
+    let value = value.trim().to_ascii_lowercase();
+    let value = value.split('!').next().unwrap_or_default().trim();
+    let number = value.strip_suffix('%')?.trim();
+    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let n = number.parse::<f64>().ok()?;
+    (n > 0.0).then_some(n.min(100.0))
+}
+
+/// The loadable URL for a `cid:` reference, with or without angle brackets.
 /// An image that isn't shown: its alt text, or the caller's label.
 fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
@@ -248,8 +319,8 @@ fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     escape_into(label, &mut out.html);
 }
 
-/// The loadable URL for a `cid:` reference (with or without angle brackets)
-/// and the image's natural width, when known.
+/// The loadable URL for a `cid:` reference and the image's natural width,
+/// when known.
 fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<(&'o str, Option<u32>)> {
     let id = crate::thread::normalize_id(cid)?;
     let url = options.cid_urls.get(&id)?;
