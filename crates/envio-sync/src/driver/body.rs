@@ -32,7 +32,9 @@ pub async fn fetch_body(
 }
 
 /// Like [`fetch_body`], but always the whole message: a forward needs the
-/// attachments.
+/// attachments. The whole message of a big one is for the caller only, never
+/// cached: the cache keeps its partial body (or none), so opening it again
+/// stays small.
 pub async fn fetch_whole_body(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
@@ -66,6 +68,9 @@ async fn fetch(
             .step(|db| db.delete_messages(folder.id, &[message.uid]))?;
         return Ok(None);
     };
+    if whole && is_big(message.size) {
+        return Ok(Some(eml));
+    }
     let kept = if partial {
         BodyState::Partial
     } else {

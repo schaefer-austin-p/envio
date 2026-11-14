@@ -237,6 +237,30 @@ pub fn eml(id: &str) -> Vec<u8> {
     .into_bytes()
 }
 
+/// What envio-net makes of a big message: its headers, a short text, and
+/// its attachment left on the server as a stub (section 2, the message's
+/// size).
+pub fn stubbed(eml: &[u8]) -> Vec<u8> {
+    let end = eml
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map_or(eml.len(), |at| at + 2);
+    let mut out = eml[..end].to_vec();
+    out.extend_from_slice(
+        format!(
+            "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"=_fake\"\r\n\r\n\
+             --=_fake\r\nContent-Type: text/plain\r\n\r\nThe text of the big message.\r\n\
+             --=_fake\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\n\
+             Content-Disposition: attachment; filename=\"big.pdf\"\r\n\
+             Content-Transfer-Encoding: base64\r\n\
+             X-Envio-Section: 2\r\nX-Envio-Size: {}\r\n\r\n\r\n--=_fake--\r\n",
+            eml.len()
+        )
+        .as_bytes(),
+    );
+    out
+}
+
 fn message_id(eml: &[u8]) -> Option<String> {
     envio_mime::envelope(eml).and_then(|envelope| envelope.message_id)
 }
@@ -412,7 +436,10 @@ impl MailServer for FakeServer {
     async fn fetch_partial(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
         self.call("fetch_partial", &uid.to_string())?;
         let folder = self.selected()?;
-        Ok(folder.messages.get(&uid).map(|message| message.eml.clone()))
+        Ok(folder
+            .messages
+            .get(&uid)
+            .map(|message| stubbed(&message.eml)))
     }
 
     async fn fetch_section(

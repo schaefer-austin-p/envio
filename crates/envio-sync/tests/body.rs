@@ -61,16 +61,69 @@ async fn a_big_message_is_fetched_in_parts_and_marked_partial() {
     assert_eq!(store.db.message(id).unwrap().body, BodyState::Partial);
 }
 
+/// The bytes cached for the message.
+fn cached(store: &Store, id: MessageRowId) -> Vec<u8> {
+    let message = store.db.message(id).unwrap();
+    store.bodies.read(message.folder, message.uid).unwrap()
+}
+
 #[tokio::test]
-async fn asking_for_the_whole_message_replaces_the_partial_body() {
+async fn a_big_message_is_stored_with_its_attachment_as_a_stub() {
     let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
     fetch_body(&mut server, &mut store.local(), id)
         .await
         .unwrap();
+    let stored = cached(&store, id);
+    assert!(stored.len() < 2000, "{} bytes", stored.len());
+    let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(&stored) else {
+        panic!("did not parse");
+    };
+    assert_eq!(attachments[0].section.as_deref(), Some("2"));
+    assert!(attachments[0].size > PARTIAL_ABOVE as usize);
+}
+
+#[tokio::test]
+async fn asking_for_the_whole_message_leaves_the_partial_body_alone() {
+    let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
+    fetch_body(&mut server, &mut store.local(), id)
+        .await
+        .unwrap();
+    let before = cached(&store, id);
+    let whole = fetch_whole_body(&mut server, &mut store.local(), id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(called(&server, "fetch_body"));
+    assert!(
+        whole.len() > PARTIAL_ABOVE as usize,
+        "{} bytes",
+        whole.len()
+    );
+    assert_eq!(store.db.message(id).unwrap().body, BodyState::Partial);
+    assert_eq!(
+        cached(&store, id),
+        before,
+        "the cache grew to the whole message"
+    );
+}
+
+#[tokio::test]
+async fn the_whole_message_of_an_unopened_big_one_is_not_cached() {
+    let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
+    let whole = fetch_whole_body(&mut server, &mut store.local(), id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(whole.len() > PARTIAL_ABOVE as usize);
+    assert_eq!(store.db.message(id).unwrap().body, BodyState::Missing);
+}
+
+#[tokio::test]
+async fn the_whole_message_of_a_small_one_is_cached_as_usual() {
+    let (mut server, mut store, id) = synced(1000).await;
     fetch_whole_body(&mut server, &mut store.local(), id)
         .await
         .unwrap();
-    assert!(called(&server, "fetch_body"));
     assert_eq!(store.db.message(id).unwrap().body, BodyState::Downloaded);
 }
 
