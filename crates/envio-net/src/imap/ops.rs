@@ -118,10 +118,12 @@ impl ImapSession {
         uids: &[u32],
         changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>> {
-        let Some(set) = query::uid_set(uids) else {
-            return Ok(Vec::new());
-        };
-        self.fetch_flags_in(&set, uids.len(), changed_since).await
+        // One command per chunk keeps each line under the server's limit.
+        let mut updates = Vec::new();
+        for (set, count) in query::uid_set_chunks(uids, query::MAX_SET_LEN) {
+            updates.extend(self.fetch_flags_in(&set, count, changed_since).await?);
+        }
+        Ok(updates)
     }
 
     /// Flags of every message from `first` up (`first:*`).
