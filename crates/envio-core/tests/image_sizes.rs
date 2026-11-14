@@ -147,9 +147,9 @@ fn sizes_carry_over_to_opening_the_same_message_again() {
 }
 
 #[test]
-fn a_message_loaded_past_the_size_cap_is_capped_too() {
+fn a_big_message_is_capped_too() {
     let s = seeded(Some(30 * 1000 * 1000));
-    s.h.send(Command::OpenMessageAnyway {
+    s.h.send(Command::OpenMessage {
         id: s.id,
         images: ImagesChoice::Load,
         width_px: 300,

@@ -623,8 +623,17 @@ fn folders_are_listed_role_first() {
 /// A cached message whose server size is `size` bytes (the cached body is
 /// small: the size is what the cap looks at).
 fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
+    seeded_sized_with(size, Some("pw"), false)
+}
+
+fn seeded_sized_with(
+    size: u32,
+    password: Option<&str>,
+    foreground: bool,
+) -> (Seeded, MessageRowId) {
     let mut h = Harness::unstarted();
-    let key = h.seed_account(ME, Some("pw"));
+    h.foreground = foreground;
+    let key = h.seed_account(ME, password);
     let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
     let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
     conn.execute("UPDATE messages SET size = ?1", [size])
@@ -637,19 +646,17 @@ fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
 }
 
 #[test]
-fn a_big_message_opens_without_a_size_warning() {
+fn a_big_message_opens() {
     let (s, id) = seeded_sized(30 * 1000 * 1000);
     s.h.send(Command::OpenMessage {
         id,
         images: ImagesChoice::Default,
         width_px: 300,
     });
-    let opened = s.h.wait(|e| match e {
-        Event::MessageTooLarge { id: i, .. } if *i == id => Some(false),
-        Event::MessageOpened { id: i, .. } if *i == id => Some(true),
+    s.h.wait(|e| match e {
+        Event::MessageOpened { id: i, .. } if *i == id => Some(()),
         _ => None,
     });
-    assert!(opened, "a size warning came");
 }
 
 #[test]
@@ -662,21 +669,42 @@ fn a_partial_body_opens_from_disk() {
     assert!(view.html.contains("Hello"));
 }
 
+const STUBBED: &str = "From: a@x.test\r\nSubject: message 1\r\nMIME-Version: 1.0\r\n\
+    Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+    --b\r\nContent-Type: text/plain\r\n\r\nHello\r\n\
+    --b\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\n\
+    Content-Disposition: attachment; filename=\"big.pdf\"\r\n\
+    Content-Transfer-Encoding: base64\r\n\
+    X-Envio-Section: 2\r\nX-Envio-Size: 31457280\r\n\r\n\r\n--b--\r\n";
+
+/// The attachment of a partial body is on the server: with no connection it
+/// is not saved, and no empty file stands in for it.
 #[test]
-fn saving_an_attachment_of_a_partial_body_without_a_session_fails() {
-    let (s, id) = seeded_sized(30 * 1000 * 1000);
+fn a_stubbed_attachment_is_not_saved_as_an_empty_file_without_a_session() {
+    let (s, id) = seeded_sized_with(30 * 1000 * 1000, None, true);
     let db = Db::open(&s.h.paths().db()).unwrap();
+    let message = db.message(id).unwrap();
     db.set_body_state(id, BodyState::Partial).unwrap();
     drop(db);
+    envio_store::Bodies::new(s.h.paths().bodies())
+        .write(message.folder, message.uid, STUBBED.as_bytes())
+        .unwrap();
+    let dir = s.h.paths().db().parent().unwrap().join("saved");
     s.h.send(Command::SaveAttachment {
         id,
         index: 0,
-        dir: s.h.paths().db().parent().unwrap().join("saved"),
+        dir: dir.clone(),
     });
     s.h.wait(|e| match e {
+        Event::AttachmentSaved { .. } => panic!("saved without the server"),
         Event::AttachmentFailed { id: i, .. } if *i == id => Some(()),
         _ => None,
     });
+    assert!(
+        !dir.exists(),
+        "{:?}",
+        std::fs::read_dir(&dir).map(|d| d.count())
+    );
 }
 
 #[test]
