@@ -8,6 +8,7 @@ mod client;
 mod idle;
 pub mod names;
 mod ops;
+mod partial;
 pub mod query;
 mod sign_in;
 mod window;
@@ -23,6 +24,7 @@ use client::{Stream, map_error};
 pub use idle::{IDLE_MAX, Woke};
 pub use names::Role;
 pub use ops::SCAN;
+pub use partial::TEXT_CAP;
 pub use query::{Flag, MessageFlags};
 
 /// The extensions envio uses when the server has them.
