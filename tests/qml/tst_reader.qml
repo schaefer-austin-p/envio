@@ -128,6 +128,38 @@ Item {
             compare(find("headerSubject").text, evil)
         }
 
+        function findText(text, from) {
+            const hit = everything(from, []).filter(function(o) { return o.text === text && o.visible })
+            verify(hit.length > 0, "no item with text " + text)
+            return hit[0]
+        }
+        function test_reader_offer_shows_undo_toast() {
+            open(view([], 0))
+            const toast = find("undoToast")
+            verify(!toast.visible)
+            mock.undoOffer(31, "Reply to Grace queued", "reader")
+            verify(toast.visible)
+            compare(toast.text, "Reply to Grace queued")
+            // Another offer's close leaves it; its own close hides it.
+            mock.undoClosed(30)
+            verify(toast.visible)
+            mock.undoClosed(31)
+            verify(!toast.visible)
+        }
+
+        function test_undo_calls_core_undo() {
+            open(view([], 0))
+            mock.undoOffer(32, "Reply to Grace queued", "reader")
+            mouseClick(findText("Undo", find("undoToast")))
+            compare(mock.called("undo").pop().args, [32])
+        }
+
+        function test_list_offer_does_not_show_in_reader() {
+            open(view([], 0))
+            mock.undoOffer(33, "Archived “Plans”", "list")
+            verify(!find("undoToast").visible)
+        }
+
         function test_invite_card_shows_only_with_an_invite() {
             open(view([], 0))
             verify(!shown("inviteCard"))

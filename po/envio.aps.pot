@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 22:36+0100\n"
+"POT-Creation-Date: 2026-11-14 22:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:227
+#: qml/pages/reader/ReaderPage.qml:228
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:392
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:393
 msgid "Try again"
 msgstr ""
 
@@ -342,7 +342,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:243
+#: qml/pages/reader/ReaderPage.qml:244
 msgid "More actions"
 msgstr ""
 
@@ -459,7 +459,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:251
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:475
 msgid "Undo"
 msgstr ""
 
@@ -493,7 +493,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:62 qml/pages/inbox/OutboxRow.qml:114
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:235
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:236
 msgid "Delete"
 msgstr ""
 
@@ -655,11 +655,11 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:370
+#: qml/pages/reader/ReaderPage.qml:371
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:400
+#: qml/pages/reader/ReaderPage.qml:401
 msgid "Load anyway"
 msgstr ""
 

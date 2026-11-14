@@ -51,7 +51,7 @@ Item {
     signal messageTooLarge(real id, string text)
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
-    signal undoOffer(real undo, string text)
+    signal undoOffer(real undo, string text, string scope)
     signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted)
     signal draftSaved(real compose)
