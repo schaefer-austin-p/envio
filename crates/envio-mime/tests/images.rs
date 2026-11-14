@@ -145,6 +145,84 @@ fn image_size_from_style_becomes_attributes() {
     );
 }
 
+/// Qt draws an image without a pixel width at the file's size, so a
+/// responsive `width:100%` banner would overflow the reader.
+#[test]
+fn percentage_widths_become_a_share_of_the_reader() {
+    for (attrs, width) in [
+        (r#"style="width:100%;display:block""#, "600"),
+        (r#"width="100%""#, "600"),
+        (r#"width="50%" height="80""#, "300"),
+        (r#"style="width: 25% !important""#, "150"),
+        (r#"style="width:150%""#, "600"),
+        (r#"style="width:100%;max-width:240px""#, "240"),
+        (r#"style="width:100%;max-width:2000px""#, "600"),
+    ] {
+        let html = format!(r#"<img src="https://example.com/a.png" {attrs}>"#);
+        assert_eq!(
+            sanitize_html(&html, &allowed()).html,
+            format!(r#"<img src="https://example.com/a.png" width="{width}">"#),
+            "{attrs}"
+        );
+    }
+    // A pixel width still wins, and nonsense stays without a width.
+    for (attrs, out) in [
+        (r#"width="320" style="width:100%""#, r#" width="320""#),
+        (r#"style="width:0%""#, ""),
+        (r#"style="width:abc%""#, ""),
+    ] {
+        let html = format!(r#"<img src="https://example.com/a.png" {attrs}>"#);
+        assert_eq!(
+            sanitize_html(&html, &allowed()).html,
+            format!(r#"<img src="https://example.com/a.png"{out}>"#),
+            "{attrs}"
+        );
+    }
+}
+
+/// A social icon in a 32 px cell must not grow to the reader's width.
+#[test]
+fn a_percentage_width_is_a_share_of_its_cell() {
+    let html = r#"<table><tr><td width="32"><img src="https://example.com/a.png" style="width:100%"></td><td><img src="https://example.com/b.png" style="width:100%"></td></tr></table>"#;
+    let out = sanitize_html(html, &allowed()).html;
+    assert!(
+        out.contains(r#"<img src="https://example.com/a.png" width="32">"#),
+        "{out}"
+    );
+    // Outside the narrow cell, the share is of the reader again.
+    assert!(
+        out.contains(r#"<img src="https://example.com/b.png" width="600">"#),
+        "{out}"
+    );
+    // A cell wider than the reader is capped by the reader.
+    let html = r#"<table><tr><td width="580"><img src="https://example.com/a.png" width="50%"></td></tr></table>"#;
+    assert!(
+        sanitize_html(html, &allowed())
+            .html
+            .contains(r#"<img src="https://example.com/a.png" width="290">"#)
+    );
+    // An inner table's `</thead>` does not close the outer cell.
+    let html = r#"<table><tr><td width="32"><table><thead><tr><th>x</th></tr></thead></table><img src="https://example.com/a.png" style="width:100%"></td></tr></table>"#;
+    let out = sanitize_html(html, &allowed()).html;
+    assert!(
+        out.contains(r#"<img src="https://example.com/a.png" width="32">"#),
+        "{out}"
+    );
+}
+
+#[test]
+fn a_percentage_width_is_left_alone_without_a_limit() {
+    let options = RenderOptions {
+        max_image_width: 0,
+        ..allowed()
+    };
+    let html = r#"<img src="https://example.com/a.png" style="width:100%">"#;
+    assert_eq!(
+        sanitize_html(html, &options).html,
+        r#"<img src="https://example.com/a.png">"#
+    );
+}
+
 #[test]
 fn drops_wide_table_widths() {
     assert_eq!(
