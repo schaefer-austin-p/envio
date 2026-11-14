@@ -333,6 +333,32 @@ fn undo_is_refused_when_the_reply_is_gone() {
     assert!(!s.closed(offer.undo));
     assert_eq!(load_invites(&s.h.paths().invites()).unwrap().len(), 1);
 }
+
+#[test]
+fn undo_of_b_after_a_was_released_goes_back_to_a() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Accepted, "");
+    let _first = s.offer();
+    let a = s.items().remove(0);
+    // A is released and sending, though its offer is still in the book.
+    s.outbox().set_state(&a.id, SendState::Sending).unwrap();
+    s.answer(id, Answer::Declined, "");
+    let second = s.offer();
+    assert_eq!(s.items().len(), 2, "A's item is untouched");
+    s.h.send(Command::Undo { undo: second.undo });
+    assert!(s.closed(second.undo));
+    let items = s.items();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].id, a.id);
+    let remembered = load_invites(&s.h.paths().invites()).unwrap();
+    assert_eq!(remembered.len(), 1);
+    assert_eq!(remembered[0].reply_message_id, a.meta.message_id);
+    let card = s.open(id).unwrap();
+    assert_eq!(card.answer, Some(Answer::Accepted));
+}
+
 #[test]
 fn answer_offer_has_reader_scope_and_actions_have_list_scope() {
     let s = seeded(&[request(0)]);

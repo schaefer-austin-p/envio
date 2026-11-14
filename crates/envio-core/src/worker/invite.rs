@@ -292,14 +292,20 @@ impl Worker<'_> {
             .ok()
             .and_then(|items| items.into_iter().find(|i| i.id == outbox_item))
             .is_some_and(|i| i.meta.state == SendState::Queued && held(&i.meta, now));
-        if still_held && let Err(e) = self.store.outbox.remove(&outbox_item) {
-            log::warn!("replacing a held reply: {e}");
-        }
+        let removed = still_held
+            && match self.store.outbox.remove(&outbox_item) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::warn!("replacing a held reply: {e}");
+                    false
+                }
+            };
         self.emit(Event::UndoClosed {
             undo: old,
             undone: false,
         });
-        Some(previous)
+        // Only a reply that was really taken back may be skipped over.
+        removed.then_some(previous)
     }
 
     /// `Command::Undo` on an answer: the held reply is deleted and the
