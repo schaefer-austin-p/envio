@@ -378,13 +378,17 @@ mod tests {
     }
 
     #[test]
-    fn a_flag_check_of_50k_messages_is_not_quadratic() {
-        let cached: Vec<(u32, Flags)> = (1..=50_000).map(|uid| (uid, Flags::empty())).collect();
-        let updates: Vec<FlagUpdate> = (1..=50_000).map(|uid| update(uid, &[Flag::Seen])).collect();
+    fn a_flag_check_of_200k_messages_is_not_quadratic() {
+        // 200k so that a linear search per update (~2e10 comparisons) breaks
+        // the bound: the old loop took 30 s in a debug test build, this 0.1 s.
+        let cached: Vec<(u32, Flags)> = (1..=200_000).map(|uid| (uid, Flags::empty())).collect();
+        let updates: Vec<FlagUpdate> = (1..=200_000)
+            .map(|uid| update(uid, &[Flag::Seen]))
+            .collect();
         let started = std::time::Instant::now();
         let changes = plan_flags(&cached, &updates, &Pending::default());
-        assert_eq!(changes.set.len(), 50_000);
-        assert_eq!(changes.set[49_999], (50_000, Flags::SEEN));
+        assert_eq!(changes.set.len(), 200_000);
+        assert_eq!(changes.set[199_999], (200_000, Flags::SEEN));
         assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
     }
 
