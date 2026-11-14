@@ -6,6 +6,7 @@ mod conn;
 mod dispatch;
 mod folder_order;
 mod inline;
+mod invite;
 mod older;
 mod outbox;
 mod plan;

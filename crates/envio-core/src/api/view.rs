@@ -98,6 +98,100 @@ pub struct MessageView {
     /// card. Always false for a raw message.
     pub own_colours: bool,
     pub attachments: Vec<AttachmentRow>,
+    /// The meeting card, when the message carries an invite.
+    pub invite: Option<InviteCard>,
+}
+
+/// What kind of invite mail this is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardMethod {
+    Request,
+    Cancel,
+    Reply,
+}
+
+impl CardMethod {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Request => "request",
+            Self::Cancel => "cancel",
+            Self::Reply => "reply",
+        }
+    }
+}
+
+/// Which of the card's states applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardState {
+    /// A request nobody has answered: the buttons.
+    Open,
+    /// The user's answer is remembered and is not older than the request.
+    Answered,
+    /// The request changed after the answer.
+    Updated,
+    Cancelled,
+    /// Somebody's answer to our invite.
+    Replied,
+}
+
+impl CardState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Open => "open",
+            Self::Answered => "answered",
+            Self::Updated => "updated",
+            Self::Cancelled => "cancelled",
+            Self::Replied => "replied",
+        }
+    }
+}
+
+/// The state of our own reply to an invite, as the Outbox shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplyState {
+    /// Not in the Outbox: sent, or never queued.
+    Gone,
+    /// In the Outbox and not failed.
+    Sending,
+    /// In the Outbox as failed.
+    Failed,
+}
+
+/// The meeting card of an invite message (the contract with the app: times
+/// are Unix seconds, or dates for all-day and floating events). Texts are
+/// sanitised plain text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InviteCard {
+    pub method: CardMethod,
+    pub state: CardState,
+    /// Translated; empty for `Open`.
+    pub state_text: String,
+    pub answer: Option<super::command::Answer>,
+    /// Our reply is still in the Outbox and has not failed.
+    pub sending: bool,
+    /// Our reply is in the Outbox as failed.
+    pub send_failed: bool,
+    pub summary: String,
+    pub location: String,
+    pub all_day: bool,
+    /// A wall time with no zone: shown as the phone's local time.
+    pub floating: bool,
+    /// Unix seconds; 0 when all-day or floating.
+    pub start: i64,
+    pub end: i64,
+    /// All-day: `YYYY-MM-DD` (end exclusive); floating:
+    /// `YYYY-MM-DDTHH:MM:SS`; else empty.
+    pub start_date: String,
+    pub end_date: String,
+    /// The TZID resolved nowhere.
+    pub zone_unknown: bool,
+    pub repeats: bool,
+    /// Display name, else address.
+    pub organizer: String,
+    /// A request with a `mailto:` organizer.
+    pub can_answer: bool,
+    /// Attachment index of the calendar part; -1 when it is inline only.
+    pub ics_index: i64,
 }
 
 /// The header lines the reader shows. Never logged.

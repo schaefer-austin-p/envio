@@ -124,6 +124,7 @@ fn an_opened_message_names_its_id() {
         remote_images: vec![],
         own_colours: false,
         attachments: vec![],
+        invite: None,
     };
     let outs = feed(
         &mut ui,

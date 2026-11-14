@@ -114,6 +114,7 @@ fn one_shot_events_become_signals() {
             undo: UndoId(1),
             text: "Archived".into(),
             expires_at_ms: 0,
+            scope: envio_core::UndoScope::List,
         },
         Event::Queued {
             compose: c,

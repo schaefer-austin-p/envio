@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 19:28+0100\n"
+"POT-Creation-Date: 2026-11-14 22:46+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -800,6 +800,86 @@ msgid "Finds mail older than the {n} day kept here"
 msgid_plural "Finds mail older than the {n} days kept here"
 msgstr[0] ""
 msgstr[1] ""
+
+#: crates/envio-core/src/text/invite.rs:9
+msgid "Accepted: {summary}"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:10
+msgid "Tentative: {summary}"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:11
+msgid "Declined: {summary}"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:19
+msgid "{name} has accepted your invitation."
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:20
+msgid "{name} has tentatively accepted your invitation."
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:21
+msgid "{name} has declined your invitation."
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:29
+msgid "You accepted"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:30
+msgid "You said maybe"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:31
+msgid "You declined"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:38
+msgid "{name} accepted"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:39
+msgid "{name} said maybe"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:40
+msgid "{name} declined"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:41
+msgid "{name} replied"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:48
+msgid "Updated"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:52
+msgid "Cancelled"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:58
+msgid "Accepting the invitation"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:59
+msgid "Answering maybe to the invitation"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:60
+msgid "Declining the invitation"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:66
+msgid "This invitation can't be answered"
+msgstr ""
+
+#: crates/envio-core/src/text/invite.rs:71
+msgid "Could not answer the invitation. Nothing was changed"
+msgstr ""
 
 #: crates/envio-core/src/text/link.rs:8
 msgid "Before the @ is decoration. This link opens {host}."

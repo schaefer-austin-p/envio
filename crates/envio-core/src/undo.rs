@@ -3,17 +3,34 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use envio_store::FolderId;
+use envio_store::{FolderId, InviteAnswer, MessageRowId};
 
 use crate::api::command::UndoId;
 
-/// Actions the user may take back, and what to refresh when they do.
+/// Something the user may take back until `expires_at_ms`.
 #[derive(Debug)]
 pub struct Offer {
-    pub undos: Vec<envio_sync::driver::Undo>,
-    pub accounts: BTreeSet<String>,
-    pub folders: BTreeSet<FolderId>,
+    pub what: Offered,
     pub expires_at_ms: i64,
+}
+
+#[derive(Debug)]
+pub enum Offered {
+    /// Actions on messages, and what to refresh when they are undone.
+    Actions {
+        undos: Vec<envio_sync::driver::Undo>,
+        accounts: BTreeSet<String>,
+        folders: BTreeSet<FolderId>,
+    },
+    /// An invite answer: its reply waits, held, in the Outbox.
+    Answer {
+        message: MessageRowId,
+        outbox_item: String,
+        account: String,
+        uid: String,
+        /// The answer this one replaced, to restore.
+        previous: Option<InviteAnswer>,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -63,9 +80,11 @@ mod tests {
 
     fn offer(expires_at_ms: i64) -> Offer {
         Offer {
-            undos: Vec::new(),
-            accounts: BTreeSet::new(),
-            folders: BTreeSet::new(),
+            what: Offered::Actions {
+                undos: Vec::new(),
+                accounts: BTreeSet::new(),
+                folders: BTreeSet::new(),
+            },
             expires_at_ms,
         }
     }

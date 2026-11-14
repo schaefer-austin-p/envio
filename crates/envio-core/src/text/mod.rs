@@ -3,6 +3,7 @@
 
 pub mod compose;
 pub mod count;
+pub mod invite;
 pub mod link;
 pub mod notice;
 pub mod outbox;
