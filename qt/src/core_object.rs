@@ -220,6 +220,9 @@ pub mod qobject {
         #[cxx_name = "openAnyway"]
         fn open_anyway(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
         #[qinvokable]
+        #[cxx_name = "reportImageSizes"]
+        fn report_image_sizes(self: Pin<&mut EnvioCore>, id: i64, sizes_json: &QString);
+        #[qinvokable]
         #[cxx_name = "allowImagesFrom"]
         fn allow_images_from(self: Pin<&mut EnvioCore>, address: &QString);
         #[qinvokable]

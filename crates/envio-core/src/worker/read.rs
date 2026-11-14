@@ -32,6 +32,8 @@ pub(crate) struct ViewContext<'a> {
     /// Where this message's inline images are written; `None` shows them as
     /// missing.
     pub inline_dir: Option<&'a Path>,
+    /// Natural sizes the reader reported for its remote images.
+    pub image_sizes: &'a super::shown::Sizes,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -69,7 +71,7 @@ pub(crate) fn render_view(
     images: ImagesChoice,
     width_px: u32,
     ctx: &ViewContext<'_>,
-) -> MessageView {
+) -> (MessageView, Vec<envio_mime::Unsized>) {
     let message = envio_mime::parse(raw);
     let mut header = stored_header(ctx.stored, ctx.account);
     if let Mime::Parsed { envelope, .. } = &message {
@@ -97,6 +99,7 @@ pub(crate) fn render_view(
         allow_remote_images: load,
         cid_urls: inlined.urls,
         cid_sizes: inlined.sizes,
+        image_sizes: ctx.image_sizes.clone(),
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };
@@ -116,7 +119,7 @@ pub(crate) fn render_view(
                 .collect(),
         ),
     };
-    MessageView {
+    let view = MessageView {
         header,
         html: rendered.html,
         raw,
@@ -124,7 +127,8 @@ pub(crate) fn render_view(
         remote_images: rendered.remote_images,
         own_colours: rendered.own_colours,
         attachments,
-    }
+    };
+    (view, rendered.unsized_images)
 }
 
 /// Unicode format characters (category Cf): invisible, and some reverse
@@ -284,23 +288,25 @@ impl Worker<'_> {
     }
 
     /// The reader's view of a cached message's raw bytes.
-    fn view(
+    pub(super) fn view(
         &self,
         message: &Message,
         raw: &[u8],
         (images, width_px): (ImagesChoice, u32),
-    ) -> MessageView {
+    ) -> (MessageView, Vec<envio_mime::Unsized>) {
         let account = self.account_of(message.id).unwrap_or_default();
         // A late view (its body arrived after the reader moved on) must not
         // touch the folder of the message the reader shows now.
         let inline_dir = (self.store.open_message == Some(message.id))
             .then(|| self.store.paths.inline().join(message.id.0.to_string()));
+        let image_sizes = self.sizes_for(message.id);
         let ctx = ViewContext {
             account: &account,
             settings: &self.store.settings,
             contacts: &self.store.contacts,
             stored: &message.envelope,
             inline_dir: inline_dir.as_deref(),
+            image_sizes: &image_sizes,
         };
         render_view(raw, images, width_px, &ctx)
     }
@@ -337,6 +343,7 @@ impl Worker<'_> {
         anyway: bool,
     ) {
         self.store.open_message = Some(id);
+        self.forget_other_shown(id);
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
@@ -349,8 +356,8 @@ impl Worker<'_> {
         if message.body == BodyState::Downloaded {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
-                    let view = self.view(&message, &raw, (images, width_px));
-                    self.emit(Event::MessageOpened { id, view });
+                    let shown = self.view(&message, &raw, (images, width_px));
+                    self.show(id, (images, width_px), shown);
                     self.correct_attachment_mark(&message, &raw);
                     return self.mark_opened_read(id);
                 }
@@ -384,8 +391,8 @@ impl Worker<'_> {
         };
         match (raw, self.store.db.message(id)) {
             (Some(raw), Ok(message)) => {
-                let view = self.view(&message, raw, (images, width_px));
-                self.emit(Event::MessageOpened { id, view });
+                let shown = self.view(&message, raw, (images, width_px));
+                self.show(id, (images, width_px), shown);
                 self.mark_opened_read(id);
             }
             _ => self.unavailable(id),
@@ -567,8 +574,9 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             contacts: &[],
             stored: &stored,
             inline_dir: None,
+            image_sizes: &Default::default(),
         };
-        let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
+        let view = render_view(raw, ImagesChoice::Default, 300, &ctx).0;
         assert_eq!(view.header.from, "x@evil.example");
         assert_eq!(view.header.from_address, "x@evil.example");
     }
@@ -583,12 +591,21 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             contacts: &[],
             stored: &stored,
             inline_dir: None,
+            image_sizes: &Default::default(),
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
-        assert!(render_view(html, ImagesChoice::Default, 300, &ctx).own_colours);
+        assert!(
+            render_view(html, ImagesChoice::Default, 300, &ctx)
+                .0
+                .own_colours
+        );
         let text = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
-        assert!(!render_view(text, ImagesChoice::Default, 300, &ctx).own_colours);
+        assert!(
+            !render_view(text, ImagesChoice::Default, 300, &ctx)
+                .0
+                .own_colours
+        );
     }
 
     #[test]
@@ -601,12 +618,13 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             contacts: &[],
             stored: &stored,
             inline_dir: None,
+            image_sizes: &Default::default(),
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <p><img src=\"https://example.org/a.png\"></p>\r\n";
-        let blocked = render_view(html, ImagesChoice::Default, 300, &ctx);
+        let blocked = render_view(html, ImagesChoice::Default, 300, &ctx).0;
         assert!(blocked.remote_images.is_empty());
-        let loaded = render_view(html, ImagesChoice::Load, 300, &ctx);
+        let loaded = render_view(html, ImagesChoice::Load, 300, &ctx).0;
         assert_eq!(loaded.remote_images, ["https://example.org/a.png"]);
     }
 

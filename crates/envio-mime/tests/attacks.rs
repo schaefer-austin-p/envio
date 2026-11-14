@@ -77,6 +77,7 @@ fn options(allow_remote_images: bool) -> RenderOptions {
             "image://envio/part/0".to_owned(),
         )]),
         cid_sizes: HashMap::new(),
+        image_sizes: HashMap::new(),
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
     }

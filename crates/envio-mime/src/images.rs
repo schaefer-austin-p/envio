@@ -5,6 +5,7 @@
 
 use crate::hidden::{Ends, is_unwrapped};
 use crate::image_label;
+use crate::natural::{Unsized, draws_wider};
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -201,8 +202,9 @@ fn image(
         return None;
     }
     let lower = src.to_ascii_lowercase();
-    let mut natural = None;
-    let url = if lower.starts_with("cid:") {
+    let is_cid = lower.starts_with("cid:");
+    let natural;
+    let url = if is_cid {
         match cid_url(&src[4..], options) {
             Some((url, size)) => {
                 natural = size;
@@ -224,6 +226,7 @@ fn image(
         if !out.remote_images.iter().any(|seen| seen == src) {
             out.remote_images.push(src.to_owned());
         }
+        natural = options.image_sizes.get(src).copied();
         src.to_owned()
     } else {
         return None;
@@ -241,23 +244,25 @@ fn image(
         (None, Some(share)) => (Some(share), None),
         _ => scale(width, height, options.max_image_width),
     };
-    // Likewise a cid image with no width: draw it at the room if it would
-    // come out wider. With a height but no width Qt scales the width
-    // proportionally, so that is the width to compare; the height goes, to
+    // Likewise an image with no width whose natural size is known (a cid
+    // image's from its bytes, a remote one's as the reader reports it):
+    // draw it at the room if it would come out wider. The height goes, to
     // keep the proportion.
     if width.is_none()
-        && room > 0
-        && let Some((nw, nh)) = natural
+        && let Some(size) = natural
+        && draws_wider(size, height, room)
     {
-        let drawn = match height {
-            None => u64::from(nw),
-            Some(h) if nh > 0 => u64::from(nw) * u64::from(h) / u64::from(nh),
-            Some(_) => 0,
-        };
-        if drawn > u64::from(room) {
-            width = Some(room);
-            height = None;
-        }
+        width = Some(room);
+        height = None;
+    }
+    // A remote image still without a width: a size the reader reports
+    // later may cap it.
+    if width.is_none() && room > 0 && !is_cid {
+        out.unsized_images.push(Unsized {
+            url: url.clone(),
+            room,
+            height,
+        });
     }
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {

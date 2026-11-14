@@ -110,6 +110,15 @@ TestCase {
         tryCompare(core, "allowedSenders", [], 20000)
     }
 
+    // The reader's image size report reaches the core; a malformed one is
+    // ignored.
+    function test_report_image_sizes_is_invokable() {
+        tryVerify(function () { return core.ready }, 20000)
+        core.reportImageSizes(1, '{"https://example.org/a.png":[1200,400]}')
+        core.reportImageSizes(1, "not json")
+        verify(core.ready)
+    }
+
     // What Main.qml binds the Theme to: the settings the core sends back after
     // a save (Main itself cannot be loaded without an ApplicationWindow).
     function test_saved_settings_come_back_for_the_theme_binding() {
