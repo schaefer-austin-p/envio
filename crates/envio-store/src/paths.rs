@@ -27,6 +27,12 @@ impl StorePaths {
         self.cache.join("bodies")
     }
 
+    /// Inline (`cid:`) images of opened messages, `<dir>/<row id>/<n>.<ext>`.
+    /// Rewritten on every open and emptied at start.
+    pub fn inline(&self) -> PathBuf {
+        self.cache.join("inline")
+    }
+
     pub fn accounts(&self) -> PathBuf {
         self.data.join("accounts.json")
     }

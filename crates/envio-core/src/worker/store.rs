@@ -56,6 +56,12 @@ impl Store {
         now_ms: i64,
     ) -> envio_store::Result<(Store, CacheState)> {
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
+        // Inline images are copies, rewritten when a message opens.
+        if let Err(e) = std::fs::remove_dir_all(paths.inline())
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("clearing the inline images: {e}");
+        }
         let (db, opened) = open_or_rebuild(&paths)?;
         let cache = match opened {
             Opened::Created => CacheState::Fresh,

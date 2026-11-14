@@ -5,6 +5,7 @@ mod compose;
 mod conn;
 mod dispatch;
 mod folder_order;
+mod inline;
 mod older;
 mod outbox;
 mod plan;

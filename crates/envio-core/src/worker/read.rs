@@ -30,6 +30,9 @@ pub(crate) struct ViewContext<'a> {
     pub contacts: &'a [envio_store::Contact],
     /// The cached envelope, for mail that can not be parsed.
     pub stored: &'a envio_store::Envelope,
+    /// Where this message's inline images are written; `None` shows them as
+    /// missing.
+    pub inline_dir: Option<&'a Path>,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -84,9 +87,15 @@ pub(crate) fn render_view(
     }
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
     let load = loads_images(ctx.settings, images, &header.from_address);
+    let cid_urls = match (&message, ctx.inline_dir) {
+        (Mime::Parsed { attachments, .. }, Some(dir)) => {
+            super::inline::write(dir, raw, attachments)
+        }
+        _ => HashMap::new(),
+    };
     let options = RenderOptions {
         allow_remote_images: load,
-        cid_urls: HashMap::new(),
+        cid_urls,
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };
@@ -272,6 +281,7 @@ impl Worker<'_> {
             settings: &self.store.settings,
             contacts: &self.store.contacts,
             stored: &message.envelope,
+            inline_dir: Some(&self.store.paths.inline().join(message.id.0.to_string())),
         };
         render_view(raw, images, width_px, &ctx)
     }
@@ -470,6 +480,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
         assert_eq!(view.header.from, "x@evil.example");
@@ -485,6 +496,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
@@ -502,6 +514,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <p><img src=\"https://example.org/a.png\"></p>\r\n";
