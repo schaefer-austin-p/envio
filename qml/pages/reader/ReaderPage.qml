@@ -56,6 +56,8 @@ Item {
     // pixmap cache; each time some are in, the body is set again (a
     // different string, so the TextEdit lays out) and draws them from there.
     property int imageRedraws: 0
+    // True from a long press that selected a word until the next press.
+    property bool holdActive: false
     readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
     // A redraw due for the last message must not lay out the next one.
     onViewChanged: imageRedraw.stop()
@@ -105,7 +107,24 @@ Item {
     function holdBody(x, y) {
         body.cursorPosition = body.positionAt(x, y)
         body.selectWord()
-        if (body.selectedText !== "") bodyMenu.popup(body, x, y)
+        if (body.selectedText !== "") {
+            // The TextEdit still gets this press, so on release it would
+            // activate a link under the finger: ignore it until the next press.
+            holdActive = true
+            bodyMenu.popup(body, x, y)
+        }
+    }
+    // A new press ends the hold's claim on the next link activation.
+    function pressBody() { holdActive = false }
+    // Clears the selection, its handles and the menu.
+    function dismissSelection() {
+        bodyMenu.close()
+        body.deselect()
+    }
+    function linkTapped(link) {
+        if (holdActive) { holdActive = false; return }
+        dismissSelection()
+        linkSheet.show(link)
     }
     function forward() { compose("forward") }
     function save(mode) {
@@ -217,6 +236,8 @@ Item {
             }
             Rectangle {
                 objectName: "bodyCard"
+                // Above the attachment chips: the end handle can reach below the card.
+                z: 1
                 width: parent.width
                 height: body.height + root.theme.gu(3)
                 radius: root.theme.cardRadius
@@ -247,12 +268,17 @@ Item {
                     color: root.paper ? root.theme.paperText : root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize
-                    onLinkActivated: linkSheet.show(link)
+                    onLinkActivated: root.linkTapped(link)
+                    // The text was reset (an image redraw or a new message):
+                    // the selection is gone, so the menu's Copy would be stale.
+                    onTextChanged: bodyMenu.close()
                     // A long press selects the word under the finger and
                     // opens Copy / Select all. A tap or a flick is not one.
                     TapHandler {
                         objectName: "bodyHold"
                         longPressThreshold: 0.5
+                        onPressedChanged: if (pressed) root.pressBody()
+                        onTapped: root.dismissSelection()
                         onLongPressed: root.holdBody(point.position.x, point.position.y)
                     }
                     EditMenu {
