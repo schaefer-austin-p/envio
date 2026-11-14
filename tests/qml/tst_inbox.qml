@@ -365,6 +365,36 @@ Item {
             compare(opened.count, 0)
         }
 
+        // #146: the guard sat on message rows only; a folder row in the drawer
+        // opened on a sideways swipe.
+        function test_sideways_swipe_does_not_open_a_folder() {
+            core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            let drawer = ann
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            // Every account lists the folders and hides the other accounts' ones.
+            const shownFolder = function() {
+                return everything(page, []).filter(function(o) { return o.objectName === "folder-9" && o.visible && o.height > 0 })[0]
+            }
+            tryVerify(function() { return shownFolder() !== undefined })
+            const row = shownFolder()
+            let opens = 0
+            const count = function() { opens++ }
+            drawer.folderRequested.connect(count)
+            const far = Qt.styleHints.startDragDistance * 3
+            mousePress(row, 20, row.height / 2)
+            mouseMove(row, 20 + far / 2, row.height / 2)
+            mouseMove(row, 20 + far, row.height / 2)
+            mouseRelease(row, 20 + far, row.height / 2)
+            compare(opens, 0, "a swipe opens nothing")
+            mouseClick(row)
+            compare(opens, 1, "a tap still opens the folder")
+            drawer.folderRequested.disconnect(count)
+            drawer.visible = false
+            core.folders.clear()
+        }
+
         function test_tap_with_a_little_jitter_still_opens_the_message() {
             core.messages.append(message(12))
             waitForRendering(page)
