@@ -127,6 +127,9 @@ impl qobject::EnvioCore {
             Signal::MessageUnavailable { id, text } => {
                 self.message_unavailable(crate::variant::js_num(id), &q(&text));
             }
+            Signal::MessageTooLarge { id, text } => {
+                self.message_too_large(crate::variant::js_num(id), &q(&text));
+            }
             Signal::AttachmentSaved { path } => self.attachment_saved(&q(&lossy(&path))),
             Signal::AttachmentFailed { id } => self.attachment_failed(crate::variant::js_num(id)),
             Signal::UndoOffer { undo, text } => {

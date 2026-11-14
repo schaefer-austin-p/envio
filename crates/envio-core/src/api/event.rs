@@ -165,6 +165,12 @@ pub enum Event {
         id: MessageRowId,
         text: String,
     },
+    /// The message is over the size cap, so it was not fetched or parsed;
+    /// `text` says so. `OpenMessageAnyway` loads it.
+    MessageTooLarge {
+        id: MessageRowId,
+        text: String,
+    },
     AttachmentSaved {
         id: MessageRowId,
         index: usize,

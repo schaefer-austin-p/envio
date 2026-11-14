@@ -619,6 +619,18 @@ Item {
             compare(mock.called("open")[0].args[0], 5)
         }
 
+        function test_too_large_offers_load_anyway() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            compare(find("unavailableText").text, "This message is 30 MB.")
+            verify(!find("retry").visible)
+            mock.reset()
+            mouseClick(find("loadAnyway"))
+            compare(mock.called("open").length, 0)
+            compare(mock.called("openAnyway").length, 1)
+            compare(mock.called("openAnyway")[0].args[0], 5)
+        }
+
         function test_loading_shows_until_the_view_arrives() {
             waitForRendering(root.page)
             verify(shown("loadingText"))

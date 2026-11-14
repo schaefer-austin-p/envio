@@ -193,6 +193,20 @@ fn folder_name(path: &str) -> String {
     }
 }
 
+/// Messages above this many bytes (RFC822.SIZE) are not fetched or parsed
+/// until the user asks: the whole body is held in memory, and the HTML is
+/// converted on top of it, against a budget of a few hundred MiB.
+const OPEN_CAP_BYTES: u32 = 20 * 1024 * 1024;
+
+fn over_cap(size: u32) -> bool {
+    size > OPEN_CAP_BYTES
+}
+
+/// `size` in whole megabytes, rounded to the nearest.
+fn megabytes(size: u32) -> u32 {
+    size.saturating_add(500_000) / 1_000_000
+}
+
 impl Worker<'_> {
     pub(super) fn read_failed(&self, error: &envio_store::StoreError) {
         log::warn!("reading the cache: {error}");
@@ -297,9 +311,25 @@ impl Worker<'_> {
     }
 
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
+        self.open_message_with(id, (images, width_px), false);
+    }
+
+    /// `anyway` lifts the size cap: the user asked for the big message.
+    pub(super) fn open_message_with(
+        &mut self,
+        id: MessageRowId,
+        (images, width_px): (ImagesChoice, u32),
+        anyway: bool,
+    ) {
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
+        if !anyway && over_cap(message.size) {
+            return self.emit(Event::MessageTooLarge {
+                id,
+                text: text::read::message_too_large(megabytes(message.size)),
+            });
+        }
         if message.body == BodyState::Downloaded {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {

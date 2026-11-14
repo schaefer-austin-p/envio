@@ -596,3 +596,51 @@ fn folders_are_listed_role_first() {
     let paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(paths, ["INBOX", "Drafts", "Sent", "Trash", "Banking"]);
 }
+
+/// A cached message whose server size is `size` bytes (the cached body is
+/// small: the size is what the cap looks at).
+fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(ME, Some("pw"));
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
+    conn.execute("UPDATE messages SET size = ?1", [size])
+        .unwrap();
+    drop(conn);
+    h.start_core();
+    let s = Seeded { h, key, folder };
+    let id = s.id_of("message 1");
+    (s, id)
+}
+
+#[test]
+fn a_message_over_the_cap_is_not_opened_until_asked() {
+    let (s, id) = seeded_sized(30 * 1000 * 1000);
+    s.h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    let text = s.h.wait(|e| match e {
+        Event::MessageTooLarge { id: i, text } if *i == id => Some(text.clone()),
+        _ => None,
+    });
+    assert!(text.contains("30 MB"), "{text}");
+    s.h.send(Command::OpenMessageAnyway {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    let view = s.h.wait(|e| match e {
+        Event::MessageOpened { id: i, view } if *i == id => Some(view.clone()),
+        _ => None,
+    });
+    assert!(view.html.contains("Hello"));
+}
+
+#[test]
+fn a_message_at_the_cap_opens_normally() {
+    let (s, id) = seeded_sized(20 * 1024 * 1024);
+    let view = s.open(id, ImagesChoice::Default);
+    assert!(view.html.contains("Hello"));
+}
