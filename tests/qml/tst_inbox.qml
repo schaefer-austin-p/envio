@@ -179,6 +179,49 @@ Item {
             tryVerify(function() { return core.called("more").length > 0 })
         }
 
+        // #130: the end of the list loads older mail by itself; the core holds
+        // the once-per-page guard, the view only reports reaching the end.
+        function test_reaching_the_end_asks_for_older_mail_once() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            core.olderRow = 1
+            const list = find("messageList", page)
+            list.positionViewAtBeginning()
+            waitForRendering(page)
+            core.reset()
+            list.positionViewAtEnd()
+            tryVerify(function() { return core.called("loadOlderNearEnd").length === 1 })
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 1, "one scroll asks once")
+            compare(core.called("loadOlder").length, 0, "the tap path is separate")
+        }
+
+        // The row turns Ready while the list already sits at its end: the
+        // footer grows the list, and the one request still goes out.
+        function test_the_row_turning_ready_at_the_end_asks_once() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            const list = find("messageList", page)
+            list.positionViewAtEnd()
+            waitForRendering(page)
+            wait(100)
+            core.reset()
+            core.olderRow = 1
+            tryVerify(function() { return core.called("loadOlderNearEnd").length === 1 })
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 1)
+        }
+
+        function test_the_row_turning_ready_mid_list_asks_nothing() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            const list = find("messageList", page)
+            list.positionViewAtBeginning()
+            waitForRendering(page)
+            wait(100)
+            core.reset()
+            core.olderRow = 1
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 0)
+        }
+
         function test_hostile_sender_and_subject_fetch_nothing() {
             const evil = 'Hi <img src="http://example.invalid/x.png">'
             netRequests.reset()

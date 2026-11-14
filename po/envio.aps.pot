@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 13:59+0100\n"
+"POT-Creation-Date: 2026-11-14 14:39+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/EditMenu.qml:60
+#: qml/components/EditMenu.qml:72
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:67 qml/pages/reader/LinkSheet.qml:120
+#: qml/components/EditMenu.qml:79 qml/pages/reader/LinkSheet.qml:120
 msgid "Copy"
 msgstr ""
 
-#: qml/components/EditMenu.qml:74
+#: qml/components/EditMenu.qml:86
 msgid "Paste"
 msgstr ""
 
-#: qml/components/EditMenu.qml:80
+#: qml/components/EditMenu.qml:93
 msgid "Select all"
 msgstr ""
 
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:153
+#: qml/pages/reader/ReaderPage.qml:179
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:281
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:337
 msgid "Try again"
 msgstr ""
 
@@ -341,7 +341,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:169
+#: qml/pages/reader/ReaderPage.qml:195
 msgid "More actions"
 msgstr ""
 
@@ -483,7 +483,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:161
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:187
 msgid "Delete"
 msgstr ""
 
@@ -581,7 +581,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:259
+#: qml/pages/reader/ReaderPage.qml:315
 msgid "Loading…"
 msgstr ""
 
