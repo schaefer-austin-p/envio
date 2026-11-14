@@ -631,6 +631,53 @@ Item {
             compare(mock.called("openAnyway")[0].args[0], 5)
         }
 
+        function test_the_load_anyway_choice_persists_through_images() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            mouseClick(find("loadAnyway"))
+            open(view([], 2))
+            mock.reset()
+            mouseClick(find("loadImages"))
+            compare(mock.called("open").length, 0)
+            compare(mock.called("openAnyway").length, 1)
+            compare(mock.called("openAnyway")[0].args[1], true)
+        }
+
+        function test_the_load_anyway_choice_persists_through_try_again() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            mouseClick(find("loadAnyway"))
+            mock.messageUnavailable(5, "That message is gone.")
+            waitForRendering(root.page)
+            mock.reset()
+            mouseClick(find("retry"))
+            compare(mock.called("open").length, 0)
+            compare(mock.called("openAnyway").length, 1)
+        }
+
+        function test_the_load_anyway_choice_resets_for_another_message() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            mouseClick(find("loadAnyway"))
+            verify(root.page.largeAllowed)
+            mock.reset()
+            root.page.messageId = 6
+            verify(!root.page.largeAllowed)
+            compare(mock.called("openAnyway").length, 0)
+            compare(mock.called("open").length, 1)
+            compare(mock.called("open")[0].args[0], 6)
+        }
+
+        function test_unavailable_hides_load_anyway() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            verify(shown("loadAnyway"))
+            mock.messageUnavailable(5, "That message is gone.")
+            waitForRendering(root.page)
+            verify(!shown("loadAnyway"))
+            verify(shown("retry"))
+        }
+
         function test_loading_shows_until_the_view_arrives() {
             waitForRendering(root.page)
             verify(shown("loadingText"))

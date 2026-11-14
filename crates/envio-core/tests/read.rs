@@ -639,6 +639,49 @@ fn a_message_over_the_cap_is_not_opened_until_asked() {
 }
 
 #[test]
+fn open_anyway_fetches_a_body_that_is_not_on_disk() {
+    let server = serve(Kind::Message);
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let key = h.seed_account_at(ME, Some("pw"), server.port);
+    h.pin_imap(&key, &server.hex);
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    let db = Db::open(&h.paths().db()).unwrap();
+    let folder = db.folders(&key).unwrap()[0].id;
+    let id = db.list(ListRef::Folder(folder), None, 5).unwrap()[0].id;
+    db.set_body_state(id, BodyState::Missing).unwrap();
+    drop(db);
+    let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
+    conn.execute("UPDATE messages SET size = ?1", [30 * 1000 * 1000_u32])
+        .unwrap();
+    drop(conn);
+    h.start_core();
+    h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    h.wait(|e| match e {
+        Event::MessageTooLarge { id: i, .. } if *i == id => Some(()),
+        _ => None,
+    });
+    h.send(Command::OpenMessageAnyway {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    // The fetch completes and the message opens; no second cap notice.
+    let opened = h.wait(|e| match e {
+        Event::MessageTooLarge { id: i, .. } if *i == id => Some(false),
+        Event::MessageOpened { id: i, .. } if *i == id => Some(true),
+        _ => None,
+    });
+    assert!(opened, "MessageTooLarge came again");
+    let db = Db::open(&h.paths().db()).unwrap();
+    assert_eq!(db.message(id).unwrap().body, BodyState::Downloaded);
+}
+
+#[test]
 fn a_message_at_the_cap_opens_normally() {
     let (s, id) = seeded_sized(20 * 1024 * 1024);
     let view = s.open(id, ImagesChoice::Default);
