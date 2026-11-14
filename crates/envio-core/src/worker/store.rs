@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use envio_store::{
-    Accounts, Bodies, Contact, Db, Drafts, Journal, Opened, Outbox, Settings, StoreError,
-    StorePaths, load_contacts, load_settings, open_or_rebuild,
+    Accounts, Bodies, Contact, Db, Drafts, Journal, MessageRowId, Opened, Outbox, Settings,
+    StoreError, StorePaths, load_contacts, load_settings, open_or_rebuild,
 };
 use envio_sync::Schedule;
 use envio_sync::driver::{Local, Unsent};
@@ -33,6 +33,9 @@ pub(crate) struct Store {
     pub settings: Settings,
     /// `contacts.json`.
     pub contacts: Vec<Contact>,
+    /// The message the reader last asked to open. Its inline images are the
+    /// ones kept on disk; a view of any other message writes none.
+    pub open_message: Option<MessageRowId>,
 }
 
 pub(super) fn secrets_error(error: SecretsError) -> StoreError {
@@ -56,6 +59,8 @@ impl Store {
         now_ms: i64,
     ) -> envio_store::Result<(Store, CacheState)> {
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
+        // Inline images are copies, rewritten when a message opens.
+        super::inline::clear_all(&paths.inline());
         let (db, opened) = open_or_rebuild(&paths)?;
         let cache = match opened {
             Opened::Created => CacheState::Fresh,
@@ -80,6 +85,7 @@ impl Store {
                 log::warn!("loading the contacts: {e}");
                 Vec::new()
             }),
+            open_message: None,
             db,
             data_dir: config.data_dir.clone(),
             paths,
@@ -133,6 +139,9 @@ impl Store {
     /// the store as it was.
     pub fn rebuild(&mut self) -> envio_store::Result<()> {
         self.db = open_or_rebuild(&self.paths)?.0;
+        // Row ids start over: the folders named by the old ones are stale.
+        super::inline::clear_all(&self.paths.inline());
+        self.open_message = None;
         Ok(())
     }
 
@@ -182,6 +191,19 @@ mod tests {
     #[test]
     fn the_all_window_prunes_no_body_by_date() {
         assert!(body_survives_sweep(0));
+    }
+
+    #[test]
+    fn a_rebuild_clears_the_inline_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let stale = worker.store.paths.inline().join("7");
+        fs::create_dir_all(&stale).unwrap();
+        fs::write(stale.join("0.png"), b"x").unwrap();
+        worker.store.rebuild().unwrap();
+        assert!(!worker.store.paths.inline().exists());
     }
 
     #[test]

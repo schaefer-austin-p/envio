@@ -200,9 +200,13 @@ fn image(
         return None;
     }
     let lower = src.to_ascii_lowercase();
+    let mut natural = None;
     let url = if lower.starts_with("cid:") {
         match cid_url(&src[4..], options) {
-            Some(url) => url.to_owned(),
+            Some((url, size)) => {
+                natural = size;
+                url.to_owned()
+            }
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
@@ -229,13 +233,31 @@ fn image(
         (max, Some(cell)) => cell.min(max),
         (max, None) => max,
     };
-    let (width, height) = match (width, share_of(tag, room)) {
+    let (mut width, mut height) = match (width, share_of(tag, room)) {
         // Qt's rich text has no percentage or max-width for an image and
         // would draw it at the file's size; the height in another unit
         // would distort it, so only the width is set.
         (None, Some(share)) => (Some(share), None),
         _ => scale(width, height, options.max_image_width),
     };
+    // Likewise a cid image with no width: draw it at the room if it would
+    // come out wider. With a height but no width Qt scales the width
+    // proportionally, so that is the width to compare; the height goes, to
+    // keep the proportion.
+    if width.is_none()
+        && room > 0
+        && let Some((nw, nh)) = natural
+    {
+        let drawn = match height {
+            None => u64::from(nw),
+            Some(h) if nh > 0 => u64::from(nw) * u64::from(h) / u64::from(nh),
+            Some(_) => 0,
+        };
+        if drawn > u64::from(room) {
+            width = Some(room);
+            height = None;
+        }
+    }
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {
         attrs.push(("alt".to_owned(), alt.to_owned()));
@@ -310,9 +332,12 @@ fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
     escape_into(label, &mut out.html);
 }
 
-fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<&'o str> {
+/// The loadable URL for a `cid:` reference and the image's natural size,
+/// when known.
+fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<(&'o str, Option<(u32, u32)>)> {
     let id = crate::thread::normalize_id(cid)?;
-    options.cid_urls.get(&id).map(String::as_str)
+    let url = options.cid_urls.get(&id)?;
+    Some((url, options.cid_sizes.get(&id).copied()))
 }
 
 fn is_tracker(src: &str, width: Option<u32>, height: Option<u32>) -> bool {

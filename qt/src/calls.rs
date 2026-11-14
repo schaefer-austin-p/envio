@@ -347,6 +347,16 @@ impl qobject::EnvioCore {
         self.send_command(command);
     }
 
+    /// The list was scrolled to its end: the same load, once until rows
+    /// arrive and not again after a failure.
+    pub fn load_older_near_end(mut self: Pin<&mut Self>) {
+        let Some((command, outs)) = self.as_mut().rust_mut().ui.load_older_near_end() else {
+            return;
+        };
+        self.as_mut().run(outs);
+        self.send_command(command);
+    }
+
     /// `kind` is "selected", "results", "waiting" or "newmail".
     pub fn count_text(&self, kind: &QString, n: i32) -> QString {
         let text = cv::count_kind(&s(kind))

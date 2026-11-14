@@ -19,6 +19,19 @@ impl Ui {
         Some((Command::LoadOlder { list }, outs))
     }
 
+    /// The list was scrolled near its end: ask for a batch, like a tap, but
+    /// only once until the batch is answered (a fling fires this many times),
+    /// and not for a list whose last batch failed or found nothing (also
+    /// after leaving and reopening it), so offline there is no retry loop and
+    /// the row stays for a tap.
+    pub fn load_older_near_end(&mut self) -> Option<(Command, Vec<Output>)> {
+        let list = self.current.as_ref()?.list;
+        if self.older != OlderRow::Ready || self.older_auto_blocked.contains(&list) {
+            return None;
+        }
+        self.load_older()
+    }
+
     /// Moves the row to `to`; the output is empty if it is there already.
     pub(super) fn set_older(&mut self, to: OlderRow) -> Vec<Output> {
         if self.older == to {
@@ -39,6 +52,7 @@ impl Ui {
     /// holds, so the row can be pressed again.
     pub(super) fn older_dropped(&mut self) -> Vec<Output> {
         self.older_done = false;
+        self.older_auto_blocked.clear();
         if self.older == OlderRow::Done {
             return self.set_older(OlderRow::Ready);
         }
@@ -102,6 +116,12 @@ impl Ui {
             return Vec::new();
         }
         self.older_done = exhausted;
+        // Nothing more to find (or nothing found): scrolling stops asking.
+        if exhausted || fetched == 0 {
+            self.older_auto_blocked.insert(list);
+        } else {
+            self.older_auto_blocked.remove(&list);
+        }
         if fetched > 0 {
             cur.end = false;
             self.older_paging = true;
@@ -122,6 +142,7 @@ impl Ui {
         if !current || self.older != OlderRow::Loading {
             return Vec::new();
         }
+        self.older_auto_blocked.insert(list);
         let mut outs = self.set_older(OlderRow::Ready);
         outs.push(Output::Signal(Signal::Notice(text)));
         outs

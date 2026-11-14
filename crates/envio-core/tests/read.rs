@@ -137,6 +137,29 @@ fn remote_images_stay_blocked_until_asked() {
     assert!(shown.html.contains("images.example.net/a.png"));
 }
 
+const INLINE_IMAGE: &[u8] =
+    b"From: Ada <ada@example.org>\r\nSubject: inline\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Logo</p><img src=\"cid:logo@example.org\" alt=\"Logo\">\r\n\
+--XX\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
+#[test]
+fn inline_images_show_even_while_remote_images_are_blocked() {
+    let s = seeded(&[(1, INLINE_IMAGE)]);
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
+    assert_eq!(view.blocked_images, 0);
+    let start = view.html.find("src=\"file://").expect(&view.html);
+    let url = &view.html[start + 5..];
+    let path = &url[7..url.find('"').unwrap()];
+    assert!(
+        path.starts_with(s.h.cache_dir().join("inline").to_str().unwrap()),
+        "{path}"
+    );
+    assert_eq!(std::fs::read(path).unwrap(), b"hello");
+}
+
 #[test]
 fn search_finds_by_subject() {
     let s = seeded(&[(7, HTML), (8, HTML)]);

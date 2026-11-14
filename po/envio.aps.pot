@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-13 23:47+0100\n"
+"POT-Creation-Date: 2026-11-14 14:51+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/EditMenu.qml:60
+#: qml/components/EditMenu.qml:72
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:67 qml/pages/reader/LinkSheet.qml:120
+#: qml/components/EditMenu.qml:79 qml/pages/reader/LinkSheet.qml:120
 msgid "Copy"
 msgstr ""
 
-#: qml/components/EditMenu.qml:74
+#: qml/components/EditMenu.qml:86
 msgid "Paste"
 msgstr ""
 
-#: qml/components/EditMenu.qml:80
+#: qml/components/EditMenu.qml:93
 msgid "Select all"
 msgstr ""
 
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:152
+#: qml/pages/reader/ReaderPage.qml:186
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:280
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:344
 msgid "Try again"
 msgstr ""
 
@@ -341,7 +341,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:168
+#: qml/pages/reader/ReaderPage.qml:202
 msgid "More actions"
 msgstr ""
 
@@ -483,7 +483,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:160
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:194
 msgid "Delete"
 msgstr ""
 
@@ -581,8 +581,12 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:258
+#: qml/pages/reader/ReaderPage.qml:322
 msgid "Loading…"
+msgstr ""
+
+#: qml/pages/reader/ReaderPage.qml:352
+msgid "Load anyway"
 msgstr ""
 
 #: qml/pages/reader/ReplyBar.qml:21
@@ -908,32 +912,36 @@ msgid ""
 "This message is not available right now. Check your connection and try again"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:15
-msgid "Could not save the attachment"
-msgstr ""
-
-#: crates/envio-core/src/text/read.rs:19
-msgid "Could not read your mail from this phone"
+#: crates/envio-core/src/text/read.rs:17
+msgid "This message is {megabytes} MB. Opening it may use a lot of memory."
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:23
-msgid "This folder can't be searched on the server right now"
+msgid "Could not save the attachment"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:27
+msgid "Could not read your mail from this phone"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:31
+msgid "This folder can't be searched on the server right now"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:35
 msgid "Couldn't load older messages. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:33
+#: crates/envio-core/src/text/read.rs:41
 msgid ""
 "Couldn't load older messages for {accounts}. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:40
+#: crates/envio-core/src/text/read.rs:48
 msgid "(no sender)"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:45
+#: crates/envio-core/src/text/read.rs:53
 msgid "(no subject)"
 msgstr ""
 
