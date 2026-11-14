@@ -61,12 +61,22 @@ Item {
         // The end of the list asks for the next cached page and, once the
         // list is at the end of the cache, for older mail from the server
         // (the core asks for one batch only until rows arrive).
-        onAtYEndChanged: if (atYEnd && count > 0) { root.core.more(); root.core.loadOlderNearEnd() }
+        // The check runs after layout (Qt.callLater), so it reads the
+        // state the new rows or footer produced, not the one before.
+        function atEnd() { return count > 0 && atYEnd }
+        function nearEnd() { return count > 0 && contentHeight - (contentY + height) < root.theme.touch * 2 }
+        function askAtEnd() {
+            if (!atEnd()) return
+            root.core.more()
+            root.core.loadOlderNearEnd()
+        }
+        function askOlder() { if (nearEnd()) root.core.loadOlderNearEnd() }
+        onAtYEndChanged: if (atYEnd) Qt.callLater(askAtEnd)
         Connections {
             target: root.core
-            function onOlderRowChanged() {
-                if (list.atYEnd && list.count > 0) root.core.loadOlderNearEnd()
-            }
+            // The row turns Ready under a list already at its end (the footer
+            // grows the list, so it is no longer at the very end).
+            function onOlderRowChanged() { Qt.callLater(list.askOlder) }
         }
         onDragEnded: if (contentY < -root.theme.gu(10)) root.core.refresh("")
         footer: LoadOlderRow {

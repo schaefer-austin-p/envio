@@ -225,13 +225,68 @@ fn an_empty_automatic_batch_is_not_asked_again() {
     assert!(ui.load_older_near_end().is_none());
 }
 
+fn other() -> envio_core::ListRef {
+    envio_core::ListRef::Folder(envio_core::FolderId(2))
+}
+
 #[test]
-fn opening_another_list_allows_an_automatic_load_again() {
+fn a_reopened_list_the_server_has_no_more_for_is_not_auto_loaded_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
+    // Back to the list: the row is Ready again, but scrolling asks nothing.
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    assert!(ui.load_older_near_end().is_none());
+    // The row still works when tapped.
+    assert!(ui.load_older().is_some());
+    // Another list is not affected.
+    opened(&mut ui, other(), vec![msg(5, 50)], true);
+    assert!(ui.load_older_near_end().is_some());
+}
+
+#[test]
+fn a_reopened_list_whose_last_load_failed_is_not_auto_loaded_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    let _ = feed(&mut ui, offline());
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    assert!(
+        ui.load_older_near_end().is_none(),
+        "no toast nobody asked for"
+    );
+    assert!(ui.load_older().is_some());
+}
+
+#[test]
+fn a_tap_that_brings_rows_allows_auto_loading_the_list_again() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older_near_end().unwrap();
+    let _ = feed(&mut ui, offline());
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    let _ = feed(&mut ui, loaded(20, false));
+    let page_in = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+    assert_eq!(rows(&feed(&mut ui, page_in)), [OlderRow::Ready]);
+    assert!(ui.load_older_near_end().is_some());
+}
+
+#[test]
+fn a_dropped_older_window_allows_auto_loading_again() {
     let mut ui = Ui::new();
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     let _ = ui.load_older_near_end().unwrap();
     let _ = feed(&mut ui, offline());
     assert!(ui.load_older_near_end().is_none());
+    // The sync window changed (the older rows went): the state is new.
+    let _ = feed(&mut ui, Event::OlderReset);
+    assert!(ui.load_older_near_end().is_some());
+    // The same after Done, and for a list that was blocked while not shown.
+    let _ = feed(&mut ui, loaded(0, true));
     opened(&mut ui, F1, vec![msg(1, 10)], true);
+    assert!(ui.load_older_near_end().is_none());
+    let _ = feed(&mut ui, Event::OlderReset);
     assert!(ui.load_older_near_end().is_some());
 }
