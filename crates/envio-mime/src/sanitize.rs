@@ -124,6 +124,7 @@ fn tag_attributes() -> HashMap<&'static str, HashSet<&'static str>> {
             "cellspacing",
             "cellpadding",
             "align",
+            "role",
         ],
     );
     allow("col", &["width"]);
@@ -212,8 +213,9 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
         cleaner(&extra).clean(html)
     };
     let clean = clean.to_string();
-    let mut rendered = crate::images::fit(&clean, options);
-    rendered.html = crate::linear::linearise(&rendered.html);
+    let mut images = Vec::new();
+    let mut rendered = crate::images::fit(&clean, options, &mut images);
+    rendered.html = crate::linear::linearise(&rendered.html, &images);
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }
