@@ -88,6 +88,11 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             if prop.starts_with("margin") {
                 return vertical_margins(&prop, value);
             }
+            if prop == "font-size"
+                && let Some(size) = fitted_font_size(value)
+            {
+                return Some(format!("font-size:{size}"));
+            }
             Some(format!("{prop}:{value}"))
         })
         .collect();
@@ -121,6 +126,38 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
         .filter_map(|(side, v)| v.filter(|v| *v != "auto").map(|v| format!("{side}:{v}")))
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
+}
+
+/// The largest font size kept, in px: a heading above it wraps mid-word in a
+/// phone column (#177).
+const MAX_FONT_PX: f64 = 26.0;
+
+/// `font-size` `value` rewritten when Qt would misread it: a zero size
+/// becomes `1px` (Qt 5 ignores 0, so a spacer would be a blank line, #176),
+/// and a size above [`MAX_FONT_PX`] is clamped. `None` leaves it as is
+/// (other units, keywords and sizes in range).
+fn fitted_font_size(value: &str) -> Option<String> {
+    let lower = value.to_ascii_lowercase();
+    let lower = lower.replace("!important", "");
+    let lower = lower.trim();
+    let end = lower
+        .find(|c: char| !(c.is_ascii_digit() || c == '.'))
+        .unwrap_or(lower.len());
+    let n: f64 = lower[..end].parse().ok()?;
+    let px = match &lower[end..] {
+        "px" => n,
+        "pt" => n * 4.0 / 3.0,
+        "em" | "rem" => n * 16.0,
+        _ if n == 0.0 => 0.0,
+        _ => return None,
+    };
+    if px == 0.0 {
+        Some("1px".to_owned())
+    } else if px > MAX_FONT_PX {
+        Some("26px".to_owned())
+    } else {
+        None
+    }
 }
 
 fn safe_css_value(value: &str) -> bool {
