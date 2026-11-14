@@ -25,8 +25,18 @@ trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
 docker start "$c" >/dev/null
 git archive --prefix=src/ HEAD | docker cp - "$c:/"
 
+# Which build this is (#198), taken here: the container gets no .git. The
+# v* tag build is the official release, which carries no stamp; ENVIO_GIT is
+# then a sentinel that only a stamped build would hold, checked below.
+sentinel=envio-release-build-must-not-be-stamped
+case "${GITHUB_REF:-}" in
+  refs/tags/v*) release=1 stamp=$sentinel ;;
+  *) release='' stamp=$(sh tools/stamp.sh) ;;
+esac
+echo "build stamp: ${release:+none (official release)}${release:-$stamp}"
+
 run() {
-  docker exec -w /src -e CLICKABLE_ENV_ENVIO_COMMIT="$(git rev-parse --short=10 HEAD)" \
+  docker exec -w /src -e CLICKABLE_ENV_ENVIO_RELEASE="$release" -e CLICKABLE_ENV_ENVIO_GIT="$stamp" \
     "$c" bash -euo pipefail -c "$1"
 }
 
@@ -39,6 +49,11 @@ run "apt-get update && apt-get install -y --no-install-recommends python3-pip &&
 # --skip-review: the review below decides (errors fail, warnings print);
 # the build's own review would fail on a warning and skip the report.
 run 'clickable build --arch arm64 --container-mode --skip-review'
+
+if [ -n "$release" ] && docker exec "$c" grep -rqa "$sentinel" /src/build; then
+  echo "the release build is stamped: ENVIO_RELEASE didn't reach it" >&2
+  exit 1
+fi
 
 rm -rf "$out"
 mkdir -p "$out"

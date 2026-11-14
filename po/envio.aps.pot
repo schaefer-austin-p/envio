@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 17:30+0100\n"
+"POT-Creation-Date: 2026-11-14 18:39+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -627,8 +627,28 @@ msgstr ""
 msgid "Also asks the mail servers"
 msgstr ""
 
-#: qml/pages/settings/AboutPage.qml:18 qml/pages/settings/SettingsPage.qml:35
+#: qml/pages/settings/AboutPage.qml:15
+msgid "unknown"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:35
 msgid "About"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:56
+msgid "Development build"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:58
+msgid "Built %1"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:59
+msgid "Installed %1"
+msgstr ""
+
+#: qml/pages/settings/AboutPage.qml:60
+msgid "not as a click"
 msgstr ""
 
 #: qml/pages/settings/AppearancePage.qml:25
