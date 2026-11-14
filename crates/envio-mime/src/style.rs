@@ -82,9 +82,38 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             let allowed = STYLE_PROPS.contains(&prop.as_str())
                 || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()))
                 || (matches!(element, "table" | "td" | "th" | "col") && prop == "width");
-            (allowed && safe_css_value(value) && sane_lengths(&prop, value))
-                .then(|| format!("{prop}:{value}"))
+            if !(allowed && safe_css_value(value) && sane_lengths(&prop, value)) {
+                return None;
+            }
+            if prop.starts_with("margin") {
+                return vertical_margins(&prop, value);
+            }
+            Some(format!("{prop}:{value}"))
         })
+        .collect();
+    (!kept.is_empty()).then(|| kept.join(";"))
+}
+
+/// Qt 5's TextEdit paints a block's background from the left edge but
+/// indents its text by the left margin, so a coloured box with side
+/// margins shows its colour beside its text. Qt also reads `auto` (the
+/// usual email centring) as a wide margin. Only the top and bottom margins
+/// are kept, and `auto` is dropped.
+fn vertical_margins(prop: &str, value: &str) -> Option<String> {
+    let value = value.to_ascii_lowercase().replace("!important", "");
+    let parts: Vec<&str> = value.split_whitespace().collect();
+    let (top, bottom) = match (prop, parts.as_slice()) {
+        ("margin", [all]) | ("margin", [all, _]) => (Some(*all), Some(*all)),
+        ("margin", [top, _, bottom]) | ("margin", [top, _, bottom, _]) => {
+            (Some(*top), Some(*bottom))
+        }
+        ("margin-top", [top]) => (Some(*top), None),
+        ("margin-bottom", [bottom]) => (None, Some(*bottom)),
+        _ => (None, None),
+    };
+    let kept: Vec<String> = [("margin-top", top), ("margin-bottom", bottom)]
+        .into_iter()
+        .filter_map(|(side, v)| v.filter(|v| *v != "auto").map(|v| format!("{side}:{v}")))
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
 }

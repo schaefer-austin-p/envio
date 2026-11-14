@@ -1,5 +1,5 @@
 ---
-source: tests/corpus.rs
+source: crates/envio-mime/tests/corpus.rs
 expression: describe(&raw)
 ---
 message_id: Some("AM0PR01MB1234@eurprd01.prod.example.com")
@@ -21,7 +21,7 @@ blocked: 0 trackers: 0
 
 
 <div>
-<p style="margin:0cm">Hi Bob,</p>
+<p style="margin-top:0cm;margin-bottom:0cm">Hi Bob,</p>
 <p>The chart is below.</p>
 <p><img src="image://envio/part/0" alt="Chart" width="600" height="450"></p>
 <p>Carol</p>

@@ -175,6 +175,49 @@ fn absurd_or_unparseable_lengths_are_dropped() {
             "{decl}"
         );
     }
-    let ok = r#"<p style="margin:0 auto;padding:10px 2em;font-size:12PT !important">t</p>"#;
+    let ok = r#"<p style="margin-top:0;padding:10px 2em;font-size:12PT !important">t</p>"#;
     assert_eq!(clean(ok), ok);
+}
+
+/// Qt 5's TextEdit draws a box's background from the left edge but its
+/// text after the left margin, and reads `auto` as a wide margin; only the
+/// top and bottom margins survive.
+#[test]
+fn only_vertical_margins_are_kept() {
+    for (style, kept) in [
+        ("margin:0 auto", "margin-top:0;margin-bottom:0"),
+        (
+            "margin:0px auto !important",
+            "margin-top:0px;margin-bottom:0px",
+        ),
+        ("margin:4px", "margin-top:4px;margin-bottom:4px"),
+        ("margin:1px 20px 3px", "margin-top:1px;margin-bottom:3px"),
+        (
+            "margin:1px 20px 3px 40px",
+            "margin-top:1px;margin-bottom:3px",
+        ),
+        ("margin:auto 20px 3px", "margin-bottom:3px"),
+        ("margin-top:5px", "margin-top:5px"),
+        ("margin-bottom:6px", "margin-bottom:6px"),
+    ] {
+        assert_eq!(
+            clean(&format!(
+                r#"<div style="background-color:#eee;{style}">t</div>"#
+            )),
+            format!(r#"<div style="background-color:#eee;{kept}">t</div>"#),
+            "{style}"
+        );
+    }
+    for style in [
+        "margin-left:20px",
+        "margin-right:2em",
+        "margin:auto",
+        "margin-top:auto",
+    ] {
+        assert_eq!(
+            clean(&format!(r#"<div style="{style};color:red">t</div>"#)),
+            r#"<div style="color:red">t</div>"#,
+            "{style}"
+        );
+    }
 }
