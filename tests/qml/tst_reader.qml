@@ -678,6 +678,17 @@ Item {
             verify(shown("retry"))
         }
 
+        // A fetch the user started with Load anyway on an earlier visit can
+        // finish after the notice shows again: the message replaces it.
+        function test_a_late_view_replaces_the_size_notice() {
+            mock.messageTooLarge(5, "This message is 30 MB.")
+            waitForRendering(root.page)
+            verify(shown("loadAnyway"))
+            open(view([], 0))
+            verify(!shown("loadAnyway"))
+            verify(shown("bodyText"))
+        }
+
         function test_loading_shows_until_the_view_arrives() {
             waitForRendering(root.page)
             verify(shown("loadingText"))
