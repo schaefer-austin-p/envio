@@ -226,6 +226,17 @@ Item {
             compare(mock.called("reportImageSizes").length, 1)
         }
 
+        // The core takes at most 256 sizes from one report: more go in
+        // several.
+        function test_many_image_sizes_go_in_batches() {
+            for (let i = 0; i < 300; i++) root.page.noteImageSize("https://e.test/" + i, 10, 10)
+            root.page.reportSizes()
+            const calls = mock.called("reportImageSizes")
+            compare(calls.length, 2)
+            compare(Object.keys(JSON.parse(calls[0].args[1])).length, 256)
+            compare(Object.keys(JSON.parse(calls[1].args[1])).length, 44)
+        }
+
         function test_a_view_without_images_preloads_nothing() {
             open(view([], 0))
             const hit = everything(root.page, []).filter(function(o) { return o.objectName === "preloadedImage" })

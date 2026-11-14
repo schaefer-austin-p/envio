@@ -46,11 +46,17 @@ struct DraftJson {
 }
 
 /// The reader's report of its loaded remote images: `{"url": [width,
-/// height]}` in pixels.
+/// height]}` in pixels. An entry that is not two whole pixel counts is left
+/// out on its own; the rest of the report still counts.
 pub fn image_sizes_from_json(
     text: &str,
 ) -> Result<std::collections::HashMap<String, (u32, u32)>, Rejected> {
-    serde_json::from_str(text).map_err(|e| rejected(&e))
+    let entries: serde_json::Map<String, Value> =
+        serde_json::from_str(text).map_err(|e| rejected(&e))?;
+    Ok(entries
+        .into_iter()
+        .filter_map(|(url, size)| Some((url, serde_json::from_value(size).ok()?)))
+        .collect())
 }
 
 pub fn draft_from_json(text: &str) -> Result<DraftInput, Rejected> {
@@ -231,8 +237,19 @@ mod tests {
     fn image_sizes_from_qml() {
         let sizes = image_sizes_from_json(r#"{"https://example.org/a.png":[1200,400]}"#).unwrap();
         assert_eq!(sizes["https://example.org/a.png"], (1200, 400));
-        assert!(image_sizes_from_json(r#"{"https://example.org/a.png":[-1,4]}"#).is_err());
         assert!(image_sizes_from_json("[]").is_err());
+        assert!(image_sizes_from_json("not json").is_err());
+    }
+
+    #[test]
+    fn a_bad_image_size_drops_only_its_own_entry() {
+        let text = r#"{"https://e.test/a.png":[1200,400],"https://e.test/b.png":[-1,4],
+            "https://e.test/c.png":[1e12,4],"https://e.test/d.png":"wide",
+            "https://e.test/e.png":[3,2]}"#;
+        let sizes = image_sizes_from_json(text).unwrap();
+        assert_eq!(sizes.len(), 2);
+        assert_eq!(sizes["https://e.test/a.png"], (1200, 400));
+        assert_eq!(sizes["https://e.test/e.png"], (3, 2));
     }
 
     #[test]

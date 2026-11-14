@@ -36,6 +36,9 @@ pub(crate) struct Store {
     /// The message the reader last asked to open. Its inline images are the
     /// ones kept on disk; a view of any other message writes none.
     pub open_message: Option<MessageRowId>,
+    /// The open message as the reader last got it, with the sizes of its
+    /// remote images. Row ids start over on a rebuild, so it goes with them.
+    pub shown: Option<super::shown::Shown>,
 }
 
 pub(super) fn secrets_error(error: SecretsError) -> StoreError {
@@ -86,6 +89,7 @@ impl Store {
                 Vec::new()
             }),
             open_message: None,
+            shown: None,
             db,
             data_dir: config.data_dir.clone(),
             paths,
@@ -142,6 +146,7 @@ impl Store {
         // Row ids start over: the folders named by the old ones are stale.
         super::inline::clear_all(&self.paths.inline());
         self.open_message = None;
+        self.shown = None;
         Ok(())
     }
 
@@ -204,6 +209,25 @@ mod tests {
         fs::write(stale.join("0.png"), b"x").unwrap();
         worker.store.rebuild().unwrap();
         assert!(!worker.store.paths.inline().exists());
+    }
+
+    #[test]
+    fn a_rebuild_forgets_the_shown_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.store.shown = Some(super::super::shown::Shown {
+            id: seeded.message,
+            choice: (crate::api::command::ImagesChoice::Load, 300),
+            sizes: [("https://e.test/a.png".to_owned(), (1000, 10))].into(),
+            html: String::new(),
+            open_images: Vec::new(),
+        });
+        worker.store.rebuild().unwrap();
+        assert!(worker.store.shown.is_none());
+        // A row that gets the old id after the rebuild starts with no sizes.
+        assert!(worker.sizes_for(seeded.message).is_empty());
     }
 
     #[test]

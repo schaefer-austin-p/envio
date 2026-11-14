@@ -76,8 +76,6 @@ pub(crate) struct Worker<'s> {
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.
     opening: BTreeMap<MessageRowId, (ImagesChoice, u32)>,
-    /// The open message as the reader last got it.
-    shown: Option<shown::Shown>,
     /// Actions the user can still take back.
     undo: UndoBook,
     /// Drafts: saved by the draft thread; the worker only flushes a draft
@@ -207,7 +205,6 @@ impl<'s> Worker<'s> {
             last_ran: None,
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
-            shown: None,
             undo: UndoBook::default(),
             book: Arc::clone(book),
             composing: BTreeMap::new(),

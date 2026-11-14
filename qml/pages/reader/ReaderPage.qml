@@ -185,13 +185,20 @@ Item {
         pendingSizes[url] = [Math.round(w), Math.round(h)]
         sizeReport.restart()
     }
+    // The core takes at most this many sizes from one report.
+    readonly property int sizesPerReport: 256
     function reportSizes() {
         const sizes = pendingSizes
         pendingSizes = ({})
         const urls = Object.keys(sizes)
-        if (urls.length === 0) return
-        for (const url of urls) reportedSizes[url] = true
-        core.reportImageSizes(messageId, JSON.stringify(sizes))
+        for (let i = 0; i < urls.length; i += sizesPerReport) {
+            const batch = {}
+            for (const url of urls.slice(i, i + sizesPerReport)) {
+                batch[url] = sizes[url]
+                reportedSizes[url] = true
+            }
+            core.reportImageSizes(messageId, JSON.stringify(batch))
+        }
     }
     // Not stopped by a new view: the core shows the message again with the
     // sizes it has, and sizes still pending must reach it too.

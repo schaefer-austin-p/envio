@@ -170,6 +170,9 @@ pub struct Rendered {
     /// reader preloads them: Qt 5's rich `TextEdit` reserves a remote
     /// image's space but never draws it once it arrives (#163).
     pub remote_images: Vec<String>,
+    /// The remote images written with no width, which a reported natural
+    /// size could still cap (see [`RenderOptions::image_sizes`]).
+    pub unsized_images: Vec<crate::Unsized>,
     /// Tracking pixels removed (even when remote images are on).
     pub removed_trackers: usize,
     /// The sanitised HTML sets its own background or dark text colour, so
