@@ -483,3 +483,25 @@ fn a_transparent_background_is_not_a_button() {
         assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
     }
 }
+
+#[test]
+fn cellpadding_reads_its_leading_digits() {
+    for (pad, button) in [
+        ("12", true),
+        ("12px", true),
+        (" 12 ", true),
+        ("0", false),
+        ("0px", false),
+        ("", false),
+        ("x", false),
+    ] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(
+            count(&html, "table"),
+            usize::from(button),
+            "{pad:?}: {html}"
+        );
+    }
+}

@@ -258,14 +258,12 @@ fn presentation(raw: &str) -> bool {
 
 /// Whether the `table` start tag `raw` has a non-zero `cellpadding`.
 fn cellpadding(raw: &str) -> bool {
-    parse_tag(raw)
-        .and_then(|tag| tag.attr("cellpadding").map(str::to_owned))
-        .is_some_and(|v| {
-            v.trim()
-                .trim_end_matches('%')
-                .parse::<f64>()
-                .is_ok_and(|n| n > 0.0)
-        })
+    // Browsers read the leading digits: `12px` is 12.
+    parse_tag(raw).is_some_and(|tag| {
+        let v = tag.attr("cellpadding").unwrap_or("").trim();
+        let digits = v.find(|c: char| !c.is_ascii_digit()).unwrap_or(v.len());
+        v[..digits].parse::<u32>().is_ok_and(|n| n > 0)
+    })
 }
 
 /// Whether the cell start tag `raw` has real padding (a non-zero length in
