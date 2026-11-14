@@ -133,13 +133,19 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
 const MAX_FONT_PX: f64 = 26.0;
 
 /// `font-size` `value` rewritten when Qt would misread it: a zero size
-/// becomes `1px` (Qt 5 ignores 0, so a spacer would be a blank line, #176),
+/// or below 1px becomes `1px` (Qt 5 ignores 0 and may truncate a smaller
+/// size to it, so a spacer would be a blank line, #176),
 /// and a size above [`MAX_FONT_PX`] is clamped. `None` leaves it as is
 /// (other units, keywords and sizes in range).
 fn fitted_font_size(value: &str) -> Option<String> {
-    let lower = value.to_ascii_lowercase();
-    let lower = lower.replace("!important", "");
+    // `!important` may be written `! important`; nothing after `!` is a size.
+    let lower = value
+        .split('!')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let lower = lower.trim();
+    let lower = lower.strip_prefix('+').unwrap_or(lower);
     let end = lower
         .find(|c: char| !(c.is_ascii_digit() || c == '.'))
         .unwrap_or(lower.len());
@@ -151,7 +157,7 @@ fn fitted_font_size(value: &str) -> Option<String> {
         _ if n == 0.0 => 0.0,
         _ => return None,
     };
-    if px == 0.0 {
+    if px < 1.0 {
         Some("1px".to_owned())
     } else if px > MAX_FONT_PX {
         Some("26px".to_owned())

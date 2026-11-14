@@ -226,7 +226,17 @@ fn only_vertical_margins_are_kept() {
 
 #[test]
 fn a_zero_font_size_becomes_one_pixel() {
-    for zero in ["0", "0px", "0pt", "0em", "0.0px", "0px !important"] {
+    for zero in [
+        "0",
+        "0px",
+        "0pt",
+        "0em",
+        "0.0px",
+        "0px !important",
+        "0.5px",
+        "0.3pt",
+        "0px ! important",
+    ] {
         assert_eq!(
             clean(&format!(r#"<div style="font-size:{zero}">&nbsp;</div>"#)),
             r#"<div style="font-size:1px">&nbsp;</div>"#,
@@ -237,14 +247,23 @@ fn a_zero_font_size_becomes_one_pixel() {
 
 #[test]
 fn a_very_large_font_size_is_clamped() {
-    for big in ["40px", "30pt", "3em", "26.5px", "2.5rem"] {
+    for big in [
+        "40px",
+        "30pt",
+        "3em",
+        "26.5px",
+        "2.5rem",
+        "40px ! important",
+        "+40px",
+        "40px !important",
+    ] {
         assert_eq!(
             clean(&format!(r#"<h1 style="font-size:{big}">t</h1>"#)),
             r#"<h1 style="font-size:26px">t</h1>"#,
             "{big}"
         );
     }
-    for ok in ["26px", "14px", "12pt", "1.2em", "large", "120%", "0.5px"] {
+    for ok in ["26px", "14px", "12pt", "1.2em", "large", "120%", "1px"] {
         let html = format!(r#"<h1 style="font-size:{ok}">t</h1>"#);
         assert_eq!(clean(&html), html, "{ok}");
     }
