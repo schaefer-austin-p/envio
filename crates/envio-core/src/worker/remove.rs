@@ -63,8 +63,15 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     }
     let (mut local, drafts) = store.local_and_drafts();
     envio_sync::driver::remove_account(&mut local, drafts, key).map_err(store_error)?;
-    super::inline::clear_all(&store.paths.inline());
+    // Other accounts' messages share the folder: keep the one on screen.
+    let shown = store.open_message.map(|id| id.0.to_string());
+    super::inline::clear_except(&store.paths.inline(), shown.as_deref());
     store.secrets.remove(key).map_err(secrets_error)
+}
+
+#[cfg(test)]
+pub(super) fn remove_for_test(store: &mut Store, key: &str) {
+    remove(store, key).unwrap();
 }
 
 /// Marks the account as being removed, deletes it, clears the mark.

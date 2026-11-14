@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use envio_store::{
-    Accounts, Bodies, Contact, Db, Drafts, Journal, Opened, Outbox, Settings, StoreError,
-    StorePaths, load_contacts, load_settings, open_or_rebuild,
+    Accounts, Bodies, Contact, Db, Drafts, Journal, MessageRowId, Opened, Outbox, Settings,
+    StoreError, StorePaths, load_contacts, load_settings, open_or_rebuild,
 };
 use envio_sync::Schedule;
 use envio_sync::driver::{Local, Unsent};
@@ -33,6 +33,9 @@ pub(crate) struct Store {
     pub settings: Settings,
     /// `contacts.json`.
     pub contacts: Vec<Contact>,
+    /// The message the reader last asked to open. Its inline images are the
+    /// ones kept on disk; a view of any other message writes none.
+    pub open_message: Option<MessageRowId>,
 }
 
 pub(super) fn secrets_error(error: SecretsError) -> StoreError {
@@ -82,6 +85,7 @@ impl Store {
                 log::warn!("loading the contacts: {e}");
                 Vec::new()
             }),
+            open_message: None,
             db,
             data_dir: config.data_dir.clone(),
             paths,
@@ -137,6 +141,7 @@ impl Store {
         self.db = open_or_rebuild(&self.paths)?.0;
         // Row ids start over: the folders named by the old ones are stale.
         super::inline::clear_all(&self.paths.inline());
+        self.open_message = None;
         Ok(())
     }
 

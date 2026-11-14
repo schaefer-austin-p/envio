@@ -41,16 +41,13 @@ pub(super) fn clear_all(root: &Path) {
     }
 }
 
-/// Removes the other messages' folders next to `dir`.
-fn drop_others(dir: &Path) {
-    let (Some(root), Some(keep)) = (dir.parent(), dir.file_name()) else {
-        return;
-    };
+/// Removes every message folder under `root` but `keep`.
+pub(super) fn clear_except(root: &Path, keep: Option<&str>) {
     let Ok(entries) = fs::read_dir(root) else {
         return;
     };
     for entry in entries.flatten() {
-        if entry.file_name() != keep
+        if keep.is_none_or(|k| entry.file_name() != k)
             && let Err(e) = fs::remove_dir_all(entry.path())
         {
             log::warn!("dropping an inline image folder: {e}");
@@ -68,7 +65,9 @@ pub(super) fn write(
     raw: &[u8],
     attachments: &[AttachmentInfo],
 ) -> HashMap<String, String> {
-    drop_others(dir);
+    if let (Some(root), Some(keep)) = (dir.parent(), dir.file_name().and_then(|n| n.to_str())) {
+        clear_except(root, Some(keep));
+    }
     let mut urls = HashMap::new();
     let mut todo = Vec::new();
     let parts = attachments
@@ -91,8 +90,13 @@ pub(super) fn write(
         return urls;
     }
     if let Err(e) = fs::create_dir_all(dir) {
+        // Only reachable if the folder vanishes meanwhile: files already
+        // there keep their URLs, the rest show as missing.
         log::warn!("creating the inline image folder: {e}");
-        return HashMap::new();
+        for (_, cid, _) in &todo {
+            urls.remove(*cid);
+        }
+        return urls;
     }
     let indexes: Vec<usize> = todo.iter().map(|(i, _, _)| *i).collect();
     let bytes = envio_mime::attachments_bytes(raw, &indexes);

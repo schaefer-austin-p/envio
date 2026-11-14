@@ -230,7 +230,7 @@ fn removing_an_account_clears_the_inline_images() {
         confirmed: true,
     });
     h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
-    assert!(!h.paths().inline().exists());
+    assert!(!h.paths().inline().join("3").exists());
 }
 
 #[test]
