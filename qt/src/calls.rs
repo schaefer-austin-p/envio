@@ -195,6 +195,19 @@ impl qobject::EnvioCore {
         });
     }
 
+    /// `open` for a message over the size cap that the user chose to load.
+    pub fn open_anyway(self: Pin<&mut Self>, id: i64, load_images: bool, width_px: i32) {
+        self.send_command(Command::OpenMessageAnyway {
+            id: MessageRowId(id),
+            images: if load_images {
+                ImagesChoice::Load
+            } else {
+                ImagesChoice::Default
+            },
+            width_px: u32::try_from(width_px).unwrap_or(0),
+        });
+    }
+
     pub fn allow_images_from(self: Pin<&mut Self>, address: &QString) {
         self.send_command(Command::AllowImagesFrom {
             address: s(address),

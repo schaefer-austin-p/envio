@@ -66,6 +66,10 @@ pub enum Signal {
         id: i64,
         text: String,
     },
+    MessageTooLarge {
+        id: i64,
+        text: String,
+    },
     AttachmentSaved {
         path: PathBuf,
     },
