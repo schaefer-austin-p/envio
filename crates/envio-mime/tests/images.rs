@@ -201,6 +201,13 @@ fn a_percentage_width_is_a_share_of_its_cell() {
             .html
             .contains(r#"<img src="https://example.com/a.png" width="290">"#)
     );
+    // An inner table's `</thead>` does not close the outer cell.
+    let html = r#"<table><tr><td width="32"><table><thead><tr><th>x</th></tr></thead></table><img src="https://example.com/a.png" style="width:100%"></td></tr></table>"#;
+    let out = sanitize_html(html, &allowed()).html;
+    assert!(
+        out.contains(r#"<img src="https://example.com/a.png" width="32">"#),
+        "{out}"
+    );
 }
 
 #[test]

@@ -113,7 +113,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
                 tag.write(&mut out.html);
             }
             _ => {
-                if raw.starts_with("</td") || raw.starts_with("</th") {
+                if closes_cell(raw) {
                     cells.pop();
                 }
                 out.html.push_str(raw);
@@ -252,6 +252,15 @@ fn image(
     }
     .write(&mut out.html);
     Some(declared)
+}
+
+/// Whether `raw` is a `</td>` or `</th>` end tag (not `</thead>`).
+fn closes_cell(raw: &str) -> bool {
+    ["</td", "</th"].iter().any(|end| {
+        raw.strip_prefix(end)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| c == '>' || c.is_ascii_whitespace())
+    })
 }
 
 /// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`
