@@ -19,6 +19,7 @@ Item {
     }
     SignalSpy { id: composing; target: page; signalName: "composeOpened" }
     SignalSpy { id: backed; target: page; signalName: "backRequested" }
+    SignalSpy { id: checking; target: page; signalName: "accountsRequested" }
 
     TestCase {
         name: "Outbox"
@@ -44,15 +45,16 @@ Item {
             const hit = everything(page, []).filter(function(o) { return o.objectName === name })
             return hit.length > 0 && hit[0].visible
         }
-        function item(id, status, text) {
+        function item(id, status, text, reason) {
             return { id: id, account: "ann", subject: "Invoice " + id, to: "ana@example.org",
-                     status: status, text: text === undefined ? "" : text }
+                     status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason }
         }
         function init() {
             core.reset()
             core.outbox.clear()
             composing.clear()
             backed.clear()
+            checking.clear()
         }
         function laidOut(dlg, action) {
             const p = find("primaryAction", dlg.contentItem)
@@ -104,6 +106,19 @@ Item {
             tryVerify(function() { return dlg.opened })
             mouseClick(laidOut(dlg, "secondaryAction"))
             compare(core.called("decideOutbox").pop().args, ["f", "delete"])
+        }
+
+        function test_a_message_held_by_the_outgoing_certificate_says_why_and_links_to_the_check() {
+            const why = "The certificate of the outgoing mail server changed."
+            core.outbox.append(item("w", "waiting", "Waiting to be sent", why))
+            core.outbox.append(item("x", "waiting", "Waiting to be sent"))
+            waitForRendering(page)
+            compare(find("reason-w", page).text, why)
+            verify(shown("reason-w") && shown("checkCertificate-w"))
+            verify(!shown("reason-x") && !shown("checkCertificate-x"))
+            verify(shown("delete-w"))
+            mouseClick(find("checkCertificate-w", page))
+            compare(checking.count, 1)
         }
 
         function test_back_leaves() {

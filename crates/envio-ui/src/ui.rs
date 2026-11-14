@@ -11,7 +11,7 @@ mod selection;
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use envio_core::{Command, Event, FolderRole, ListRef, Service};
+use envio_core::{Command, Event, FolderRole, ListRef, OutboxRow, Service};
 
 use crate::convert::{self, signal_of};
 use crate::lists::ShownList;
@@ -38,6 +38,9 @@ fn change(model: Model, op: Op) -> Output {
 #[derive(Debug, Default)]
 pub struct Ui {
     accounts: Vec<AccountRow>,
+    /// The Outbox as the core last listed it; rows are rebuilt from it when
+    /// an account's status changes their reason.
+    outbox: Vec<OutboxRow>,
     names: HashMap<String, String>,
     folders_of: Option<String>,
     /// The account the open drawer shows; `None` while it is closed.
@@ -177,7 +180,11 @@ impl Ui {
             Event::SearchFailed { scope, query, text } => self.search_failed(&scope, &query, text),
             Event::OutboxChanged => vec![Output::Send(Command::ListOutbox)],
             Event::Outbox { items } => {
-                let rows = items.iter().map(convert::outbox_row).collect();
+                let rows = items
+                    .iter()
+                    .map(|r| convert::outbox_row(r, convert::outbox_reason(&self.accounts, r)))
+                    .collect();
+                self.outbox = items;
                 vec![change(Model::Outbox, Op::Reset(rows))]
             }
             Event::Suggestions { query, items } => {

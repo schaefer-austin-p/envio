@@ -72,12 +72,24 @@ impl Ui {
             if row.state != "broken" {
                 convert::state_word(status).clone_into(&mut row.state);
                 convert::set_pin(row, status, &text);
+                row.attention = convert::needs_attention(&row.state);
             }
             let row = Row::Account(row.clone());
             outs.push(change(Model::Accounts, Op::Update { at, row }));
         }
         outs.push(Output::Signal(Signal::Status { account: key, text }));
+        outs.extend(self.outbox_reasons());
         outs
+    }
+
+    /// The Outbox rows again when a reason changed with an account's status.
+    fn outbox_reasons(&mut self) -> Option<Output> {
+        let rows: Vec<Row> = self
+            .outbox
+            .iter()
+            .map(|r| convert::outbox_row(r, convert::outbox_reason(&self.accounts, r)))
+            .collect();
+        (rows != self.mirror.rows(Model::Outbox)).then(|| change(Model::Outbox, Op::Reset(rows)))
     }
 
     /// The account's Inbox count changed: its row updates in place.

@@ -5,7 +5,8 @@ import "../../components"
 // One unsent message: subject, recipients, its status in words, and the
 // actions its status allows. Envio never resends on its own, so "Send again"
 // is only ever a tap here.
-//   waiting:          Delete
+//   waiting:          Delete (and Check certificate while the outgoing
+//                     server's certificate is what holds it)
 //   sending, sentnotfiled: none (core refuses Delete; it is on its way or done)
 //   failed:           Retry, Edit, Delete
 //   maybesent:        Send again, Move to Sent, Delete (the server may
@@ -16,6 +17,7 @@ ListRow {
     signal decided(string item, string decision)
     signal editRequested(string item)
     signal deleteRequested(string item)
+    signal accountsRequested()
 
     objectName: "outbox-" + model.id
 
@@ -53,10 +55,30 @@ ListRow {
             font.family: root.theme.fontUi
             font.pixelSize: 13
         }
+        // Why a waiting message stays (the outgoing server's certificate
+        // changed), with the way to the check.
+        Text {
+            textFormat: Text.PlainText
+            objectName: "reason-" + root.model.id
+            visible: !!root.model.reason
+            width: parent.width
+            text: root.model.reason
+            wrapMode: Text.WordWrap
+            color: root.theme.accent
+            font.family: root.theme.fontUi
+            font.pixelSize: 13
+        }
         Flow {
             width: parent.width
             spacing: root.theme.gu(1)
             topPadding: root.theme.gu(0.5)
+            AppButton {
+                objectName: "checkCertificate-" + root.model.id
+                visible: !!root.model.reason
+                theme: root.theme
+                text: qsTr("Check certificate")
+                onClicked: root.accountsRequested()
+            }
             AppButton {
                 objectName: "sendAgain-" + root.model.id
                 visible: root.model.status === "maybesent"

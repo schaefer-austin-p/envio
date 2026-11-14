@@ -194,17 +194,29 @@ Rectangle {
                         chevron: true
                         chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
-                        Accessible.name: offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text
+                        readonly property bool stopped: acct.model.attention === true
+                        Accessible.name: stopped ? qsTr("%1, sync stopped").arg(accountName.text)
+                                                 : (offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text)
+                        // The state icon: cloud-off while offline, the alert sign
+                        // while sync is stopped (a tap on it opens Accounts).
                         Icon {
                             id: offlineIcon
                             objectName: "offlineIcon"
-                            visible: acct.model.state === "offline"
+                            visible: group.stopped || acct.model.state === "offline"
                             theme: root.theme
-                            name: "offline"
+                            name: group.stopped ? "alert" : "offline"
                             color: root.theme.accent
                             size: root.theme.gu(2.5)
                             x: root.theme.gu(2.5)
                             y: root.theme.gu(1.75) + (accountName.height - height) / 2
+                            MouseArea {
+                                objectName: "stoppedLink"
+                                enabled: group.stopped
+                                anchors.centerIn: parent
+                                width: root.theme.touch
+                                height: root.theme.touch
+                                onClicked: root.accountsRequested()
+                            }
                         }
                         Text {
                             id: accountName

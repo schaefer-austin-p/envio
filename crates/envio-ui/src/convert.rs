@@ -21,6 +21,11 @@ pub fn state_word(status: &AccountStatus) -> &'static str {
     }
 }
 
+/// Sync is stopped until the user acts: the states that lead to Accounts.
+pub fn needs_attention(state: &str) -> bool {
+    matches!(state, "auth" | "pin")
+}
+
 /// The unread count for display: the digits, or nothing for zero.
 pub fn unread_text(n: u32) -> String {
     if n == 0 { String::new() } else { n.to_string() }
@@ -40,6 +45,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         state: state.to_owned(),
         unread: info.unread,
         unread_text: unread_text(info.unread),
+        attention: needs_attention(state),
         pin: Box::default(),
     }
 }
@@ -112,7 +118,20 @@ pub fn outbox_state(status: &OutboxStatus) -> &'static str {
     }
 }
 
-pub fn outbox_row(r: &OutboxRow) -> Row {
+/// Why a waiting message sits in the Outbox: the outgoing server's
+/// certificate problem, in the account's own words. Empty for anything else.
+pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> String {
+    if !matches!(r.status, OutboxStatus::Queued) {
+        return String::new();
+    }
+    accounts
+        .iter()
+        .find(|a| a.key == r.account && a.state == "pin" && a.pin.service == "smtp")
+        .map(|a| a.status.clone())
+        .unwrap_or_default()
+}
+
+pub fn outbox_row(r: &OutboxRow, reason: String) -> Row {
     let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
@@ -121,6 +140,7 @@ pub fn outbox_row(r: &OutboxRow) -> Row {
         to: r.recipients.join(", "),
         status: status.to_owned(),
         text: r.text.clone(),
+        reason,
     })
 }
 

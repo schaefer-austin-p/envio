@@ -23,6 +23,7 @@ Item {
         anchors.fill: parent
     }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
+    SignalSpy { id: wanted; target: page; signalName: "accountsRequested" }
 
     MockCore { id: shellCore }
     AppShell {
@@ -83,10 +84,11 @@ Item {
             core.olderRow = 0
             thm.name = "carbon"
             core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 3, unreadText: "3" })
+                                   status: "Up to date", state: "ok", unread: 3, unreadText: "3", attention: false })
             core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
-                                   status: "Up to date", state: "ok", unread: 0, unreadText: "" })
+                                   status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
             opened.clear()
+            wanted.clear()
             page.pendingInbox = ""
             find("undoToast", page).hide()
             find("noticeToast", page).hide()
@@ -587,6 +589,66 @@ Item {
             core.accounts.setProperty(1, "unreadText", "3")
             compare(bob.Accessible.name, "Bob  3, offline")
             core.accounts.setProperty(1, "unreadText", unread)
+            core.accounts.setProperty(1, "state", "ok")
+        }
+
+        // The drawer's ancestor with a closeRequested signal is the drawer.
+        function closeDrawer(row) {
+            let drawer = row
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            drawer.visible = false
+        }
+        function stop(row, state) {
+            core.accounts.setProperty(row, "state", state)
+            core.accounts.setProperty(row, "attention", true)
+        }
+        function resume(row) {
+            core.accounts.setProperty(row, "state", "ok")
+            core.accounts.setProperty(row, "attention", false)
+        }
+
+        function test_stopped_account_tab_shows_the_alert_and_leads_to_accounts() {
+            stop(1, "pin")
+            const bob = find("tab-bob", page)
+            tryVerify(function() { return chipIcon(bob) !== null })
+            compare(chipIcon(bob).name, "alert")
+            compare(bob.Accessible.name, "Bob, sync stopped")
+            compare(chipIcon(find("tab-ann", page)), null)
+            // The first tap shows the account's saved mail, the next one goes on.
+            mouseClick(bob)
+            tryVerify(function() { return bob.selected })
+            compare(wanted.count, 0)
+            mouseClick(bob)
+            compare(wanted.count, 1)
+            mouseClick(find("tab-all", page))
+            resume(1)
+            tryVerify(function() { return chipIcon(bob) === null })
+        }
+
+        function test_stopped_account_drawer_row_shows_the_alert_and_leads_to_accounts() {
+            stop(1, "auth")
+            mouseClick(find("menuButton", page))
+            const bob = find("account-bob", page)
+            const icon = drawerIcon(bob)
+            tryVerify(function() { return drawerIcon(bob) !== null })
+            compare(drawerIcon(bob).name, "alert")
+            compare(bob.Accessible.name, "Bob · bob@example.org, sync stopped")
+            compare(drawerIcon(find("account-ann", page)), null)
+            mouseClick(find("stoppedLink", bob))
+            compare(wanted.count, 1)
+            closeDrawer(bob)
+            resume(1)
+        }
+
+        function test_offline_account_is_no_stopped_link() {
+            core.accounts.setProperty(1, "state", "offline")
+            mouseClick(find("menuButton", page))
+            const bob = find("account-bob", page)
+            tryVerify(function() { return drawerIcon(bob) !== null })
+            compare(drawerIcon(bob).name, "offline")
+            mouseClick(find("stoppedLink", bob))
+            compare(wanted.count, 0)
+            closeDrawer(bob)
             core.accounts.setProperty(1, "state", "ok")
         }
 
