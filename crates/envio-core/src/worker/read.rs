@@ -2,7 +2,6 @@
 //! Nothing here writes the journal; the only network use is the body step
 //! an `OpenMessage` asks the account's runtime for.
 
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -30,6 +29,9 @@ pub(crate) struct ViewContext<'a> {
     pub contacts: &'a [envio_store::Contact],
     /// The cached envelope, for mail that can not be parsed.
     pub stored: &'a envio_store::Envelope,
+    /// Where this message's inline images are written; `None` shows them as
+    /// missing.
+    pub inline_dir: Option<&'a Path>,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -84,9 +86,17 @@ pub(crate) fn render_view(
     }
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
     let load = loads_images(ctx.settings, images, &header.from_address);
+    let inlined = match (&message, ctx.inline_dir) {
+        (Mime::Parsed { attachments, .. }, Some(dir)) => {
+            super::inline::write(dir, raw, attachments)
+        }
+        (Mime::Raw(_), Some(dir)) => super::inline::write(dir, raw, &[]),
+        _ => super::inline::Inlined::default(),
+    };
     let options = RenderOptions {
         allow_remote_images: load,
-        cid_urls: HashMap::new(),
+        cid_urls: inlined.urls,
+        cid_sizes: inlined.sizes,
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };
@@ -267,11 +277,16 @@ impl Worker<'_> {
         (images, width_px): (ImagesChoice, u32),
     ) -> MessageView {
         let account = self.account_of(message.id).unwrap_or_default();
+        // A late view (its body arrived after the reader moved on) must not
+        // touch the folder of the message the reader shows now.
+        let inline_dir = (self.store.open_message == Some(message.id))
+            .then(|| self.store.paths.inline().join(message.id.0.to_string()));
         let ctx = ViewContext {
             account: &account,
             settings: &self.store.settings,
             contacts: &self.store.contacts,
             stored: &message.envelope,
+            inline_dir: inline_dir.as_deref(),
         };
         render_view(raw, images, width_px, &ctx)
     }
@@ -297,6 +312,7 @@ impl Worker<'_> {
     }
 
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
+        self.store.open_message = Some(id);
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
@@ -409,6 +425,7 @@ impl Worker<'_> {
 mod tests {
     use super::*;
     use crate::worker::testing::{Sink, open, seed};
+    use std::fs;
 
     #[test]
     fn an_idle_error_answers_a_pending_open() {
@@ -427,6 +444,55 @@ mod tests {
             .into_iter()
             .any(|e| matches!(e, Event::MessageUnavailable { id, .. } if id == seeded.message));
         assert!(answered);
+    }
+
+    const WITH_IMAGE: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:l@example.org\">\r\n\
+--XX\r\nContent-Type: image/png\r\nContent-ID: <l@example.org>\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
+    #[test]
+    fn a_late_body_does_not_delete_the_open_messages_inline_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        // A (the seeded message) has no body yet: it waits.
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        assert!(worker.opening.contains_key(&seeded.message));
+        // The reader moves on to cached message B, whose images are on disk.
+        let b = MessageRowId(seeded.message.0 + 100);
+        worker.store.open_message = Some(b);
+        let b_dir = worker.store.paths.inline().join(b.0.to_string());
+        fs::create_dir_all(&b_dir).unwrap();
+        fs::write(b_dir.join("0.png"), b"hello").unwrap();
+        // A's body arrives.
+        worker.body_fetched(seeded.message, Some(WITH_IMAGE));
+        assert!(b_dir.join("0.png").exists());
+        let a_dir = worker
+            .store
+            .paths
+            .inline()
+            .join(seeded.message.0.to_string());
+        assert!(!a_dir.exists(), "a late view writes no files");
+    }
+
+    #[test]
+    fn removing_an_account_keeps_the_shown_messages_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let shown = MessageRowId(41);
+        worker.store.open_message = Some(shown);
+        let root = worker.store.paths.inline();
+        for id in ["41", "42"] {
+            fs::create_dir_all(root.join(id)).unwrap();
+        }
+        super::super::remove::remove_for_test(&mut worker.store, &seeded.account);
+        assert!(root.join("41").exists());
+        assert!(!root.join("42").exists());
     }
 
     #[test]
@@ -470,6 +536,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
         assert_eq!(view.header.from, "x@evil.example");
@@ -485,6 +552,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
@@ -502,6 +570,7 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <p><img src=\"https://example.org/a.png\"></p>\r\n";
