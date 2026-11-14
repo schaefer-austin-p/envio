@@ -60,13 +60,14 @@ pub(super) fn clear_except(root: &Path, keep: Option<&str>) {
 pub(super) struct Inlined {
     /// `file://` URL of each image written.
     pub urls: HashMap<String, String>,
-    /// Natural pixel width, for the images whose header gave one.
-    pub widths: HashMap<String, u32>,
+    /// Natural pixel size (width, height), for the images whose header
+    /// gave one.
+    pub sizes: HashMap<String, (u32, u32)>,
 }
 
 /// Writes the message's inline images into `dir` (dropping other messages'
 /// folders) and returns Content-ID to `file://` URL, with each image's
-/// natural width read from its bytes. A part that can't be written is left
+/// natural size read from its bytes. A part that can't be written is left
 /// out (shown as a missing image), as is any part whose Content-ID another
 /// part already has. A file already there with the part's size is kept: the
 /// reader may be loading it.
@@ -107,16 +108,17 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
         }
         parts.retain(|(_, _, _, have)| *have);
     }
-    // One parse of the message gives every part's bytes: the widths come
-    // from them even for a file kept from an earlier open.
+    // One parse of the message lends every part's bytes: the sizes come
+    // from them even for a file kept from an earlier open, and nothing is
+    // copied in memory (a part still to be written goes straight to disk).
     let indexes: Vec<usize> = parts.iter().map(|(i, _, _, _)| *i).collect();
-    let bytes = envio_mime::attachments_bytes(raw, &indexes);
-    for ((_, cid, path, have), bytes) in parts.into_iter().zip(bytes) {
-        if let Some(w) = bytes.as_deref().and_then(envio_mime::image_width) {
-            out.widths.insert(cid.clone(), w);
+    envio_mime::with_attachments(raw, &indexes, |n, bytes| {
+        let (_, cid, path, have) = &parts[n];
+        if let Some(size) = bytes.and_then(envio_mime::image_size) {
+            out.sizes.insert((*cid).clone(), size);
         }
-        if have {
-            continue;
+        if *have {
+            return;
         }
         let written = bytes
             .ok_or_else(|| io::Error::other("part gone"))
@@ -125,16 +127,16 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
                 name.push(".tmp");
                 let temp = Path::new(&name);
                 fs::File::create(temp)
-                    .and_then(|mut f| f.write_all(&b))
-                    .and_then(|()| fs::rename(temp, &path))
+                    .and_then(|mut f| f.write_all(b))
+                    .and_then(|()| fs::rename(temp, path))
                     .inspect_err(|_| drop(fs::remove_file(temp)))
             });
         if let Err(e) = written {
             log::warn!("writing an inline image: {e}");
-            out.urls.remove(cid);
-            out.widths.remove(cid);
+            out.urls.remove(*cid);
+            out.sizes.remove(*cid);
         }
-    }
+    });
     out
 }
 
@@ -299,7 +301,7 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
     }
 
     #[test]
-    fn the_natural_width_comes_from_the_bytes_even_for_a_kept_file() {
+    fn the_natural_size_comes_from_the_bytes_even_for_a_kept_file() {
         // A PNG header, width 2000.
         let body = "iVBORw0KGgoAAAANSUhEUgAAB9AAAAAHCAYAAAA=";
         let raw = mail_with(&[("p@example.org".to_owned(), body)]);
@@ -307,7 +309,7 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
         let one = dir.path().join("1");
         for _ in 0..2 {
             let out = write(&one, &raw, &infos_of(&raw));
-            assert_eq!(out.widths["p@example.org"], 2000);
+            assert_eq!(out.sizes["p@example.org"], (2000, 7));
         }
     }
 

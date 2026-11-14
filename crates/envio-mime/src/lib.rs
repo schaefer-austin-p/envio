@@ -30,12 +30,12 @@ mod thread;
 mod widths;
 
 pub use address::{Address, same_email};
-pub use attachments::{AttachmentInfo, attachment_bytes, attachments_bytes};
+pub use attachments::{AttachmentInfo, attachment_bytes, attachments_bytes, with_attachments};
 pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use colours::{parse_colour, sets_colours};
 pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
-pub use image_size::width as image_width;
+pub use image_size::size as image_size;
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};
 pub use message::{Body, Message, parse, quote_text};

@@ -96,7 +96,7 @@ pub(crate) fn render_view(
     let options = RenderOptions {
         allow_remote_images: load,
         cid_urls: inlined.urls,
-        cid_widths: inlined.widths,
+        cid_sizes: inlined.sizes,
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };

@@ -144,10 +144,10 @@ pub struct RenderOptions {
     /// Content-ID (without angle brackets) to the URL the UI can load the
     /// inline part from.
     pub cid_urls: HashMap<String, String>,
-    /// Natural pixel width of the inline images whose header gave one, by
-    /// Content-ID. A cid image with no width of its own is capped to
-    /// `max_image_width` when it is wider.
-    pub cid_widths: HashMap<String, u32>,
+    /// Natural pixel size (width, height) of the inline images whose header
+    /// gave one, by Content-ID. A cid image with no width of its own is
+    /// capped to the room it has when it would draw wider.
+    pub cid_sizes: HashMap<String, (u32, u32)>,
     /// Shown in place of a blocked image, or a `cid:` image the message
     /// doesn't hold, that has no alt text. Translated by the caller.
     pub blocked_label: String,

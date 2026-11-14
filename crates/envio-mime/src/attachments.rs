@@ -52,16 +52,25 @@ pub fn attachment_bytes(raw: &[u8], index: usize) -> Option<Vec<u8>> {
 /// `raw`; `None` for an index the message does not have. Gives what
 /// [`attachment_bytes`] gives per index.
 pub fn attachments_bytes(raw: &[u8], indexes: &[usize]) -> Vec<Option<Vec<u8>>> {
-    let Some(message) = parse_mail(raw).filter(|m| !is_broken_multipart(m)) else {
-        return vec![None; indexes.len()];
-    };
-    indexes
-        .iter()
-        .map(|&i| {
+    let mut out = Vec::with_capacity(indexes.len());
+    with_attachments(raw, indexes, |_, bytes| {
+        out.push(bytes.map(<[u8]>::to_vec));
+    });
+    out
+}
+
+/// Calls `f` with each of `indexes` (its position in the slice, and the
+/// decoded bytes borrowed from one parse of `raw`, `None` for an index the
+/// message does not have), in order. Copies nothing.
+pub fn with_attachments(raw: &[u8], indexes: &[usize], mut f: impl FnMut(usize, Option<&[u8]>)) {
+    let message = parse_mail(raw).filter(|m| !is_broken_multipart(m));
+    for (n, &i) in indexes.iter().enumerate() {
+        let bytes = message.as_ref().and_then(|m| {
             let i = u32::try_from(i).ok()?;
-            Some(message.attachment(i)?.contents().to_vec())
-        })
-        .collect()
+            Some(m.attachment(i)?.contents())
+        });
+        f(n, bytes);
+    }
 }
 
 fn info(index: usize, part: &MessagePart<'_>) -> AttachmentInfo {

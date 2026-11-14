@@ -10,7 +10,7 @@ fn options() -> RenderOptions {
     RenderOptions {
         allow_remote_images: false,
         cid_urls: HashMap::new(),
-        cid_widths: HashMap::new(),
+        cid_sizes: HashMap::new(),
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
     }

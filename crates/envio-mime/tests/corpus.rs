@@ -13,7 +13,7 @@ fn options() -> RenderOptions {
             "image001.png@01DA0000.12345670".to_owned(),
             "image://envio/part/0".to_owned(),
         )]),
-        cid_widths: HashMap::new(),
+        cid_sizes: HashMap::new(),
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
     }
