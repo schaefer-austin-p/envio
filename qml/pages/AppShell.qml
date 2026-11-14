@@ -265,6 +265,7 @@ Item {
             theme: root.theme
             core: root.core
             outbox: root.outbox
+            onAccountsRequested: stack.push(accountsPage)
             onBackRequested: stack.pop()
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }

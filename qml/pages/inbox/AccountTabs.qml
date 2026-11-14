@@ -10,6 +10,9 @@ Item {
     required property var accounts
     property string current: ""
     signal chosen(string key)
+    // The tab of an account whose sync is stopped was tapped while already
+    // shown: the way on is the Accounts page.
+    signal attentionRequested()
 
     implicitHeight: theme.touch + theme.gu(2.5)
 
@@ -50,12 +53,20 @@ Item {
             text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
             selected: root.current === model.key
             readonly property bool offline: model.state === "offline"
-            iconName: offline ? "offline" : ""
+            // Sign-in failed or certificate changed: sync is stopped.
+            readonly property bool attention: model.attention === true
+            iconName: attention ? "alert" : (offline ? "offline" : "")
             // On a selected Carbon chip (filled primary) the accent would not read.
             iconColor: selected && !root.theme.airmail ? root.theme.primaryText : root.theme.accent
-            Accessible.name: offline ? qsTr("%1, offline").arg(text) : text
+            Accessible.name: attention ? qsTr("%1, sync stopped").arg(text)
+                                       : (offline ? qsTr("%1, offline").arg(text) : text)
             height: tabs.height
-            onClicked: root.chosen(tab.model.key)
+            onClicked: {
+                // The first tap shows the account's saved mail, the next one
+                // leads to the problem.
+                if (attention && selected) root.attentionRequested()
+                else root.chosen(tab.model.key)
+            }
         }
     }
 }

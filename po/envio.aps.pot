@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 14:51+0100\n"
+"POT-Creation-Date: 2026-11-14 17:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:266
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:283
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -106,6 +106,7 @@ msgid "Add account"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:95
+#: crates/envio-core/src/text/outbox.rs:26
 msgid "Check certificate"
 msgstr ""
 
@@ -139,7 +140,7 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/TrustDialog.qml:21 qml/pages/inbox/OutboxPage.qml:58
+#: qml/pages/accounts/TrustDialog.qml:21 qml/pages/inbox/OutboxPage.qml:61
 #: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:132
 #: qml/pages/search/SearchPage.qml:193
 msgid "Cancel"
@@ -405,11 +406,15 @@ msgstr ""
 msgid "written to %1"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:38
+#: qml/pages/inbox/AccountTabs.qml:41
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:56 qml/pages/inbox/FoldersDrawer.qml:197
+#: qml/pages/inbox/AccountTabs.qml:61 qml/pages/inbox/FoldersDrawer.qml:198
+msgid "%1, sync stopped"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:62 qml/pages/inbox/FoldersDrawer.qml:199
 msgid "%1, offline"
 msgstr ""
 
@@ -425,7 +430,7 @@ msgstr ""
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:26
 msgid "Outbox"
 msgstr ""
 
@@ -433,7 +438,12 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:273 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:222
+#: crates/envio-core/src/text/outbox.rs:31
+msgid "Open accounts"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
@@ -445,11 +455,11 @@ msgstr ""
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:204
+#: qml/pages/inbox/InboxPage.qml:205
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:250
+#: qml/pages/inbox/InboxPage.qml:251
 msgid "Undo"
 msgstr ""
 
@@ -470,36 +480,36 @@ msgstr ""
 msgid "Move to folder"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:46
+#: qml/pages/inbox/OutboxPage.qml:49
 msgid "Nothing waiting to send."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:56
+#: qml/pages/inbox/OutboxPage.qml:59
 msgid "Delete this message?"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:57
+#: qml/pages/inbox/OutboxPage.qml:60
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:59 qml/pages/inbox/OutboxRow.qml:92
+#: qml/pages/inbox/OutboxPage.qml:62 qml/pages/inbox/OutboxRow.qml:114
 #: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:195
 msgid "Delete"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:64
+#: qml/pages/inbox/OutboxRow.qml:86
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:71
+#: qml/pages/inbox/OutboxRow.qml:93
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:78
+#: qml/pages/inbox/OutboxRow.qml:100
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:85
+#: qml/pages/inbox/OutboxRow.qml:107
 msgid "Edit"
 msgstr ""
 
@@ -890,15 +900,15 @@ msgstr ""
 msgid "This message can't be read"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:26
+#: crates/envio-core/src/text/outbox.rs:36
 msgid "Not possible right now"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:30
+#: crates/envio-core/src/text/outbox.rs:40
 msgid "Could not change the message in the Outbox"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:34
+#: crates/envio-core/src/text/outbox.rs:44
 msgid ""
 "This message has attachments and can't be edited. Retry it, or delete it."
 msgstr ""
