@@ -18,6 +18,7 @@
 
 use std::borrow::Cow;
 
+use crate::colours::is_visible_attr;
 use crate::images::{Placed, parse_tag, pixels, tag_len};
 use crate::plain::escape_into;
 
@@ -64,6 +65,8 @@ struct Frame {
     rich: bool,
     /// A cell has padding and a background or border: a button (#111).
     boxed: bool,
+    /// Its `cellpadding` is a non-zero number.
+    cellpad: bool,
     /// A row with more than one cell has wide side columns: more than one
     /// cell without a pixel width, or the cells beside the widest one
     /// over [`SIDE_MAX`] together.
@@ -130,7 +133,7 @@ impl Frame {
         if self.cell.is_some() {
             self.end_cell();
         }
-        self.boxed |= boxed_cell(raw);
+        self.boxed |= boxed_cell(raw, self.cellpad);
         self.cell = Some(Cell {
             width: cell_width(raw),
             ..Cell::default()
@@ -213,6 +216,7 @@ pub(crate) fn layout_tables(html: &str, images: &[Placed]) -> Vec<bool> {
                 open.push(Frame {
                     index: verdicts.len(),
                     layout: presentation(raw),
+                    cellpad: cellpadding(raw),
                     ..Frame::default()
                 });
                 verdicts.push(false);
@@ -252,23 +256,36 @@ fn presentation(raw: &str) -> bool {
     })
 }
 
+/// Whether the `table` start tag `raw` has a non-zero `cellpadding`.
+fn cellpadding(raw: &str) -> bool {
+    parse_tag(raw)
+        .and_then(|tag| tag.attr("cellpadding").map(str::to_owned))
+        .is_some_and(|v| {
+            v.trim()
+                .trim_end_matches('%')
+                .parse::<f64>()
+                .is_ok_and(|n| n > 0.0)
+        })
+}
+
 /// Whether the cell start tag `raw` has real padding (a non-zero length in
-/// `padding` or a `padding-*`) and a background (a `bgcolor` that
-/// [`bgcolor`] accepts, or a `background-color` in its `style`): a button.
+/// `padding` or a `padding-*`, or the table's `cellpadding`) and a background (a `bgcolor` that
+/// [`bgcolor`] accepts, or a `background-color` in its `style`, that is not
+/// transparent): a button.
 /// `filter_style` drops `border`, so it never counts.
-fn boxed_cell(raw: &str) -> bool {
+fn boxed_cell(raw: &str, cellpad: bool) -> bool {
     let Some(tag) = parse_tag(raw) else {
         return false;
     };
     let style = tag.attr("style").unwrap_or("").to_ascii_lowercase();
-    let mut padded = false;
-    let mut background = bgcolor(&tag.attrs).is_some();
+    let mut padded = cellpad;
+    let mut background = bgcolor(&tag.attrs).is_some_and(|c| is_visible_attr(&c));
     for declaration in style.split(';') {
         let Some((prop, value)) = declaration.split_once(':') else {
             continue;
         };
         let (prop, value) = (prop.trim(), value.trim());
-        if prop == "background-color" && !value.is_empty() {
+        if prop == "background-color" && is_visible_attr(value) {
             background = true;
         }
         if prop.starts_with("padding") {

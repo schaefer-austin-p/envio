@@ -455,3 +455,31 @@ fn a_boxed_cell_beside_another_cell_is_still_linearised() {
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
 }
+
+#[test]
+fn a_buttons_padding_may_come_from_cellpadding() {
+    let html = clean(
+        r##"<table cellpadding="12"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    for pad in ["0", "", "x"] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(count(&html, "table"), 0, "cellpadding {pad:?}: {html}");
+    }
+}
+
+#[test]
+fn a_transparent_background_is_not_a_button() {
+    for cell in [
+        r#"<td bgcolor="transparent" style="padding:12px">"#,
+        r#"<td style="padding:12px;background-color:transparent">"#,
+        r#"<td style="padding:12px;background-color:inherit">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+}
