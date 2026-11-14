@@ -167,7 +167,7 @@ fn with_images(html: &str) -> String {
 
 /// A newsletter header: logo | picture | tagline, side by side at 600 px.
 const HEADER: &str = r#"<table width="600"><tr>
-    <td width="200"><img src="https://news.example/logo.png" alt="Logo" width="180" height="40"></td>
+    <td width="200"><img src="https://news.example/logo.png" alt="Logo" width="180" height="60"></td>
     <td width="200"><img src="https://news.example/hero.png" alt="Hero" width="180" height="120"></td>
     <td width="200">Find your next home</td>
     </tr></table>"#;
@@ -336,7 +336,7 @@ fn stacking_lets_no_payload_through() {
 #[test]
 fn pictures_side_by_side_in_a_cell_add_up() {
     let html = clean(
-        r#"<table><tr><td><img src="https://news.example/a.png" alt="A" width="100" height="40"><img src="https://news.example/b.png" alt="B" width="100" height="40"></td><td>Text</td></tr></table>"#,
+        r#"<table><tr><td><img src="https://news.example/a.png" alt="A" width="100" height="60"><img src="https://news.example/b.png" alt="B" width="100" height="60"></td><td>Text</td></tr></table>"#,
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
     in_order(&html, &["A", "B", "Text"]);
@@ -357,7 +357,8 @@ fn two_free_width_columns_beside_an_icon_stack() {
         r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>one</p></td><td><p>two</p></td></tr></table>"#,
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
-    in_order(&html, &["A", "one", "two"]);
+    // The blocked 40 px icon leaves no label.
+    in_order(&html, &["<div></div>", "one", "two"]);
 }
 
 #[test]

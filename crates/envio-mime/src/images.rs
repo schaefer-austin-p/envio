@@ -4,6 +4,7 @@
 //! a quote-aware scan finds where it ends.
 
 use crate::hidden::{Ends, is_unwrapped};
+use crate::image_label;
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -210,14 +211,14 @@ fn image(
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
-                alt_or_label(tag, options, out);
+                image_label::write(tag, (width, height), options, &mut out.html);
                 return Some(width);
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
-            alt_or_label(tag, options, out);
+            image_label::write(tag, (width, height), options, &mut out.html);
             return Some(width);
         }
         if !out.remote_images.iter().any(|seen| seen == src) {
@@ -318,18 +319,6 @@ fn percent(value: &str) -> Option<f64> {
     }
     let n = number.parse::<f64>().ok()?;
     (n > 0.0).then_some(n.min(100.0))
-}
-
-/// The loadable URL for a `cid:` reference, with or without angle brackets.
-/// An image that isn't shown: its alt text, or the caller's label.
-fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
-    let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
-    let label = if alt.is_empty() {
-        &options.blocked_label
-    } else {
-        alt
-    };
-    escape_into(label, &mut out.html);
 }
 
 /// The loadable URL for a `cid:` reference and the image's natural size,
