@@ -83,9 +83,9 @@ Item {
             core.outbox.clear()
             core.olderRow = 0
             thm.name = "carbon"
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
                                    status: "Up to date", state: "ok", unread: 3, unreadText: "3", attention: false })
-            core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
+            core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org", heading: "bob@example.org",
                                    status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
             opened.clear()
             wanted.clear()
@@ -93,6 +93,15 @@ Item {
             find("undoToast", page).hide()
             find("noticeToast", page).hide()
             waitForRendering(page)
+        }
+        function test_drawer_heading_shows_what_the_model_says() {
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            const bob = find("account-bob", page)
+            tryVerify(function() { return find("accountName", ann).visible })
+            compare(find("accountName", ann).text, "Ann · ann@example.org")
+            compare(find("accountName", bob).text, "bob@example.org")
+            drawerOf(ann).visible = false
         }
         function test_folder_group_rows_have_a_chevron_but_leaf_rows_do_not() {
             core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
@@ -788,7 +797,7 @@ Item {
             return everything(shell, []).some(function(o) { return o.objectName === name })
         }
         function addAccount() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
         }
 
@@ -801,7 +810,7 @@ Item {
         }
 
         function test_accounts_open_the_inbox() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })

@@ -41,6 +41,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         key: info.key.clone(),
         name: info.name.clone(),
         email: info.email.clone(),
+        heading: crate::heading::account_heading(&info.name, &info.email),
         status: status_text.to_owned(),
         state: state.to_owned(),
         unread: info.unread,
