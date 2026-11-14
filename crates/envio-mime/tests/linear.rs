@@ -78,10 +78,14 @@ fn linearising_keeps_text_order_and_alignment() {
     );
     in_order(&html, &["first", "<b>bold</b>", "second"]);
     assert!(
-        html.contains(r#"<div align="right" style="color:red">first"#),
+        html.contains(r#"<div align="right" style="background-color:#ff0000;color:red">first"#),
         "{html}"
     );
-    assert!(html.contains(r#"<div align="center">second"#), "{html}");
+    // The table's background reaches each cell (see tests/backgrounds.rs).
+    assert!(
+        html.contains(r#"<div align="center" style="background-color:#ff0000">second"#),
+        "{html}"
+    );
     for dropped in ["cellpadding", "bgcolor=", "width", "valign"] {
         assert!(!html.contains(dropped), "{dropped} kept in {html}");
     }

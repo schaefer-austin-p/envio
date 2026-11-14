@@ -44,7 +44,7 @@ impl Tag {
             .map(|(_, v)| v.as_str())
     }
 
-    fn write(&self, out: &mut String) {
+    pub(crate) fn write(&self, out: &mut String) {
         out.push('<');
         out.push_str(&self.name);
         for (name, value) in &self.attrs {

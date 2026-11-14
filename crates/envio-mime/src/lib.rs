@@ -6,6 +6,7 @@
 mod address;
 mod attach_part;
 mod attachments;
+mod backgrounds;
 mod build;
 mod colours;
 mod content_type;
