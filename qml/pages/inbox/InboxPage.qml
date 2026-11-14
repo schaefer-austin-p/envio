@@ -164,6 +164,7 @@ Item {
         accounts: root.accounts
         current: root.tab === "folder" ? "-" : root.tab
         onChosen: key === "" ? root.showUnified() : root.showAccount(key)
+        onAttentionRequested: root.accountsRequested()
     }
     Column {
         id: banners
