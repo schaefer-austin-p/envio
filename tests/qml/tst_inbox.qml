@@ -640,7 +640,7 @@ Item {
             const bob = find("account-bob", page)
             tryVerify(function() { return drawerIcon(bob) !== null })
             compare(drawerIcon(bob).name, "alert")
-            compare(bob.Accessible.name, "Bob · bob@example.org, sync stopped")
+            compare(bob.Accessible.name, "bob@example.org, sync stopped")
             compare(drawerIcon(find("account-ann", page)), null)
             const link = find("stoppedLink", bob)
             compare(link.Accessible.role, Accessible.Button)
