@@ -200,7 +200,7 @@ fn image(
         return None;
     }
     let lower = src.to_ascii_lowercase();
-    let mut natural = None;
+    let natural;
     let url = if lower.starts_with("cid:") {
         match cid_url(&src[4..], options) {
             Some((url, size)) => {
@@ -223,6 +223,7 @@ fn image(
         if !out.remote_images.iter().any(|seen| seen == src) {
             out.remote_images.push(src.to_owned());
         }
+        natural = options.image_sizes.get(src).copied();
         src.to_owned()
     } else {
         return None;
@@ -240,8 +241,9 @@ fn image(
         (None, Some(share)) => (Some(share), None),
         _ => scale(width, height, options.max_image_width),
     };
-    // Likewise a cid image with no width: draw it at the room if it would
-    // come out wider. With a height but no width Qt scales the width
+    // Likewise an image with no width whose natural size is known (a cid
+    // image's from its bytes, a remote one's as the reader reports it):
+    // draw it at the room if it would come out wider. With a height but no width Qt scales the width
     // proportionally, so that is the width to compare; the height goes, to
     // keep the proportion.
     if width.is_none()

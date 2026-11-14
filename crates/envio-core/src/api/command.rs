@@ -1,5 +1,6 @@
 //! What the app asks the core to do.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use envio_net::autoconfig::Source;
@@ -175,6 +176,14 @@ pub enum Command {
         images: ImagesChoice,
         width_px: u32,
     },
+    /// The natural pixel size (width, height) of remote images the reader
+    /// loaded for message `id`, by URL. When the open message is that one
+    /// and a size changes how it draws (an image with no width wider than
+    /// the reader), it comes again as `MessageOpened`.
+    ImageSizes {
+        id: MessageRowId,
+        sizes: HashMap<String, (u32, u32)>,
+    },
     /// Write an attachment into `dir` under a safe name.
     SaveAttachment {
         id: MessageRowId,
@@ -264,6 +273,7 @@ impl Command {
             Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
             Self::OpenMessageAnyway { .. } => "OpenMessageAnyway",
+            Self::ImageSizes { .. } => "ImageSizes",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",

@@ -19,6 +19,8 @@ Item {
     property var page: null
     // A 1x1 PNG: the preload test needs an image that loads offline.
     readonly property string pixel: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    // A 3x2 PNG, for a second image of another size.
+    readonly property string wide: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEElEQVR4nGP4z8AAQQxwFgBB0gX7h/C5SAAAAABJRU5ErkJggg=="
 
     Component {
         id: readerComponent
@@ -203,12 +205,34 @@ Item {
             verify(bodySet.count > 0)
         }
 
+        // #170: the core caps a too-wide image with no width once it knows
+        // the natural size, so the page reports what it loaded, batched.
+        function test_loaded_image_sizes_go_to_the_core_once() {
+            const v = view([], 0)
+            v.html = '<p>Hi</p><img src="' + root.pixel + '"><img src="' + root.wide + '">'
+            v.remoteImages = [root.pixel, root.wide]
+            open(v)
+            tryVerify(function() { return mock.called("reportImageSizes").length > 0 }, 2000)
+            const calls = mock.called("reportImageSizes")
+            compare(calls.length, 1)
+            compare(calls[0].args[0], 5)
+            const sizes = JSON.parse(calls[0].args[1])
+            compare(sizes[root.pixel], [1, 1])
+            compare(sizes[root.wide], [3, 2])
+            // The core shows the message again: the same images are not
+            // reported a second time.
+            open(v)
+            wait(700)
+            compare(mock.called("reportImageSizes").length, 1)
+        }
+
         function test_a_view_without_images_preloads_nothing() {
             open(view([], 0))
             const hit = everything(root.page, []).filter(function(o) { return o.objectName === "preloadedImage" })
             compare(hit.length, 0)
             wait(400)
             compare(root.page.imageRedraws, 0)
+            compare(mock.called("reportImageSizes").length, 0)
         }
 
         function test_plain_mail_keeps_the_theme_card_in_dark() {
