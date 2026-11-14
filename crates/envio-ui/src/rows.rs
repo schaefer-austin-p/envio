@@ -8,6 +8,9 @@ pub struct AccountRow {
     pub key: String,
     pub name: String,
     pub email: String,
+    /// What the drawer shows: name and address, or the address once when the
+    /// name is empty or the same.
+    pub heading: String,
     /// The status in words.
     pub status: String,
     /// "ok", "offline", "local", "auth", "pin", "broken" or "diskfull".
@@ -111,6 +114,7 @@ const ACCOUNT: &[&str] = &[
     "key",
     "name",
     "email",
+    "heading",
     "status",
     "state",
     "unread",
@@ -164,6 +168,7 @@ impl Row {
             (Self::Account(r), "key") => s(&r.key),
             (Self::Account(r), "name") => s(&r.name),
             (Self::Account(r), "email") => s(&r.email),
+            (Self::Account(r), "heading") => s(&r.heading),
             (Self::Account(r), "status") => s(&r.status),
             (Self::Account(r), "state") => s(&r.state),
             (Self::Account(r), "unread") => Int(r.unread.into()),
