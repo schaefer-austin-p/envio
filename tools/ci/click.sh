@@ -33,7 +33,11 @@ case "${GITHUB_REF:-}" in
   refs/tags/v*) release=1 stamp=$sentinel ;;
   *) release='' stamp=$(sh tools/stamp.sh) ;;
 esac
-echo "build stamp: ${release:+none (official release)}${release:-$stamp}"
+if [ -n "$release" ]; then
+  echo "build stamp: none (official release)"
+else
+  echo "build stamp: $stamp"
+fi
 
 run() {
   docker exec -w /src -e CLICKABLE_ENV_ENVIO_RELEASE="$release" -e CLICKABLE_ENV_ENVIO_GIT="$stamp" \
@@ -50,7 +54,10 @@ run "apt-get update && apt-get install -y --no-install-recommends python3-pip &&
 # the build's own review would fail on a warning and skip the report.
 run 'clickable build --arch arm64 --container-mode --skip-review'
 
-if [ -n "$release" ] && docker exec "$c" grep -rqa "$sentinel" /src/build; then
+# Only compiled code: cargo's fingerprints record every env var a build
+# script watches, the sentinel included, without it reaching the binary.
+if [ -n "$release" ] && docker exec "$c" grep -rqa --include='*.rlib' --include='*.a' \
+  --include='*.so' --include=envio "$sentinel" /src/build; then
   echo "the release build is stamped: ENVIO_RELEASE didn't reach it" >&2
   exit 1
 fi
