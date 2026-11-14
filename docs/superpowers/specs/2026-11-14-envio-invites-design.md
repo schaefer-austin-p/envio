@@ -41,13 +41,13 @@ or writing the system calendar directly (needs a reserved policy group).
    card needs. Input is untrusted: a size cap (256 KiB), a line count cap, no
    panics; a broken part gives no card, never an error.
 2. **Times are instants in Rust, words in QML.** Rust turns `DTSTART`/`DTEND`
-   into Unix seconds. QML formats them with `toLocaleString` the way
+   into Unix seconds (floating times travel as wall-time strings). QML formats them with `toLocaleString` the way
    `HeaderBlock.qml` formats the message date, so the phone's zone and
    locale apply. All-day events (`VALUE=DATE`) travel as a date (y, m, d) and
    are shown as dates, never shifted by a zone.
 3. **Zones.** `Z` is UTC. `TZID` with an IANA name resolves through `jiff`
    (system zoneinfo, `tz-system`; a bundled copy as fallback,
-   `tzdb-bundle-platform`). A Windows zone name (Outlook: "W. Europe Standard
+   `tzdb-bundle-always`, so confinement or a missing tzdata never breaks it). A Windows zone name (Outlook: "W. Europe Standard
    Time") maps to IANA through a small table generated from CLDR
    `windowsZones.xml`. A `TZID` that resolves nowhere uses the part's own
    `VTIMEZONE` `STANDARD` offset when present; failing that the time is
@@ -70,7 +70,10 @@ or writing the system calendar directly (needs a reserved policy group).
    reply is written to the Outbox at once (unsent work on disk within 1 s, as
    the spec demands), with a new `send_after_ms` in `OutboxMeta`
    (`#[serde(default)]`, so old items read as 0). The sender skips an item
-   until then. Undo within 5 s deletes the item and the remembered answer.
+   until then. Undo within 5 s deletes the item and puts back the answer
+   remembered before (or none). The existing Undo book carries the offer;
+   offers get a scope (list or reader) so each screen's toast shows only its
+   own.
    The reader gets a toast (it has none today); the inbox's `Toast` component
    is reused.
 7. **Remembering the answer outside SQLite.** The database is a rebuildable
@@ -88,7 +91,8 @@ or writing the system calendar directly (needs a reserved policy group).
      the buttons.
    - `CANCEL`: "Cancelled", the event struck through, no buttons.
    - `REPLY`: "<name> accepted" (from the `ATTENDEE` line), no buttons.
-   - Our own reply still in the Outbox: "Sending…" until it leaves.
+   - Our own reply still in the Outbox: "Sending…" until it leaves, or
+     "Not sent, see Outbox" beside the answer once it failed.
    - Past events still show; buttons stay (a late answer is allowed).
 
 ## Architecture
@@ -97,11 +101,11 @@ or writing the system calendar directly (needs a reserved policy group).
   (`Invite`, `InviteMethod`, `Person`, `PartStat`), `when.rs` (`When`), `zones.rs`
   (TZID to offset, the CLDR table in `zones/windows.rs`), `reply.rs`
   (`reply_ics(&Invite, attendee, PartStat, note, dtstamp) -> String`).
-  `Message` gets `invite: Option<Invite>` from the first calendar part.
+  `invite_of(raw)` finds the first calendar part.
 - `envio-store`: `OutboxMeta.send_after_ms`; `invites.rs` for
   `invites.json` (load, record, forget, prune).
-- `envio-core`: `Command::AnswerInvite { id, answer: PartStat, note }` and
-  `Command::UndoAnswer { id }`; `worker/invite.rs` builds the reply with
+- `envio-core`: `Command::AnswerInvite { id, answer: Answer, note }` (Undo goes through the
+  existing `Command::Undo`); `worker/invite.rs` builds the reply with
   `envio_mime::reply` headers plus the calendar part, enqueues it held for
   `UNDO_MS`, records the answer, emits an undo offer and sends
   `MessageOpened` again with the new card. `MessageView` gets `invite: Option<InviteCard>` (a view
@@ -109,7 +113,7 @@ or writing the system calendar directly (needs a reserved policy group).
   attendee answers for `REPLY`, can_answer). Strings for states and subjects
   in `text/invite.rs`.
 - `envio-ui` and `qt/`: pass the card through (`json.rs` keys `invite.*`);
-  two new calls `answerInvite(id, answer, note)`, `undoAnswer(id)`.
+  a new call `answerInvite(id, answer, note)`; `undoOffer` gains a scope.
 - `qml/pages/reader/InviteCard.qml`: the card, above the attachments; the
   reader gets a `Toast` for Undo. "Add to calendar" uses
   `Content.exportFile(path, "calendar")`, a new mode in

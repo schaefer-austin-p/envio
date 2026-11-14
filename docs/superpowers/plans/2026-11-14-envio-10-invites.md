@@ -6,7 +6,7 @@
 
 **Architecture:** Two PRs from two worktrees, one per CI runner. **A-core** (`plan10-core`: A1–A6) is all Rust plus the `qt/` glue: the parser and reply builder in `envio-mime`, a held Outbox item and `invites.json` in `envio-store`, the hold in the `envio-sync` planner, the commands and the card view in `envio-core`, the pass-through in `envio-ui` and `qt/`. **B-ui** (`plan10-ui`: B1–B4) is the design board, the QML card against `MockCore`, the reader toast and the Content Hub calendar mode; it codes against the JSON contract below and merges after A-core. B5 (phone) runs when both are merged.
 
-**Tech Stack:** Rust (envio-mime, envio-store, envio-sync, envio-core, envio-ui, envio-e2e), `jiff` (new; features `tz-system`, `tzdb-bundle-platform`), cxx-qt in `qt/`, Qt 5.15 / QtQuick 2.15, qmltestrunner offscreen, Stalwart in Docker; `ute2e` on the phone.
+**Tech Stack:** Rust (envio-mime, envio-store, envio-sync, envio-core, envio-ui, envio-e2e), `jiff` (new; features `tz-system`, `tzdb-bundle-always`), cxx-qt in `qt/`, Qt 5.15 / QtQuick 2.15, qmltestrunner offscreen, Stalwart in Docker; `ute2e` on the phone.
 
 **Spec:** `docs/superpowers/specs/2026-11-14-envio-invites-design.md` (and the parent spec's "0.2.0"). Issue #200.
 
@@ -38,18 +38,36 @@ From the spec and `CLAUDE.md`, verbatim where quoted:
 | `state` | string | `open`, `answered`, `updated`, `cancelled`, `replied` |
 | `stateText` | string | translated line, e.g. "You accepted", "Updated", "Cancelled", "Grace accepted"; empty for `open` |
 | `answer` | string | `accepted`, `tentative`, `declined` or empty |
-| `sending` | bool | our reply is still in the Outbox |
+| `sending` | bool | our reply is still in the Outbox and not failed |
+| `sendFailed` | bool | our reply is in the Outbox as failed (the card shows the answer and "Not sent, see Outbox") |
 | `summary`, `location` | string | sanitized plain text (may be empty) |
 | `allDay` | bool | |
-| `start`, `end` | int | Unix s (timed); 0 when all-day |
-| `startDate`, `endDate` | string | `YYYY-MM-DD` when all-day (end exclusive, as in iCalendar), else empty |
+| `floating` | bool | a wall time with no zone: shown as the phone's local time |
+| `start`, `end` | int | Unix s (timed); 0 when all-day or floating |
+| `startDate`, `endDate` | string | all-day: `YYYY-MM-DD` (end exclusive, as in iCalendar); floating: `YYYY-MM-DDTHH:MM:SS`; else empty |
 | `zoneUnknown` | bool | the TZID resolved nowhere; shown as a note |
 | `repeats` | bool | |
 | `organizer` | string | display name, else address |
 | `canAnswer` | bool | `request` with a `mailto:` organizer |
 | `icsIndex` | int | attachment index of the calendar part, -1 if it is inline-only |
 
-Calls: `core.answerInvite(id, answer, note)` (answer is one of the three strings) and `core.undoAnswer(id)`. Signals: `message_opened` again with the new card after an answer or undo (simplest: the core re-emits `MessageOpened` for that id), and `undo_offer` reused with a new undo kind `answer`.
+Calls: `core.answerInvite(id, answer, note)` (answer is `accepted`, `tentative` or `declined`; anything else is ignored). Undo reuses the existing `core.undo(undoId)`. Signals: `message_opened` again with the new card after an answer or an undo (the core re-emits `MessageOpened` for that id), and the existing `undoOffer`/`undoClosed` signals; `undoOffer` gains a third argument `scope` (`"list"` or `"reader"`). The inbox toast ignores `"reader"` offers and the reader toast shows only `"reader"` offers.
+
+### Undo design (A5, shared with B3)
+
+The existing `UndoBook` (`crates/envio-core/src/undo.rs`) is generalised, not duplicated:
+
+```rust
+pub struct Offer { pub what: Offered, pub expires_at_ms: i64 }
+pub enum Offered {
+    Actions { undos: Vec<envio_sync::driver::Undo>, accounts: BTreeSet<String>, folders: BTreeSet<FolderId> },
+    Answer { message: MessageRowId, outbox_item: String, account: String, uid: String,
+             previous: Option<envio_store::InviteAnswer> },
+}
+pub enum UndoScope { List, Reader }   // in api/event.rs
+// Event::UndoOffer gains `scope: UndoScope`; act.rs offers use List, answers use Reader.
+```
+`Command::Undo { undo }` on an `Answer` offer: delete the Outbox item if it is still `Queued` (its hold has not passed, since the hold equals the offer window), then restore `previous` with `record_invite`, or `forget_invite` when `None`; emit `UndoClosed { undone: true }` and `MessageOpened`. The window ending goes through the existing `expire` path (`UndoClosed { undone: false }`); nothing else happens, the held item becomes due on its own.
 
 ## Parallel lanes
 
@@ -65,7 +83,7 @@ Calls: `core.answerInvite(id, answer, note)` (answer is one of the three strings
 
 ### A1: Parse invites (envio-mime)
 
-**Files:** create `crates/envio-mime/src/invite/{mod.rs,lines.rs,event.rs,when.rs}`; modify `crates/envio-mime/src/lib.rs`, `message.rs` (field `invite`); tests `crates/envio-mime/tests/invite.rs`, corpus files `tests/corpus/invite-{google,outlook,apple,fastmail,thunderbird,cancel,reply,allday}.eml` (synthetic, `example.org`).
+**Files:** create `crates/envio-mime/src/invite/{mod.rs,lines.rs,event.rs,when.rs}`; modify `crates/envio-mime/src/lib.rs`, `message.rs` (field `invite`); tests `crates/envio-mime/tests/invite.rs`, corpus files `tests/corpus/invite-{google,outlook,apple,fastmail,thunderbird,cancel,reply,allday}.eml` (synthetic, `example.org`). `tests/corpus.rs` snapshots every corpus file, so accept the 8 new insta snapshots (`cargo insta review`) and check them by eye.
 
 **Interfaces (produces):**
 ```rust
@@ -89,9 +107,11 @@ pub enum When {
     AllDay { start: (i32, u8, u8), end: (i32, u8, u8) },  // end exclusive; default start + 1 day
     Floating { start: NaiveParts, end: NaiveParts },       // local wall time, no zone
 }
-pub fn parse_invite(bytes: &[u8]) -> Option<Invite>;
-// Message gains: pub invite: Option<Invite>, from the first text/calendar part
-// (inline or attached) whose METHOD is REQUEST, CANCEL or REPLY.
+pub fn parse_invite(ics: &[u8]) -> Option<Invite>;          // one calendar part
+pub fn invite_of(raw: &[u8]) -> Option<(Invite, Option<usize>)>;
+// The first text/calendar part (inline or attached) of a raw message whose
+// METHOD is REQUEST, CANCEL or REPLY, plus its attachment index when it is
+// listed as an attachment. `Message` (an enum) is not changed.
 ```
 `When::Timed` resolution goes through A2's `zones::resolve(tzid, local, vtimezones) -> Option<i64>`; A1 lands with UTC and `Z` only and a stub returning `None` (→ `zone_unknown: true`).
 
@@ -109,7 +129,7 @@ pub fn parse_invite(bytes: &[u8]) -> Option<Invite>;
 - `rrule_sets_repeats`.
 - `no_uid_or_no_dtstart_gives_none`, `oversized_part_gives_none`.
 - `parse_never_panics` (proptest over arbitrary bytes and over mutated corpus lines).
-- `message_picks_first_calendar_part` — the existing `calendar-invite.eml` gives `Some`.
+- `invite_of_picks_first_calendar_part` — the existing `calendar-invite.eml` gives `Some` with index `Some(0)`.
 
 - [ ] Write the tests and corpus; run `cargo test -p envio-mime --test invite` (fail).
 - [ ] Implement; tests pass; `cargo make ci`.
@@ -117,13 +137,13 @@ pub fn parse_invite(bytes: &[u8]) -> Option<Invite>;
 
 ### A2: Time zones (envio-mime)
 
-**Files:** create `crates/envio-mime/src/invite/zones.rs`, `zones/windows.rs` (generated table), `tools/gen-windows-zones.py` (reads CLDR `windowsZones.xml`, writes the table; the generated file says so in its first line); modify workspace `Cargo.toml` + `crates/envio-mime/Cargo.toml` (`jiff` with `default-features = false, features = ["std", "tz-system", "tzdb-bundle-platform"]`); tests in `tests/invite.rs`.
+**Files:** create `crates/envio-mime/src/invite/zones.rs`, `zones/windows.rs` (generated table), `tools/gen-windows-zones.py` (reads CLDR `windowsZones.xml`, writes the table; the generated file says so in its first line); modify workspace `Cargo.toml` + `crates/envio-mime/Cargo.toml` (`jiff` with `default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"]`: the system zoneinfo when readable, the bundled copy otherwise, so a confined app or a CI image without tzdata still resolves zones; no AppArmor change); tests in `tests/invite.rs`.
 
 **Interfaces:** `pub(crate) fn resolve(tzid: &str, local: NaiveParts, vtz: &[VTimezone]) -> Option<i64>`; `VTimezone { tzid: String, standard_offset_s: i32 }` filled by A1's reader from `BEGIN:VTIMEZONE` blocks.
 
-**Order:** IANA name via `jiff::tz::TimeZone::get` (strip a leading `/` and Thunderbird's `/mozilla.org/.../` prefix) → Windows name via the table → the part's `VTIMEZONE` `STANDARD` `TZOFFSETTO` → `None`. A gap or fold in local time takes jiff's "compatible" disambiguation.
+**Order:** IANA name via `jiff::tz::TimeZone::get` (tests must pass with `TZDIR` pointing at an empty dir, proving the bundled fallback) (strip a leading `/` and Thunderbird's `/mozilla.org/.../` prefix) → Windows name via the table → the part's `VTIMEZONE` `STANDARD` `TZOFFSETTO` → `None`. A gap or fold in local time takes jiff's "compatible" disambiguation.
 
-**Tests:** `iana_tzid_resolves_with_dst` (Europe/Berlin in July = UTC+2), `windows_tzid_resolves` ("W. Europe Standard Time"), `mozilla_prefixed_tzid_resolves`, `unknown_tzid_uses_vtimezone_offset`, `unknown_tzid_without_vtimezone_is_zone_unknown`, `outlook_corpus_reads_local_time` (the Outlook corpus file end to end).
+**Tests:** `bundled_tzdb_used_without_system_zoneinfo`, `iana_tzid_resolves_with_dst` (Europe/Berlin in July = UTC+2), `windows_tzid_resolves` ("W. Europe Standard Time"), `mozilla_prefixed_tzid_resolves`, `unknown_tzid_uses_vtimezone_offset`, `unknown_tzid_without_vtimezone_is_zone_unknown`, `outlook_corpus_reads_local_time` (the Outlook corpus file end to end).
 
 - [ ] Tests (fail) → implement → pass; `cargo make ci` (audit and licence check accept jiff).
 - [ ] Commit `feat(mime): resolve invite time zones (IANA, Windows, VTIMEZONE)`.
@@ -137,7 +157,7 @@ pub fn parse_invite(bytes: &[u8]) -> Option<Invite>;
 pub struct CalendarPart { pub method: &'static str, pub ics: String }   // in build.rs
 // Outgoing gains: pub calendar: Option<CalendarPart>  (Default = None; no other caller changes)
 pub fn reply_ics(invite: &Invite, me: &str, answer: PartStat, note: &str, dtstamp_unix: i64) -> String;
-pub fn reply_outgoing(original: &Parsed, invite: &Invite, from: Address,
+pub fn reply_outgoing(original: &Envelope, invite: &Invite, from: Address,
                       answer: PartStat, note: &str, subject: String, text: String,
                       dtstamp_unix: i64) -> Outgoing;  // To organizer, In-Reply-To/References like reply.rs
 ```
@@ -152,7 +172,7 @@ With `calendar: Some`, `build` makes `multipart/alternative` (text, then `text/c
 
 ### A4: Held Outbox items and remembered answers (envio-store, envio-sync)
 
-**Files:** modify `crates/envio-store/src/outbox.rs` (`OutboxMeta.send_after_ms: i64`, `#[serde(default)]`; `NewOutboxItem.send_after_ms`), create `crates/envio-store/src/invites.rs`, modify `paths.rs` (`invites()`), `crates/envio-sync/src/plan/outbox.rs` (`item_step(meta: &OutboxMeta, now_ms: i64)`; held → `ItemStep::Wait`), its two callers in `driver/account.rs:70` and `driver/outbox.rs:41`; next-wake must include the earliest `send_after_ms` (find where the driver computes its next deadline and add it).
+**Files:** modify `crates/envio-store/src/outbox.rs` (`OutboxMeta.send_after_ms: i64`, `#[serde(default)]`; `NewOutboxItem.send_after_ms`), create `crates/envio-store/src/invites.rs`, modify `paths.rs` (`invites()`), `crates/envio-sync/src/plan/outbox.rs` (new `pub fn held(meta: &OutboxMeta, now_ms: i64) -> bool`; `item_step` and `ItemStep` unchanged, so `Wait` keeps meaning Failed), and every caller that decides to send: `driver/account.rs:70` (`has_due_mail` must not count a held item as due), `driver/outbox.rs:41` (skip held), `driver/outbox.rs:113` (check what it does with `ItemStep::Send` and skip held there too); the worker's next wake must include the earliest `send_after_ms` (find where the turn computes its next deadline, e.g. `worker/turn.rs`, and add it).
 
 **Interfaces:**
 ```rust
@@ -163,25 +183,25 @@ pub fn load_invites(path: &Path) -> Result<Vec<InviteAnswer>>;
 pub fn record_invite(path: &Path, a: InviteAnswer, now_ms: i64) -> Result<()>;   // replaces same (account, uid); prunes ended > 30 days
 pub fn forget_invite(path: &Path, account: &str, uid: &str) -> Result<()>;
 ```
-**Tests:** `old_meta_without_send_after_reads_as_zero`, `held_item_waits_until_send_after` (planner), `driver_wakes_at_send_after`, `invites_round_trip`, `record_replaces_same_uid`, `record_prunes_old_events`, `forget_removes_only_that_uid`, `invites_file_written_atomically` (copy the contacts test pattern).
+**Tests:** `old_meta_without_send_after_reads_as_zero`, `held_is_true_until_send_after` (planner), `held_item_is_not_due_mail`, `held_item_is_not_sent_before_send_after` (driver), `worker_wakes_at_send_after`, `invites_round_trip`, `record_replaces_same_uid`, `record_prunes_old_events`, `forget_removes_only_that_uid`, `invites_file_written_atomically` (copy the contacts test pattern).
 
 - [ ] Tests (fail) → implement → pass; `cargo make ci`.
 - [ ] Commit `feat(store): held Outbox items and remembered invite answers`.
 
 ### A5: Answer and Undo (envio-core)
 
-**Files:** create `crates/envio-core/src/worker/invite.rs`, `crates/envio-core/src/invite_card.rs` (pure: `fn card(invite: &Invite, remembered: Option<&InviteAnswer>, sending: bool, me: &str) -> InviteCard`), `crates/envio-core/src/text/invite.rs`; modify `api/command.rs` (`AnswerInvite { id: MessageRowId, answer: PartStat, note: String }`, `UndoAnswer { id: MessageRowId }`), `api/view.rs` (`MessageView.invite: Option<InviteCard>`), `worker/read.rs` (`render_view` fills `invite` — keep the change to a call into `invite_card::card`), `worker/dispatch.rs`; tests `crates/envio-core/tests/invite.rs`.
+**Files:** create `crates/envio-core/src/worker/invite.rs`, `crates/envio-core/src/invite_card.rs` (pure: `fn card(invite: &Invite, remembered: Option<&InviteAnswer>, sending: bool, me: &str) -> InviteCard`), `crates/envio-core/src/text/invite.rs`; modify `api/command.rs` (`AnswerInvite { id: MessageRowId, answer: Answer, note: String }` with `pub enum Answer { Accepted, Tentative, Declined }` defined in envio-core's api, so `qt/` never names an envio-mime type; the worker maps it to `PartStat`), `api/event.rs` (`UndoScope`, `UndoOffer.scope`), `undo.rs` (`Offered`, see "Undo design"), `worker/act.rs` (offers become `Offered::Actions`, scope `List`), `api/view.rs` (`MessageView.invite: Option<InviteCard>`), `worker/read.rs` (`render_view` fills `invite` — keep the change to a call into `invite_card::card`), `worker/dispatch.rs`; tests `crates/envio-core/tests/invite.rs`.
 
-**Behaviour:** `AnswerInvite` → load the cached raw body, parse, refuse unless `canAnswer`; subject `text::invite::subject(answer, summary)` ("Accepted: …", "Tentative: …", "Declined: …"); default text when the note is empty (`text::invite::reply_text(answer, name)`); `reply_outgoing` → `build` → `outbox.enqueue` with `send_after_ms = now + envio_sync::UNDO_MS` → `record_invite` (with the built message id) → `UndoOffer` (kind answer, `expires_at_ms` = send_after) → re-emit `MessageOpened`. `UndoAnswer` → delete the Outbox item if still `Queued` and held, `forget_invite`, `UndoClosed`, re-emit. Undo after the hold passed is a no-op with `UndoClosed { undone: false }`. `InviteCard.state`: per the spec's "What the card shows"; `sending` = the remembered `reply_message_id` is still in the Outbox.
+**Behaviour:** `AnswerInvite` → load the cached raw body, parse, refuse unless `canAnswer`; subject `text::invite::subject(answer, summary)` ("Accepted: …", "Tentative: …", "Declined: …"); default text when the note is empty (`text::invite::reply_text(answer, name)`); `reply_outgoing` → `build` → `outbox.enqueue` with `send_after_ms = now + envio_sync::UNDO_MS` → read the previous answer → `record_invite` (with the built message id) → `UndoBook::offer(Offered::Answer{.., previous})` with `expires_at_ms` = `send_after_ms` → `UndoOffer { scope: Reader }` → re-emit `MessageOpened`. `Command::Undo` on that offer: see "Undo design". `InviteCard.state`: per the spec's "What the card shows"; `sending` = the remembered `reply_message_id` is in the Outbox and not failed; `send_failed` = it is there as `Failed`.
 
-**Tests:** `answer_enqueues_a_held_reply_to_the_organizer`, `answer_remembers_and_card_says_you_accepted`, `undo_within_hold_deletes_reply_and_answer`, `undo_after_hold_does_nothing`, `higher_sequence_shows_updated`, `cancel_card_has_no_buttons`, `reply_card_names_the_attendee`, `no_organizer_cannot_answer`, `card_unit_tests` in `invite_card.rs` for every state.
+**Tests:** `answer_enqueues_a_held_reply_to_the_organizer`, `answer_remembers_and_card_says_you_accepted`, `undo_within_hold_deletes_reply_and_answer`, `undo_of_a_changed_answer_restores_the_previous_one`, `window_end_closes_the_offer_and_sends`, `answer_offer_has_reader_scope_and_actions_have_list_scope`, `failed_reply_shows_send_failed_beside_the_answer`, `higher_sequence_shows_updated`, `cancel_card_has_no_buttons`, `reply_card_names_the_attendee`, `no_organizer_cannot_answer`, `card_unit_tests` in `invite_card.rs` for every state.
 
 - [ ] Tests (fail) → implement → pass; `cargo make pot`; `cargo make ci`.
 - [ ] Commit `feat(core): answer invites through the Outbox with Undo`.
 
 ### A6: Pass-through and the e2e reply (envio-ui, qt, envio-e2e)
 
-**Files:** modify `crates/envio-ui/src/convert.rs`, `qt/src/json.rs` (`invite` map per the contract), `qt/src/core_object.rs` + `qt/src/calls.rs` (`answerInvite`, `undoAnswer`); create `crates/envio-e2e/tests/invite.rs`.
+**Files:** modify `crates/envio-ui/src/convert.rs`, `qt/src/json.rs` (`invite` map per the contract), `qt/src/core_object.rs` + `qt/src/calls.rs` (`answerInvite(id, answer: QString, note)`, mapping the string to `envio_core::api::Answer`), `qt/src/events.rs` (`undoOffer` third argument `scope`; existing QML handlers ignore the extra argument); create `crates/envio-e2e/tests/invite.rs`.
 
 **Tests:** envio-ui `message_opened_carries_the_invite_card`; qt json unit test `invite_map_has_contract_keys` (every key in the contract table, types right); e2e `invite_reply_reaches_the_organizer` — grace sends an invite to heidi on Stalwart, heidi's core answers Accept, after the hold the organizer's INBOX has a message whose `text/calendar` part has `METHOD:REPLY` and `PARTSTAT=ACCEPTED`.
 
@@ -203,18 +223,18 @@ Card in Carbon: `surface` card, `cardRadius`, eyebrow "INVITATION" (or "UPDATED"
 
 ### B2: InviteCard.qml
 
-**Files:** create `qml/pages/reader/InviteCard.qml`; modify `qml/pages/reader/ReaderPage.qml` (card above `AttachmentList`, visible when `view.invite`), `qml/qml.qrc`, `tests/qml/MockCore.qml` (`answerInvite`, `undoAnswer` recorders); create `tests/qml/tst_invite_card.qml`.
+**Files:** create `qml/pages/reader/InviteCard.qml`; modify `qml/pages/reader/ReaderPage.qml` (card above `AttachmentList`, visible when `view.invite`), `qml/qml.qrc`, `tests/qml/MockCore.qml` (`answerInvite` recorder); create `tests/qml/tst_invite_card.qml`.
 
-**Behaviour:** dates: timed → `new Date(start*1000).toLocaleString(Qt.locale(), Locale.ShortFormat)` and the end time (date omitted when the same day); all-day → `Date.fromLocaleString(…, "yyyy-MM-dd")` shown with `Locale.ShortFormat` date only, end shown as end − 1 day when longer than one day. Buttons call `core.answerInvite(view.id, answer, note.text)` and clear the note. "Change" shows the buttons again. `sending` shows a small "Sending…" (`qsTr`). Strike through the summary when `state === "cancelled"`.
+**Behaviour:** dates: timed → `new Date(start*1000).toLocaleString(Qt.locale(), Locale.ShortFormat)` and the end time (date omitted when the same day); all-day → `Date.fromLocaleString(…, "yyyy-MM-dd")` shown with `Locale.ShortFormat` date only, end shown as end − 1 day when longer than one day. Buttons call `core.answerInvite(view.id, answer, note.text)` and clear the note. "Change" shows the buttons again. floating → `startDate`/`endDate` parsed as local wall time (`new Date(y, m-1, d, h, mi)`). `sending` shows a small "Sending…" (`qsTr`); `sendFailed` shows "Not sent, see Outbox" (`qsTr`). Strike through the summary when `state === "cancelled"`.
 
-**Tests:** `test_open_request_shows_three_buttons`, `test_accept_calls_core_with_note`, `test_answered_shows_state_text_and_change`, `test_change_shows_buttons_again`, `test_cancelled_has_no_buttons`, `test_reply_has_no_buttons`, `test_all_day_shows_dates_only`, `test_no_invite_hides_card`.
+**Tests:** `test_open_request_shows_three_buttons`, `test_accept_calls_core_with_note`, `test_answered_shows_state_text_and_change`, `test_change_shows_buttons_again`, `test_cancelled_has_no_buttons`, `test_reply_has_no_buttons`, `test_all_day_shows_dates_only`, `test_floating_time_shows_as_local`, `test_send_failed_shows_note`, `test_no_invite_hides_card`.
 
 - [ ] Tests (fail) → implement → pass with `cargo make qml-test`.
 - [ ] Commit `feat(qml): invite card in the reader`.
 
 ### B3: Undo toast in the reader
 
-**Files:** modify `qml/pages/reader/ReaderPage.qml` (a `Toast` like `InboxPage.qml:210-253`, reacting to `undo_offer`/`undo_closed` for kind `answer`); tests in `tst_reader.qml`: `test_answer_shows_undo_toast`, `test_undo_calls_core_undo_answer`.
+**Files:** modify `qml/pages/reader/ReaderPage.qml` (a `Toast` like `InboxPage.qml:210-253`, reacting to `undoOffer` with scope `"reader"` and to `undoClosed` for that id; the action calls `core.undo(undoId)`), `qml/pages/inbox/InboxPage.qml` (ignore offers whose scope is `"reader"`); tests: `tst_reader.qml` `test_reader_offer_shows_undo_toast`, `test_undo_calls_core_undo`, `test_list_offer_does_not_show_in_reader`; the inbox QML test `test_reader_offer_does_not_show_in_inbox`.
 
 - [ ] Tests (fail) → implement → pass; commit `feat(qml): Undo for an invite answer`.
 
