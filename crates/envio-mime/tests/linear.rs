@@ -257,14 +257,15 @@ fn icons_sized_by_their_images_keep_their_columns() {
     }
 }
 
-/// The same icons, pretty-printed, with a spacer `&nbsp;` beside one.
+/// Icons, pretty-printed, with a spacer `&nbsp;` beside a smaller one. Taken
+/// as text, that cell would put the other two (150 px) over `SIDE_MAX`.
 const SPACED_ICONS: &str = "<table><tr>
     <td>
-        <img src=\"https://news.example/f.png\" alt=\"F\" width=\"32\" height=\"32\">
+        <img src=\"https://news.example/f.png\" alt=\"F\" width=\"100\" height=\"100\">
     </td>
-    <td>&nbsp;<img src=\"https://news.example/t.png\" alt=\"T\" width=\"32\" height=\"32\">&nbsp; </td>
+    <td>&nbsp;<img src=\"https://news.example/t.png\" alt=\"T\" width=\"50\" height=\"50\">&nbsp; </td>
     <td>
-        <img src=\"https://news.example/i.png\" alt=\"I\" width=\"32\" height=\"32\">
+        <img src=\"https://news.example/i.png\" alt=\"I\" width=\"50\" height=\"50\">
     </td>
     </tr></table>";
 
