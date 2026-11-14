@@ -118,20 +118,29 @@ pub fn outbox_state(status: &OutboxStatus) -> &'static str {
     }
 }
 
-/// Why a waiting message sits in the Outbox: the outgoing server's
-/// certificate problem, in the account's own words. Empty for anything else.
-pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> String {
+/// Why a waiting message sits in the Outbox and the button that leads on:
+/// (the account's own words, the button's label). Both empty when nothing
+/// holds it. Two problems do: a changed certificate of the outgoing server,
+/// and a failed sign-in (the status does not say which server, and the
+/// password has to be fixed either way). A changed certificate of the
+/// incoming server alone does not stop sending, so it gives no reason.
+pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String) {
     if !matches!(r.status, OutboxStatus::Queued) {
-        return String::new();
+        return Default::default();
     }
-    accounts
-        .iter()
-        .find(|a| a.key == r.account && a.state == "pin" && a.pin.service == "smtp")
-        .map(|a| a.status.clone())
-        .unwrap_or_default()
+    let Some(a) = accounts.iter().find(|a| a.key == r.account) else {
+        return Default::default();
+    };
+    match a.state.as_str() {
+        "pin" if a.pin.service == "smtp" => {
+            (a.status.clone(), envio_core::check_certificate_label())
+        }
+        "auth" => (a.status.clone(), envio_core::open_accounts_label()),
+        _ => Default::default(),
+    }
 }
 
-pub fn outbox_row(r: &OutboxRow, reason: String) -> Row {
+pub fn outbox_row(r: &OutboxRow, (reason, reason_action): (String, String)) -> Row {
     let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
@@ -141,6 +150,7 @@ pub fn outbox_row(r: &OutboxRow, reason: String) -> Row {
         status: status.to_owned(),
         text: r.text.clone(),
         reason,
+        reason_action,
     })
 }
 

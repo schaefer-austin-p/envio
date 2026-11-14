@@ -174,3 +174,50 @@ fn a_status_change_that_leaves_the_reasons_alone_sends_no_outbox_change() {
     let outs = status(&mut ui, "grace", AccountStatus::Syncing, "Syncing");
     assert!(changes(&outs, Model::Outbox).is_empty());
 }
+
+fn actions(ui: &Ui) -> Vec<String> {
+    ui.rows(Model::Outbox)
+        .iter()
+        .map(|r| match r {
+            Row::Outbox(o) => o.reason_action.clone(),
+            _ => panic!(),
+        })
+        .collect()
+}
+
+#[test]
+fn a_failed_sign_in_holds_a_waiting_message_and_says_so() {
+    let mut ui = started();
+    feed(
+        &mut ui,
+        Event::Outbox {
+            items: vec![
+                queued("1", "grace", OutboxStatus::Queued),
+                queued("2", "heidi", OutboxStatus::Queued),
+            ],
+        },
+    );
+    status(
+        &mut ui,
+        "grace",
+        AccountStatus::SignInFailed,
+        "Sign-in failed: check the password.",
+    );
+    assert_eq!(reasons(&ui), ["Sign-in failed: check the password.", ""]);
+    assert_eq!(actions(&ui), ["Open accounts", ""]);
+    status(&mut ui, "grace", AccountStatus::Ready, "Up to date");
+    assert_eq!(reasons(&ui), ["", ""]);
+}
+
+#[test]
+fn the_certificate_case_keeps_its_own_button_wording() {
+    let mut ui = started();
+    status(&mut ui, "grace", pin(Service::Smtp), "Outgoing changed");
+    feed(
+        &mut ui,
+        Event::Outbox {
+            items: vec![queued("1", "grace", OutboxStatus::Queued)],
+        },
+    );
+    assert_eq!(actions(&ui), ["Check certificate"]);
+}

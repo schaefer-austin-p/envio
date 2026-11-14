@@ -212,9 +212,14 @@ Rectangle {
                             MouseArea {
                                 objectName: "stoppedLink"
                                 enabled: group.stopped
-                                anchors.centerIn: parent
-                                width: root.theme.touch
+                                // The icon's own cell: from the row's edge to the
+                                // account name, so a tap on the name still expands.
+                                x: -offlineIcon.x
+                                width: offlineIcon.x + offlineIcon.width + root.theme.gu(1)
                                 height: root.theme.touch
+                                anchors.verticalCenter: parent.verticalCenter
+                                Accessible.role: Accessible.Button
+                                Accessible.name: qsTr("Open accounts")
                                 onClicked: root.accountsRequested()
                             }
                         }

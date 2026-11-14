@@ -21,6 +21,16 @@ pub fn status(status: &OutboxStatus) -> String {
     }
 }
 
+/// The button on an Outbox entry held by the outgoing server's certificate.
+pub fn check_certificate_label() -> String {
+    tr("Check certificate")
+}
+
+/// The button on an Outbox entry held by a failed sign-in.
+pub fn open_accounts_label() -> String {
+    tr("Open accounts")
+}
+
 /// A decision the message's state does not allow.
 pub fn not_now() -> String {
     tr("Not possible right now")

@@ -45,9 +45,10 @@ Item {
             const hit = everything(page, []).filter(function(o) { return o.objectName === name })
             return hit.length > 0 && hit[0].visible
         }
-        function item(id, status, text, reason) {
+        function item(id, status, text, reason, action) {
             return { id: id, account: "ann", subject: "Invoice " + id, to: "ana@example.org",
-                     status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason }
+                     status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason,
+                     reasonAction: reason === undefined ? "" : (action === undefined ? "Check certificate" : action) }
         }
         function init() {
             core.reset()
@@ -118,6 +119,16 @@ Item {
             verify(!shown("reason-x") && !shown("checkCertificate-x"))
             verify(shown("delete-w"))
             mouseClick(find("checkCertificate-w", page))
+            compare(checking.count, 1)
+            compare(find("checkCertificate-w", page).text, "Check certificate")
+        }
+
+        function test_the_button_wording_comes_from_the_row() {
+            core.outbox.append(item("a", "waiting", "Waiting to be sent", "Sign-in failed.", "Open accounts"))
+            waitForRendering(page)
+            compare(find("reason-a", page).text, "Sign-in failed.")
+            compare(find("checkCertificate-a", page).text, "Open accounts")
+            mouseClick(find("checkCertificate-a", page))
             compare(checking.count, 1)
         }
 

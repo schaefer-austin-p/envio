@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 16:39+0100\n"
+"POT-Creation-Date: 2026-11-14 16:47+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:277
+#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:282
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Accounts"
 msgstr ""
@@ -105,7 +105,8 @@ msgstr ""
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:95 qml/pages/inbox/OutboxRow.qml:79
+#: qml/pages/accounts/AccountsPage.qml:95
+#: crates/envio-core/src/text/outbox.rs:26
 msgid "Check certificate"
 msgstr ""
 
@@ -437,7 +438,12 @@ msgstr ""
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:284 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:222
+#: crates/envio-core/src/text/outbox.rs:31
+msgid "Open accounts"
+msgstr ""
+
+#: qml/pages/inbox/FoldersDrawer.qml:289 qml/pages/settings/SettingsPage.qml:23
 msgid "Settings"
 msgstr ""
 
@@ -894,15 +900,15 @@ msgstr ""
 msgid "This message can't be read"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:26
+#: crates/envio-core/src/text/outbox.rs:36
 msgid "Not possible right now"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:30
+#: crates/envio-core/src/text/outbox.rs:40
 msgid "Could not change the message in the Outbox"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:34
+#: crates/envio-core/src/text/outbox.rs:44
 msgid ""
 "This message has attachments and can't be edited. Retry it, or delete it."
 msgstr ""

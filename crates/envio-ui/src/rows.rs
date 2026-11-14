@@ -84,6 +84,8 @@ pub struct OutboxRowUi {
     /// Why a waiting message does not leave, when the account's outgoing
     /// server problem is the cause (its words); empty otherwise.
     pub reason: String,
+    /// The label of the button that leads to the fix; empty with no reason.
+    pub reason_action: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,7 +148,16 @@ const MESSAGE: &[&str] = &[
     "hasAttachments",
     "selected",
 ];
-const OUTBOX: &[&str] = &["id", "account", "subject", "to", "status", "text", "reason"];
+const OUTBOX: &[&str] = &[
+    "id",
+    "account",
+    "subject",
+    "to",
+    "status",
+    "text",
+    "reason",
+    "reasonAction",
+];
 const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
 fn s(v: &str) -> RowValue {
@@ -209,6 +220,7 @@ impl Row {
             (Self::Outbox(r), "status") => s(&r.status),
             (Self::Outbox(r), "text") => s(&r.text),
             (Self::Outbox(r), "reason") => s(&r.reason),
+            (Self::Outbox(r), "reasonAction") => s(&r.reason_action),
             (Self::Suggestion(r), "name") => s(&r.name),
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),

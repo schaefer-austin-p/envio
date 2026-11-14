@@ -76,7 +76,7 @@ ListRow {
                 objectName: "checkCertificate-" + root.model.id
                 visible: !!root.model.reason
                 theme: root.theme
-                text: qsTr("Check certificate")
+                text: root.model.reasonAction
                 onClicked: root.accountsRequested()
             }
             AppButton {
