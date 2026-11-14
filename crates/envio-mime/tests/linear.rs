@@ -290,6 +290,45 @@ fn a_picture_with_a_caption_takes_the_width_of_the_text() {
     }
 }
 
+/// Stacked cards carrying payloads: scripts, event handlers, a script
+/// link, an iframe, a style that tries to close its quote, and escaped
+/// markup that looks like a cell.
+const HOSTILE_CARDS: &str = r#"<table role="presentation" onclick="x()"><tr>
+    <td onmouseover="x()" style='color: red" onclick="x()'><img src="https://news.example/a.png" alt="A" width="100" height="80" onerror="x()"> A flat &lt;td onclick=x()&gt; by the river<script>x()</script></td>
+    <td><a href="javascript:x()">B</a><iframe src="https://evil.example/"></iframe> A house &lt;/td&gt;&lt;/tr&gt; with a garden</td>
+    </tr></table>"#;
+
+#[test]
+fn stacking_lets_no_payload_through() {
+    for html in [clean(HOSTILE_CARDS), with_images(HOSTILE_CARDS)] {
+        assert_eq!(count(&html, "table"), 0, "not stacked: {html}");
+        assert_eq!(count(&html, "td"), 0, "{html}");
+        for bad in [
+            "<script",
+            "x()</",
+            "onclick=\"",
+            "onmouseover=\"",
+            "onerror=\"",
+            "javascript:",
+            "<iframe",
+            "evil.example",
+            "role=",
+        ] {
+            assert!(!html.contains(bad), "{bad} in {html}");
+        }
+        in_order(
+            &html,
+            &[
+                "&lt;td onclick=x()&gt;",
+                "river",
+                "B",
+                "&lt;/td&gt;&lt;/tr&gt;",
+                "garden",
+            ],
+        );
+    }
+}
+
 #[test]
 fn pictures_side_by_side_in_a_cell_add_up() {
     let html = clean(
