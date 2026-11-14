@@ -179,6 +179,9 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
             alt_or_label(tag, options, out);
             return;
         }
+        if !out.remote_images.iter().any(|seen| seen == src) {
+            out.remote_images.push(src.to_owned());
+        }
         src.to_owned()
     } else {
         return;

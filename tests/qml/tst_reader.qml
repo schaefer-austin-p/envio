@@ -17,6 +17,8 @@ Item {
     property var openedUrls: []
     property var exported: []
     property var page: null
+    // A 1x1 PNG: the preload test needs an image that loads offline.
+    readonly property string pixel: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
     Component {
         id: readerComponent
@@ -37,6 +39,7 @@ Item {
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
     SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
+    SignalSpy { id: bodySet; signalName: "textChanged" }
 
     MockCore { id: shellCore }
     AppShell {
@@ -181,6 +184,30 @@ Item {
             compare(String(thm.paperLink).toUpperCase(), data.link)
             thm.name = "carbon"
             thm.darkMode = "system"
+        }
+
+        // #163: a rich TextEdit never draws a remote image that arrives
+        // after it laid out; once the preload has it, the body is set again.
+        function test_a_loaded_image_sets_the_body_again() {
+            const v = view([], 0)
+            v.html = '<p>Hi</p><img src="' + root.pixel + '" width="20" height="20">'
+            v.remoteImages = [root.pixel]
+            open(v)
+            // Qt's re-serialised text drops the redraw's empty comment, so
+            // count the sets instead of comparing the text.
+            bodySet.target = find("bodyText")
+            bodySet.clear()
+            tryCompare(find("preloadedImage"), "status", Image.Ready)
+            tryVerify(function() { return root.page.imageRedraws > 0 }, 2000)
+            verify(bodySet.count > 0)
+        }
+
+        function test_a_view_without_images_preloads_nothing() {
+            open(view([], 0))
+            const hit = everything(root.page, []).filter(function(o) { return o.objectName === "preloadedImage" })
+            compare(hit.length, 0)
+            wait(400)
+            compare(root.page.imageRedraws, 0)
         }
 
         function test_plain_mail_keeps_the_theme_card_in_dark() {

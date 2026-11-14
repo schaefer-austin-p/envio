@@ -111,6 +111,7 @@ pub(crate) fn render_view(
         html: rendered.html,
         raw,
         blocked_images: rendered.blocked_images,
+        remote_images: rendered.remote_images,
         own_colours: rendered.own_colours,
         attachments,
     }
@@ -490,6 +491,24 @@ mod tests {
         assert!(render_view(html, ImagesChoice::Default, 300, &ctx).own_colours);
         let text = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
         assert!(!render_view(text, ImagesChoice::Default, 300, &ctx).own_colours);
+    }
+
+    #[test]
+    fn the_view_lists_the_remote_images_it_loads() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+        };
+        let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
+            <p><img src=\"https://example.org/a.png\"></p>\r\n";
+        let blocked = render_view(html, ImagesChoice::Default, 300, &ctx);
+        assert!(blocked.remote_images.is_empty());
+        let loaded = render_view(html, ImagesChoice::Load, 300, &ctx);
+        assert_eq!(loaded.remote_images, ["https://example.org/a.png"]);
     }
 
     #[test]

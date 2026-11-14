@@ -48,6 +48,38 @@ fn shows_remote_images_when_allowed() {
 }
 
 #[test]
+fn lists_the_remote_images_it_shows_once_each() {
+    let html = concat!(
+        r#"<img src="https://example.com/a.png?x=1&amp;y=2">"#,
+        r#"<img src="http://example.com/b.png" width="40">"#,
+        r#"<img src="https://example.com/a.png?x=1&amp;y=2">"#,
+        r#"<img src="https://example.com/p.gif" width="1" height="1">"#,
+        r#"<img src="cid:logo@example.org">"#,
+    );
+    let options = RenderOptions {
+        cid_urls: HashMap::from([(
+            "logo@example.org".to_owned(),
+            "file:///c/logo.png".to_owned(),
+        )]),
+        ..allowed()
+    };
+    let r = sanitize_html(html, &options);
+    assert_eq!(
+        r.remote_images,
+        [
+            "https://example.com/a.png?x=1&y=2",
+            "http://example.com/b.png"
+        ]
+    );
+}
+
+#[test]
+fn lists_no_remote_images_while_they_are_blocked() {
+    let r = sanitize_html(r#"<img src="https://example.com/a.png">"#, &blocked());
+    assert!(r.remote_images.is_empty());
+}
+
+#[test]
 fn removes_tracking_pixels_even_when_allowed() {
     let html = concat!(
         r#"<img src="https://example.com/p.gif" width="1" height="1">"#,

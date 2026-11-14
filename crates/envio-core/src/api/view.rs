@@ -91,6 +91,9 @@ pub struct MessageView {
     pub raw: bool,
     /// Remote images left out.
     pub blocked_images: usize,
+    /// The remote images the HTML loads, each once; the reader preloads
+    /// them and lays the body out again once they are in (#163).
+    pub remote_images: Vec<String>,
     /// The mail sets its own colours, so the reader draws it on a light
     /// card. Always false for a raw message.
     pub own_colours: bool,
