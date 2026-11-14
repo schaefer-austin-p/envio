@@ -5,7 +5,7 @@
 //! final state is stored last, so a cut connection resumes with nothing
 //! lost and nothing fetched twice. Pure.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use envio_net::imap::{FlagUpdate, FolderState, Summary};
 use envio_store::{Flags, NewMessage, SyncState};
@@ -154,8 +154,13 @@ pub fn plan_flags(
     pending: &Pending,
 ) -> FlagChanges {
     let mut changes = FlagChanges::default();
+    // The first entry per UID, as a linear search would find it.
+    let mut by_uid: HashMap<u32, &Flags> = HashMap::with_capacity(cached.len());
+    for (uid, flags) in cached {
+        by_uid.entry(*uid).or_insert(flags);
+    }
     for update in updates {
-        let Some((_, now)) = cached.iter().find(|(uid, _)| *uid == update.uid) else {
+        let Some(now) = by_uid.get(&update.uid) else {
             continue;
         };
         if update.flags.deleted {
@@ -163,7 +168,7 @@ pub fn plan_flags(
             continue;
         }
         let wanted = pending.flags(update.uid, store_flags(&update.flags));
-        if wanted != *now {
+        if wanted != **now {
             changes.set.push((update.uid, wanted));
         }
     }
@@ -370,6 +375,17 @@ mod tests {
         let changes = plan_flags(&cached, &updates, &Pending::default());
         assert_eq!(changes.set, [(2, Flags::FLAGGED)]);
         assert_eq!(changes.remove, [3]);
+    }
+
+    #[test]
+    fn a_flag_check_of_50k_messages_is_not_quadratic() {
+        let cached: Vec<(u32, Flags)> = (1..=50_000).map(|uid| (uid, Flags::empty())).collect();
+        let updates: Vec<FlagUpdate> = (1..=50_000).map(|uid| update(uid, &[Flag::Seen])).collect();
+        let started = std::time::Instant::now();
+        let changes = plan_flags(&cached, &updates, &Pending::default());
+        assert_eq!(changes.set.len(), 50_000);
+        assert_eq!(changes.set[49_999], (50_000, Flags::SEEN));
+        assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
     }
 
     #[test]
