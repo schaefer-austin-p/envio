@@ -35,6 +35,25 @@ AbstractButton {
         id: holder
         implicitHeight: childrenRect.height
     }
+    // A sideways drag is not a tap. A passive handler watches the finger;
+    // once it travels past the drag distance the row is disabled and enabled
+    // again, which drops the button's grab so it cancels and emits no
+    // `clicked`. It never takes a grab itself, so press-and-hold and the
+    // list's vertical scroll are untouched. Every row has this, so a swipe
+    // (an edge gesture gone slightly wrong) opens nothing.
+    PointHandler {
+        id: swipeWatch
+        property bool cut: false
+        onActiveChanged: if (active) cut = false
+        onPointChanged: {
+            if (!active || cut) return
+            if (Math.abs(point.position.x - point.pressPosition.x) > Qt.styleHints.startDragDistance) {
+                cut = true
+                root.enabled = false
+                root.enabled = true
+            }
+        }
+    }
     // Built only for a row that has one, so a plain row carries no chevron.
     Loader {
         active: root.chevron
