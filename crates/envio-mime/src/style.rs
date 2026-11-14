@@ -100,7 +100,12 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
 /// usual email centring) as a wide margin. Only the top and bottom margins
 /// are kept, and `auto` is dropped.
 fn vertical_margins(prop: &str, value: &str) -> Option<String> {
-    let value = value.to_ascii_lowercase().replace("!important", "");
+    // `!important` may be written `! important`; nothing after `!` is a length.
+    let value = value
+        .split('!')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     let parts: Vec<&str> = value.split_whitespace().collect();
     let (top, bottom) = match (prop, parts.as_slice()) {
         ("margin", [all]) | ("margin", [all, _]) => (Some(*all), Some(*all)),

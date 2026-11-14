@@ -191,6 +191,8 @@ fn only_vertical_margins_are_kept() {
             "margin-top:0px;margin-bottom:0px",
         ),
         ("margin:4px", "margin-top:4px;margin-bottom:4px"),
+        ("margin:0 ! important", "margin-top:0;margin-bottom:0"),
+        ("margin-top:5px ! important", "margin-top:5px"),
         ("margin:1px 20px 3px", "margin-top:1px;margin-bottom:3px"),
         (
             "margin:1px 20px 3px 40px",
