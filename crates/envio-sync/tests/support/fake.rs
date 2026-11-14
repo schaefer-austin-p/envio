@@ -409,6 +409,26 @@ impl MailServer for FakeServer {
         Ok(folder.messages.get(&uid).map(|message| message.eml.clone()))
     }
 
+    async fn fetch_partial(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
+        self.call("fetch_partial", &uid.to_string())?;
+        let folder = self.selected()?;
+        Ok(folder.messages.get(&uid).map(|message| message.eml.clone()))
+    }
+
+    async fn fetch_section(
+        &mut self,
+        uid: u32,
+        section: &str,
+        _size: usize,
+    ) -> Result<Option<Vec<u8>>> {
+        self.call("fetch_section", &format!("{uid} {section}"))?;
+        let folder = self.selected()?;
+        Ok(folder
+            .messages
+            .contains_key(&uid)
+            .then(|| format!("part {section}").into_bytes()))
+    }
+
     async fn store_flags(&mut self, uids: &[u32], add: bool, flags: &[Flag]) -> Result<()> {
         self.call("store_flags", &format!("{uids:?} {add} {flags:?}"))?;
         let folder = self.selected()?;
