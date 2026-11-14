@@ -193,18 +193,102 @@ fn floating_time_stays_wall_time() {
     );
 }
 
-#[test]
-fn tzid_time_is_flagged_until_zones_resolve() {
-    // A2 resolves zones; until then a TZID reads its wall time as UTC.
-    let invite = request("UID:u1\r\nDTSTART;TZID=Europe/Berlin:20261116T100000");
-    assert_eq!(
-        invite.when,
+fn timed(invite: &envio_mime::Invite) -> (i64, i64, bool) {
+    match invite.when {
         When::Timed {
-            start: 1_794_823_200,
-            end: 1_794_823_200,
-            zone_unknown: true
-        }
+            start,
+            end,
+            zone_unknown,
+        } => (start, end, zone_unknown),
+        ref other => panic!("not timed: {other:?}"),
+    }
+}
+
+/// A calendar with a VTIMEZONE block (`TZID`, standard offset) and one event.
+fn with_vtimezone(tzid: &str, offset: &str, event: &str) -> Vec<u8> {
+    format!(
+        "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VTIMEZONE\r\nTZID:{tzid}\r\n\
+         BEGIN:STANDARD\r\nDTSTART:16010101T000000\r\nTZOFFSETFROM:+0000\r\n\
+         TZOFFSETTO:{offset}\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n\
+         BEGIN:VEVENT\r\n{event}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn iana_tzid_resolves_with_dst() {
+    // Berlin in July is UTC+2: 10:00 local is 08:00 UTC.
+    let invite = request("UID:u1\r\nDTSTART;TZID=Europe/Berlin:20260721T100000");
+    assert_eq!(timed(&invite), (1_784_620_800, 1_784_620_800, false));
+    // In November it is UTC+1.
+    let invite = request("UID:u1\r\nDTSTART;TZID=Europe/Berlin:20261116T100000");
+    assert_eq!(timed(&invite), (1_794_819_600, 1_794_819_600, false));
+}
+
+#[test]
+fn bundled_tzdb_used_without_system_zoneinfo() {
+    if std::env::var_os("ENVIO_ZONES_CHILD").is_some() {
+        let invite = request("UID:u1\r\nDTSTART;TZID=Europe/Berlin:20260721T100000");
+        assert_eq!(timed(&invite), (1_784_620_800, 1_784_620_800, false));
+        return;
+    }
+    // jiff reads TZDIR once per process: rerun this test in a child whose
+    // TZDIR is an empty directory.
+    let empty = std::env::temp_dir().join(format!("envio-empty-tzdir-{}", std::process::id()));
+    std::fs::create_dir_all(&empty).unwrap();
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "bundled_tzdb_used_without_system_zoneinfo"])
+        .env("TZDIR", &empty)
+        .env("ENVIO_ZONES_CHILD", "1")
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir(&empty);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
     );
+}
+
+#[test]
+fn windows_tzid_resolves() {
+    let invite = request("UID:u1\r\nDTSTART;TZID=W. Europe Standard Time:20260721T100000");
+    assert_eq!(timed(&invite), (1_784_620_800, 1_784_620_800, false));
+}
+
+#[test]
+fn mozilla_prefixed_tzid_resolves() {
+    // London in November is UTC+0; a leading slash alone also resolves.
+    let invite =
+        request("UID:u1\r\nDTSTART;TZID=/mozilla.org/20050126_1/Europe/London:20261119T150000");
+    assert_eq!(timed(&invite), (1_795_100_400, 1_795_100_400, false));
+    let invite = request("UID:u1\r\nDTSTART;TZID=/Europe/Berlin:20261116T100000");
+    assert_eq!(timed(&invite), (1_794_819_600, 1_794_819_600, false));
+}
+
+#[test]
+fn unknown_tzid_uses_vtimezone_offset() {
+    let bytes = with_vtimezone(
+        "Custom Zone",
+        "+0530",
+        "UID:u1\r\nDTSTART;TZID=Custom Zone:20261116T100000",
+    );
+    let invite = parse_invite(&bytes).unwrap();
+    // 10:00 at +05:30 is 04:30 UTC.
+    assert_eq!(timed(&invite), (1_794_803_400, 1_794_803_400, false));
+}
+
+#[test]
+fn unknown_tzid_without_vtimezone_is_zone_unknown() {
+    let invite = request("UID:u1\r\nDTSTART;TZID=Nowhere/Land:20261116T100000");
+    assert_eq!(timed(&invite), (1_794_823_200, 1_794_823_200, true));
+}
+
+#[test]
+fn outlook_corpus_reads_local_time() {
+    let (invite, _) = invite_of(&corpus("invite-outlook.eml")).unwrap();
+    // 2026-07-21 14:00 to 15:00 in W. Europe (UTC+2): 12:00 to 13:00 UTC.
+    assert_eq!(timed(&invite), (1_784_635_200, 1_784_638_800, false));
 }
 
 #[test]

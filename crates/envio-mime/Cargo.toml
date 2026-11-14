@@ -29,6 +29,9 @@ html5ever = "=0.40.1"
 # `default-features = false`.
 mail-builder = { version = "2.0", default-features = false }
 mail-parser = { version = "0.11.9", features = ["full_encoding"] }
+# IANA zones for invite times: the system zoneinfo when readable, else the
+# bundled copy, so a confined app or an image without tzdata still resolves.
+jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"] }
 
 [dev-dependencies]
 insta = "1.49"
