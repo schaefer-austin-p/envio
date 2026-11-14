@@ -185,6 +185,42 @@ Item {
             verify(!shown("inviteSending"))
         }
 
+        function test_no_change_while_sending() {
+            show({ state: "answered", stateText: "You accepted", answer: "accepted", sending: true })
+            verify(!shown("inviteChange"))
+        }
+
+        function test_same_card_again_keeps_the_change_view() {
+            const answered = { state: "answered", stateText: "You accepted", answer: "accepted" }
+            show(answered)
+            mouseClick(find("inviteChange"))
+            settle()
+            verify(shown("inviteAccept"))
+            // The core re-emits the message (images loaded): the buttons stay.
+            show(answered)
+            verify(shown("inviteAccept"))
+            // A different answer or state is a new card.
+            show({ state: "answered", stateText: "You declined", answer: "declined" })
+            verify(!shown("inviteAccept"))
+            verify(shown("inviteChange"))
+        }
+
+        function test_cancelled_strikes_the_facts() {
+            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false })
+            verify(find("inviteWhen").font.strikeout)
+            verify(find("inviteLocation").font.strikeout)
+            verify(!find("inviteOrganizer").font.strikeout)
+            show({})
+            verify(!find("inviteWhen").font.strikeout)
+        }
+
+        function test_send_failed_is_in_a_box() {
+            show({ state: "answered", stateText: "You accepted", answer: "accepted", sendFailed: true })
+            verify(shown("inviteFailedBox"))
+            show({})
+            verify(!shown("inviteFailedBox"))
+        }
+
         function test_cannot_answer_has_no_buttons() {
             show({ canAnswer: false })
             verify(!shown("inviteAccept"))

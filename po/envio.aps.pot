@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-14 22:27+0100\n"
+"POT-Creation-Date: 2026-11-14 22:36+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -603,43 +603,43 @@ msgstr ""
 msgid "%1 · Repeats"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:152
+#: qml/pages/reader/InviteCard.qml:159
 msgid "Time zone not recognised"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:185
+#: qml/pages/reader/InviteCard.qml:192
 msgid "Change"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:193
+#: qml/pages/reader/InviteCard.qml:200
 msgid "Sending…"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:211
+#: qml/pages/reader/InviteCard.qml:227
 msgid "Not sent, see Outbox"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:229
+#: qml/pages/reader/InviteCard.qml:246
 msgid "Accept"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:236
+#: qml/pages/reader/InviteCard.qml:253
 msgid "Maybe"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:243
+#: qml/pages/reader/InviteCard.qml:260
 msgid "Decline"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:251
+#: qml/pages/reader/InviteCard.qml:268
 msgid "Hide note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:251
+#: qml/pages/reader/InviteCard.qml:268
 msgid "Add a note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:260
+#: qml/pages/reader/InviteCard.qml:277
 msgid "Note to %1"
 msgstr ""
 

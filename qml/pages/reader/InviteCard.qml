@@ -75,8 +75,14 @@ Rectangle {
         noteOpen = false
         changing = false
     }
-    // A new card (after an answer or an undo) starts from its own state.
-    onInviteChanged: changing = false
+    // The same card re-emitted (images loaded, say) keeps the Change view and
+    // the note; a new answer, state or message starts afresh.
+    readonly property string cardKey: view === null || invite === null ? ""
+        : view.id + "|" + invite.state + "|" + invite.answer
+    onCardKeyChanged: changing = false
+    readonly property var messageId: view !== null ? view.id : -1
+    onMessageIdChanged: { note.text = ""; noteOpen = false }
+    readonly property bool cancelled: cardState === "cancelled"
 
     visible: invite !== null
     implicitHeight: column.implicitHeight + theme.gu(3.5)
@@ -96,7 +102,7 @@ Rectangle {
             objectName: "inviteEyebrow"
             textFormat: Text.PlainText
             text: root.eyebrow
-            color: root.theme.secondary
+            color: root.cardState === "updated" || root.cancelled ? root.theme.accent : root.theme.secondary
             font.family: root.theme.eyebrowFamily
             font.pixelSize: root.theme.eyebrowSize
             font.weight: root.theme.eyebrowWeight
@@ -113,7 +119,7 @@ Rectangle {
             font.family: root.theme.fontTitle
             font.pixelSize: 18
             font.weight: Font.DemiBold
-            font.strikeout: root.cardState === "cancelled"
+            font.strikeout: root.cancelled
         }
         Column {
             width: parent.width
@@ -138,9 +144,10 @@ Rectangle {
                         width: parent.width - x
                         text: fact.modelData.text
                         wrapMode: Text.Wrap
-                        color: root.theme.text
+                        color: root.cancelled ? root.theme.secondary : root.theme.text
                         font.family: root.theme.fontUi
                         font.pixelSize: 14
+                        font.strikeout: root.cancelled && fact.modelData.name !== "inviteOrganizer"
                     }
                 }
             }
@@ -181,7 +188,7 @@ Rectangle {
             InviteLink {
                 objectName: "inviteChange"
                 theme: root.theme
-                visible: root.answeredShown && root.invite !== null && root.invite.canAnswer
+                visible: root.answeredShown && root.invite !== null && root.invite.canAnswer && !root.invite.sending
                 text: qsTr("Change")
                 onClicked: root.changing = true
             }
@@ -195,24 +202,34 @@ Rectangle {
             font.family: root.theme.fontUi
             font.pixelSize: 13
         }
-        Row {
+        Rectangle {
+            objectName: "inviteFailedBox"
             visible: root.answeredShown && root.invite !== null && root.invite.sendFailed
-            spacing: root.theme.gu(1)
-            Icon {
-                theme: root.theme
-                name: "alert"
-                size: 18
-                color: root.theme.accent
+            width: parent.width
+            height: failedRow.height + root.theme.gu(2.5)
+            radius: root.theme.compactControlRadius
+            color: Qt.rgba(root.theme.accent.r, root.theme.accent.g, root.theme.accent.b, 0.12)
+            Row {
+                id: failedRow
+                x: root.theme.gu(1.5)
                 anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                objectName: "inviteFailed"
-                textFormat: Text.PlainText
-                text: qsTr("Not sent, see Outbox")
-                color: root.theme.accent
-                font.family: root.theme.fontUi
-                font.pixelSize: 14
-                anchors.verticalCenter: parent.verticalCenter
+                spacing: root.theme.gu(1)
+                Icon {
+                    theme: root.theme
+                    name: "alert"
+                    size: 18
+                    color: root.theme.accent
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    objectName: "inviteFailed"
+                    textFormat: Text.PlainText
+                    text: qsTr("Not sent, see Outbox")
+                    color: root.theme.accent
+                    font.family: root.theme.fontUi
+                    font.pixelSize: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                }
             }
         }
 
