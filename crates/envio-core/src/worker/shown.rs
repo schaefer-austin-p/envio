@@ -18,8 +18,6 @@ pub(crate) type Sizes = HashMap<String, (u32, u32)>;
 
 /// Most sizes taken from one report; the reader sends at most this many.
 pub(crate) const MAX_BATCH: usize = 256;
-/// Longest URL a size is kept for, in bytes.
-pub(crate) const MAX_URL_BYTES: usize = 2048;
 
 pub(crate) struct Shown {
     pub id: MessageRowId,
@@ -34,13 +32,14 @@ pub(crate) struct Shown {
 }
 
 /// Adds to `known` the sizes in `new` that are for an image in `open` (at
-/// most [`MAX_BATCH`] of them, URLs up to [`MAX_URL_BYTES`]). Whether one
-/// of them is new and caps an image, so a render would change the HTML.
+/// most [`MAX_BATCH`] of them; other keys are dropped whatever their
+/// length). Whether one of them is new and caps an image, so a render
+/// would change the HTML.
 pub(crate) fn merge(known: &mut Sizes, new: Sizes, open: &[Unsized]) -> bool {
     let mut caps = false;
     let wanted = new
         .into_iter()
-        .filter(|(url, _)| url.len() <= MAX_URL_BYTES && open.iter().any(|i| i.url == *url))
+        .filter(|(url, _)| open.iter().any(|i| i.url == *url))
         .take(MAX_BATCH);
     for (url, size) in wanted {
         let capping = open.iter().any(|i| i.url == url && i.caps(size));
@@ -161,7 +160,7 @@ mod tests {
     fn merge_keeps_only_the_messages_open_images() {
         let open = open(&["a"]);
         let mut known = Sizes::new();
-        let long = format!("{}a", "x".repeat(MAX_URL_BYTES));
+        let long = format!("https://e.test/{}", "x".repeat(4096));
         assert!(!merge(
             &mut known,
             sizes(&[("elsewhere", (1000, 5))]),
@@ -169,6 +168,15 @@ mod tests {
         ));
         assert!(!merge(&mut known, sizes(&[(&long, (1000, 5))]), &open));
         assert!(known.is_empty());
+    }
+
+    #[test]
+    fn merge_caps_an_own_image_with_a_long_url() {
+        let long = format!("https://e.test/{}", "x".repeat(4096));
+        let open = open(&[long.as_str()]);
+        let mut known = Sizes::new();
+        assert!(merge(&mut known, sizes(&[(&long, (1000, 5))]), &open));
+        assert_eq!(known.get(&long), Some(&(1000, 5)));
     }
 
     #[test]
