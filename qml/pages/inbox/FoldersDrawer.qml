@@ -208,11 +208,12 @@ Rectangle {
                         }
                         Text {
                             id: accountName
+                            objectName: "accountName"
                             textFormat: Text.PlainText
                             x: root.theme.gu(2.5) + (offlineIcon.visible ? offlineIcon.width + root.theme.gu(1) : 0)
                             y: root.theme.gu(1.75)
                             width: parent.width - x - group.chevronSpace
-                            text: acct.model.name + " · " + acct.model.email
+                            text: acct.model.heading
                             elide: Text.ElideRight
                             color: root.theme.heading
                             font.family: root.theme.fontUi
