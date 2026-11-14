@@ -7,7 +7,7 @@ use std::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QMap, QMapPair_QString_QVariant, QString};
 use envio_core::{
-    Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
+    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
 };
 use secrecy::SecretString;
 use zeroize::Zeroize;
@@ -181,6 +181,19 @@ impl qobject::EnvioCore {
     pub fn undo(self: Pin<&mut Self>, id: i64) {
         let undo = UndoId(u64::try_from(id).unwrap_or(0));
         self.send_command(Command::Undo { undo });
+    }
+
+    /// `answer` is `accepted`, `tentative` or `declined`; anything else is
+    /// ignored.
+    pub fn answer_invite(self: Pin<&mut Self>, id: i64, answer: &QString, note: &QString) {
+        let Some(answer) = Answer::parse(&s(answer)) else {
+            return;
+        };
+        self.send_command(Command::AnswerInvite {
+            id: MessageRowId(id),
+            answer,
+            note: s(note),
+        });
     }
 
     pub fn open(self: Pin<&mut Self>, id: i64, load_images: bool, width_px: i32) {

@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use envio_core::{AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId};
+use envio_core::{
+    AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId, UndoScope,
+};
 
 /// The "Load older messages" row at the foot of a list.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -79,6 +81,7 @@ pub enum Signal {
     UndoOffer {
         undo: UndoId,
         text: String,
+        scope: UndoScope,
     },
     UndoClosed {
         undo: UndoId,

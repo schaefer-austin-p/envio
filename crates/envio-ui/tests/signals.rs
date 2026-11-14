@@ -142,6 +142,13 @@ fn one_shot_events_become_signals() {
         matches!(got[4], Signal::Queued { compose, ref text } if compose == c && text == "Sent")
     );
     assert!(matches!(got[5], Signal::Settings(_)));
+    assert!(matches!(
+        got[3],
+        Signal::UndoOffer {
+            scope: envio_core::UndoScope::List,
+            ..
+        }
+    ));
 }
 
 #[test]
