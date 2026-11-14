@@ -16,6 +16,9 @@
 //! is no tree: [`layout_tables`] pre-scans for a verdict per table, and
 //! [`linearise`] rewrites with it, both in one forward pass.
 
+use std::borrow::Cow;
+
+use crate::colours::is_visible_attr;
 use crate::images::{Placed, parse_tag, pixels, tag_len};
 use crate::plain::escape_into;
 
@@ -57,6 +60,13 @@ struct Frame {
     /// `role="presentation"`, or its own content has a picture, a nested
     /// table or a block.
     layout: bool,
+    /// Its own content has a picture, a nested table or a block (unlike
+    /// `layout`, `role="presentation"` does not set it).
+    rich: bool,
+    /// A cell has padding and a background or border: a button (#111).
+    boxed: bool,
+    /// Its `cellpadding` is a non-zero number.
+    cellpad: bool,
     /// A row with more than one cell has wide side columns: more than one
     /// cell without a pixel width, or the cells beside the widest one
     /// over [`SIDE_MAX`] together.
@@ -94,6 +104,7 @@ impl Frame {
     /// has `Some(width)`, the width it declares.
     fn content(&mut self, picture: Option<Option<u32>>) {
         self.layout = true;
+        self.rich = true;
         if let Some(cell) = &mut self.cell {
             match picture {
                 Some(Some(px)) => {
@@ -122,6 +133,7 @@ impl Frame {
         if self.cell.is_some() {
             self.end_cell();
         }
+        self.boxed |= boxed_cell(raw, self.cellpad);
         self.cell = Some(Cell {
             width: cell_width(raw),
             ..Cell::default()
@@ -157,7 +169,10 @@ impl Frame {
     /// Single column, or columns that only lay out pictures and blocks too
     /// wide for a phone.
     fn linear(&self) -> bool {
-        !self.data && self.rows > 0 && (!self.columns || (self.layout && self.wide))
+        // Qt ignores a div's padding, so a table of one row with one boxed
+        // text cell (a button) stays a table: it honours cell padding.
+        let button = self.boxed && !self.rich && self.rows == 1 && !self.columns;
+        !button && !self.data && self.rows > 0 && (!self.columns || (self.layout && self.wide))
     }
 }
 
@@ -201,6 +216,7 @@ pub(crate) fn layout_tables(html: &str, images: &[Placed]) -> Vec<bool> {
                 open.push(Frame {
                     index: verdicts.len(),
                     layout: presentation(raw),
+                    cellpad: cellpadding(raw),
                     ..Frame::default()
                 });
                 verdicts.push(false);
@@ -240,6 +256,45 @@ fn presentation(raw: &str) -> bool {
     })
 }
 
+/// Whether the `table` start tag `raw` has a non-zero `cellpadding`.
+fn cellpadding(raw: &str) -> bool {
+    // Browsers read the leading digits: `12px` is 12.
+    parse_tag(raw).is_some_and(|tag| {
+        let v = tag.attr("cellpadding").unwrap_or("").trim();
+        let digits = v.find(|c: char| !c.is_ascii_digit()).unwrap_or(v.len());
+        v[..digits].parse::<u32>().is_ok_and(|n| n > 0)
+    })
+}
+
+/// Whether the cell start tag `raw` has real padding (a non-zero length in
+/// `padding` or a `padding-*`, or the table's `cellpadding`) and a background (a `bgcolor` that
+/// [`bgcolor`] accepts, or a `background-color` in its `style`, that is not
+/// transparent): a button.
+/// `filter_style` drops `border`, so it never counts.
+fn boxed_cell(raw: &str, cellpad: bool) -> bool {
+    let Some(tag) = parse_tag(raw) else {
+        return false;
+    };
+    let style = tag.attr("style").unwrap_or("").to_ascii_lowercase();
+    let mut padded = cellpad;
+    let mut background = bgcolor(&tag.attrs).is_some_and(|c| is_visible_attr(&c));
+    for declaration in style.split(';') {
+        let Some((prop, value)) = declaration.split_once(':') else {
+            continue;
+        };
+        let (prop, value) = (prop.trim(), value.trim());
+        if prop == "background-color" && is_visible_attr(value) {
+            background = true;
+        }
+        if prop.starts_with("padding") {
+            padded |= value
+                .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+                .any(|n| n.parse::<f64>().is_ok_and(|n| n > 0.0));
+        }
+    }
+    padded && background
+}
+
 /// The cell's `width` in pixels; `None` for a percentage or none.
 fn cell_width(raw: &str) -> Option<u32> {
     parse_tag(raw)?.attr("width").and_then(pixels)
@@ -273,7 +328,7 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
                 tables += 1;
                 open.push(linear);
                 if linear {
-                    block(raw, None, &mut out);
+                    block(raw, None, true, &mut out);
                 } else {
                     out.push_str(raw);
                 }
@@ -286,11 +341,11 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
                 }
             }
             (false, "tr") if own => {
-                row_bg = parse_tag(raw).and_then(|t| bgcolor(&t.attrs).map(str::to_owned));
+                row_bg = parse_tag(raw).and_then(|t| bgcolor(&t.attrs).map(Cow::into_owned));
             }
             (true, "tr") if own => row_bg = None,
             (_, "tbody" | "thead" | "tfoot" | "colgroup" | "col") if own => {}
-            (false, "td" | "th") if own => block(raw, row_bg.as_deref(), &mut out),
+            (false, "td" | "th") if own => block(raw, row_bg.as_deref(), false, &mut out),
             (true, "td" | "th") if own => out.push_str("</div>"),
             _ => out.push_str(raw),
         }
@@ -300,15 +355,17 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
 }
 
 /// Writes a `div` start tag with the `align` and `style` of the start tag
-/// `raw`. Its `bgcolor` (else `row_bg`, the row's) leads the style as
+/// `raw`; a `table`'s `align` places the table box, not its text, so it is
+/// dropped. Its `bgcolor` (else `row_bg`, the row's) leads the style as
 /// `background-color`, so the tag's own style still wins.
-fn block(raw: &str, row_bg: Option<&str>, out: &mut String) {
+fn block(raw: &str, row_bg: Option<&str>, table: bool, out: &mut String) {
     out.push_str("<div");
     if let Some(tag) = parse_tag(raw) {
-        let bg = bgcolor(&tag.attrs).or(row_bg);
+        let own_bg = bgcolor(&tag.attrs);
+        let bg = own_bg.as_deref().or(row_bg);
         let mut styled = false;
         for (name, value) in &tag.attrs {
-            if name == "align" {
+            if name == "align" && !table {
                 attr("align", None, value, out);
             } else if name == "style" && !styled {
                 styled = true;
@@ -336,15 +393,18 @@ fn attr(name: &str, bg: Option<&str>, value: &str, out: &mut String) {
     out.push('"');
 }
 
-/// The `bgcolor` value if it is a colour: `#` and 3 or 6 hex digits, or
-/// ASCII letters only (a name). Anything else could smuggle CSS.
-fn bgcolor(attrs: &[(String, String)]) -> Option<&str> {
+/// The `bgcolor` value if it is a colour: `#` and 3 or 6 hex digits, bare
+/// hex (written with its `#`), or ASCII letters only (a name; none uses
+/// only a-f). Anything else could smuggle CSS.
+fn bgcolor(attrs: &[(String, String)]) -> Option<Cow<'_, str>> {
     let value = attrs.iter().find(|(n, _)| n == "bgcolor")?.1.as_str();
-    let ok = match value.strip_prefix('#') {
-        Some(hex) => matches!(hex.len(), 3 | 6) && hex.bytes().all(|b| b.is_ascii_hexdigit()),
-        None => !value.is_empty() && value.bytes().all(|b| b.is_ascii_alphabetic()),
-    };
-    ok.then_some(value)
+    let hex = |h: &str| matches!(h.len(), 3 | 6) && h.bytes().all(|b| b.is_ascii_hexdigit());
+    match value.strip_prefix('#') {
+        Some(h) => hex(h).then_some(Cow::Borrowed(value)),
+        None if hex(value) => Some(Cow::Owned(format!("#{value}"))),
+        None => (!value.is_empty() && value.bytes().all(|b| b.is_ascii_alphabetic()))
+            .then_some(Cow::Borrowed(value)),
+    }
 }
 
 /// The byte range of the first tag at or after `pos`. Every `<` starts a
