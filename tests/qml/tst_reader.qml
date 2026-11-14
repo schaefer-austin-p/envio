@@ -160,6 +160,45 @@ Item {
             verify(!find("undoToast").visible)
         }
 
+        function test_add_to_calendar_exports_the_saved_ics() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 1 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            const saved = mock.called("saveAttachment").pop().args
+            compare(saved[0], 5)
+            compare(saved[1], 1)
+            mock.attachmentSaved("/tmp/envio-test/attachments/invite.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invite.ics", mode: "calendar" }])
+            // A later save is not a calendar one.
+            mock.attachmentSaved("/tmp/envio-test/attachments/other.pdf")
+            compare(root.exported.length, 1)
+        }
+
+        function test_a_failed_calendar_save_forgets_the_export() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            mock.attachmentFailed(5)
+            mock.attachmentSaved("/tmp/envio-test/attachments/x.ics")
+            compare(root.exported.length, 0)
+        }
+
+        // No offer yet: no id (0 is a real one) can close a toast never shown.
+        function test_no_undo_target_before_an_offer() {
+            compare(root.page.undoId, -1)
+        }
+
         function test_invite_card_shows_only_with_an_invite() {
             open(view([], 0))
             verify(!shown("inviteCard"))

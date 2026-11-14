@@ -20,6 +20,8 @@ Item {
             theme: thm
             core: mock
             width: 360
+            hubAvailable: true
+            attachmentsDir: "/tmp/envio-test/attachments"
         }
     }
 
@@ -219,6 +221,30 @@ Item {
             verify(shown("inviteFailedBox"))
             show({})
             verify(!shown("inviteFailedBox"))
+        }
+
+        function test_add_to_calendar_saves_the_ics() {
+            show({ icsIndex: 2 })
+            const asked = []
+            root.card.calendarRequested.connect(function() { asked.push(true) })
+            mouseClick(find("inviteCalendar"))
+            compare(mock.called("saveAttachment").map(function(c) { return c.args }),
+                    [[7, 2, "/tmp/envio-test/attachments"]])
+            compare(asked.length, 1)
+        }
+
+        function test_add_to_calendar_is_hidden_without_a_part_or_a_hub() {
+            show({ icsIndex: -1 })
+            verify(!shown("inviteCalendar"))
+            show({ icsIndex: 0 })
+            verify(shown("inviteCalendar"))
+            root.card.hubAvailable = false
+            verify(!shown("inviteCalendar"))
+            root.card.hubAvailable = true
+            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false })
+            verify(!shown("inviteCalendar"))
+            show({ state: "answered", stateText: "You accepted", answer: "accepted" })
+            verify(shown("inviteCalendar"))
         }
 
         function test_cannot_answer_has_no_buttons() {

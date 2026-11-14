@@ -12,6 +12,12 @@ Rectangle {
     required property Theme theme
     required property var core
     property var view: null
+    // Where attachments are written, and whether Content Hub can take the
+    // calendar file (false on the desktop). Both come from the page.
+    property string attachmentsDir: ""
+    property bool hubAvailable: false
+    // The page keeps the pending export; it is told before the save starts.
+    signal calendarRequested()
 
     readonly property var invite: view !== null && view.invite !== undefined ? view.invite : null
     // "Change" was tapped: the buttons are back although we answered.
@@ -82,6 +88,12 @@ Rectangle {
     onCardKeyChanged: changing = false
     readonly property var messageId: view !== null ? view.id : -1
     onMessageIdChanged: { note.text = ""; noteOpen = false }
+    readonly property bool calendarShown: hubAvailable && invite !== null && invite.icsIndex >= 0
+        && (cardState === "open" || cardState === "updated" || cardState === "answered")
+    function addToCalendar() {
+        calendarRequested()
+        core.saveAttachment(view.id, invite.icsIndex, attachmentsDir)
+    }
     readonly property bool cancelled: cardState === "cancelled"
 
     visible: invite !== null
@@ -261,12 +273,23 @@ Rectangle {
                 onClicked: root.answer("declined")
             }
         }
-        InviteLink {
-            objectName: "inviteNoteLink"
-            theme: root.theme
-            visible: root.buttonsShown
-            text: root.noteOpen ? qsTr("Hide note") : qsTr("Add a note")
-            onClicked: root.noteOpen = !root.noteOpen
+        Row {
+            visible: root.buttonsShown || root.calendarShown
+            spacing: root.theme.gu(1)
+            InviteLink {
+                objectName: "inviteNoteLink"
+                theme: root.theme
+                visible: root.buttonsShown
+                text: root.noteOpen ? qsTr("Hide note") : qsTr("Add a note")
+                onClicked: root.noteOpen = !root.noteOpen
+            }
+            InviteLink {
+                objectName: "inviteCalendar"
+                theme: root.theme
+                visible: root.calendarShown
+                text: qsTr("Add to calendar")
+                onClicked: root.addToCalendar()
+            }
         }
         Field {
             id: note

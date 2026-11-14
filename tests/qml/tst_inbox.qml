@@ -525,6 +525,9 @@ Item {
             compare(toast.text, "Deleted")
             core.undoOffer(11, "Replied: accepted", "reader")
             compare(toast.text, "Deleted")
+            // The reader's offer never became the inbox's undo target.
+            mouseClick(findText("Undo", toast))
+            compare(core.called("undo").pop().args, [10])
         }
 
         function test_an_older_offer_closing_leaves_the_newer_toast() {

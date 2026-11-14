@@ -27,13 +27,15 @@ Item {
     property string accountName: ""
     // "open", "save" or "share" while an attachment is being saved.
     property string pendingMode: ""
-    property int undoId: 0
+    property int undoId: -1
     property bool started: false
     property bool moved: false
     readonly property var noView: ({ from: "", to: [], cc: [], subject: "", date: 0, account: "" })
     // The platform's way to open a link and to export a file; the tests
     // replace them (neither has a visible effect on the desktop).
     property var openUrl: function(url) { Qt.openUrlExternally(url) }
+    // Whether Content Hub can take a file here; a test sets it.
+    property bool hubAvailable: content.hubAvailable
     property var exportFile: function(path, mode) { content.exportFile(path, mode) }
 
     // The body is laid out once, after the push transition ends (a page
@@ -290,6 +292,9 @@ Item {
                 theme: root.theme
                 core: root.core
                 view: root.view
+                attachmentsDir: content.attachmentsDir
+                hubAvailable: root.hubAvailable
+                onCalendarRequested: root.pendingMode = "calendar"
             }
             Rectangle {
                 objectName: "bodyCard"
