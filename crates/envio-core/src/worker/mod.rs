@@ -16,6 +16,7 @@ mod rows;
 mod run;
 mod search;
 mod setup;
+mod shown;
 mod start;
 mod store;
 #[cfg(test)]

@@ -92,6 +92,7 @@ Item {
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function openAnyway(id, loadImages, widthPx) { record("openAnyway", [id, loadImages, widthPx]) }
+    function reportImageSizes(id, sizesJson) { record("reportImageSizes", [id, sizesJson]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
     function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }
     function saveAttachment(id, index, dir) { record("saveAttachment", [id, index, dir]) }

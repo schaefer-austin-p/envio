@@ -150,6 +150,10 @@ pub struct RenderOptions {
     /// gave one, by Content-ID. A cid image with no width of its own is
     /// capped to the room it has when it would draw wider.
     pub cid_sizes: HashMap<String, (u32, u32)>,
+    /// Natural pixel size (width, height) of remote images, by URL as the
+    /// message writes it (and [`Rendered::remote_images`] lists it): the
+    /// reader reports them once loaded. Capped like a cid image.
+    pub image_sizes: HashMap<String, (u32, u32)>,
     /// Shown in place of a blocked image, or a `cid:` image the message
     /// doesn't hold, that has no alt text. Translated by the caller.
     pub blocked_label: String,
@@ -168,6 +172,9 @@ pub struct Rendered {
     /// reader preloads them: Qt 5's rich `TextEdit` reserves a remote
     /// image's space but never draws it once it arrives (#163).
     pub remote_images: Vec<String>,
+    /// The remote images written with no width, which a reported natural
+    /// size could still cap (see [`RenderOptions::image_sizes`]).
+    pub unsized_images: Vec<crate::Unsized>,
     /// Tracking pixels removed (even when remote images are on).
     pub removed_trackers: usize,
     /// The sanitised HTML sets its own background or dark text colour, so

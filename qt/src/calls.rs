@@ -208,6 +208,18 @@ impl qobject::EnvioCore {
         });
     }
 
+    /// The natural sizes of the remote images the reader loaded for
+    /// message `id`, as `{"url": [width, height]}`.
+    pub fn report_image_sizes(self: Pin<&mut Self>, id: i64, sizes_json: &QString) {
+        match crate::json::image_sizes_from_json(&s(sizes_json)) {
+            Ok(sizes) => self.send_command(Command::ImageSizes {
+                id: MessageRowId(id),
+                sizes,
+            }),
+            Err(error) => log::warn!("ignored malformed image sizes: {error}"),
+        }
+    }
+
     pub fn allow_images_from(self: Pin<&mut Self>, address: &QString) {
         self.send_command(Command::AllowImagesFrom {
             address: s(address),

@@ -89,7 +89,11 @@ Item {
         load(false)
     }
     onWidthChanged: start()
-    onMessageIdChanged: { started = false; view = null; largeAllowed = false; start() }
+    onMessageIdChanged: {
+        started = false; view = null; largeAllowed = false
+        sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
+        start()
+    }
     Component.onCompleted: { if (settled) everSettled = true; start() }
 
     // Archive and Delete leave the page (the inbox offers the Undo); the
@@ -164,8 +168,44 @@ Item {
             objectName: "preloadedImage"
             visible: false
             source: modelData
-            onStatusChanged: if (status === Image.Ready) imageRedraw.restart()
+            onStatusChanged: {
+                if (status !== Image.Ready) return
+                root.noteImageSize(modelData, implicitWidth, implicitHeight)
+                imageRedraw.restart()
+            }
         }
+    }
+    // Qt's rich text has no max-width: an image with no width draws at its
+    // natural size. The core caps one wider than the body once it knows the
+    // size (#170), so each loaded image's size goes to it once, in batches.
+    property var pendingSizes: ({})
+    property var reportedSizes: ({})
+    function noteImageSize(url, w, h) {
+        if (w <= 0 || h <= 0 || reportedSizes[url] !== undefined) return
+        pendingSizes[url] = [Math.round(w), Math.round(h)]
+        sizeReport.restart()
+    }
+    // The core takes at most this many sizes from one report.
+    readonly property int sizesPerReport: 256
+    function reportSizes() {
+        const sizes = pendingSizes
+        pendingSizes = ({})
+        const urls = Object.keys(sizes)
+        for (let i = 0; i < urls.length; i += sizesPerReport) {
+            const batch = {}
+            for (const url of urls.slice(i, i + sizesPerReport)) {
+                batch[url] = sizes[url]
+                reportedSizes[url] = true
+            }
+            core.reportImageSizes(messageId, JSON.stringify(batch))
+        }
+    }
+    // Not stopped by a new view: the core shows the message again with the
+    // sizes it has, and sizes still pending must reach it too.
+    Timer {
+        id: sizeReport
+        interval: 300
+        onTriggered: root.reportSizes()
     }
     // Several images arriving close together cost one layout.
     Timer {
