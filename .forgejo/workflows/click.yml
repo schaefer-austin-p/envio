@@ -19,6 +19,7 @@ on:
       - "qt/**"
       - ".forgejo/workflows/**"
       - tools/ci/click.sh
+      - tools/stamp.sh
       - tools/ci/dind.sh
 
 concurrency:

@@ -130,7 +130,7 @@ jobs:
           path: |
             target/ci-qt
             build-ci
-          key: app-build-v1-24.04-2.x-1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'CMakeLists.txt') }}
+          key: app-build-v1-24.04-2.x-1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'qt/stamp/Cargo.toml', 'qt/stamp/build.rs', 'CMakeLists.txt') }}
           restore-keys: |
             app-build-v1-24.04-2.x-1-
 

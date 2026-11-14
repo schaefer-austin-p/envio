@@ -3,12 +3,17 @@ import Envio 1.0
 import "../../platform"
 import "../../components"
 
-// About: the version and the commit this build was made from.
+// About: the version, and for a development build what it was made from.
 Item {
     id: root
     objectName: "aboutPage"
     required property Theme theme
     signal backRequested()
+
+    // BuildInfo's times are milliseconds since 1970, 0 when not known.
+    function when(ms) {
+        return ms > 0 ? new Date(ms).toLocaleString(Qt.locale(), Locale.ShortFormat) : qsTr("unknown")
+    }
 
     TopBar {
         id: bar
@@ -39,13 +44,25 @@ Item {
             font.family: root.theme.fontLabel
             font.pixelSize: 15
         }
+        // A development build says what it was made from and when (#198);
+        // an official release shows only the version.
         Text {
-            objectName: "commit"
+            objectName: "build"
+            visible: BuildInfo.dev
+            width: parent.width
+            wrapMode: Text.Wrap
             textFormat: Text.PlainText
-            text: BuildInfo.commit
+            text: [
+                qsTr("Development build"),
+                BuildInfo.source,
+                qsTr("Built %1").arg(root.when(BuildInfo.built)),
+                qsTr("Installed %1").arg(BuildInfo.installed > 0 ? root.when(BuildInfo.installed)
+                                                                  : qsTr("not as a click"))
+            ].join("\n")
             color: root.theme.secondary
             font.family: root.theme.fontLabel
             font.pixelSize: 13
+            lineHeight: 1.3
         }
     }
 }

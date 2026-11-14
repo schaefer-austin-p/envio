@@ -639,6 +639,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-stamp"
+version = "0.1.0"
+
+[[package]]
 name = "envio-store"
 version = "0.1.0"
 dependencies = [
@@ -675,6 +679,7 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "envio-core",
+ "envio-stamp",
  "envio-ui",
  "log",
  "secrecy",

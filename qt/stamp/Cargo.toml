@@ -1,0 +1,15 @@
+# What a development build was made from and when (#198), as two constants.
+# Its own crate so that a new stamp recompiles only this and the glue's
+# Rust, not the glue's generated C++. Nothing in an official release
+# (ENVIO_RELEASE=1).
+[package]
+name = "envio-stamp"
+version = "0.1.0"
+description = "Build stamp of Envio development builds."
+edition = "2024"
+license = "GPL-3.0-only"
+rust-version = "1.94"
+publish = false
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
