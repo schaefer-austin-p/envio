@@ -505,6 +505,31 @@ Item {
             compare(find("suggestionNote-0").mapToItem(page, 0, 0).x, margin)
         }
 
+        // #145: Enter made a chip but the cursor and keyboard went away, so a
+        // second address typed next went nowhere.
+        function test_enter_keeps_focus_in_the_field() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            to.input.forceActiveFocus()
+            verify(to.input.activeFocus)
+            // On the phone the platform drops focus once Enter is handled
+            // (offscreen it does not): do the same after the field's own
+            // handler, so the field has to take focus back.
+            const drop = function() { to.input.focus = false }
+            to.input.accepted.connect(drop)
+            keyClick("a"); keyClick("@"); keyClick("e"); keyClick("x")
+            keyClick(Qt.Key_Return)
+            to.input.accepted.disconnect(drop)
+            compare(to.entries, ["a@ex"])
+            compare(to.input.text, "")
+            tryVerify(function() { return to.input.activeFocus }, 1000, "the field keeps focus after Enter")
+            keyClick("b")
+            compare(to.input.text, "b")
+            compare(to.entries, ["a@ex"], "the refocus did not commit the new text")
+        }
+
         function test_recipient_row_is_one_line_beside_a_chip() {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
                                    inReplyTo: "", references: [], attachments: [] }, "")
