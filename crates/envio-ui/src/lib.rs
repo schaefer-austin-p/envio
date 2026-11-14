@@ -4,6 +4,7 @@
 
 mod convert;
 mod dates;
+mod heading;
 mod link;
 mod lists;
 mod mirror;

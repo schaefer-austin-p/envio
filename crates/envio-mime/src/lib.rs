@@ -6,11 +6,13 @@
 mod address;
 mod attach_part;
 mod attachments;
+mod backgrounds;
 mod build;
 mod colours;
 mod content_type;
 mod envelope;
 mod hidden;
+mod image_label;
 mod image_size;
 mod images;
 mod linear;

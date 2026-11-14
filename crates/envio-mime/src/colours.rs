@@ -4,6 +4,8 @@
 
 mod names;
 
+use std::borrow::Cow;
+
 use crate::images::{parse_tag, tag_len};
 
 /// Below this WCAG relative luminance, black text has the better contrast.
@@ -62,12 +64,43 @@ fn is_visible(value: &str) -> bool {
 /// A `bgcolor` value, as an attribute or as the `background-color` that
 /// `linearise` turns it into: HTML also accepts bare hex (`ffffff`) there.
 pub(crate) fn is_visible_attr(value: &str) -> bool {
+    is_visible(&with_hash(value))
+}
+
+/// `value` trimmed, with a `#` before bare hex (`ffffff`).
+fn with_hash(value: &str) -> Cow<'_, str> {
     let v = value.trim();
     let bare_hex = matches!(v.len(), 3 | 6) && v.bytes().all(|b| b.is_ascii_hexdigit());
     if bare_hex {
-        is_visible(&format!("#{v}"))
+        Cow::Owned(format!("#{v}"))
     } else {
-        is_visible(v)
+        Cow::Borrowed(v)
+    }
+}
+
+/// What a background value (CSS, or a `bgcolor` with bare hex) paints.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Paint {
+    /// A fully opaque colour, as `#rrggbb`: the only form it is written
+    /// back in, whatever the input looked like.
+    Opaque(String),
+    /// Nothing: `transparent`, or a colour with zero alpha.
+    Clear,
+    /// Half transparent, or not a colour [`parse_colour`] reads
+    /// (`inherit`, junk).
+    Unknown,
+}
+
+pub(crate) fn paint(value: &str) -> Paint {
+    let value = with_hash(value);
+    let bare = value.split('!').next().unwrap_or_default().trim();
+    if bare.eq_ignore_ascii_case("transparent") {
+        return Paint::Clear;
+    }
+    match parse_rgba(&value) {
+        Some((r, g, b, 255)) => Paint::Opaque(format!("#{r:02x}{g:02x}{b:02x}")),
+        Some((_, _, _, 0)) => Paint::Clear,
+        _ => Paint::Unknown,
     }
 }
 

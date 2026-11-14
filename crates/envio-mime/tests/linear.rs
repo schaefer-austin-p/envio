@@ -78,10 +78,14 @@ fn linearising_keeps_text_order_and_alignment() {
     );
     in_order(&html, &["first", "<b>bold</b>", "second"]);
     assert!(
-        html.contains(r#"<div align="right" style="color:red">first"#),
+        html.contains(r#"<div align="right" style="background-color:#ff0000;color:red">first"#),
         "{html}"
     );
-    assert!(html.contains(r#"<div align="center">second"#), "{html}");
+    // The table's background reaches each cell (see tests/backgrounds.rs).
+    assert!(
+        html.contains(r#"<div align="center" style="background-color:#ff0000">second"#),
+        "{html}"
+    );
     for dropped in ["cellpadding", "bgcolor=", "width", "valign"] {
         assert!(!html.contains(dropped), "{dropped} kept in {html}");
     }
@@ -353,7 +357,8 @@ fn two_free_width_columns_beside_an_icon_stack() {
         r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>one</p></td><td><p>two</p></td></tr></table>"#,
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
-    in_order(&html, &["A", "one", "two"]);
+    // The blocked 40 px icon leaves no label.
+    in_order(&html, &["<div></div>", "one", "two"]);
 }
 
 #[test]
