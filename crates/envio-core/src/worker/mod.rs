@@ -84,6 +84,9 @@ pub(crate) struct Worker<'s> {
     book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
+    /// Messages whose running body step found a forward that needs the
+    /// whole message (see `Worker::wait_for_whole`).
+    whole_again: BTreeSet<MessageRowId>,
     /// The thread that does the network half of account setup.
     setup: Arc<SetupThread>,
     /// The newest `Detect` ticket by address: an older answer is dropped.
@@ -209,6 +212,7 @@ impl<'s> Worker<'s> {
             undo: UndoBook::default(),
             book: Arc::clone(book),
             composing: BTreeMap::new(),
+            whole_again: BTreeSet::new(),
             setup: Arc::clone(setup),
             detecting: BTreeMap::new(),
             probing: BTreeMap::new(),

@@ -357,8 +357,8 @@ impl Worker<'_> {
 
     /// A body step ended: show the message that waited for it. `None` is a
     /// body gone from the server.
-    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
-        self.compose_body_fetched(id, raw);
+    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>, whole: bool) {
+        self.compose_body_fetched(id, raw, whole);
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
@@ -441,7 +441,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         fs::create_dir_all(&b_dir).unwrap();
         fs::write(b_dir.join("0.png"), b"hello").unwrap();
         // A's body arrives.
-        worker.body_fetched(seeded.message, Some(WITH_IMAGE));
+        worker.body_fetched(seeded.message, Some(WITH_IMAGE), false);
         assert!(b_dir.join("0.png").exists());
         let a_dir = worker
             .store

@@ -123,19 +123,27 @@ pub(super) async fn body(
         .account_of(id)
         .and_then(|account| worker.live.get(&account))
         .is_some_and(|live| live.wants.whole.contains(&id));
+    // The whole message of a big one is not cached (see `fetch_whole_body`),
+    // so it is not indexed either.
+    let kept = !whole
+        || !worker
+            .store
+            .db
+            .message(id)
+            .is_ok_and(|m| driver::is_big(m.size));
     let eml = if whole {
         driver::fetch_whole_body(session, &mut worker.store.local(), id).await
     } else {
         driver::fetch_body(session, &mut worker.store.local(), id).await
     }
     .map_err(|e| imap_error(&e))?;
-    if let Some(eml) = &eml {
+    if let (true, Some(eml)) = (kept, &eml) {
         index_body(worker, id, eml);
     }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
     });
-    worker.body_fetched(id, eml.as_deref());
+    worker.body_fetched(id, eml.as_deref(), whole);
     Ok(())
 }
 

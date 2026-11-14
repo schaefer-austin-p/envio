@@ -281,7 +281,7 @@ mod tests {
         assert!(worker.live[&account].wants.bodies.contains(&id));
         worker.forget_waiting(C);
         assert!(worker.composing.is_empty());
-        worker.compose_body_fetched(id, None);
+        worker.compose_body_fetched(id, None, false);
         assert!(said(&sink).is_empty());
     }
 

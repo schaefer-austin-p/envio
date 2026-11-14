@@ -169,7 +169,13 @@ impl Worker<'_> {
     }
 
     /// A body step ended: start the replies and forwards that waited for it.
-    pub(super) fn compose_body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
+    /// `whole` says `raw` is the whole message, not what a big one comes in.
+    pub(super) fn compose_body_fetched(
+        &mut self,
+        id: MessageRowId,
+        raw: Option<&[u8]>,
+        whole: bool,
+    ) {
         let partial = self
             .store
             .db
@@ -179,7 +185,7 @@ impl Worker<'_> {
             match raw {
                 // The open message's partial body came first: a forward
                 // asks again for the whole message.
-                Some(_) if partial && matches!(from, StartFrom::Forward { .. }) => {
+                Some(_) if !whole && partial && matches!(from, StartFrom::Forward { .. }) => {
                     self.wait_for_whole(compose, id, from);
                 }
                 Some(raw) => self.finish_start((compose, &from), id, raw),
@@ -188,19 +194,36 @@ impl Worker<'_> {
         }
     }
 
-    /// Queues the whole body of `id` for a forward that got a partial one.
+    /// Asks for the whole body of `id` for a forward that got a partial one.
+    /// The body step that found it out is still running and clears its wants
+    /// when it ends, so the ask is kept in `whole_again` and made then (see
+    /// `run::succeeded`).
     fn wait_for_whole(&mut self, compose: ComposeId, id: MessageRowId, from: StartFrom) {
+        if self
+            .account_of(id)
+            .is_none_or(|a| !self.live.contains_key(&a))
+        {
+            return self.compose_refused(compose, text::read::message_unavailable());
+        }
+        self.whole_again.insert(id);
+        self.composing.entry(id).or_default().push((compose, from));
+    }
+
+    /// The body step of `id` ended well: a forward that needs the whole
+    /// message makes the want again.
+    pub(super) fn ask_whole_again(&mut self, id: MessageRowId) {
+        if !self.whole_again.remove(&id) {
+            return;
+        }
         let live = self
             .account_of(id)
             .and_then(|account| self.live.get_mut(&account));
-        let Some(live) = live else {
-            return self.compose_refused(compose, text::read::message_unavailable());
-        };
-        if !live.wants.bodies.contains(&id) {
-            live.wants.bodies.push(id);
+        if let Some(live) = live {
+            if !live.wants.bodies.contains(&id) {
+                live.wants.bodies.push(id);
+            }
+            live.wants.whole.insert(id);
         }
-        live.wants.whole.insert(id);
-        self.composing.entry(id).or_default().push((compose, from));
     }
 
     /// A step failed: nobody waiting for a body of `account` (any account
@@ -217,7 +240,8 @@ impl Worker<'_> {
                 live.wants.bodies.retain(|b| *b != id);
                 live.wants.whole.remove(&id);
             }
-            self.compose_body_fetched(id, None);
+            self.whole_again.remove(&id);
+            self.compose_body_fetched(id, None, false);
         }
     }
 }

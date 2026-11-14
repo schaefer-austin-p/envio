@@ -180,6 +180,9 @@ fn keep_open(foreground: bool, step: &Step, wants: &super::plan::Wants) -> bool 
 
 fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
     finished(worker, account, step);
+    if let Step::Body(id) = step {
+        worker.ask_whole_again(*id);
+    }
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
         live.health.ok_step(step.kind(), disk_full);
@@ -316,6 +319,42 @@ mod tests {
         finished(&mut worker, &account, &Step::Folder(id));
         let live = worker.live.get_mut(&account).unwrap();
         assert!(!live.wants.folders.contains(&id));
+    }
+
+    #[test]
+    fn a_forward_waiting_on_a_partial_body_asks_again_after_the_step() {
+        use super::succeeded;
+        use crate::api::command::{ComposeId, StartFrom};
+        use crate::worker::plan::Step;
+        use envio_store::BodyState;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let (account, id) = (seeded.account.clone(), seeded.message);
+        worker
+            .store
+            .db
+            .set_body_state(id, BodyState::Partial)
+            .unwrap();
+        // A body step for the open message is running, not for the whole one.
+        worker.live.get_mut(&account).unwrap().wants.bodies.push(id);
+        worker.start_compose(ComposeId(7), StartFrom::Forward { id }, (None, None));
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        // The step ends with the partial body: the forward needs the rest.
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nhi"), false);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        let live = &worker.live[&account];
+        assert!(live.wants.bodies.contains(&id), "the ask was dropped");
+        assert!(live.wants.whole.contains(&id));
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        // The whole message arrives (the cache stays partial): answered.
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nhi"), true);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        assert!(worker.composing.is_empty(), "the forward was not answered");
+        assert!(worker.live[&account].wants.bodies.is_empty());
+        assert!(worker.live[&account].wants.whole.is_empty());
     }
 
     #[test]
