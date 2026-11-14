@@ -1,6 +1,8 @@
 //! HTML mail to Qt rich text: ammonia does the cleaning, then
 //! [`crate::images`] decides about images and over-wide tables, and
-//! [`crate::hidden`] removes elements that CSS hides.
+//! [`crate::hidden`] removes elements that CSS hides; [`crate::linear`]
+//! turns layout tables into blocks and [`crate::backgrounds`] repaints the
+//! blocks inside a coloured container.
 
 use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -220,6 +222,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     let mut images = Vec::new();
     let mut rendered = crate::images::fit(&clean, options, &mut images);
     rendered.html = crate::linear::linearise(&rendered.html, &images);
+    rendered.html = crate::backgrounds::fill(&rendered.html);
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }

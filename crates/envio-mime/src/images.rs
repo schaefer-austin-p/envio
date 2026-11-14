@@ -4,6 +4,7 @@
 //! a quote-aware scan finds where it ends.
 
 use crate::hidden::{Ends, is_unwrapped};
+use crate::image_label;
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -44,7 +45,7 @@ impl Tag {
             .map(|(_, v)| v.as_str())
     }
 
-    fn write(&self, out: &mut String) {
+    pub(crate) fn write(&self, out: &mut String) {
         out.push('<');
         out.push_str(&self.name);
         for (name, value) in &self.attrs {
@@ -210,14 +211,14 @@ fn image(
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
-                alt_or_label(tag, options, out);
+                image_label::write(tag, options, &mut out.html);
                 return Some(width);
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
-            alt_or_label(tag, options, out);
+            image_label::write(tag, options, &mut out.html);
             return Some(width);
         }
         if !out.remote_images.iter().any(|seen| seen == src) {
@@ -320,18 +321,6 @@ fn percent(value: &str) -> Option<f64> {
     (n > 0.0).then_some(n.min(100.0))
 }
 
-/// The loadable URL for a `cid:` reference, with or without angle brackets.
-/// An image that isn't shown: its alt text, or the caller's label.
-fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
-    let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
-    let label = if alt.is_empty() {
-        &options.blocked_label
-    } else {
-        alt
-    };
-    escape_into(label, &mut out.html);
-}
-
 /// The loadable URL for a `cid:` reference and the image's natural size,
 /// when known.
 fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<(&'o str, Option<(u32, u32)>)> {
@@ -367,7 +356,7 @@ fn size(tag: &Tag, name: &str) -> Option<u32> {
     })
 }
 
-fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
+pub(crate) fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
     style.split(';').find_map(|declaration| {
         let (prop, value) = declaration.split_once(':')?;
         prop.trim().eq_ignore_ascii_case(name).then_some(value)

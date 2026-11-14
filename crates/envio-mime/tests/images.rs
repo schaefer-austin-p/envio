@@ -29,7 +29,10 @@ fn blocks_remote_images_by_default() {
         r#"<img src="https://example.com/a.png" alt="A &amp; B"><img src="http://example.com/b.png">"#,
         &blocked(),
     );
-    assert_eq!(r.html, "A &amp; B[image]");
+    assert_eq!(
+        r.html,
+        r#"<span style="text-decoration:none">A &amp; B</span><span style="text-decoration:none">[image]</span>"#
+    );
     assert_eq!(r.blocked_images, 2);
     assert_eq!(r.removed_trackers, 0);
 }
@@ -116,7 +119,7 @@ fn maps_cid_images_and_labels_unknown_ones() {
     // remote image, but loading remote images would not bring it back.
     assert_eq!(
         r.html,
-        r#"<img src="image://envio/3" alt="Logo">[image] Chart &amp; key"#
+        r#"<img src="image://envio/3" alt="Logo"><span style="text-decoration:none">[image]</span> <span style="text-decoration:none">Chart &amp; key</span>"#
     );
     assert_eq!(r.blocked_images, 0);
 }
