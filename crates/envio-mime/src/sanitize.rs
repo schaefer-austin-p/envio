@@ -158,6 +158,10 @@ pub struct Rendered {
     pub html: String,
     /// Remote images not loaded because remote images are off.
     pub blocked_images: usize,
+    /// The http and https images the HTML loads, each once, in order. The
+    /// reader preloads them: Qt 5's rich `TextEdit` reserves a remote
+    /// image's space but never draws it once it arrives (#163).
+    pub remote_images: Vec<String>,
     /// Tracking pixels removed (even when remote images are on).
     pub removed_trackers: usize,
     /// The sanitised HTML sets its own background or dark text colour, so

@@ -121,6 +121,7 @@ fn an_opened_message_names_its_id() {
         html: String::new(),
         raw: false,
         blocked_images: 0,
+        remote_images: vec![],
         own_colours: false,
         attachments: vec![],
     };

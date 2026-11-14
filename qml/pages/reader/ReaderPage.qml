@@ -44,11 +44,21 @@ Item {
     onSettledChanged: if (settled) everSettled = true
     readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
-    // HTML, so this is the value to read).
+    // HTML, so this is the value to read; an image redraw adds only an empty
+    // comment).
     // Mail that sets its own colours (the core says so) sits on a light
     // paper card in both themes; nothing here reads the HTML.
     readonly property bool paper: view !== null && view.ownColours === true
     readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), theme.bodyLineHeight) : ""
+
+    // Qt 5's rich TextEdit reserves a remote image's space but never draws
+    // it once it arrives (#163). Hidden Images load the same URLs into Qt's
+    // pixmap cache; each time some are in, the body is set again (a
+    // different string, so the TextEdit lays out) and draws them from there.
+    property int imageRedraws: 0
+    readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
+    // A redraw due for the last message must not lay out the next one.
+    onViewChanged: imageRedraw.stop()
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
@@ -110,6 +120,23 @@ Item {
                 when: root.view !== null && account.model.key === root.view.account
             }
         }
+    }
+
+    Repeater {
+        model: root.remoteImages
+        delegate: Image {
+            required property string modelData
+            objectName: "preloadedImage"
+            visible: false
+            source: modelData
+            onStatusChanged: if (status === Image.Ready) imageRedraw.restart()
+        }
+    }
+    // Several images arriving close together cost one layout.
+    Timer {
+        id: imageRedraw
+        interval: 300
+        onTriggered: root.imageRedraws += 1
     }
 
     TopBar {
@@ -201,7 +228,10 @@ Item {
                     cursorVisible: false
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    text: root.bodyHtml
+                    // An empty comment after an image redraw: same layout,
+                    // but a new string, so the TextEdit takes the images
+                    // from the cache.
+                    text: root.bodyHtml + (root.imageRedraws % 2 === 1 ? "<!---->" : "")
                     textFormat: TextEdit.RichText
                     wrapMode: TextEdit.Wrap
                     color: root.paper ? root.theme.paperText : root.theme.text
