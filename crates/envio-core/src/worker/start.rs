@@ -34,7 +34,14 @@ impl Worker<'_> {
         let Ok(message) = self.store.db.message(id) else {
             return self.compose_refused(compose, unavailable);
         };
-        if message.body == BodyState::Downloaded {
+        // A forward carries the attachments, which a partial body lacks.
+        let whole = matches!(from, StartFrom::Forward { .. });
+        let cached = match message.body {
+            BodyState::Downloaded => true,
+            BodyState::Partial => !whole,
+            BodyState::Missing => false,
+        };
+        if cached {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => return self.finish_start((compose, &from), id, &raw),
                 Err(e) => log::warn!("reading a cached body: {e}"),
@@ -53,6 +60,9 @@ impl Worker<'_> {
         }
         if !live.wants.bodies.contains(&id) {
             live.wants.bodies.push(id);
+        }
+        if whole {
+            live.wants.whole.insert(id);
         }
         self.composing.entry(id).or_default().push((compose, from));
     }
@@ -160,12 +170,37 @@ impl Worker<'_> {
 
     /// A body step ended: start the replies and forwards that waited for it.
     pub(super) fn compose_body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
+        let partial = self
+            .store
+            .db
+            .message(id)
+            .is_ok_and(|m| m.body == BodyState::Partial);
         for (compose, from) in self.composing.remove(&id).unwrap_or_default() {
             match raw {
+                // The open message's partial body came first: a forward
+                // asks again for the whole message.
+                Some(_) if partial && matches!(from, StartFrom::Forward { .. }) => {
+                    self.wait_for_whole(compose, id, from);
+                }
                 Some(raw) => self.finish_start((compose, &from), id, raw),
                 None => self.compose_refused(compose, text::read::message_unavailable()),
             }
         }
+    }
+
+    /// Queues the whole body of `id` for a forward that got a partial one.
+    fn wait_for_whole(&mut self, compose: ComposeId, id: MessageRowId, from: StartFrom) {
+        let live = self
+            .account_of(id)
+            .and_then(|account| self.live.get_mut(&account));
+        let Some(live) = live else {
+            return self.compose_refused(compose, text::read::message_unavailable());
+        };
+        if !live.wants.bodies.contains(&id) {
+            live.wants.bodies.push(id);
+        }
+        live.wants.whole.insert(id);
+        self.composing.entry(id).or_default().push((compose, from));
     }
 
     /// A step failed: nobody waiting for a body of `account` (any account
@@ -180,6 +215,7 @@ impl Worker<'_> {
         for id in waiting {
             for live in self.live.values_mut() {
                 live.wants.bodies.retain(|b| *b != id);
+                live.wants.whole.remove(&id);
             }
             self.compose_body_fetched(id, None);
         }

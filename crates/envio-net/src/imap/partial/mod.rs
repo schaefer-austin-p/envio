@@ -168,7 +168,7 @@ impl ImapSession {
             }
         }
         items.push(')');
-        self.fetch_items(uid, &items, bytes, parts, out).await
+        self.fetch_items((uid, &items, bytes), parts, out).await
     }
 
     /// The bodies of the wanted parts only (the headers of a single-part
@@ -191,14 +191,12 @@ impl ImapSession {
             out.extend(parts.iter().map(|(s, _, _)| (s.clone(), Vec::new())));
             return Ok(());
         }
-        self.fetch_items(uid, &items, bytes, parts, out).await
+        self.fetch_items((uid, &items, bytes), parts, out).await
     }
 
     async fn fetch_items(
         &mut self,
-        uid: u32,
-        items: &str,
-        bytes: usize,
+        (uid, items, bytes): (u32, &str, usize),
         parts: &[(String, u32, bool)],
         out: &mut Fetched,
     ) -> Result<()> {

@@ -77,7 +77,7 @@ async fn asking_for_the_whole_message_replaces_the_partial_body() {
 #[tokio::test]
 async fn one_part_is_fetched_on_its_own_and_not_stored() {
     let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
-    let part = fetch_part(&mut server, &mut store.local(), id, "2", 1000)
+    let part = fetch_part(&mut server, &mut store.local(), id, ("2", 1000))
         .await
         .unwrap();
     assert_eq!(part.as_deref(), Some(&b"part 2"[..]));
@@ -88,7 +88,7 @@ async fn one_part_is_fetched_on_its_own_and_not_stored() {
 async fn a_part_of_a_changed_folder_is_none() {
     let (mut server, mut store, id) = synced(10).await;
     server.folders.get_mut("INBOX").unwrap().uid_validity += 1;
-    let part = fetch_part(&mut server, &mut store.local(), id, "2", 10)
+    let part = fetch_part(&mut server, &mut store.local(), id, ("2", 10))
         .await
         .unwrap();
     assert_eq!(part, None);

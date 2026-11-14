@@ -83,8 +83,7 @@ pub async fn fetch_part(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     id: MessageRowId,
-    section: &str,
-    size: usize,
+    (section, size): (&str, usize),
 ) -> Result<Option<Vec<u8>>> {
     let message = local.db.message(id)?;
     let folder = local.db.folder(message.folder)?;

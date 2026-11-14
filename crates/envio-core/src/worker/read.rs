@@ -175,7 +175,7 @@ fn numbered(name: &str, n: u32) -> String {
 }
 
 /// Writes `bytes` to a new file in `dir`, never over an existing one.
-fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+pub(super) fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     use io::Write;
     for n in 1..=1000 {
         let path = dir.join(numbered(name, n));
@@ -205,20 +205,6 @@ fn folder_name(path: &str) -> String {
         Some(last) if !last.is_empty() => last.to_owned(),
         _ => path.to_owned(),
     }
-}
-
-/// Messages above this many bytes (RFC822.SIZE) are not fetched or parsed
-/// until the user asks: the whole body is held in memory, and the HTML is
-/// converted on top of it, against a budget of a few hundred MiB.
-const OPEN_CAP_BYTES: u32 = 20 * 1024 * 1024;
-
-fn over_cap(size: u32) -> bool {
-    size > OPEN_CAP_BYTES
-}
-
-/// `size` in whole megabytes, rounded to the nearest.
-fn megabytes(size: u32) -> u32 {
-    size.saturating_add(500_000) / 1_000_000
 }
 
 impl Worker<'_> {
@@ -331,29 +317,16 @@ impl Worker<'_> {
         }
     }
 
+    /// A big message is cached as a partial body (see `BodyState::Partial`),
+    /// which shows like a whole one.
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
-        self.open_message_with(id, (images, width_px), false);
-    }
-
-    /// `anyway` lifts the size cap: the user asked for the big message.
-    pub(super) fn open_message_with(
-        &mut self,
-        id: MessageRowId,
-        (images, width_px): (ImagesChoice, u32),
-        anyway: bool,
-    ) {
+        let (images, width_px) = (images, width_px);
         self.store.open_message = Some(id);
         self.forget_other_shown(id);
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
-        if !anyway && over_cap(message.size) {
-            return self.emit(Event::MessageTooLarge {
-                id,
-                text: text::read::message_too_large(megabytes(message.size)),
-            });
-        }
-        if message.body == BodyState::Downloaded {
+        if message.body != BodyState::Missing {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
                     let shown = self.view(&message, &raw, (images, width_px));
@@ -413,48 +386,11 @@ impl Worker<'_> {
             self.opening.remove(&id);
             for live in self.live.values_mut() {
                 live.wants.bodies.retain(|b| *b != id);
+                live.wants.whole.remove(&id);
             }
             self.unavailable(id);
         }
-    }
-
-    pub(super) fn save_attachment(&self, id: MessageRowId, index: usize, dir: &Path) {
-        match self.write_attachment(id, index, dir) {
-            Ok(path) => self.emit(Event::AttachmentSaved { id, index, path }),
-            Err(e) => {
-                log::warn!("saving an attachment: {e}");
-                self.emit(Event::AttachmentFailed { id, index });
-                self.emit(Event::Notice {
-                    text: text::read::attachment_not_saved(),
-                });
-            }
-        }
-    }
-
-    pub(super) fn write_attachment(
-        &self,
-        id: MessageRowId,
-        index: usize,
-        dir: &Path,
-    ) -> io::Result<PathBuf> {
-        let message = self.store.db.message(id).map_err(io::Error::other)?;
-        let raw = self
-            .store
-            .bodies
-            .read(message.folder, message.uid)
-            .map_err(io::Error::other)?;
-        let bytes = envio_mime::attachment_bytes(&raw, index)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such attachment"))?;
-        let filename = match envio_mime::parse(&raw) {
-            Mime::Parsed { attachments, .. } => attachments
-                .into_iter()
-                .find(|a| a.index == index)
-                .and_then(|a| a.filename),
-            Mime::Raw(_) => None,
-        };
-        let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
-        std::fs::create_dir_all(dir)?;
-        write_new(dir, &name, &bytes)
+        self.parts_failed(account);
     }
 }
 

@@ -119,9 +119,16 @@ pub(super) async fn body(
     if let Some(account) = worker.account_of(id) {
         crate::hooks::reached(crate::hooks::Point::BodyFetch, &account);
     }
-    let eml = driver::fetch_body(session, &mut worker.store.local(), id)
-        .await
-        .map_err(|e| imap_error(&e))?;
+    let whole = worker
+        .account_of(id)
+        .and_then(|account| worker.live.get(&account))
+        .is_some_and(|live| live.wants.whole.contains(&id));
+    let eml = if whole {
+        driver::fetch_whole_body(session, &mut worker.store.local(), id).await
+    } else {
+        driver::fetch_body(session, &mut worker.store.local(), id).await
+    }
+    .map_err(|e| imap_error(&e))?;
     if let Some(eml) = &eml {
         index_body(worker, id, eml);
     }
@@ -129,6 +136,39 @@ pub(super) async fn body(
         folders: vec![folder],
     });
     worker.body_fetched(id, eml.as_deref());
+    Ok(())
+}
+
+/// Fetches one attachment of a partial message and writes it where the user
+/// asked (see `Worker::part_fetched`).
+pub(super) async fn part(
+    worker: &mut Worker<'_>,
+    session: &mut ImapSession,
+    id: MessageRowId,
+    index: usize,
+) -> Result<(), Problem> {
+    let want = worker
+        .account_of(id)
+        .and_then(|account| worker.live.get(&account))
+        .and_then(|live| {
+            live.wants
+                .parts
+                .iter()
+                .find(|p| p.id == id && p.index == index)
+                .cloned()
+        });
+    let Some(want) = want else {
+        return Ok(());
+    };
+    let raw = driver::fetch_part(
+        session,
+        &mut worker.store.local(),
+        id,
+        (&want.section, want.size),
+    )
+    .await
+    .map_err(|e| imap_error(&e))?;
+    worker.part_fetched(&want, raw.as_deref());
     Ok(())
 }
 

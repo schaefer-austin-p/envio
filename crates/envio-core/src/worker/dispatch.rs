@@ -78,7 +78,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             images,
             width_px,
         } => {
-            worker.open_message_with(id, (images, width_px), true);
+            worker.open_message(id, images, width_px);
             Flow::Continue
         }
         Command::ImageSizes { id, sizes } => {

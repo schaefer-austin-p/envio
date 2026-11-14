@@ -22,16 +22,19 @@ pub type Fetched = HashMap<String, Vec<u8>>;
 pub fn assemble(root: &Node, header: &[u8], fetched: &Fetched) -> Vec<u8> {
     let mut out = Vec::new();
     match &root.kind {
-        Kind::Multipart { subtype, children } => {
+        Kind::Multipart { .. } => {
             out.extend_from_slice(&without_content_type(header));
-            multipart(&mut out, root, subtype, children, fetched);
+            multipart(&mut out, root, fetched);
         }
         Kind::Leaf(_) => leaf(&mut out, root, header, fetched),
     }
     out
 }
 
-fn multipart(out: &mut Vec<u8>, node: &Node, subtype: &str, children: &[Node], f: &Fetched) {
+fn multipart(out: &mut Vec<u8>, node: &Node, f: &Fetched) {
+    let Kind::Multipart { subtype, children } = &node.kind else {
+        return;
+    };
     let boundary = format!("=_envio_{}", node.section.replace('.', "_"));
     out.extend_from_slice(
         format!("Content-Type: multipart/{subtype}; boundary=\"{boundary}\"\r\n\r\n").as_bytes(),
@@ -39,9 +42,7 @@ fn multipart(out: &mut Vec<u8>, node: &Node, subtype: &str, children: &[Node], f
     for child in children {
         out.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
         match &child.kind {
-            Kind::Multipart { subtype, children } => {
-                multipart(out, child, subtype, children, f);
-            }
+            Kind::Multipart { .. } => multipart(out, child, f),
             Kind::Leaf(_) => {
                 let header = f.get(&format!("{}.MIME", child.section));
                 leaf(out, child, header.map_or(&[][..], Vec::as_slice), f);
