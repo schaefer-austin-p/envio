@@ -4,6 +4,7 @@ use std::hash::{BuildHasher, RandomState};
 
 use mail_builder::MessageBuilder;
 use mail_builder::headers::address::Address as BuilderAddress;
+use mail_builder::mime::{BodyPart, MimePart};
 
 use crate::address::{Address, dedup, has_specials, is_special};
 
@@ -23,6 +24,17 @@ pub struct Outgoing {
     /// Without angle brackets, oldest first.
     pub references: Vec<String>,
     pub attachments: Vec<OutgoingAttachment>,
+    /// A calendar answer: the mail becomes `multipart/alternative` (text,
+    /// then the calendar part).
+    pub calendar: Option<CalendarPart>,
+}
+
+/// An iMIP part, sent as `text/calendar; method=…; charset=utf-8`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CalendarPart {
+    /// The iTIP method, e.g. `REPLY`; must match the METHOD line in `ics`.
+    pub method: &'static str,
+    pub ics: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -97,6 +109,9 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
         );
         builder.attachments.get_or_insert_with(Vec::new).push(part);
     }
+    if let Some(calendar) = &outgoing.calendar {
+        builder = with_calendar(builder, outgoing, calendar);
+    }
     let mut bytes = Vec::new();
     builder.serialize(&mut bytes);
     Built {
@@ -104,6 +119,31 @@ pub fn build(outgoing: &Outgoing, date_unix: i64, message_id: &str) -> Built {
         bytes,
         recipients: recipients(outgoing),
     }
+}
+
+/// The body as `multipart/alternative` (text, calendar), inside
+/// `multipart/mixed` when there are attachments. mail-builder's own layout
+/// cannot hold a calendar part, so the structure is set by hand.
+fn with_calendar<'a>(
+    mut builder: MessageBuilder<'a>,
+    outgoing: &Outgoing,
+    calendar: &CalendarPart,
+) -> MessageBuilder<'a> {
+    let text = MimePart::new(
+        "text/plain",
+        BodyPart::Text(outgoing.text.replace("\r\n", "\n").into()),
+    );
+    let calendar = crate::attach_part::calendar_part(calendar.method, calendar.ics.as_bytes());
+    let alternative = MimePart::new("multipart/alternative", vec![text, calendar]);
+    let body = match builder.attachments.take() {
+        Some(files) => {
+            let mut parts = vec![alternative];
+            parts.extend(files);
+            MimePart::new("multipart/mixed", parts)
+        }
+        None => alternative,
+    };
+    builder.body(body)
 }
 
 /// A fresh Message-ID (without angle brackets): 128 random bits in hex,

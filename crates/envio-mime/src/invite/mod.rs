@@ -3,6 +3,7 @@
 
 mod event;
 mod lines;
+mod reply;
 mod when;
 mod zones;
 
@@ -11,6 +12,7 @@ use mail_parser::MimeHeaders;
 use crate::mail::{is_broken_multipart, parse_mail};
 
 pub use event::parse_invite;
+pub use reply::{reply_ics, reply_outgoing};
 pub use when::{NaiveParts, When};
 
 /// The iTIP method an invite carries.
@@ -50,6 +52,11 @@ pub struct Invite {
     pub summary: String,
     pub location: String,
     pub when: When,
+    /// The DTSTART line as received (unfolded, with its TZID), copied into
+    /// a reply.
+    pub dtstart_line: String,
+    /// The ORGANIZER line as received; `Some` exactly when `organizer` is.
+    pub organizer_line: Option<String>,
     /// Only a `mailto:` value counts.
     pub organizer: Option<Person>,
     /// At most 500 kept.

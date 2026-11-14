@@ -10,6 +10,8 @@ pub(super) struct Prop {
     pub params: Vec<(String, String)>,
     /// Still text-escaped; see [`unescape`].
     pub value: String,
+    /// The unfolded line as received, for copying into a reply.
+    pub line: String,
 }
 
 impl Prop {
@@ -82,6 +84,7 @@ pub(super) fn split(line: &str) -> Option<Prop> {
         name,
         params,
         value: value.to_owned(),
+        line: line.to_owned(),
     })
 }
 

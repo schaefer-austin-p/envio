@@ -51,6 +51,14 @@ pub(crate) fn part<'a>(content_type: &'a str, filename: &'a str, bytes: &[u8]) -
         .transfer_encoding("base64")
 }
 
+/// An iMIP part: `text/calendar; method=…; charset=utf-8`, base64, inline.
+pub(crate) fn calendar_part(method: &'static str, ics: &[u8]) -> MimePart<'static> {
+    let ct = ContentType::new("text/calendar")
+        .attribute("method", method)
+        .attribute("charset", "utf-8");
+    MimePart::new(ct, BodyPart::Binary(base64_lines(ics).into())).transfer_encoding("base64")
+}
+
 #[cfg(test)]
 mod tests {
     use super::base64_lines;

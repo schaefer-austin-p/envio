@@ -43,7 +43,8 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
     if uid.is_empty() {
         return None;
     }
-    let when = read(get("DTSTART")?, get("DTEND"), get("DURATION"), &vtz)?;
+    let dtstart = get("DTSTART")?;
+    let when = read(dtstart, get("DTEND"), get("DURATION"), &vtz)?;
     let text = |name: &str| get(name).map_or_else(String::new, |p| unescape(&p.value, MAX_TEXT));
     let status_cancelled =
         get("STATUS").is_some_and(|p| p.value.trim().eq_ignore_ascii_case("CANCELLED"));
@@ -56,6 +57,10 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
         summary: text("SUMMARY"),
         location: text("LOCATION"),
         when,
+        dtstart_line: dtstart.line.clone(),
+        organizer_line: get("ORGANIZER")
+            .filter(|p| person(p).is_some())
+            .map(|p| p.line.clone()),
         organizer: get("ORGANIZER").and_then(person),
         attendees: event
             .iter()
