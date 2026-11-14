@@ -48,6 +48,22 @@ pub fn attachment_bytes(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     Some(message.attachment(index)?.contents().to_vec())
 }
 
+/// The decoded bytes of each attachment in `indexes`, from one parse of
+/// `raw`; `None` for an index the message does not have. Gives what
+/// [`attachment_bytes`] gives per index.
+pub fn attachments_bytes(raw: &[u8], indexes: &[usize]) -> Vec<Option<Vec<u8>>> {
+    let Some(message) = parse_mail(raw).filter(|m| !is_broken_multipart(m)) else {
+        return vec![None; indexes.len()];
+    };
+    indexes
+        .iter()
+        .map(|&i| {
+            let i = u32::try_from(i).ok()?;
+            Some(message.attachment(i)?.contents().to_vec())
+        })
+        .collect()
+}
+
 fn info(index: usize, part: &MessagePart<'_>) -> AttachmentInfo {
     let content_type = part.content_type().map_or_else(
         || "application/octet-stream".to_owned(),

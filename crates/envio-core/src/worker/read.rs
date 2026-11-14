@@ -91,6 +91,7 @@ pub(crate) fn render_view(
         (Mime::Parsed { attachments, .. }, Some(dir)) => {
             super::inline::write(dir, raw, attachments)
         }
+        (Mime::Raw(_), Some(dir)) => super::inline::write(dir, raw, &[]),
         _ => HashMap::new(),
     };
     let options = RenderOptions {

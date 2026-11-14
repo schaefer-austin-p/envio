@@ -63,6 +63,7 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     }
     let (mut local, drafts) = store.local_and_drafts();
     envio_sync::driver::remove_account(&mut local, drafts, key).map_err(store_error)?;
+    super::inline::clear_all(&store.paths.inline());
     store.secrets.remove(key).map_err(secrets_error)
 }
 

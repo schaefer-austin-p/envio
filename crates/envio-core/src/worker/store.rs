@@ -57,11 +57,7 @@ impl Store {
     ) -> envio_store::Result<(Store, CacheState)> {
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
         // Inline images are copies, rewritten when a message opens.
-        if let Err(e) = std::fs::remove_dir_all(paths.inline())
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            log::warn!("clearing the inline images: {e}");
-        }
+        super::inline::clear_all(&paths.inline());
         let (db, opened) = open_or_rebuild(&paths)?;
         let cache = match opened {
             Opened::Created => CacheState::Fresh,
@@ -139,6 +135,8 @@ impl Store {
     /// the store as it was.
     pub fn rebuild(&mut self) -> envio_store::Result<()> {
         self.db = open_or_rebuild(&self.paths)?.0;
+        // Row ids start over: the folders named by the old ones are stale.
+        super::inline::clear_all(&self.paths.inline());
         Ok(())
     }
 
@@ -188,6 +186,19 @@ mod tests {
     #[test]
     fn the_all_window_prunes_no_body_by_date() {
         assert!(body_survives_sweep(0));
+    }
+
+    #[test]
+    fn a_rebuild_clears_the_inline_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let stale = worker.store.paths.inline().join("7");
+        fs::create_dir_all(&stale).unwrap();
+        fs::write(stale.join("0.png"), b"x").unwrap();
+        worker.store.rebuild().unwrap();
+        assert!(!worker.store.paths.inline().exists());
     }
 
     #[test]
