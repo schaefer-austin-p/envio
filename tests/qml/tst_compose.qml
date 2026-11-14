@@ -469,6 +469,25 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        // Phone shot: the accounts in "Send from" sat at the sheet's left
+        // edge and at the top of their rows.
+        function test_from_sheet_rows_line_up_with_its_title() {
+            mock.composeReady(1, reply, "")
+            mouseClick(find("fromRow"))
+            tryVerify(function() { return shown("account-work") })
+            waitForRendering(page)
+            const row = find("account-work")
+            const text = find("accountText-work")
+            compare(text.mapToItem(row, 0, 0).x, thm.gu(2.5))
+            verify(text.mapToItem(row, 0, 0).x + text.width <= row.width - thm.gu(2.5))
+            const top = text.mapToItem(row, 0, 0).y
+            const bottom = row.height - top - text.height
+            verify(Math.abs(top - bottom) <= 1, "text sits " + top + " from the top, " + bottom + " from the bottom")
+            // Close the sheet, so it doesn't cover the next test's clicks.
+            mouseClick(row)
+            tryVerify(function() { return !shown("account-work") })
+        }
+
         function chevronIn(item) {
             return everything(item, []).filter(function(o) { return o.objectName === "chevron" })[0]
         }
