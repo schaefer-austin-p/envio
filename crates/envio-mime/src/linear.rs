@@ -188,14 +188,18 @@ pub(crate) fn layout_tables(html: &str, images: &[Placed]) -> Vec<bool> {
     let mut open: Vec<Frame> = Vec::new();
     let mut images = images.iter().copied().peekable();
     let mut pos = 0;
+    // The end of the last image seen: a label's own tags come after it
+    // starts, and the label's text is not the cell's.
+    let mut covered = 0;
     while let Some((start, end)) = next_tag(html, pos) {
         // The text before this tag, around the images' labels.
-        let mut from = pos;
+        let mut from = pos.max(covered);
         while let Some(image) = images.next_if(|image| image.at <= start) {
             if let Some(frame) = open.last_mut() {
                 frame.text(&html[from..image.at.max(from)]);
                 frame.content(Some(image.width));
             }
+            covered = covered.max(image.end);
             from = from.max(image.end);
         }
         if let Some(frame) = open.last_mut() {
