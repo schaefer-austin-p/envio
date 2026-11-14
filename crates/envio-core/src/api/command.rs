@@ -168,6 +168,13 @@ pub enum Command {
         /// Widest image or table, in pixels.
         width_px: u32,
     },
+    /// `OpenMessage` for a message over the size cap that the user chose to
+    /// load anyway.
+    OpenMessageAnyway {
+        id: MessageRowId,
+        images: ImagesChoice,
+        width_px: u32,
+    },
     /// Write an attachment into `dir` under a safe name.
     SaveAttachment {
         id: MessageRowId,
@@ -256,6 +263,7 @@ impl Command {
             Self::SearchServer { .. } => "SearchServer",
             Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
+            Self::OpenMessageAnyway { .. } => "OpenMessageAnyway",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",
