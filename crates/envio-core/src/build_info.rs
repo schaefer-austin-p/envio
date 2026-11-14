@@ -87,9 +87,12 @@ mod tests {
 
     #[test]
     fn a_development_build_has_its_source_and_build_time() {
-        let info =
-            BuildInfo::from_manifest(MANIFEST, Some("master@0123abcdef-dirty"), Some("1700000000"))
-                .unwrap();
+        let info = BuildInfo::from_manifest(
+            MANIFEST,
+            Some("master@0123abcdef-dirty"),
+            Some("1700000000"),
+        )
+        .unwrap();
         assert_eq!(
             info,
             BuildInfo {
@@ -136,7 +139,12 @@ mod tests {
         assert_eq!(outside.dev.unwrap().installed, None);
 
         let dir = click_dir();
-        let installed = info.installed_from(dir.path()).dev.unwrap().installed.unwrap();
+        let installed = info
+            .installed_from(dir.path())
+            .dev
+            .unwrap()
+            .installed
+            .unwrap();
         let now = std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
