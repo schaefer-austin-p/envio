@@ -166,9 +166,9 @@ impl Frame {
     /// Single column, or columns that only lay out pictures and blocks too
     /// wide for a phone.
     fn linear(&self) -> bool {
-        // Qt ignores a div's padding, so a lone text button keeps its table
-        // (it honours cell padding).
-        let button = self.boxed && !self.rich && self.rows == 1;
+        // Qt ignores a div's padding, so a table of one row with one boxed
+        // text cell (a button) stays a table: it honours cell padding.
+        let button = self.boxed && !self.rich && self.rows == 1 && !self.columns;
         !button && !self.data && self.rows > 0 && (!self.columns || (self.layout && self.wide))
     }
 }
@@ -252,17 +252,32 @@ fn presentation(raw: &str) -> bool {
     })
 }
 
-/// Whether the cell start tag `raw` has padding and a background or border
-/// (a `bgcolor`, or `background` or `border` in its `style`).
+/// Whether the cell start tag `raw` has real padding (a non-zero length in
+/// `padding` or a `padding-*`) and a background (a `bgcolor` that
+/// [`bgcolor`] accepts, or a `background-color` in its `style`): a button.
+/// `filter_style` drops `border`, so it never counts.
 fn boxed_cell(raw: &str) -> bool {
     let Some(tag) = parse_tag(raw) else {
         return false;
     };
     let style = tag.attr("style").unwrap_or("").to_ascii_lowercase();
-    style.contains("padding")
-        && (tag.attr("bgcolor").is_some()
-            || style.contains("background")
-            || style.contains("border"))
+    let mut padded = false;
+    let mut background = bgcolor(&tag.attrs).is_some();
+    for declaration in style.split(';') {
+        let Some((prop, value)) = declaration.split_once(':') else {
+            continue;
+        };
+        let (prop, value) = (prop.trim(), value.trim());
+        if prop == "background-color" && !value.is_empty() {
+            background = true;
+        }
+        if prop.starts_with("padding") {
+            padded |= value
+                .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+                .any(|n| n.parse::<f64>().is_ok_and(|n| n > 0.0));
+        }
+    }
+    padded && background
 }
 
 /// The cell's `width` in pixels; `None` for a percentage or none.

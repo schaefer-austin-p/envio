@@ -428,3 +428,30 @@ fn a_padded_cell_with_blocks_is_still_linearised() {
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
 }
+
+#[test]
+fn only_a_real_padded_background_cell_is_a_button() {
+    for cell in [
+        r#"<td bgcolor="1a1f36" style="padding:0">"#,
+        r#"<td bgcolor="zzz1" style="padding:12px">"#,
+        r#"<td bgcolor="zz!1" style="padding:12px;border:1px solid red">"#,
+        r#"<td style="padding:12px;border:1px solid red">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+    let html = clean(
+        r#"<table role="presentation"><tr><td style="padding-top:8px;background-color:#556cd6"><a href="https://example.com/x">go</a></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+}
+
+#[test]
+fn a_boxed_cell_beside_another_cell_is_still_linearised() {
+    let html = clean(
+        r#"<table role="presentation" width="600"><tr><td width="300" bgcolor="1a1f36" style="padding:12px">a</td><td width="300">b</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+}
