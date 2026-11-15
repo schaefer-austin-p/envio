@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-15 09:17+0100\n"
+"POT-Creation-Date: 2026-11-15 11:59+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:219
+#: qml/pages/reader/ReaderPage.qml:225
 msgid "Archive"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:377
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:393
 msgid "Try again"
 msgstr ""
 
@@ -342,7 +342,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:166 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:235
+#: qml/pages/reader/ReaderPage.qml:241
 msgid "More actions"
 msgstr ""
 
@@ -459,7 +459,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:251
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:466
 msgid "Undo"
 msgstr ""
 
@@ -493,7 +493,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:62 qml/pages/inbox/OutboxRow.qml:114
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:227
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:233
 msgid "Delete"
 msgstr ""
 
@@ -579,6 +579,78 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
+#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:21
+msgid "Reply"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:36 crates/envio-core/src/text/invite.rs:48
+msgid "Updated"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:37 crates/envio-core/src/text/invite.rs:52
+msgid "Cancelled"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:38
+msgid "Invitation"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:55 qml/pages/reader/InviteCard.qml:66
+msgid "%1 to %2"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:71
+msgid "%1 · Repeats"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:79
+msgid "%1 · %2"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:180
+msgid "Time zone not recognised"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:213
+msgid "Change"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:221
+msgid "Sending…"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:248
+msgid "Not sent, see Outbox"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:267
+msgid "Accept"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:274
+msgid "Maybe"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:281
+msgid "Decline"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:292
+msgid "Hide note"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:292
+msgid "Add a note"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:299
+msgid "Add to calendar"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:309
+msgid "Note to %1"
+msgstr ""
+
 #: qml/pages/reader/LinkSheet.qml:21
 msgid "Open this link?"
 msgstr ""
@@ -591,12 +663,8 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:355
+#: qml/pages/reader/ReaderPage.qml:371
 msgid "Loading…"
-msgstr ""
-
-#: qml/pages/reader/ReplyBar.qml:21
-msgid "Reply"
 msgstr ""
 
 #: qml/pages/reader/ReplyBar.qml:28
@@ -849,14 +917,6 @@ msgstr ""
 msgid "{name} replied"
 msgstr ""
 
-#: crates/envio-core/src/text/invite.rs:48
-msgid "Updated"
-msgstr ""
-
-#: crates/envio-core/src/text/invite.rs:52
-msgid "Cancelled"
-msgstr ""
-
 #: crates/envio-core/src/text/invite.rs:58
 msgid "Accepting the invitation"
 msgstr ""
@@ -1027,27 +1087,31 @@ msgid "Could not save the attachment"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:24
-msgid "Could not read your mail from this phone"
+msgid "Could not add the invite to the calendar"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:28
-msgid "This folder can't be searched on the server right now"
+msgid "Could not read your mail from this phone"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:32
+msgid "This folder can't be searched on the server right now"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:36
 msgid "Couldn't load older messages. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:38
+#: crates/envio-core/src/text/read.rs:42
 msgid ""
 "Couldn't load older messages for {accounts}. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:45
+#: crates/envio-core/src/text/read.rs:49
 msgid "(no sender)"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:50
+#: crates/envio-core/src/text/read.rs:54
 msgid "(no subject)"
 msgstr ""
 

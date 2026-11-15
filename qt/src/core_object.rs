@@ -95,6 +95,12 @@ pub mod qobject {
         #[cxx_name = "attachmentFailed"]
         fn attachment_failed(self: Pin<&mut EnvioCore>, id: f64);
         #[qsignal]
+        #[cxx_name = "inviteExported"]
+        fn invite_exported(self: Pin<&mut EnvioCore>, id: f64, path: &QString);
+        #[qsignal]
+        #[cxx_name = "inviteExportFailed"]
+        fn invite_export_failed(self: Pin<&mut EnvioCore>, id: f64);
+        #[qsignal]
         #[cxx_name = "undoOffer"]
         fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString, scope: &QString);
         #[qsignal]
@@ -228,6 +234,9 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "saveAttachment"]
         fn save_attachment(self: Pin<&mut EnvioCore>, id: i64, index: i32, dir: &QString);
+        #[qinvokable]
+        #[cxx_name = "exportInvite"]
+        fn export_invite(self: Pin<&mut EnvioCore>, id: i64, dir: &QString);
         #[qinvokable]
         #[cxx_name = "startCompose"]
         fn start_compose(

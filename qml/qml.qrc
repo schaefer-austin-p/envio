@@ -21,6 +21,8 @@
         <file>pages/reader/AttachmentList.qml</file>
         <file>pages/reader/ReaderMore.qml</file>
         <file>pages/reader/ReplyBar.qml</file>
+        <file>pages/reader/InviteCard.qml</file>
+        <file>pages/reader/InviteLink.qml</file>
         <file>pages/compose/ComposePage.qml</file>
         <file>pages/compose/RecipientField.qml</file>
         <file>pages/compose/Suggestions.qml</file>

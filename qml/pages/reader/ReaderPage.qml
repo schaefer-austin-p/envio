@@ -25,12 +25,18 @@ Item {
     property string accountName: ""
     // "open", "save" or "share" while an attachment is being saved.
     property string pendingMode: ""
+    // Add to calendar was tapped; the invite's file comes as inviteExported,
+    // apart from attachment saves, so neither takes the other's file.
+    property bool calendarPending: false
+    property int undoId: -1
     property bool started: false
     property bool moved: false
     readonly property var noView: ({ from: "", to: [], cc: [], subject: "", date: 0, account: "" })
     // The platform's way to open a link and to export a file; the tests
     // replace them (neither has a visible effect on the desktop).
     property var openUrl: function(url) { Qt.openUrlExternally(url) }
+    // Whether Content Hub can take a file here; a test sets it.
+    property bool hubAvailable: content.hubAvailable
     property var exportFile: function(path, mode) { content.exportFile(path, mode) }
 
     // The body is laid out once, after the push transition ends (a page
@@ -275,6 +281,16 @@ Item {
                 view: root.view !== null ? root.view : root.noView
                 accountName: root.accountName
             }
+            InviteCard {
+                objectName: "inviteCard"
+                width: parent.width
+                theme: root.theme
+                core: root.core
+                view: root.view
+                attachmentsDir: content.attachmentsDir
+                hubAvailable: root.hubAvailable
+                onCalendarRequested: root.calendarPending = true
+            }
             Rectangle {
                 objectName: "bodyCard"
                 // Above the attachment chips: the end handle can reach below the card.
@@ -387,6 +403,14 @@ Item {
         onForwardRequested: root.forward()
     }
 
+    Toast {
+        id: undoToast
+        objectName: "undoToast"
+        theme: root.theme
+        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        onActionTriggered: root.core.undo(root.undoId)
+    }
+
     ReaderMore {
         id: more
         theme: root.theme
@@ -435,6 +459,13 @@ Item {
             // A late failure from an earlier page's save is not ours.
             if (id === root.messageId) root.pendingMode = ""
         }
+        // Only the reader's own offers (an invite answer); the inbox shows the rest.
+        function onUndoOffer(undo, text, scope) {
+            if (scope !== "reader") return
+            root.undoId = undo
+            undoToast.show(text, qsTr("Undo"))
+        }
+        function onUndoClosed(undo) { if (undo === root.undoId) undoToast.hide() }
         function onMessageOpened(view) {
             if (view.id !== root.messageId) return
             root.unavailable = ""
@@ -444,6 +475,14 @@ Item {
             if (id !== root.messageId) return
             root.view = null
             root.unavailable = text
+        }
+        function onInviteExported(id, path) {
+            if (id !== root.messageId || !root.calendarPending) return
+            root.calendarPending = false
+            root.exportFile(path, "calendar")
+        }
+        function onInviteExportFailed(id) {
+            if (id === root.messageId) root.calendarPending = false
         }
         function onAttachmentSaved(path) {
             if (root.pendingMode === "") return

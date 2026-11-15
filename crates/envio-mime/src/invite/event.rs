@@ -8,7 +8,7 @@ use crate::address::has_specials;
 use crate::link::strip_bidi_controls;
 
 const MAX_BYTES: usize = 256 * 1024;
-const MAX_LINES: usize = 10_000;
+pub(super) const MAX_LINES: usize = 10_000;
 /// Stack marker for a VEVENT after the first.
 const SKIPPED: &str = "VEVENT (skipped)";
 const MAX_TEXT: usize = 500;
@@ -61,6 +61,7 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
         dtstart_line: dtstart.line.clone(),
         recurrence_id: get("RECURRENCE-ID").map_or_else(String::new, |p| p.value.trim().to_owned()),
         recurrence_id_line: get("RECURRENCE-ID").map(|p| p.line.clone()),
+        recurrence_when: get("RECURRENCE-ID").and_then(|p| read(p, None, None, &vtz)),
         organizer_line: get("ORGANIZER")
             .filter(|p| person(p).is_some())
             .map(|p| p.line.clone()),

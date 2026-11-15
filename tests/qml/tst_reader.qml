@@ -128,6 +128,121 @@ Item {
             compare(find("headerSubject").text, evil)
         }
 
+        function findText(text, from) {
+            const hit = everything(from, []).filter(function(o) { return o.text === text && o.visible })
+            verify(hit.length > 0, "no item with text " + text)
+            return hit[0]
+        }
+        function test_reader_offer_shows_undo_toast() {
+            open(view([], 0))
+            const toast = find("undoToast")
+            verify(!toast.visible)
+            mock.undoOffer(31, "Reply to Grace queued", "reader")
+            verify(toast.visible)
+            compare(toast.text, "Reply to Grace queued")
+            // Another offer's close leaves it; its own close hides it.
+            mock.undoClosed(30)
+            verify(toast.visible)
+            mock.undoClosed(31)
+            verify(!toast.visible)
+        }
+
+        function test_undo_calls_core_undo() {
+            open(view([], 0))
+            mock.undoOffer(32, "Reply to Grace queued", "reader")
+            mouseClick(findText("Undo", find("undoToast")))
+            compare(mock.called("undo").pop().args, [32])
+        }
+
+        function test_list_offer_does_not_show_in_reader() {
+            open(view([], 0))
+            mock.undoOffer(33, "Archived “Plans”", "list")
+            verify(!find("undoToast").visible)
+        }
+
+        function test_add_to_calendar_exports_the_saved_ics() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 1 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            const saved = mock.called("exportInvite").pop().args
+            compare(saved[0], 5)
+            verify(saved[1].length > 0)
+            // Another message's export is not this tap's.
+            mock.inviteExported(6, "/tmp/envio-test/attachments/other.ics")
+            compare(root.exported.length, 0)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/invite.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invite.ics", mode: "calendar" }])
+            // A later save is not a calendar one.
+            mock.attachmentSaved("/tmp/envio-test/attachments/other.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/again.ics")
+            compare(root.exported.length, 1)
+        }
+
+        // An attachment save still in flight keeps its file, and the
+        // calendar keeps its own (review 733).
+        function test_a_pending_attachment_save_and_the_calendar_do_not_swap_files() {
+            root.page.hubAvailable = true
+            const v = view(pdf(), 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: -1 }
+            open(v)
+            // The card pushes the attachment below the fold: scroll to it.
+            const flick = everything(root.page, []).filter(function(o) {
+                return o.contentY !== undefined && o.boundsBehavior !== undefined })[0]
+            flick.contentY = Math.max(0, flick.contentHeight - flick.height)
+            waitForRendering(root.page)
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            tryVerify(function() { return !find("attachmentSheet").opened })
+            mouseClick(find("inviteCalendar"))
+            mock.attachmentSaved("/tmp/envio-test/attachments/invoice.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/Q.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invoice.pdf", mode: "share" },
+                                    { path: "/tmp/envio-test/attachments/Q.ics", mode: "calendar" }])
+        }
+
+        function test_a_failed_calendar_save_forgets_the_export() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            mock.inviteExportFailed(5)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/x.ics")
+            compare(root.exported.length, 0)
+        }
+
+        // No offer yet: no id (0 is a real one) can close a toast never shown.
+        function test_no_undo_target_before_an_offer() {
+            compare(root.page.undoId, -1)
+        }
+
+        function test_invite_card_shows_only_with_an_invite() {
+            open(view([], 0))
+            verify(!shown("inviteCard"))
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 0 }
+            open(v)
+            verify(shown("inviteCard"))
+        }
+
         function test_opens_the_message_on_show() {
             const calls = mock.called("open")
             compare(calls.length, 1)

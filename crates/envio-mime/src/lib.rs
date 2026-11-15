@@ -43,8 +43,8 @@ pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
 pub use image_size::size as image_size;
 pub use invite::{
-    Invite, InviteMethod, NaiveParts, PartStat, Person, When, invite_of, parse_invite, reply_ics,
-    reply_outgoing,
+    Invite, InviteMethod, NaiveParts, PartStat, Person, When, calendar_file, invite_of,
+    parse_invite, reply_ics, reply_outgoing,
 };
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};

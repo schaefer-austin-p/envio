@@ -186,6 +186,7 @@ mod card_unit_tests {
             dtstart_line: "DTSTART:20270115T080000Z".into(),
             recurrence_id: String::new(),
             recurrence_id_line: None,
+            recurrence_when: None,
             organizer_line: Some("ORGANIZER:mailto:ada@example.org".into()),
             organizer: Some(person("ada@example.org", "Ada", None)),
             attendees: Vec::new(),

@@ -74,6 +74,14 @@ pub enum Signal {
     AttachmentFailed {
         id: i64,
     },
+    /// The calendar file of message `id`'s invite was written.
+    InviteExported {
+        id: i64,
+        path: PathBuf,
+    },
+    InviteExportFailed {
+        id: i64,
+    },
     UndoOffer {
         undo: UndoId,
         text: String,

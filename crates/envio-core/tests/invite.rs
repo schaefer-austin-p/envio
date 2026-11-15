@@ -484,3 +484,65 @@ fn undo_keeps_the_reply_when_the_answer_cannot_be_restored() {
     assert_eq!(s.items().len(), 1, "the reply is still held");
     assert_eq!(load_invites(&invites).unwrap()[0].answer, "declined");
 }
+
+#[test]
+fn export_writes_the_invite_as_a_calendar_file() {
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    let out = tempfile::tempdir().unwrap();
+    let dir = out.path().join("attachments");
+    let mut saved = Vec::new();
+    for _ in 0..2 {
+        s.h.send(Command::ExportInvite {
+            id,
+            dir: dir.clone(),
+        });
+        saved.push(s.h.wait(|e| match e {
+            Event::InviteExported { id: i, path } if *i == id => Some(path.clone()),
+            _ => None,
+        }));
+    }
+    assert_eq!(saved[0], dir.join("Planning.ics"));
+    assert_eq!(saved[1], dir.join("Planning (2).ics"));
+    let ics = std::fs::read_to_string(&saved[0]).unwrap();
+    assert!(ics.starts_with("BEGIN:VCALENDAR"), "{ics}");
+    assert!(ics.contains("UID:u1@example.org"), "{ics}");
+    assert!(ics.contains("DTSTART:20270115T080000Z"), "{ics}");
+}
+
+#[test]
+fn export_keeps_a_title_with_a_slash_whole() {
+    let mail = String::from_utf8(request(0))
+        .unwrap()
+        .replace("SUMMARY:Planning", "SUMMARY:Q4 review / planning");
+    let s = seeded(&[mail.into_bytes()]);
+    let id = s.id_of(1);
+    let out = tempfile::tempdir().unwrap();
+    s.h.send(Command::ExportInvite {
+        id,
+        dir: out.path().to_owned(),
+    });
+    let path = s.h.wait(|e| match e {
+        Event::InviteExported { path, .. } => Some(path.clone()),
+        _ => None,
+    });
+    assert_eq!(path, out.path().join("Q4 review - planning.ics"));
+}
+
+#[test]
+fn export_of_mail_without_an_invite_fails_with_a_notice() {
+    let plain = b"From: Ada <ada@example.org>\r\nSubject: hi\r\n\r\nno invite\r\n".to_vec();
+    let s = seeded(&[plain]);
+    let id = s.id_of(1);
+    let out = tempfile::tempdir().unwrap();
+    s.h.send(Command::ExportInvite {
+        id,
+        dir: out.path().to_owned(),
+    });
+    s.h.wait(|e| match e {
+        Event::InviteExportFailed { id: i } if *i == id => Some(()),
+        Event::InviteExported { .. } => panic!("exported mail without an invite"),
+        _ => None,
+    });
+    assert_eq!(s.notice(), "Could not add the invite to the calendar");
+}

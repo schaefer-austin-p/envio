@@ -133,12 +133,12 @@ fn param_value(text: &str) -> String {
 }
 
 /// Text without control characters (a line can never carry a newline).
-fn plain(text: &str) -> String {
+pub(super) fn plain(text: &str) -> String {
     text.chars().filter(|c| !c.is_control()).collect()
 }
 
 /// TEXT escaping (RFC 5545 §3.3.11); other control characters dropped.
-fn escape(text: &str) -> String {
+pub(super) fn escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
         match c {
@@ -154,7 +154,7 @@ fn escape(text: &str) -> String {
 }
 
 /// `20261105T153000Z`.
-fn stamp(unix: i64) -> String {
+pub(super) fn stamp(unix: i64) -> String {
     let p = NaiveParts::from_utc_secs(unix);
     format!(
         "{:04}{:02}{:02}T{:02}{:02}{:02}Z",
@@ -164,7 +164,7 @@ fn stamp(unix: i64) -> String {
 
 /// `text` plus CRLF, folded so no physical line passes 75 octets (the
 /// continuation's leading space counts) and no character is split.
-fn fold_into(out: &mut String, text: &str) {
+pub(super) fn fold_into(out: &mut String, text: &str) {
     let mut width = 0;
     for c in text.chars() {
         if width + c.len_utf8() > MAX_OCTETS {

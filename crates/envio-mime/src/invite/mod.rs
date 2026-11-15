@@ -2,6 +2,7 @@
 //! Untrusted input: capped, lenient, never panics.
 
 mod event;
+mod export;
 mod lines;
 mod reply;
 mod when;
@@ -12,6 +13,7 @@ use mail_parser::MimeHeaders;
 use crate::mail::{is_broken_multipart, parse_mail};
 
 pub use event::parse_invite;
+pub use export::calendar_file;
 pub use reply::{reply_ics, reply_outgoing};
 pub use when::{NaiveParts, When};
 
@@ -60,6 +62,8 @@ pub struct Invite {
     pub recurrence_id: String,
     /// The RECURRENCE-ID line as received, copied into a reply.
     pub recurrence_id_line: Option<String>,
+    /// The RECURRENCE-ID read like DTSTART (its zone resolved), for export.
+    pub recurrence_when: Option<When>,
     /// The ORGANIZER line as received; `Some` exactly when `organizer` is.
     pub organizer_line: Option<String>,
     /// Only a `mailto:` value counts.

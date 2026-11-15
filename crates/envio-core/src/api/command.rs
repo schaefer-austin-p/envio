@@ -213,6 +213,10 @@ pub enum Command {
         index: usize,
         dir: PathBuf,
     },
+    /// Write the meeting invite in cached message `id` into `dir` as a
+    /// file a calendar app can import; the answer is `InviteExported` or
+    /// `InviteExportFailed`.
+    ExportInvite { id: MessageRowId, dir: PathBuf },
     /// Do `action` to the messages; the answer is an `UndoOffer`.
     Act {
         ids: Vec<MessageRowId>,
@@ -309,6 +313,7 @@ impl Command {
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",
             Self::AnswerInvite { .. } => "AnswerInvite",
+            Self::ExportInvite { .. } => "ExportInvite",
             Self::StartCompose { .. } => "StartCompose",
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",

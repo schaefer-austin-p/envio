@@ -505,21 +505,35 @@ Item {
 
         function test_undo_toast_calls_undo() {
             const toast = find("undoToast", page)
-            core.undoOffer(5, "Archived “Plans”")
+            core.undoOffer(5, "Archived “Plans”", "list")
             verify(toast.visible)
             compare(toast.text, "Archived “Plans”")
             mouseClick(findText("Undo", toast))
             compare(core.called("undo").pop().args, [5])
-            core.undoOffer(6, "Deleted")
+            core.undoOffer(6, "Deleted", "list")
             verify(toast.visible)
             core.undoClosed(6)
             verify(!toast.visible)
         }
 
+        function test_reader_offer_does_not_show_in_inbox() {
+            const toast = find("undoToast", page)
+            core.undoOffer(9, "Replied: accepted", "reader")
+            verify(!toast.visible)
+            core.undoOffer(10, "Deleted", "list")
+            verify(toast.visible)
+            compare(toast.text, "Deleted")
+            core.undoOffer(11, "Replied: accepted", "reader")
+            compare(toast.text, "Deleted")
+            // The reader's offer never became the inbox's undo target.
+            mouseClick(findText("Undo", toast))
+            compare(core.called("undo").pop().args, [10])
+        }
+
         function test_an_older_offer_closing_leaves_the_newer_toast() {
             const toast = find("undoToast", page)
-            core.undoOffer(7, "Archived “A”")
-            core.undoOffer(8, "Archived “B”")
+            core.undoOffer(7, "Archived “A”", "list")
+            core.undoOffer(8, "Archived “B”", "list")
             core.undoClosed(7)
             verify(toast.visible)
             compare(toast.text, "Archived “B”")

@@ -50,7 +50,9 @@ Item {
     signal messageUnavailable(real id, string text)
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
-    signal undoOffer(real undo, string text)
+    signal inviteExported(real id, string path)
+    signal inviteExportFailed(real id)
+    signal undoOffer(real undo, string text, string scope)
     signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted)
     signal draftSaved(real compose)
@@ -88,12 +90,14 @@ Item {
     // False: the selected row is gone, nothing was acted on.
     property bool actRuns: true
     function act(action, folder) { record("act", [action, folder]); return actRuns }
+    function answerInvite(id, answer, note) { record("answerInvite", [id, answer, note]) }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function reportImageSizes(id, sizesJson) { record("reportImageSizes", [id, sizesJson]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
     function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }
     function saveAttachment(id, index, dir) { record("saveAttachment", [id, index, dir]) }
+    function exportInvite(id, dir) { record("exportInvite", [id, dir]) }
     function startCompose(kind, id, account, mailto) { record("startCompose", [kind, id, account, mailto]); return 1 }
     function draftChanged(compose, draftJson) { record("draftChanged", [compose, draftJson]) }
     function closeCompose(compose, discard) { record("closeCompose", [compose, discard]) }
