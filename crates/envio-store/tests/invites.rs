@@ -9,6 +9,7 @@ fn answer(uid: &str, end_unix: i64) -> InviteAnswer {
     InviteAnswer {
         account: "1700".into(),
         uid: uid.into(),
+        recurrence_id: String::new(),
         sequence: 0,
         answer: "accepted".into(),
         answered_at_ms: NOW,
@@ -66,8 +67,8 @@ fn forget_removes_only_that_uid() {
     let keep = answer("keep@example.org", end);
     record_invite(&path, answer("drop@example.org", end), NOW).unwrap();
     record_invite(&path, keep.clone(), NOW).unwrap();
-    forget_invite(&path, "1700", "drop@example.org").unwrap();
-    forget_invite(&path, "1700", "never@example.org").unwrap();
+    forget_invite(&path, "1700", "drop@example.org", "").unwrap();
+    forget_invite(&path, "1700", "never@example.org", "").unwrap();
     assert_eq!(load_invites(&path).unwrap(), [keep]);
 }
 
@@ -88,4 +89,35 @@ fn invites_file_written_atomically() {
         fs::read(dir.path().join("invites.json.damaged")).unwrap(),
         b"[1, 2"
     );
+}
+
+#[test]
+fn an_occurrence_and_its_series_are_separate_answers() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("invites.json");
+    let end = NOW / 1000 + 3600;
+    let series = answer("a@example.org", end);
+    let mut one = answer("a@example.org", end);
+    one.recurrence_id = "20261118T100000".into();
+    one.answer = "declined".into();
+    record_invite(&path, series.clone(), NOW).unwrap();
+    record_invite(&path, one.clone(), NOW).unwrap();
+    assert_eq!(load_invites(&path).unwrap(), [series.clone(), one.clone()]);
+    forget_invite(&path, "1700", "a@example.org", "20261118T100000").unwrap();
+    assert_eq!(load_invites(&path).unwrap(), [series]);
+}
+
+#[test]
+fn an_old_file_without_recurrence_id_loads_as_the_series() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("invites.json");
+    fs::write(
+        &path,
+        r#"[{"account":"1700","uid":"a@example.org","sequence":0,"answer":"accepted",
+"answered_at_ms":1,"event_end_unix":2000000000,"reply_message_id":"<r@envio.test>"}]"#,
+    )
+    .unwrap();
+    let all = load_invites(&path).unwrap();
+    assert_eq!(all.len(), 1);
+    assert_eq!(all[0].recurrence_id, "");
 }

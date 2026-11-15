@@ -16,6 +16,10 @@ const KEEP_AFTER_END_MS: i64 = 30 * 86_400_000;
 pub struct InviteAnswer {
     pub account: String,
     pub uid: String,
+    /// The RECURRENCE-ID value of one occurrence; empty for the whole series
+    /// (also what a file written before this field reads as).
+    #[serde(default)]
+    pub recurrence_id: String,
     pub sequence: u32,
     /// `accepted`, `tentative` or `declined`.
     pub answer: String,
@@ -30,23 +34,27 @@ pub fn load_invites(path: &Path) -> Result<Vec<InviteAnswer>> {
     load(path)
 }
 
-/// Remembers `answer`, replacing the earlier one for the same (account, uid),
+/// Remembers `answer`, replacing the earlier one for the same (account, uid, recurrence id),
 /// and drops answers whose event ended more than 30 days before `now_ms`.
 pub fn record_invite(path: &Path, answer: InviteAnswer, now_ms: i64) -> Result<()> {
     let mut all = load_invites(path)?;
-    all.retain(|a| !(a.account == answer.account && a.uid == answer.uid));
+    all.retain(|a| !same(a, &answer.account, &answer.uid, &answer.recurrence_id));
     all.push(answer);
     let cutoff_unix = (now_ms - KEEP_AFTER_END_MS).div_euclid(1000);
     all.retain(|a| a.event_end_unix >= cutoff_unix);
     save(path, &all)
 }
 
-pub fn forget_invite(path: &Path, account: &str, uid: &str) -> Result<()> {
+pub fn forget_invite(path: &Path, account: &str, uid: &str, recurrence_id: &str) -> Result<()> {
     let mut all = load_invites(path)?;
     let before = all.len();
-    all.retain(|a| !(a.account == account && a.uid == uid));
+    all.retain(|a| !same(a, account, uid, recurrence_id));
     if all.len() == before {
         return Ok(());
     }
     save(path, &all)
+}
+
+fn same(a: &InviteAnswer, account: &str, uid: &str, recurrence_id: &str) -> bool {
+    a.account == account && a.uid == uid && a.recurrence_id == recurrence_id
 }
