@@ -22,8 +22,6 @@ Item {
     // Set by messageOpened; null until then.
     property var view: null
     property string unavailable: ""
-    // The unavailable text is the size-cap notice: offer "Load anyway".
-    property bool tooLarge: false
     property string accountName: ""
     // "open", "save" or "share" while an attachment is being saved.
     property string pendingMode: ""
@@ -73,15 +71,9 @@ Item {
     // The compose id `startCompose` returned; the compose page follows it.
     signal composeOpened(var compose)
 
-    // The user chose to load this message past the size cap; later loads
-    // (images, retries) keep that choice.
-    property bool largeAllowed: false
-    function load(images, anyway) {
-        if (anyway) largeAllowed = true
+    function load(images) {
         unavailable = ""
-        tooLarge = false
-        if (largeAllowed) core.openAnyway(messageId, images, bodyWidth)
-        else core.open(messageId, images, bodyWidth)
+        core.open(messageId, images, bodyWidth)
     }
     function start() {
         if (started || messageId < 0 || width <= 0) return
@@ -90,7 +82,7 @@ Item {
     }
     onWidthChanged: start()
     onMessageIdChanged: {
-        started = false; view = null; largeAllowed = false
+        started = false; view = null
         sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
         start()
     }
@@ -383,16 +375,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             theme: root.theme
             text: qsTr("Try again")
-            visible: !root.tooLarge
             onClicked: root.load(false)
-        }
-        AppButton {
-            objectName: "loadAnyway"
-            anchors.horizontalCenter: parent.horizontalCenter
-            theme: root.theme
-            text: qsTr("Load anyway")
-            visible: root.tooLarge
-            onClicked: root.load(false, true)
         }
     }
 
@@ -460,13 +443,6 @@ Item {
         function onMessageUnavailable(id, text) {
             if (id !== root.messageId) return
             root.view = null
-            root.tooLarge = false
-            root.unavailable = text
-        }
-        function onMessageTooLarge(id, text) {
-            if (id !== root.messageId) return
-            root.view = null
-            root.tooLarge = true
             root.unavailable = text
         }
         function onAttachmentSaved(path) {

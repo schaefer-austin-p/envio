@@ -5,6 +5,7 @@
 
 mod account;
 mod actions;
+mod body;
 mod folders;
 mod older;
 mod outbox;
@@ -14,7 +15,8 @@ mod search;
 
 pub use account::{AccountSynced, Unsent, has_due_mail, remove_account, sync_account, unsent};
 pub use actions::{Undo, record, undo};
-pub use folders::{BATCHES_PER_STEP, Synced, fetch_body, sync_folder, sync_folders};
+pub use body::{PARTIAL_ABOVE, fetch_body, fetch_part, fetch_whole_body, is_big};
+pub use folders::{BATCHES_PER_STEP, Synced, sync_folder, sync_folders};
 pub use older::{Older, load_older};
 pub use outbox::{Filed, Sent, file_sent, send_outbox};
 pub use prefetch::{Prefetched, prefetch_bodies};

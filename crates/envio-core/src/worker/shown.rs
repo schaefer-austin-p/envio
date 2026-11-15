@@ -107,7 +107,7 @@ impl Worker<'_> {
         let Ok(message) = self.store.db.message(id) else {
             return;
         };
-        if message.body != BodyState::Downloaded {
+        if message.body == BodyState::Missing {
             return;
         }
         let raw = match self.store.bodies.read(message.folder, message.uid) {

@@ -199,13 +199,6 @@ pub enum Command {
         /// Widest image or table, in pixels.
         width_px: u32,
     },
-    /// `OpenMessage` for a message over the size cap that the user chose to
-    /// load anyway.
-    OpenMessageAnyway {
-        id: MessageRowId,
-        images: ImagesChoice,
-        width_px: u32,
-    },
     /// The natural pixel size (width, height) of remote images the reader
     /// loaded for message `id`, by URL. When the open message is that one
     /// and a size changes how it draws (an image with no width wider than
@@ -311,7 +304,6 @@ impl Command {
             Self::SearchServer { .. } => "SearchServer",
             Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
-            Self::OpenMessageAnyway { .. } => "OpenMessageAnyway",
             Self::ImageSizes { .. } => "ImageSizes",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",

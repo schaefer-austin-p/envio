@@ -47,7 +47,7 @@ fn step_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Pr
         // Waiting would only repeat it; the next full run tries again.
         finished(worker, account, step);
     }
-    if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_)) {
+    if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_) | Step::Part(..)) {
         worker.open_failed(Some(account));
     }
     // Prefetch is background work nobody asked for: its failure is no news.
@@ -109,6 +109,7 @@ pub(crate) async fn run_step(
     let result = match step {
         Step::Folders => sync::folders(worker, account, &mut session).await,
         Step::Body(id) => sync::body(worker, &mut session, *id).await,
+        Step::Part(id, index) => sync::part(worker, &mut session, *id, *index).await,
         Step::Older(id) => worker.older_step(&mut session, *id).await,
         Step::SearchServer { folder, query } => {
             sync::search_server(worker, account, &mut session, (*folder, query)).await
@@ -179,6 +180,9 @@ fn keep_open(foreground: bool, step: &Step, wants: &super::plan::Wants) -> bool 
 
 fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
     finished(worker, account, step);
+    if let Step::Body(id) = step {
+        worker.ask_whole_again(*id);
+    }
     let disk_full = worker.disk_full(now_ms());
     if let Some(live) = worker.live.get_mut(account) {
         live.health.ok_step(step.kind(), disk_full);
@@ -202,7 +206,14 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
             live.relist = false;
             live.wants.expand(&folders);
         }
-        Step::Body(id) => live.wants.bodies.retain(|b| b != id),
+        Step::Body(id) => {
+            live.wants.bodies.retain(|b| b != id);
+            live.wants.whole.remove(id);
+        }
+        Step::Part(id, index) => live
+            .wants
+            .parts
+            .retain(|p| !(p.id == *id && p.index == *index)),
         Step::Older(id) => {
             live.wants.older.remove(id);
         }
@@ -308,6 +319,85 @@ mod tests {
         finished(&mut worker, &account, &Step::Folder(id));
         let live = worker.live.get_mut(&account).unwrap();
         assert!(!live.wants.folders.contains(&id));
+    }
+
+    #[test]
+    fn a_forward_waiting_on_a_partial_body_asks_again_after_the_step() {
+        use super::succeeded;
+        use crate::api::command::{ComposeId, StartFrom};
+        use crate::worker::plan::Step;
+        use envio_store::BodyState;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let (account, id) = (seeded.account.clone(), seeded.message);
+        worker
+            .store
+            .db
+            .set_body_state(id, BodyState::Partial)
+            .unwrap();
+        // A body step for the open message is running, not for the whole one.
+        worker.live.get_mut(&account).unwrap().wants.bodies.push(id);
+        worker.start_compose(ComposeId(7), StartFrom::Forward { id }, (None, None));
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        // The step ends with the partial body: the forward needs the rest.
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nhi"), false);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        let live = &worker.live[&account];
+        assert!(live.wants.bodies.contains(&id), "the ask was dropped");
+        assert!(live.wants.whole.contains(&id));
+        assert_eq!(worker.composing.get(&id).map(Vec::len), Some(1));
+        // The whole message arrives (the cache stays partial): answered.
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nhi"), true);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        assert!(worker.composing.is_empty(), "the forward was not answered");
+        assert!(worker.live[&account].wants.bodies.is_empty());
+        assert!(worker.live[&account].wants.whole.is_empty());
+    }
+
+    #[test]
+    fn the_whole_message_of_a_big_one_is_not_shown_in_the_reader() {
+        use super::succeeded;
+        use crate::api::command::ImagesChoice;
+        use crate::worker::plan::Step;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let (account, id) = (seeded.account.clone(), seeded.message);
+        let big = envio_store::NewMessage {
+            uid: 1,
+            size: envio_sync::driver::PARTIAL_ABOVE + 1,
+            envelope: envio_store::Envelope::default(),
+            flags: envio_store::Flags::default(),
+            preview: String::new(),
+        };
+        worker.store.db.upsert_message(seeded.folder, &big).unwrap();
+        worker.open_message(id, ImagesChoice::Default, 300);
+        assert!(worker.opening.contains_key(&id));
+        // A forward's whole step answers the open too.
+        worker
+            .live
+            .get_mut(&account)
+            .unwrap()
+            .wants
+            .whole
+            .insert(id);
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nthe whole 40 MB"), true);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        let shown = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageOpened { .. }));
+        assert!(!shown, "the whole message was rendered in the reader");
+        // The reader still waits, and gets the partial body next.
+        assert!(worker.opening.contains_key(&id));
+        let live = &worker.live[&account];
+        assert!(live.wants.bodies.contains(&id));
+        assert!(!live.wants.whole.contains(&id));
     }
 
     #[test]

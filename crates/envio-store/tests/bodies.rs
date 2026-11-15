@@ -114,3 +114,21 @@ fn store_paths_split_cache_from_unsent_work() {
         assert!(data.starts_with("/d"), "{data:?}");
     }
 }
+
+#[test]
+fn retention_treats_a_partial_body_like_a_downloaded_one() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = db.upsert_folder("a1", "INBOX", FolderRole::Inbox).unwrap();
+    let old = db.upsert_message(folder, &message(1, 100)).unwrap();
+    let recent = db.upsert_message(folder, &message(2, 500)).unwrap();
+    db.set_body_state(old, BodyState::Partial).unwrap();
+    db.set_body_state(recent, BodyState::Partial).unwrap();
+
+    assert_eq!(db.mark_bodies_pruned(300).unwrap(), 1);
+    assert_eq!(db.message(old).unwrap().body, BodyState::Missing);
+    assert_eq!(db.message(recent).unwrap().body, BodyState::Partial);
+    assert_eq!(
+        db.bodies_to_keep(300).unwrap(),
+        HashSet::from([(folder, 2)])
+    );
+}

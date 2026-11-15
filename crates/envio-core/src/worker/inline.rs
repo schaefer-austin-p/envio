@@ -81,7 +81,8 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
     let wanted = attachments
         .iter()
         .filter_map(|a| Some((a, a.content_id.as_ref()?, extension(&a.content_type)?)))
-        .filter(|(a, _, _)| a.size <= MAX_BYTES)
+        // A part left on the server has no bytes here.
+        .filter(|(a, _, _)| a.size <= MAX_BYTES && a.section.is_none())
         .take(MAX_IMAGES);
     for (info, cid, ext) in wanted {
         if out.urls.contains_key(cid) {

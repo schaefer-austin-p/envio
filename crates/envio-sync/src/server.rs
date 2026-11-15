@@ -33,6 +33,17 @@ pub trait MailServer {
         changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>>;
     async fn fetch_body(&mut self, uid: u32, size: usize) -> Result<Option<Vec<u8>>>;
+    /// A big message with only its text and small inline images; its other
+    /// parts are stubs (see `ImapSession::fetch_partial`).
+    async fn fetch_partial(&mut self, uid: u32) -> Result<Option<Vec<u8>>>;
+    /// One part of a message as a message of its own (headers, then the
+    /// transfer-encoded body); `size` is the part's, for the time limit.
+    async fn fetch_section(
+        &mut self,
+        uid: u32,
+        section: &str,
+        size: usize,
+    ) -> Result<Option<Vec<u8>>>;
     async fn store_flags(&mut self, uids: &[u32], add: bool, flags: &[Flag]) -> Result<()>;
     async fn move_to(&mut self, uids: &[u32], target: &str) -> Result<()>;
     async fn delete(&mut self, uids: &[u32]) -> Result<()>;
@@ -99,6 +110,19 @@ impl MailServer for ImapSession {
 
     async fn fetch_body(&mut self, uid: u32, size: usize) -> Result<Option<Vec<u8>>> {
         ImapSession::fetch_body(self, uid, size).await
+    }
+
+    async fn fetch_partial(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
+        ImapSession::fetch_partial(self, uid).await
+    }
+
+    async fn fetch_section(
+        &mut self,
+        uid: u32,
+        section: &str,
+        size: usize,
+    ) -> Result<Option<Vec<u8>>> {
+        ImapSession::fetch_section(self, uid, section, size).await
     }
 
     async fn store_flags(&mut self, uids: &[u32], add: bool, flags: &[Flag]) -> Result<()> {

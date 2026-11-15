@@ -34,7 +34,9 @@ mod thread;
 mod widths;
 
 pub use address::{Address, same_email};
-pub use attachments::{AttachmentInfo, attachment_bytes, attachments_bytes, with_attachments};
+pub use attachments::{
+    AttachmentInfo, attachment_bytes, attachments_bytes, decode_part, with_attachments,
+};
 pub use build::{Built, CalendarPart, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use colours::{parse_colour, sets_colours};
 pub use content_type::content_type_for;

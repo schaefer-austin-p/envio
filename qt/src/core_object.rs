@@ -89,9 +89,6 @@ pub mod qobject {
         #[cxx_name = "messageUnavailable"]
         fn message_unavailable(self: Pin<&mut EnvioCore>, id: f64, text: &QString);
         #[qsignal]
-        #[cxx_name = "messageTooLarge"]
-        fn message_too_large(self: Pin<&mut EnvioCore>, id: f64, text: &QString);
-        #[qsignal]
         #[cxx_name = "attachmentSaved"]
         fn attachment_saved(self: Pin<&mut EnvioCore>, path: &QString);
         #[qsignal]
@@ -219,9 +216,6 @@ pub mod qobject {
         fn answer_invite(self: Pin<&mut EnvioCore>, id: i64, answer: &QString, note: &QString);
         #[qinvokable]
         fn open(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
-        #[qinvokable]
-        #[cxx_name = "openAnyway"]
-        fn open_anyway(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
         #[qinvokable]
         #[cxx_name = "reportImageSizes"]
         fn report_image_sizes(self: Pin<&mut EnvioCore>, id: i64, sizes_json: &QString);

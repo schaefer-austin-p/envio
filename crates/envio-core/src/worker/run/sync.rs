@@ -119,16 +119,64 @@ pub(super) async fn body(
     if let Some(account) = worker.account_of(id) {
         crate::hooks::reached(crate::hooks::Point::BodyFetch, &account);
     }
-    let eml = driver::fetch_body(session, &mut worker.store.local(), id)
-        .await
-        .map_err(|e| imap_error(&e))?;
-    if let Some(eml) = &eml {
+    let whole = worker
+        .account_of(id)
+        .and_then(|account| worker.live.get(&account))
+        .is_some_and(|live| live.wants.whole.contains(&id));
+    // The whole message of a big one is not cached (see `fetch_whole_body`),
+    // so it is not indexed either.
+    let kept = !whole
+        || !worker
+            .store
+            .db
+            .message(id)
+            .is_ok_and(|m| driver::is_big(m.size));
+    let eml = if whole {
+        driver::fetch_whole_body(session, &mut worker.store.local(), id).await
+    } else {
+        driver::fetch_body(session, &mut worker.store.local(), id).await
+    }
+    .map_err(|e| imap_error(&e))?;
+    if let (true, Some(eml)) = (kept, &eml) {
         index_body(worker, id, eml);
     }
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
     });
-    worker.body_fetched(id, eml.as_deref());
+    worker.body_fetched(id, eml.as_deref(), whole);
+    Ok(())
+}
+
+/// Fetches one attachment of a partial message and writes it where the user
+/// asked (see `Worker::part_fetched`).
+pub(super) async fn part(
+    worker: &mut Worker<'_>,
+    session: &mut ImapSession,
+    id: MessageRowId,
+    index: usize,
+) -> Result<(), Problem> {
+    let want = worker
+        .account_of(id)
+        .and_then(|account| worker.live.get(&account))
+        .and_then(|live| {
+            live.wants
+                .parts
+                .iter()
+                .find(|p| p.id == id && p.index == index)
+                .cloned()
+        });
+    let Some(want) = want else {
+        return Ok(());
+    };
+    let raw = driver::fetch_part(
+        session,
+        &mut worker.store.local(),
+        id,
+        (&want.section, want.size),
+    )
+    .await
+    .map_err(|e| imap_error(&e))?;
+    worker.part_fetched(&want, raw.as_deref());
     Ok(())
 }
 

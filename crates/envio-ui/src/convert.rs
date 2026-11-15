@@ -208,7 +208,6 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             view: Box::new(view),
         },
         Event::MessageUnavailable { id, text } => Signal::MessageUnavailable { id: id.0, text },
-        Event::MessageTooLarge { id, text } => Signal::MessageTooLarge { id: id.0, text },
         Event::AttachmentSaved { path, .. } => Signal::AttachmentSaved { path },
         Event::AttachmentFailed { id, .. } => Signal::AttachmentFailed { id: id.0 },
         Event::UndoOffer {

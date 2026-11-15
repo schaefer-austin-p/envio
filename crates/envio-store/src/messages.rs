@@ -111,6 +111,10 @@ pub struct NewMessage {
 pub enum BodyState {
     Missing,
     Downloaded,
+    /// A big message stored with its text and small inline images only: its
+    /// other parts are stubs, to be fetched when asked for. It shows in the
+    /// reader, but is not the whole message.
+    Partial,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -168,10 +172,10 @@ pub(crate) fn from_row(row: &Row<'_>) -> rusqlite::Result<Message> {
         },
         flags: Flags::from_bits(row.get(10)?),
         preview: row.get(11)?,
-        body: if body == 0 {
-            BodyState::Missing
-        } else {
-            BodyState::Downloaded
+        body: match body {
+            0 => BodyState::Missing,
+            2 => BodyState::Partial,
+            _ => BodyState::Downloaded,
         },
     })
 }
@@ -346,6 +350,7 @@ impl Db {
         let value = match state {
             BodyState::Missing => 0,
             BodyState::Downloaded => 1,
+            BodyState::Partial => 2,
         };
         found(self.conn().execute(
             "UPDATE messages SET body_state = ?2 WHERE id = ?1",
