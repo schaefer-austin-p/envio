@@ -95,6 +95,7 @@ Item {
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
     function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }
     function saveAttachment(id, index, dir) { record("saveAttachment", [id, index, dir]) }
+    function exportInvite(id, dir) { record("exportInvite", [id, dir]) }
     function startCompose(kind, id, account, mailto) { record("startCompose", [kind, id, account, mailto]); return 1 }
     function draftChanged(compose, draftJson) { record("draftChanged", [compose, draftJson]) }
     function closeCompose(compose, discard) { record("closeCompose", [compose, discard]) }

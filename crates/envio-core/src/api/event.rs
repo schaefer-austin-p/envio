@@ -185,6 +185,15 @@ pub enum Event {
         id: MessageRowId,
         index: usize,
     },
+    /// `ExportInvite` wrote the calendar file.
+    InviteExported {
+        id: MessageRowId,
+        path: PathBuf,
+    },
+    /// `ExportInvite` did not write it (a `Notice` says so too).
+    InviteExportFailed {
+        id: MessageRowId,
+    },
     /// An action was done; it can be taken back until `expires_at_ms`
     /// (unix milliseconds).
     UndoOffer {

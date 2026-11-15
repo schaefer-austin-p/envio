@@ -20,6 +20,10 @@ pub fn attachment_not_saved() -> String {
     tr("Could not save the attachment")
 }
 
+pub fn invite_not_exported() -> String {
+    tr("Could not add the invite to the calendar")
+}
+
 pub fn could_not_read() -> String {
     tr("Could not read your mail from this phone")
 }

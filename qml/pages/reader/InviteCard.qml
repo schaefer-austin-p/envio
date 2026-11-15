@@ -16,7 +16,8 @@ Rectangle {
     // calendar file (false on the desktop). Both come from the page.
     property string attachmentsDir: ""
     property bool hubAvailable: false
-    // The page keeps the pending export; it is told before the save starts.
+    // The page keeps the pending export; it is told before the core writes
+    // the calendar file (made importable there, issue #206).
     signal calendarRequested()
 
     readonly property var invite: view !== null && view.invite !== undefined ? view.invite : null
@@ -69,10 +70,18 @@ Rectangle {
         const t = dateTimes(invite)
         return invite.repeats ? qsTr("%1 · Repeats").arg(t) : t
     }
+    // The name can say anything, so the address an answer goes to is shown
+    // beside it (the review 729 fix).
+    readonly property string organizerText: {
+        if (invite === null) return ""
+        const email = invite.organizerEmail || ""
+        if (email === "" || email.toLowerCase() === invite.organizer.toLowerCase()) return invite.organizer
+        return qsTr("%1 · %2").arg(invite.organizer).arg(email)
+    }
     readonly property var facts: invite === null ? [] : [
         { name: "inviteWhen", icon: "clock", text: whenText },
         { name: "inviteLocation", icon: "pin", text: invite.location },
-        { name: "inviteOrganizer", icon: "person", text: invite.organizer }
+        { name: "inviteOrganizer", icon: "person", text: organizerText }
     ].filter(function(f) { return f.text !== "" })
 
     function answer(which) {
@@ -88,11 +97,11 @@ Rectangle {
     onCardKeyChanged: changing = false
     readonly property var messageId: view !== null ? view.id : -1
     onMessageIdChanged: { note.text = ""; noteOpen = false }
-    readonly property bool calendarShown: hubAvailable && invite !== null && invite.icsIndex >= 0
+    readonly property bool calendarShown: hubAvailable && invite !== null
         && (cardState === "open" || cardState === "updated" || cardState === "answered")
     function addToCalendar() {
         calendarRequested()
-        core.saveAttachment(view.id, invite.icsIndex, attachmentsDir)
+        core.exportInvite(view.id, attachmentsDir)
     }
     readonly property bool cancelled: cardState === "cancelled"
 

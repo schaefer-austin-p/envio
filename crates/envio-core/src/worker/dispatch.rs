@@ -81,6 +81,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.save_attachment(id, index, &dir);
             Flow::Continue
         }
+        Command::ExportInvite { id, dir } => {
+            worker.export_invite(id, &dir);
+            Flow::Continue
+        }
         Command::Act { ids, action } => {
             worker.act(&ids, action);
             Flow::Continue

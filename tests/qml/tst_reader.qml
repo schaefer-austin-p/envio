@@ -170,9 +170,9 @@ Item {
                          icsIndex: 1 }
             open(v)
             mouseClick(find("inviteCalendar"))
-            const saved = mock.called("saveAttachment").pop().args
+            const saved = mock.called("exportInvite").pop().args
             compare(saved[0], 5)
-            compare(saved[1], 1)
+            verify(saved[1].length > 0)
             mock.attachmentSaved("/tmp/envio-test/attachments/invite.ics")
             compare(root.exported, [{ path: "/tmp/envio-test/attachments/invite.ics", mode: "calendar" }])
             // A later save is not a calendar one.

@@ -229,6 +229,9 @@ pub mod qobject {
         #[cxx_name = "saveAttachment"]
         fn save_attachment(self: Pin<&mut EnvioCore>, id: i64, index: i32, dir: &QString);
         #[qinvokable]
+        #[cxx_name = "exportInvite"]
+        fn export_invite(self: Pin<&mut EnvioCore>, id: i64, dir: &QString);
+        #[qinvokable]
         #[cxx_name = "startCompose"]
         fn start_compose(
             self: Pin<&mut EnvioCore>,

@@ -2,6 +2,7 @@
 //! Untrusted input: capped, lenient, never panics.
 
 mod event;
+mod export;
 mod lines;
 mod reply;
 mod when;
@@ -12,6 +13,7 @@ use mail_parser::MimeHeaders;
 use crate::mail::{is_broken_multipart, parse_mail};
 
 pub use event::parse_invite;
+pub use export::calendar_file;
 pub use reply::{reply_ics, reply_outgoing};
 pub use when::{NaiveParts, When};
 

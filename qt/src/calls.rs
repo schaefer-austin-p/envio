@@ -240,6 +240,13 @@ impl qobject::EnvioCore {
         });
     }
 
+    pub fn export_invite(self: Pin<&mut Self>, id: i64, dir: &QString) {
+        self.send_command(Command::ExportInvite {
+            id: MessageRowId(id),
+            dir: PathBuf::from(s(dir)),
+        });
+    }
+
     /// `mailto` is the mailto URL for kind "mailto" and the stored draft id
     /// for kind "draft". Returns the compose id (0 when the kind is unknown).
     #[allow(clippy::too_many_arguments)] // the QML signature

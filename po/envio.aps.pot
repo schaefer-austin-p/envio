@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-15 11:15+0100\n"
+"POT-Creation-Date: 2026-11-15 11:47+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -579,71 +579,75 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:34 qml/pages/reader/ReplyBar.qml:21
+#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:21
 msgid "Reply"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:35 crates/envio-core/src/text/invite.rs:48
+#: qml/pages/reader/InviteCard.qml:36 crates/envio-core/src/text/invite.rs:48
 msgid "Updated"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:36 crates/envio-core/src/text/invite.rs:52
+#: qml/pages/reader/InviteCard.qml:37 crates/envio-core/src/text/invite.rs:52
 msgid "Cancelled"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:37
+#: qml/pages/reader/InviteCard.qml:38
 msgid "Invitation"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:54 qml/pages/reader/InviteCard.qml:65
+#: qml/pages/reader/InviteCard.qml:55 qml/pages/reader/InviteCard.qml:66
 msgid "%1 to %2"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:70
+#: qml/pages/reader/InviteCard.qml:71
 msgid "%1 · Repeats"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:171
+#: qml/pages/reader/InviteCard.qml:79
+msgid "%1 · %2"
+msgstr ""
+
+#: qml/pages/reader/InviteCard.qml:180
 msgid "Time zone not recognised"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:204
+#: qml/pages/reader/InviteCard.qml:213
 msgid "Change"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:212
+#: qml/pages/reader/InviteCard.qml:221
 msgid "Sending…"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:239
+#: qml/pages/reader/InviteCard.qml:248
 msgid "Not sent, see Outbox"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:258
+#: qml/pages/reader/InviteCard.qml:267
 msgid "Accept"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:265
+#: qml/pages/reader/InviteCard.qml:274
 msgid "Maybe"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:272
+#: qml/pages/reader/InviteCard.qml:281
 msgid "Decline"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:283
+#: qml/pages/reader/InviteCard.qml:292
 msgid "Hide note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:283
+#: qml/pages/reader/InviteCard.qml:292
 msgid "Add a note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:290
+#: qml/pages/reader/InviteCard.qml:299
 msgid "Add to calendar"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:300
+#: qml/pages/reader/InviteCard.qml:309
 msgid "Note to %1"
 msgstr ""
 
@@ -1083,27 +1087,31 @@ msgid "Could not save the attachment"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:24
-msgid "Could not read your mail from this phone"
+msgid "Could not add the invite to the calendar"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:28
-msgid "This folder can't be searched on the server right now"
+msgid "Could not read your mail from this phone"
 msgstr ""
 
 #: crates/envio-core/src/text/read.rs:32
+msgid "This folder can't be searched on the server right now"
+msgstr ""
+
+#: crates/envio-core/src/text/read.rs:36
 msgid "Couldn't load older messages. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:38
+#: crates/envio-core/src/text/read.rs:42
 msgid ""
 "Couldn't load older messages for {accounts}. Try again when you are online."
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:45
+#: crates/envio-core/src/text/read.rs:49
 msgid "(no sender)"
 msgstr ""
 
-#: crates/envio-core/src/text/read.rs:50
+#: crates/envio-core/src/text/read.rs:54
 msgid "(no subject)"
 msgstr ""
 

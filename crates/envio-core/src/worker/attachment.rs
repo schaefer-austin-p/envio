@@ -1,7 +1,8 @@
 //! Saving an attachment (the reader's Save and Open, a forward's copies). From
 //! the cached message, or, for a big message stored without its attachments
 //! (`BodyState::Partial`), from the server: the part is fetched alone, decoded
-//! and written, and never kept in the cache.
+//! and written, and never kept in the cache. Also the meeting invite as a
+//! calendar file (Add to calendar).
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -65,6 +66,44 @@ pub(super) fn write_attachment_of(raw: &[u8], index: usize, dir: &Path) -> io::R
 }
 
 impl Worker<'_> {
+    /// Writes the invite of cached message `id` into `dir` as
+    /// `<summary>.ics`, made importable by `envio_mime::calendar_file`.
+    pub(super) fn export_invite(&mut self, id: MessageRowId, dir: &Path) {
+        match self.write_invite(id, dir) {
+            Ok(path) => self.emit(Event::InviteExported { id, path }),
+            Err(e) => {
+                log::warn!("exporting an invite: {e}");
+                self.emit(Event::InviteExportFailed { id });
+                self.emit(Event::Notice {
+                    text: text::read::invite_not_exported(),
+                });
+            }
+        }
+    }
+
+    fn write_invite(&self, id: MessageRowId, dir: &Path) -> io::Result<PathBuf> {
+        let message = self.store.db.message(id).map_err(io::Error::other)?;
+        let raw = self
+            .store
+            .bodies
+            .read(message.folder, message.uid)
+            .map_err(io::Error::other)?;
+        let (invite, _) = envio_mime::invite_of(&raw)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no invite"))?;
+        let ics = envio_mime::calendar_file(&invite, now_ms() / 1000);
+        // The extension goes on after the name is made safe, so a long
+        // summary cut short keeps it.
+        let stem = safe_file_name(&invite.summary, 0);
+        let stem = if stem == safe_file_name("", 0) {
+            "invite".to_owned()
+        } else {
+            stem
+        };
+        let name = format!("{stem}.ics");
+        std::fs::create_dir_all(dir)?;
+        write_new(dir, &name, ics.as_bytes())
+    }
+
     /// The server fetch that saves attachment `index` of `id`, when the
     /// cached message holds only a stub of it.
     fn stub_want(&self, id: MessageRowId, index: usize, dir: &Path) -> Option<PartWant> {

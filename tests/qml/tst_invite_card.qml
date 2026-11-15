@@ -216,6 +216,16 @@ Item {
             verify(!find("inviteWhen").font.strikeout)
         }
 
+        function test_organizer_shows_the_address_an_answer_goes_to() {
+            show({ organizer: "Grace Example", organizerEmail: "x@evil.example" })
+            compare(find("inviteOrganizer").text, "Grace Example · x@evil.example")
+            // A name that is the address is not shown twice.
+            show({ organizer: "grace@example.org", organizerEmail: "Grace@Example.org" })
+            compare(find("inviteOrganizer").text, "grace@example.org")
+            show({ organizer: "Grace Example", organizerEmail: "" })
+            compare(find("inviteOrganizer").text, "Grace Example")
+        }
+
         function test_send_failed_is_in_a_box() {
             show({ state: "answered", stateText: "You accepted", answer: "accepted", sendFailed: true })
             verify(shown("inviteFailedBox"))
@@ -223,20 +233,20 @@ Item {
             verify(!shown("inviteFailedBox"))
         }
 
-        function test_add_to_calendar_saves_the_ics() {
+        function test_add_to_calendar_exports_the_invite() {
             show({ icsIndex: 2 })
             const asked = []
             root.card.calendarRequested.connect(function() { asked.push(true) })
             mouseClick(find("inviteCalendar"))
-            compare(mock.called("saveAttachment").map(function(c) { return c.args }),
-                    [[7, 2, "/tmp/envio-test/attachments"]])
+            compare(mock.called("exportInvite").map(function(c) { return c.args }),
+                    [[7, "/tmp/envio-test/attachments"]])
+            compare(mock.called("saveAttachment").length, 0)
             compare(asked.length, 1)
         }
 
-        function test_add_to_calendar_is_hidden_without_a_part_or_a_hub() {
+        // An inline-only calendar part (no attachment index) exports too.
+        function test_add_to_calendar_is_shown_for_an_inline_part_and_hidden_without_a_hub() {
             show({ icsIndex: -1 })
-            verify(!shown("inviteCalendar"))
-            show({ icsIndex: 0 })
             verify(shown("inviteCalendar"))
             root.card.hubAvailable = false
             verify(!shown("inviteCalendar"))

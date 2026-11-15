@@ -8,7 +8,7 @@ use crate::address::has_specials;
 use crate::link::strip_bidi_controls;
 
 const MAX_BYTES: usize = 256 * 1024;
-const MAX_LINES: usize = 10_000;
+pub(super) const MAX_LINES: usize = 10_000;
 /// Stack marker for a VEVENT after the first.
 const SKIPPED: &str = "VEVENT (skipped)";
 const MAX_TEXT: usize = 500;
