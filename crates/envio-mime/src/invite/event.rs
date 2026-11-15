@@ -1,9 +1,10 @@
 //! The calendar's first VEVENT: its properties into an [`Invite`].
 
 use super::lines::{Prop, split, unescape, unfold};
-use super::when::read;
+use super::when::{NaiveParts, read};
 use super::zones::VTimezone;
 use super::{Invite, InviteMethod, PartStat, Person};
+use crate::address::has_specials;
 use crate::link::strip_bidi_controls;
 
 const MAX_BYTES: usize = 256 * 1024;
@@ -71,6 +72,7 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
             .take(MAX_ATTENDEES)
             .collect(),
         repeats: get("RRULE").is_some(),
+        repeats_until: get("RRULE").and_then(|p| rrule_until(&p.value)),
         cancelled: method == InviteMethod::Cancel || status_cancelled,
         raw: raw.into_owned(),
     })
@@ -91,6 +93,7 @@ struct Scan {
     tz_id: Option<String>,
     tz_offset: Option<i32>,
     in_standard: bool,
+    tz_daylight: bool,
 }
 
 impl Scan {
@@ -126,6 +129,8 @@ impl Scan {
             self.seen_event = true;
         } else if kind == "STANDARD" && self.stack == ["VTIMEZONE"] {
             self.in_standard = true;
+        } else if kind == "DAYLIGHT" && self.stack == ["VTIMEZONE"] {
+            self.tz_daylight = true;
         }
         self.stack.push(kind);
     }
@@ -137,13 +142,15 @@ impl Scan {
         if kind == "STANDARD" {
             self.in_standard = false;
         }
-        if kind == "VTIMEZONE"
-            && let (Some(tzid), Some(off)) = (self.tz_id.take(), self.tz_offset.take())
-        {
-            self.vtz.push(VTimezone {
-                tzid,
-                standard_offset_s: off,
-            });
+        if kind == "VTIMEZONE" {
+            let daylight = std::mem::take(&mut self.tz_daylight);
+            if let (Some(tzid), Some(off)) = (self.tz_id.take(), self.tz_offset.take()) {
+                self.vtz.push(VTimezone {
+                    tzid,
+                    standard_offset_s: off,
+                    has_daylight: daylight,
+                });
+            }
         }
         let skipped_event = kind == "VEVENT" && self.stack.last().is_some_and(|k| k == SKIPPED);
         if skipped_event || self.stack.last().is_some_and(|k| k == kind) {
@@ -159,6 +166,40 @@ fn method_of(value: &str) -> Option<InviteMethod> {
         "REPLY" => Some(InviteMethod::Reply),
         _ => None,
     }
+}
+
+/// The `UNTIL` of an RRULE as Unix seconds (a date or date-time, read as
+/// UTC; a zone shifts it by hours, which the 30 days of keeping absorb).
+fn rrule_until(rule: &str) -> Option<i64> {
+    let value = rule.split(';').find_map(|part| {
+        let (name, value) = part.split_once('=')?;
+        name.trim()
+            .eq_ignore_ascii_case("UNTIL")
+            .then_some(value.trim())
+    })?;
+    let value = value.trim_end_matches(['Z', 'z']);
+    let (date, time) = value.split_once(['T', 't']).unwrap_or((value, "000000"));
+    let digits = |s: &str, r: std::ops::Range<usize>| -> Option<u32> {
+        let part = s.get(r)?;
+        part.bytes()
+            .all(|b| b.is_ascii_digit())
+            .then(|| part.parse().ok())?
+    };
+    if date.len() != 8 || time.len() != 6 {
+        return None;
+    }
+    let parts = NaiveParts {
+        year: i32::try_from(digits(date, 0..4)?).ok()?,
+        month: u8::try_from(digits(date, 4..6)?).ok()?,
+        day: u8::try_from(digits(date, 6..8)?).ok()?,
+        hour: u8::try_from(digits(time, 0..2)?).ok()?,
+        minute: u8::try_from(digits(time, 2..4)?).ok()?,
+        second: u8::try_from(digits(time, 4..6)?).ok()?,
+    };
+    if !(1..=12).contains(&parts.month) || !(1..=31).contains(&parts.day) || parts.hour > 23 {
+        return None;
+    }
+    Some(parts.as_utc_secs())
 }
 
 /// `+0100`, `-0530` or `+010000` as seconds.
@@ -177,6 +218,19 @@ fn offset_seconds(value: &str) -> Option<i32> {
     Some(sign * (n(0..2)? * 3600 + n(2..4)? * 60 + secs))
 }
 
+/// A plain `local@domain`: one `@`, both sides non-empty, no whitespace,
+/// control character or address special (so the reply's To can carry it).
+fn plain_addr_spec(email: &str) -> bool {
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    !local.is_empty()
+        && !domain.is_empty()
+        && !domain.contains('@')
+        && !has_specials(email)
+        && !email.chars().any(|c| c.is_control() || c.is_whitespace())
+}
+
 /// ORGANIZER or ATTENDEE; only a `mailto:` value counts.
 fn person(p: &Prop) -> Option<Person> {
     let v = p.value.trim();
@@ -186,8 +240,7 @@ fn person(p: &Prop) -> Option<Person> {
         .map(|_| &v[7..])?;
     let email = address.split('?').next().unwrap_or("").trim();
     let email = strip_bidi_controls(&email.chars().take(MAX_TEXT).collect::<String>());
-    // What lettre would refuse as an address: nothing, or controls or spaces.
-    if email.is_empty() || email.chars().any(|c| c.is_control() || c.is_whitespace()) {
+    if !plain_addr_spec(&email) {
         return None;
     }
     let partstat = p

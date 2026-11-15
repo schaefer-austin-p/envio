@@ -13,6 +13,9 @@ pub(super) struct VTimezone {
     pub tzid: String,
     /// `TZOFFSETTO` of the first `STANDARD` block, in seconds.
     pub standard_offset_s: i32,
+    /// The zone also has a `DAYLIGHT` block: one fixed offset would be wrong
+    /// for part of the year.
+    pub has_daylight: bool,
 }
 
 /// Unix seconds of `local` in zone `tzid`; `None` when the zone is unknown.
@@ -25,6 +28,10 @@ pub(super) fn resolve(tzid: &str, local: NaiveParts, vtz: &[VTimezone]) -> Optio
         return Some(secs);
     }
     let zone = vtz.iter().find(|z| z.tzid == tzid)?;
+    // Only a zone without daylight time is one fixed offset.
+    if zone.has_daylight {
+        return None;
+    }
     // A VTIMEZONE offset is a real UTC offset: anything over a day is junk.
     if zone.standard_offset_s.unsigned_abs() >= 86_400 {
         return None;

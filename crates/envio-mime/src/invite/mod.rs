@@ -67,6 +67,8 @@ pub struct Invite {
     /// At most 500 kept.
     pub attendees: Vec<Person>,
     pub repeats: bool,
+    /// The RRULE's UNTIL as Unix seconds, when it has a readable one.
+    pub repeats_until: Option<i64>,
     /// METHOD:CANCEL or STATUS:CANCELLED.
     pub cancelled: bool,
     /// The part as received, for the reply and for export.
