@@ -6,6 +6,48 @@ All notable changes to Envio are listed here. The format follows
 Release milestone:
 https://code.austinschaefer.com/schaefera/envio/milestone/12
 
+## [0.2.0] - 2026-11-15
+
+Release milestone:
+https://code.austinschaefer.com/schaefera/envio/milestone/15
+
+### Added
+
+- Meeting invites. A message with a calendar invite shows a card with the
+  title, time in your zone, place and organizer, with Accept, Maybe and
+  Decline (#200). The answer goes to the organizer through the Outbox and
+  can be undone while it waits there. The card shows the organizer's
+  address, which is where the answer goes.
+- Add to calendar on the invite card hands the event to the Calendar app.
+  Calendar shows its import preview before anything is saved. Invites
+  that name a time zone without defining it are converted so Calendar
+  can read them (#206).
+- Reaching the end of the list loads older mail (#130).
+- Select and copy text in a message body.
+- A stopped account is shown in the inbox tab and the drawer, and a
+  message waiting in the Outbox says why (#141).
+- Development builds show their source, build and install time in About.
+
+### Fixed
+
+- Very large messages open in parts instead of all at once (#155).
+- Inline images embedded in a message (`cid:`) are shown.
+- Many fixes to how HTML mail looks: multi-column layout tables are
+  stacked, percentage and unsized image widths fit the screen, remote
+  images draw once they load, backgrounds stay behind their text, and
+  font sizes are kept in a readable range.
+- Enter on an address chip in compose keeps the cursor and keyboard (#145).
+- A sideways swipe on a folder row no longer opens it (#146).
+- The drawer heading shows the address once when the name is the address
+  (#139).
+- Flag sync on large folders sends bounded commands.
+
+### Known limitations
+
+- An invite whose time zone Envio has to convert loses its repeat rule
+  and attendee list in Calendar: a repeating meeting is added once.
+- No background sync and no notifications yet.
+
 ## [0.1.0] - 2026-11-13
 
 First release. Envio is an IMAP and SMTP mail app for Ubuntu Touch 24.04.
