@@ -250,7 +250,7 @@ impl Worker<'_> {
                 not_queued()
             })?;
         let current = self.remembered_answer(&account, &invite.uid, &invite.recurrence_id);
-        let sent_before = self.last_sent(current.clone());
+        let sent_before = self.last_sent(current.clone(), now);
         let remembered = InviteAnswer {
             account: account.clone(),
             uid: invite.uid.clone(),
@@ -299,16 +299,16 @@ impl Worker<'_> {
     }
 
     /// The newest answer in the chain from `answer` back whose reply went
-    /// out or still will: one whose reply failed in the Outbox was not sent,
-    /// and its own `previous` is looked at instead. A held reply was already
-    /// withdrawn by `replace_held_answer`, so a reply still queued here is
-    /// past its Undo window and counts as sent.
-    fn last_sent(&self, mut answer: Option<InviteAnswer>) -> Option<InviteAnswer> {
+    /// out or still will: one whose reply failed, or is still held in its
+    /// Undo window (and is about to be withdrawn by `replace_held_answer`),
+    /// was not sent, and its own `previous` is looked at instead. A reply
+    /// still queued past its window counts as sent.
+    fn last_sent(&self, mut answer: Option<InviteAnswer>, now_ms: i64) -> Option<InviteAnswer> {
         let outbox = self.store.outbox.items().unwrap_or_default();
         while let Some(a) = answer {
             if !outbox.iter().any(|i| {
                 i.meta.message_id == a.reply_message_id
-                    && matches!(i.meta.state, SendState::Failed { .. })
+                    && (held(&i.meta, now_ms) || matches!(i.meta.state, SendState::Failed { .. }))
             }) {
                 return Some(InviteAnswer {
                     previous: None,
@@ -783,7 +783,10 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
         let sink = Sink::default();
         let (mut worker, first) = answered(&sink, dir.path());
         let id = worker.store.shown.as_ref().unwrap().id;
-        // The Accept went out and left the Outbox.
+        // The Accept went out and left the Outbox, which closed its offer
+        // (else the next reply, queued in the same millisecond, could get
+        // the freed id and be withdrawn as the held one).
+        worker.undo.expire(i64::MAX);
         worker.store.outbox.remove(&first.id).unwrap();
         worker.answer_invite(id, Answer::Declined, "");
         let second = worker.store.outbox.items().unwrap().remove(0);
@@ -805,6 +808,18 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
         let id = worker.store.shown.as_ref().unwrap().id;
         // The Undo window of the Accept ended; offline, it is still queued.
         worker.undo.expire(i64::MAX);
+        let meta = worker
+            .store
+            .paths
+            .outbox()
+            .join(format!("{}.json", first.id));
+        let json = std::fs::read_to_string(&meta).unwrap();
+        let past = json.replace(
+            &format!("\"send_after_ms\": {}", first.meta.send_after_ms),
+            "\"send_after_ms\": 1",
+        );
+        assert_ne!(json, past, "the send-after time was rewritten");
+        std::fs::write(&meta, past).unwrap();
         worker.answer_invite(id, Answer::Declined, "");
         let items = worker.store.outbox.items().unwrap();
         assert_eq!(items.len(), 2);
@@ -814,6 +829,25 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
         let kept = load_invites(&worker.store.paths.invites()).unwrap();
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].answer, "accepted");
+    }
+
+    #[test]
+    fn deleting_a_failed_reply_does_not_bring_back_one_withdrawn_in_its_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, _) = answered(&sink, dir.path());
+        let id = worker.store.shown.as_ref().unwrap().id;
+        // Decline inside the Accept's Undo window: the Accept never goes out.
+        worker.answer_invite(id, Answer::Declined, "");
+        let items = worker.store.outbox.items().unwrap();
+        assert_eq!(items.len(), 1);
+        mark_failed(&worker, &items[0]);
+        worker.decide_outbox(&items[0].id, OutboxDecision::Delete);
+        assert!(
+            load_invites(&worker.store.paths.invites())
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
