@@ -298,16 +298,18 @@ impl Worker<'_> {
         Ok(())
     }
 
-    /// The newest answer in the chain from `answer` back whose reply left
-    /// the Outbox (so it went out): an answer whose reply is still there was
-    /// not sent, and its own `previous` is looked at instead.
+    /// The newest answer in the chain from `answer` back whose reply went
+    /// out or still will: one whose reply failed in the Outbox was not sent,
+    /// and its own `previous` is looked at instead. A held reply was already
+    /// withdrawn by `replace_held_answer`, so a reply still queued here is
+    /// past its Undo window and counts as sent.
     fn last_sent(&self, mut answer: Option<InviteAnswer>) -> Option<InviteAnswer> {
         let outbox = self.store.outbox.items().unwrap_or_default();
         while let Some(a) = answer {
-            if !outbox
-                .iter()
-                .any(|i| i.meta.message_id == a.reply_message_id)
-            {
+            if !outbox.iter().any(|i| {
+                i.meta.message_id == a.reply_message_id
+                    && matches!(i.meta.state, SendState::Failed { .. })
+            }) {
                 return Some(InviteAnswer {
                     previous: None,
                     ..a
@@ -793,6 +795,25 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
         let card = last_card(&sink);
         assert_eq!(card.state, CardState::Answered);
         assert_eq!(card.answer, Some(Answer::Accepted));
+    }
+
+    #[test]
+    fn deleting_a_failed_reply_keeps_an_earlier_one_still_queued_to_go_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, first) = answered(&sink, dir.path());
+        let id = worker.store.shown.as_ref().unwrap().id;
+        // The Undo window of the Accept ended; offline, it is still queued.
+        worker.undo.expire(i64::MAX);
+        worker.answer_invite(id, Answer::Declined, "");
+        let items = worker.store.outbox.items().unwrap();
+        assert_eq!(items.len(), 2);
+        let second = items.into_iter().find(|i| i.id != first.id).unwrap();
+        mark_failed(&worker, &second);
+        worker.decide_outbox(&second.id, OutboxDecision::Delete);
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].answer, "accepted");
     }
 
     #[test]
