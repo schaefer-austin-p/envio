@@ -25,6 +25,9 @@ Item {
     property string accountName: ""
     // "open", "save" or "share" while an attachment is being saved.
     property string pendingMode: ""
+    // Add to calendar was tapped; the invite's file comes as inviteExported,
+    // apart from attachment saves, so neither takes the other's file.
+    property bool calendarPending: false
     property int undoId: -1
     property bool started: false
     property bool moved: false
@@ -286,7 +289,7 @@ Item {
                 view: root.view
                 attachmentsDir: content.attachmentsDir
                 hubAvailable: root.hubAvailable
-                onCalendarRequested: root.pendingMode = "calendar"
+                onCalendarRequested: root.calendarPending = true
             }
             Rectangle {
                 objectName: "bodyCard"
@@ -472,6 +475,14 @@ Item {
             if (id !== root.messageId) return
             root.view = null
             root.unavailable = text
+        }
+        function onInviteExported(id, path) {
+            if (id !== root.messageId || !root.calendarPending) return
+            root.calendarPending = false
+            root.exportFile(path, "calendar")
+        }
+        function onInviteExportFailed(id) {
+            if (id === root.messageId) root.calendarPending = false
         }
         function onAttachmentSaved(path) {
             if (root.pendingMode === "") return

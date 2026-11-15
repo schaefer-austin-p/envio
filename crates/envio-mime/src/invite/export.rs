@@ -12,9 +12,9 @@ use super::{Invite, NaiveParts, When};
 
 /// The calendar text to hand to a calendar app: the part as received when
 /// every TZID it uses is defined in it, else one VEVENT rebuilt from what
-/// was read. A rebuilt event keeps UID, the times, SUMMARY, LOCATION and
-/// ORGANIZER; it drops RRULE, so a repeating meeting exports only its
-/// first occurrence. `dtstamp_unix` is when the file was made.
+/// was read. A rebuilt event keeps UID, RECURRENCE-ID, the times, SUMMARY,
+/// LOCATION and ORGANIZER; it drops RRULE, so a repeating meeting exports
+/// only its first occurrence. `dtstamp_unix` is when the file was made.
 pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     if self_contained(&invite.raw) {
         return invite.raw.clone();
@@ -26,9 +26,16 @@ pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     line("VERSION:2.0");
     line("BEGIN:VEVENT");
     line(&format!("UID:{}", invite.uid));
+    if let Some(occurrence) = &invite.recurrence_when {
+        // One changed occurrence of a series: without it the file would
+        // read as the whole series under the same UID.
+        line(&format!("RECURRENCE-ID{}", values(occurrence).0));
+    }
     line(&format!("DTSTAMP:{}", stamp(dtstamp_unix)));
-    for time in times(&invite.when) {
-        line(&time);
+    let (start, end) = values(&invite.when);
+    line(&format!("DTSTART{start}"));
+    if let Some(end) = end {
+        line(&format!("DTEND{end}"));
     }
     if !invite.summary.is_empty() {
         line(&format!("SUMMARY:{}", escape(&invite.summary)));
@@ -70,9 +77,9 @@ fn self_contained(raw: &str) -> bool {
     used.is_subset(&defined)
 }
 
-/// DTSTART and, when it differs, DTEND.
-fn times(when: &When) -> Vec<String> {
-    let (start, end) = match *when {
+/// The parameters and value of DTSTART and, when it differs, of DTEND.
+fn values(when: &When) -> (String, Option<String>) {
+    match *when {
         When::Timed {
             start,
             end,
@@ -92,10 +99,7 @@ fn times(when: &When) -> Vec<String> {
             format!(";VALUE=DATE:{}", date(start)),
             Some(format!(";VALUE=DATE:{}", date(end))),
         ),
-    };
-    let mut out = vec![format!("DTSTART{start}")];
-    out.extend(end.map(|end| format!("DTEND{end}")));
-    out
+    }
 }
 
 /// `20261120T150000`.

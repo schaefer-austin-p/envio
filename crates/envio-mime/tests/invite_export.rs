@@ -162,3 +162,22 @@ fn an_empty_summary_and_location_are_left_out() {
             .any(|l| l.starts_with("SUMMARY") || l.starts_with("LOCATION"))
     );
 }
+
+#[test]
+fn a_changed_occurrence_keeps_its_recurrence_id() {
+    let ics = event(
+        "RECURRENCE-ID;TZID=Europe/Berlin:20261208T100000\r\n\
+         DTSTART;TZID=Europe/Berlin:20261208T140000\r\n",
+    );
+    let out = lines(&export(&ics));
+    let at = |prefix: &str| out.iter().position(|l| l.starts_with(prefix));
+    assert!(
+        out.contains(&"RECURRENCE-ID:20261208T090000Z".to_owned()),
+        "{out:?}"
+    );
+    assert!(
+        out.contains(&"DTSTART:20261208T130000Z".to_owned()),
+        "{out:?}"
+    );
+    assert!(at("UID") < at("RECURRENCE-ID"), "{out:?}");
+}

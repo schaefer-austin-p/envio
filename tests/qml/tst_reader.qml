@@ -173,11 +173,42 @@ Item {
             const saved = mock.called("exportInvite").pop().args
             compare(saved[0], 5)
             verify(saved[1].length > 0)
-            mock.attachmentSaved("/tmp/envio-test/attachments/invite.ics")
+            // Another message's export is not this tap's.
+            mock.inviteExported(6, "/tmp/envio-test/attachments/other.ics")
+            compare(root.exported.length, 0)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/invite.ics")
             compare(root.exported, [{ path: "/tmp/envio-test/attachments/invite.ics", mode: "calendar" }])
             // A later save is not a calendar one.
             mock.attachmentSaved("/tmp/envio-test/attachments/other.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/again.ics")
             compare(root.exported.length, 1)
+        }
+
+        // An attachment save still in flight keeps its file, and the
+        // calendar keeps its own (review 733).
+        function test_a_pending_attachment_save_and_the_calendar_do_not_swap_files() {
+            root.page.hubAvailable = true
+            const v = view(pdf(), 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: -1 }
+            open(v)
+            // The card pushes the attachment below the fold: scroll to it.
+            const flick = everything(root.page, []).filter(function(o) {
+                return o.contentY !== undefined && o.boundsBehavior !== undefined })[0]
+            flick.contentY = Math.max(0, flick.contentHeight - flick.height)
+            waitForRendering(root.page)
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            tryVerify(function() { return !find("attachmentSheet").opened })
+            mouseClick(find("inviteCalendar"))
+            mock.attachmentSaved("/tmp/envio-test/attachments/invoice.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/Q.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invoice.pdf", mode: "share" },
+                                    { path: "/tmp/envio-test/attachments/Q.ics", mode: "calendar" }])
         }
 
         function test_a_failed_calendar_save_forgets_the_export() {
@@ -189,8 +220,8 @@ Item {
                          repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
             open(v)
             mouseClick(find("inviteCalendar"))
-            mock.attachmentFailed(5)
-            mock.attachmentSaved("/tmp/envio-test/attachments/x.ics")
+            mock.inviteExportFailed(5)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/x.ics")
             compare(root.exported.length, 0)
         }
 

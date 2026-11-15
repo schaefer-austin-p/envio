@@ -62,6 +62,8 @@ pub struct Invite {
     pub recurrence_id: String,
     /// The RECURRENCE-ID line as received, copied into a reply.
     pub recurrence_id_line: Option<String>,
+    /// The RECURRENCE-ID read like DTSTART (its zone resolved), for export.
+    pub recurrence_when: Option<When>,
     /// The ORGANIZER line as received; `Some` exactly when `organizer` is.
     pub organizer_line: Option<String>,
     /// Only a `mailto:` value counts.

@@ -50,6 +50,8 @@ Item {
     signal messageUnavailable(real id, string text)
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
+    signal inviteExported(real id, string path)
+    signal inviteExportFailed(real id)
     signal undoOffer(real undo, string text, string scope)
     signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted)

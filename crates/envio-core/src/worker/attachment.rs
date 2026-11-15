@@ -91,9 +91,10 @@ impl Worker<'_> {
         let (invite, _) = envio_mime::invite_of(&raw)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no invite"))?;
         let ics = envio_mime::calendar_file(&invite, now_ms() / 1000);
-        // The extension goes on after the name is made safe, so a long
-        // summary cut short keeps it.
-        let stem = safe_file_name(&invite.summary, 0);
+        // A slash in a title is not a path, so the whole title stays. The
+        // extension goes on after the name is made safe, so a long summary
+        // cut short keeps it.
+        let stem = safe_file_name(&invite.summary.replace(['/', '\\'], "-"), 0);
         let stem = if stem == safe_file_name("", 0) {
             "invite".to_owned()
         } else {
