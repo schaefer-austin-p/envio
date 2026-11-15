@@ -237,6 +237,7 @@ fn invite_value(c: &InviteCard) -> Value {
         "zoneUnknown": c.zone_unknown,
         "repeats": c.repeats,
         "organizer": c.organizer,
+        "organizerEmail": c.organizer_email,
         "canAnswer": c.can_answer,
         "icsIndex": c.ics_index,
     })
@@ -417,6 +418,7 @@ mod tests {
             zone_unknown: false,
             repeats: true,
             organizer: "Grace".into(),
+            organizer_email: "grace@example.org".into(),
             can_answer: true,
             ics_index: -1,
         });
@@ -432,6 +434,7 @@ mod tests {
             ("startDate", "2026-11-20"),
             ("endDate", "2026-11-21"),
             ("organizer", "Grace"),
+            ("organizerEmail", "grace@example.org"),
         ];
         for (k, want) in strings {
             assert_eq!(c[k], want, "{k}");
@@ -452,6 +455,6 @@ mod tests {
             assert!(c[k].is_i64(), "{k}");
         }
         assert_eq!(c["icsIndex"], -1);
-        assert_eq!(c.len(), 19);
+        assert_eq!(c.len(), 20);
     }
 }

@@ -1,7 +1,7 @@
 //! Answering a meeting invite: the reply goes into the Outbox held for the
 //! Undo window, the answer is remembered, and the reader gets the new card.
 
-use envio_mime::{Address, When};
+use envio_mime::{Address, Invite, When};
 use envio_store::{
     BodyState, InviteAnswer, MessageRowId, NewOutboxItem, OutboxItem, SendState, forget_invite,
     load_invites, record_invite,
@@ -52,6 +52,11 @@ fn mentions_calendar(raw: &[u8]) -> bool {
         .any(|w| w.eq_ignore_ascii_case(b"calendar"))
 }
 
+/// Whether `raw` holds an invite, checked without rendering the message.
+pub(crate) fn holds_invite(raw: &[u8]) -> bool {
+    mentions_calendar(raw) && envio_mime::invite_of(raw).is_some()
+}
+
 /// The card of the invite in `raw`, if it holds one.
 pub(crate) fn card_of(raw: &[u8], account: &str, env: &InviteEnv<'_>) -> Option<InviteCard> {
     let (invite, ics) = envio_mime::invite_of(raw)?;
@@ -82,6 +87,19 @@ fn days_from_civil(y: i32, m: u8, d: u8) -> i64 {
     let doy = (153 * mp + 2) / 5 + i64::from(d) - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     era * 146_097 + doe - 719_468
+}
+
+/// When the remembered answer of `invite` may be dropped (before the 30
+/// days of keeping): the event's end; for a series its RRULE UNTIL, or
+/// never (`i64::MAX`) when it has none, so a running series keeps its
+/// answer.
+fn keep_until(invite: &Invite, now_secs: i64) -> i64 {
+    let end = event_end_unix(&invite.when, now_secs);
+    match (invite.repeats, invite.repeats_until) {
+        (false, _) => end,
+        (true, Some(until)) => end.max(until),
+        (true, None) => i64::MAX,
+    }
 }
 
 /// When the event ends, as Unix seconds, for pruning the remembered answer:
@@ -160,7 +178,9 @@ impl Worker<'_> {
             log::warn!("finding an invite to answer: {e}");
             not_queued()
         })?;
-        if message.body != BodyState::Downloaded {
+        // A partial body keeps a small calendar part whole: `invite_of` below
+        // is the test, the same one the card passes.
+        if message.body == BodyState::Missing {
             return Err(text::invite::cannot_answer());
         }
         let raw = self
@@ -205,6 +225,10 @@ impl Worker<'_> {
             now / 1000,
             &envio_mime::new_message_id(&settings.email),
         );
+        if built.recipients.is_empty() {
+            // Nobody to send to: nothing is queued or remembered.
+            return Err(text::invite::cannot_answer());
+        }
         let message_id = envio_sync::convert::bracketed(&built.message_id);
         let send_after_ms = now + UNDO_MS;
         let item = self
@@ -226,6 +250,7 @@ impl Worker<'_> {
                 not_queued()
             })?;
         let current = self.remembered_answer(&account, &invite.uid, &invite.recurrence_id);
+        let sent_before = self.last_sent(current.clone());
         let remembered = InviteAnswer {
             account: account.clone(),
             uid: invite.uid.clone(),
@@ -233,8 +258,9 @@ impl Worker<'_> {
             sequence: invite.sequence,
             answer: answer.as_str().to_owned(),
             answered_at_ms: now,
-            event_end_unix: event_end_unix(&invite.when, now / 1000),
+            event_end_unix: keep_until(&invite, now / 1000),
             reply_message_id: message_id,
+            previous: sent_before.map(Box::new),
         };
         if let Err(e) = record_invite(&self.store.paths.invites(), remembered, now) {
             log::warn!("remembering an invite answer: {e}");
@@ -270,6 +296,26 @@ impl Worker<'_> {
         });
         self.reshow(id);
         Ok(())
+    }
+
+    /// The newest answer in the chain from `answer` back whose reply left
+    /// the Outbox (so it went out): an answer whose reply is still there was
+    /// not sent, and its own `previous` is looked at instead.
+    fn last_sent(&self, mut answer: Option<InviteAnswer>) -> Option<InviteAnswer> {
+        let outbox = self.store.outbox.items().unwrap_or_default();
+        while let Some(a) = answer {
+            if !outbox
+                .iter()
+                .any(|i| i.meta.message_id == a.reply_message_id)
+            {
+                return Some(InviteAnswer {
+                    previous: None,
+                    ..a
+                });
+            }
+            answer = a.previous.map(|p| *p);
+        }
+        None
     }
 
     /// Withdraws the live answer offer for (account, uid, recurrence id), if any: its held
@@ -347,8 +393,16 @@ impl Worker<'_> {
                 text: text::undo::too_late(),
             });
         }
-        if let Err(e) = self.store.outbox.remove(&outbox_item) {
-            log::warn!("deleting a held reply: {e}");
+        // Restore the card's answer first: if that cannot be written the
+        // reply stays held and the card still says what it says.
+        let path = self.store.paths.invites();
+        let current = self.remembered_answer(&account, &uid, &recurrence_id);
+        let restored = match previous {
+            Some(answer) => record_invite(&path, answer, now_ms()),
+            None => forget_invite(&path, &account, &uid, &recurrence_id),
+        };
+        if let Err(e) = restored {
+            log::warn!("restoring an invite answer: {e}");
             self.emit(Event::UndoClosed {
                 undo,
                 undone: false,
@@ -357,14 +411,16 @@ impl Worker<'_> {
                 text: text::undo::cannot_undo(),
             });
         }
-        let path = self.store.paths.invites();
-        let restored = match previous {
-            Some(answer) => record_invite(&path, answer, now_ms()),
-            None => forget_invite(&path, &account, &uid, &recurrence_id),
-        };
-        let undone = restored.is_ok();
-        if let Err(e) = restored {
-            log::warn!("restoring an invite answer: {e}");
+        let mut undone = true;
+        if let Err(e) = self.store.outbox.remove(&outbox_item) {
+            log::warn!("deleting a held reply: {e}");
+            // The reply stays and will go: put its answer back.
+            if let Some(answer) = current
+                && let Err(e) = record_invite(&path, answer, now_ms())
+            {
+                log::warn!("putting an invite answer back: {e}");
+            }
+            undone = false;
             self.emit(Event::Notice {
                 text: text::undo::cannot_undo(),
             });
@@ -402,10 +458,11 @@ impl Worker<'_> {
         };
         match self.store.bodies.read(message.folder, message.uid) {
             Ok(raw) => {
-                let view = self.view(&message, &raw, choice);
-                if !invite_only || view.0.invite.is_some() {
-                    self.show(id, choice, view);
+                if invite_only && !holds_invite(&raw) {
+                    return;
                 }
+                let view = self.view(&message, &raw, choice);
+                self.show(id, choice, view);
             }
             Err(e) => log::warn!("reading a cached body: {e}"),
         }
@@ -421,7 +478,13 @@ impl Worker<'_> {
         let Some(a) = found else {
             return;
         };
-        if let Err(e) = forget_invite(&path, &a.account, &a.uid, &a.recurrence_id) {
+        // An answer that really went out earlier stays; otherwise the card
+        // is open again.
+        let result = match a.previous {
+            Some(sent) => record_invite(&path, *sent, now_ms()),
+            None => forget_invite(&path, &a.account, &a.uid, &a.recurrence_id),
+        };
+        if let Err(e) = result {
             log::warn!("forgetting an invite answer: {e}");
         }
     }
@@ -580,6 +643,7 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
             answered_at_ms: 1,
             event_end_unix: 2_000_000_000,
             reply_message_id: "<r@example.org>".into(),
+            previous: None,
         };
         let env = InviteEnv {
             answers: std::slice::from_ref(&series),
@@ -596,5 +660,147 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
             card_of(one.as_bytes(), "a", &env).unwrap().state,
             CardState::Open
         );
+    }
+
+    fn notices(sink: &Sink) -> Vec<String> {
+        sink.events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Notice { text } => Some(text),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// A worker with `mail` cached under `body` and open, nothing answered.
+    fn opened<'s>(
+        sink: &'s Sink,
+        dir: &std::path::Path,
+        mail: &[u8],
+        body: BodyState,
+    ) -> Worker<'s> {
+        let (config, seeded) = seed(dir);
+        let mut worker = open(&config, sink);
+        worker.store.bodies.write(seeded.folder, 1, mail).unwrap();
+        worker
+            .store
+            .db
+            .set_body_state(seeded.message, body)
+            .unwrap();
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        worker
+    }
+
+    #[test]
+    fn a_partial_body_with_its_calendar_part_can_be_answered() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let mut worker = opened(&sink, dir.path(), MAIL, BodyState::Partial);
+        let id = worker.store.shown.as_ref().unwrap().id;
+        assert!(last_card(&sink).can_answer);
+        worker.answer_invite(id, Answer::Accepted, "");
+        assert_eq!(worker.store.outbox.items().unwrap().len(), 1);
+        assert!(notices(&sink).is_empty());
+    }
+
+    #[test]
+    fn a_partial_body_without_its_calendar_part_offers_no_card() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        // The calendar part was left out of the cached body.
+        let stub = String::from_utf8(MAIL.to_vec())
+            .unwrap()
+            .split("BEGIN:VCALENDAR")
+            .next()
+            .unwrap()
+            .to_owned();
+        let mut worker = opened(&sink, dir.path(), stub.as_bytes(), BodyState::Partial);
+        let id = worker.store.shown.as_ref().unwrap().id;
+        let opened_with_card = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageOpened { view, .. } if view.invite.is_some()));
+        assert!(!opened_with_card);
+        worker.answer_invite(id, Answer::Accepted, "");
+        assert!(worker.store.outbox.items().unwrap().is_empty());
+        assert_eq!(notices(&sink), [text::invite::cannot_answer()]);
+    }
+
+    #[test]
+    fn an_organizer_the_reply_cannot_reach_is_not_answered() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let text = String::from_utf8(MAIL.to_vec()).unwrap().replace(
+            "mailto:ada@example.org",
+            "mailto:ada@example.org>,eve@example.org",
+        );
+        let mut worker = opened(&sink, dir.path(), text.as_bytes(), BodyState::Downloaded);
+        let id = worker.store.shown.as_ref().unwrap().id;
+        assert!(!last_card(&sink).can_answer);
+        worker.answer_invite(id, Answer::Accepted, "");
+        assert!(worker.store.outbox.items().unwrap().is_empty());
+        assert!(
+            load_invites(&worker.store.paths.invites())
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_running_series_keeps_its_answer_past_the_first_occurrence() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let series = String::from_utf8(MAIL.to_vec())
+            .unwrap()
+            .replace("SUMMARY:Planning", "SUMMARY:Planning\r\nRRULE:FREQ=WEEKLY");
+        let mut worker = opened(&sink, dir.path(), series.as_bytes(), BodyState::Downloaded);
+        let id = worker.store.shown.as_ref().unwrap().id;
+        worker.answer_invite(id, Answer::Accepted, "");
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept[0].event_end_unix, i64::MAX);
+    }
+
+    #[test]
+    fn a_series_with_an_until_is_kept_until_then() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let series = String::from_utf8(MAIL.to_vec()).unwrap().replace(
+            "SUMMARY:Planning",
+            "SUMMARY:Planning\r\nRRULE:FREQ=WEEKLY;UNTIL=20270301T000000Z",
+        );
+        let mut worker = opened(&sink, dir.path(), series.as_bytes(), BodyState::Downloaded);
+        let id = worker.store.shown.as_ref().unwrap().id;
+        worker.answer_invite(id, Answer::Accepted, "");
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept[0].event_end_unix, 1_803_859_200);
+    }
+
+    #[test]
+    fn deleting_a_failed_second_reply_restores_the_answer_that_was_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, first) = answered(&sink, dir.path());
+        let id = worker.store.shown.as_ref().unwrap().id;
+        // The Accept went out and left the Outbox.
+        worker.store.outbox.remove(&first.id).unwrap();
+        worker.answer_invite(id, Answer::Declined, "");
+        let second = worker.store.outbox.items().unwrap().remove(0);
+        mark_failed(&worker, &second);
+        worker.decide_outbox(&second.id, OutboxDecision::Delete);
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].answer, "accepted");
+        let card = last_card(&sink);
+        assert_eq!(card.state, CardState::Answered);
+        assert_eq!(card.answer, Some(Answer::Accepted));
+    }
+
+    #[test]
+    fn only_mail_with_an_invite_is_rendered_again_after_the_outbox_changes() {
+        assert!(holds_invite(MAIL));
+        let plain = b"From: a@example.org\r\nSubject: hi\r\n\r\nthe calendar is full\r\n";
+        assert!(!holds_invite(plain));
+        let named = b"From: a@example.org\r\nContent-Type: text/calendar\r\n\r\nnot a calendar\r\n";
+        assert!(!holds_invite(named));
     }
 }

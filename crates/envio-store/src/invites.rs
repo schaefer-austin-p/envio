@@ -24,8 +24,15 @@ pub struct InviteAnswer {
     /// `accepted`, `tentative` or `declined`.
     pub answer: String,
     pub answered_at_ms: i64,
+    /// When the answer may be dropped (30 days later): the event's end;
+    /// `i64::MAX` for a series with no end, which only a later answer or
+    /// `forget_invite` removes.
     pub event_end_unix: i64,
     pub reply_message_id: String,
+    /// The answer that was really sent before this one (its own `previous`
+    /// empty), for when this one's reply never goes out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Box<InviteAnswer>>,
 }
 
 /// Missing file: none. A damaged file is moved aside, like the other user

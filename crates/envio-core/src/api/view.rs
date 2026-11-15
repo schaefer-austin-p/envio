@@ -188,6 +188,8 @@ pub struct InviteCard {
     pub repeats: bool,
     /// Display name, else address.
     pub organizer: String,
+    /// The address an answer goes to (the CN in `organizer` can say anything).
+    pub organizer_email: String,
     /// A request with a `mailto:` organizer.
     pub can_answer: bool,
     /// Attachment index of the calendar part; -1 when it is inline only.

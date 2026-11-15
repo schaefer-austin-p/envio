@@ -15,6 +15,7 @@ fn answer(uid: &str, end_unix: i64) -> InviteAnswer {
         answered_at_ms: NOW,
         event_end_unix: end_unix,
         reply_message_id: format!("<reply-{uid}@envio.test>"),
+        previous: None,
     }
 }
 
@@ -120,4 +121,33 @@ fn an_old_file_without_recurrence_id_loads_as_the_series() {
     let all = load_invites(&path).unwrap();
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].recurrence_id, "");
+}
+
+#[test]
+fn an_open_ended_series_is_never_pruned_by_its_end() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("invites.json");
+    record_invite(&path, answer("series@example.org", i64::MAX), NOW).unwrap();
+    // Years later another answer is recorded: the series is still kept.
+    let later = NOW + 5 * 365 * DAY_S * 1000;
+    record_invite(&path, answer("other@example.org", later / 1000 + 60), later).unwrap();
+    let kept = load_invites(&path).unwrap();
+    assert!(kept.iter().any(|a| a.uid == "series@example.org"));
+}
+
+#[test]
+fn the_previous_sent_answer_round_trips_and_old_files_still_load() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("invites.json");
+    let mut now = answer("a@example.org", NOW / 1000 + 3600);
+    now.answer = "declined".into();
+    now.previous = Some(Box::new(answer("a@example.org", NOW / 1000 + 3600)));
+    record_invite(&path, now.clone(), NOW).unwrap();
+    assert_eq!(load_invites(&path).unwrap(), [now]);
+    fs::write(
+        &path,
+        r#"[{"account":"1","uid":"u","sequence":0,"answer":"accepted","answered_at_ms":1,"event_end_unix":9999999999,"reply_message_id":"<r>"}]"#,
+    )
+    .unwrap();
+    assert_eq!(load_invites(&path).unwrap()[0].previous, None);
 }

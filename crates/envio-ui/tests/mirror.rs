@@ -161,6 +161,7 @@ fn message_opened_carries_the_invite_card() {
         zone_unknown: false,
         repeats: false,
         organizer: "Grace".into(),
+        organizer_email: "grace@example.org".into(),
         can_answer: true,
         ics_index: 0,
     };

@@ -147,6 +147,11 @@ pub(crate) fn card(
             .as_ref()
             .map(person_label)
             .unwrap_or_default(),
+        organizer_email: invite
+            .organizer
+            .as_ref()
+            .map(|p| p.email.clone())
+            .unwrap_or_default(),
         can_answer: can_answer(invite),
         ics_index: -1,
     }
@@ -185,6 +190,7 @@ mod card_unit_tests {
             organizer: Some(person("ada@example.org", "Ada", None)),
             attendees: Vec::new(),
             repeats: false,
+            repeats_until: None,
             cancelled: method == InviteMethod::Cancel,
             raw: String::new(),
         }
@@ -200,7 +206,19 @@ mod card_unit_tests {
             answered_at_ms: 1,
             event_end_unix: 1_800_003_600,
             reply_message_id: "<r@example.org>".into(),
+            previous: None,
         }
+    }
+
+    #[test]
+    fn the_card_names_the_address_the_answer_goes_to() {
+        let mut i = invite(InviteMethod::Request);
+        i.organizer = Some(person("x@evil.example", "IT Helpdesk", None));
+        let c = card(&i, None, ReplyState::Gone, ME);
+        assert_eq!(c.organizer, "IT Helpdesk");
+        assert_eq!(c.organizer_email, "x@evil.example");
+        i.organizer = None;
+        assert_eq!(card(&i, None, ReplyState::Gone, ME).organizer_email, "");
     }
 
     #[test]

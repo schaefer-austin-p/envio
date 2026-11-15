@@ -451,3 +451,27 @@ fn no_organizer_cannot_answer() {
     assert!(s.items().is_empty());
     assert!(load_invites(&s.h.paths().invites()).unwrap().is_empty());
 }
+
+/// Undo when `invites.json` cannot be written: the reply stays held and the
+/// card keeps its answer.
+#[cfg(unix)]
+#[test]
+fn undo_keeps_the_reply_when_the_answer_cannot_be_restored() {
+    use std::os::unix::fs::PermissionsExt;
+    let s = seeded(&[request(0)]);
+    let id = s.id_of(1);
+    s.open(id);
+    s.answer(id, Answer::Declined, "");
+    let offer = s.offer();
+    s.card_of(id);
+    let invites = s.h.paths().invites();
+    let dir = invites.parent().unwrap().to_owned();
+    let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    s.h.send(Command::Undo { undo: offer.undo });
+    let undone = s.closed(offer.undo);
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
+    assert!(!undone);
+    assert_eq!(s.items().len(), 1, "the reply is still held");
+    assert_eq!(load_invites(&invites).unwrap()[0].answer, "declined");
+}
