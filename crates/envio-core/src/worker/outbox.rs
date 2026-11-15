@@ -120,6 +120,7 @@ impl Worker<'_> {
             }
         }
         self.emit_outbox();
+        self.reshow_open_invite();
     }
 
     /// The item's message can be read (an unreadable one shows as damaged).
@@ -148,9 +149,17 @@ impl Worker<'_> {
         }
     }
 
+    /// Delete, or Edit (which turns the item into a draft): the item goes
+    /// and, if it was an invite reply, so does the remembered answer.
     fn remove_item(&mut self, id: &str) {
+        let message_id = self.find_item(id).map(|i| i.meta.message_id);
         match self.store.outbox.remove(id) {
-            Ok(()) => self.forget_item(id),
+            Ok(()) => {
+                self.forget_item(id);
+                if let Some(message_id) = message_id {
+                    self.forget_answer_of_reply(&message_id);
+                }
+            }
             Err(e) => {
                 log::warn!("removing an Outbox item: {e}");
                 self.notice(text::outbox::change_failed());
@@ -194,6 +203,7 @@ impl Worker<'_> {
         self.emit(Event::DraftSaved { compose, draft_id });
         self.remove_item(id);
         self.emit_outbox();
+        self.reshow_open_invite();
     }
 }
 
@@ -246,6 +256,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
     /// path, so the grep test's single call stays the only call.)
     fn item(w: &Worker<'_>, t: &T, eml: &[u8], state: SendState) -> String {
         let new = NewOutboxItem {
+            send_after_ms: 0,
             account: t.account.clone(),
             message_id: "<a@example.org>".into(),
             queued_at_ms: 1,

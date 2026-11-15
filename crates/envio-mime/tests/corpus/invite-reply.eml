@@ -1,0 +1,32 @@
+Date: Thu, 12 Nov 2026 09:00:00 +0000
+From: Alice Example <alice@example.org>
+To: bob@example.org
+Message-ID: <reply@example.org>
+Subject: Accepted: Quarterly planning
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+See the invitation.
+
+--b1
+Content-Type: text/calendar; charset=utf-8; method=REPLY
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Calendar//EN
+METHOD:REPLY
+BEGIN:VEVENT
+UID:google-1@example.org
+DTSTART:20261116T100000Z
+DTSTAMP:20261113T090000Z
+ORGANIZER:mailto:alice@example.org
+ATTENDEE;PARTSTAT=ACCEPTED;CN=Bob Example:mailto:bob@example.org
+SEQUENCE:0
+SUMMARY:Quarterly planning
+END:VEVENT
+END:VCALENDAR
+
+--b1--

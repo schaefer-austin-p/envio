@@ -1,0 +1,31 @@
+Date: Thu, 12 Nov 2026 09:00:00 +0000
+From: Alice Example <alice@example.org>
+To: bob@example.org
+Message-ID: <allday@example.org>
+Subject: Invitation: Office closed
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1"
+
+--b1
+Content-Type: text/plain; charset=utf-8
+
+See the invitation.
+
+--b1
+Content-Type: text/calendar; charset=utf-8; method=REQUEST
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Calendar//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:allday-1@example.org
+DTSTAMP:20261112T090000Z
+DTSTART;VALUE=DATE:20261224
+SUMMARY:Office closed
+ORGANIZER;CN=Alice Example:mailto:alice@example.org
+ATTENDEE;CN=Bob Example:mailto:bob@example.org
+END:VEVENT
+END:VCALENDAR
+
+--b1--

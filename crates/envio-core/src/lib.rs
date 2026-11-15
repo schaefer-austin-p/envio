@@ -18,6 +18,7 @@ mod clock;
 mod compose;
 mod drafts;
 mod fsutil;
+mod invite_card;
 mod outbox;
 mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
@@ -32,13 +33,13 @@ mod undo;
 mod worker;
 
 pub use api::command::{
-    AccountSetup, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice, OutboxDecision,
-    SearchScope, StartFrom, UndoId, UserAction,
+    AccountSetup, Answer, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice,
+    OutboxDecision, SearchScope, StartFrom, UndoId, UserAction,
 };
-pub use api::event::Event;
+pub use api::event::{Event, UndoScope};
 pub use api::view::{
-    AccountInfo, AttachmentRow, CacheState, FolderRow, MessageHeader, MessageRow, MessageView,
-    OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
+    AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
+    MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink};
 pub use envio_store::{

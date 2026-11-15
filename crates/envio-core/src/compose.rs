@@ -84,6 +84,7 @@ pub fn to_outgoing(
         in_reply_to: draft.in_reply_to.clone(),
         references: draft.references.clone(),
         attachments,
+        calendar: None,
     })
 }
 

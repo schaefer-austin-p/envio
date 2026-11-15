@@ -42,6 +42,10 @@ pub struct OutboxMeta {
     /// (Bcc is not in the .eml).
     pub from: String,
     pub recipients: Vec<String>,
+    /// Not sent before this time (Unix ms); 0 = send at once. Lets an invite
+    /// answer be undone. Files from before this field read as 0.
+    #[serde(default)]
+    pub send_after_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +55,8 @@ pub struct NewOutboxItem {
     pub queued_at_ms: i64,
     pub from: String,
     pub recipients: Vec<String>,
+    /// See `OutboxMeta::send_after_ms`.
+    pub send_after_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,6 +107,7 @@ impl Outbox {
             state: SendState::Queued,
             from: new.from,
             recipients: new.recipients,
+            send_after_ms: new.send_after_ms,
         };
         self.write_meta(&id, &meta)?;
         Ok(OutboxItem { id, meta })

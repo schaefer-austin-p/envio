@@ -153,3 +153,43 @@ fn newsletter_like() {
 fn notice_like() {
     snapshot("notice-like.eml");
 }
+
+#[test]
+fn invite_google() {
+    snapshot("invite-google.eml");
+}
+
+#[test]
+fn invite_outlook() {
+    snapshot("invite-outlook.eml");
+}
+
+#[test]
+fn invite_apple() {
+    snapshot("invite-apple.eml");
+}
+
+#[test]
+fn invite_fastmail() {
+    snapshot("invite-fastmail.eml");
+}
+
+#[test]
+fn invite_thunderbird() {
+    snapshot("invite-thunderbird.eml");
+}
+
+#[test]
+fn invite_cancel() {
+    snapshot("invite-cancel.eml");
+}
+
+#[test]
+fn invite_reply() {
+    snapshot("invite-reply.eml");
+}
+
+#[test]
+fn invite_allday() {
+    snapshot("invite-allday.eml");
+}

@@ -127,7 +127,7 @@ pub fn save_contacts(path: &Path, contacts: &[Contact]) -> Result<()> {
     save(path, &contacts)
 }
 
-fn load<T: serde::de::DeserializeOwned + Default>(path: &Path) -> Result<T> {
+pub(crate) fn load<T: serde::de::DeserializeOwned + Default>(path: &Path) -> Result<T> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(T::default()),
@@ -139,7 +139,7 @@ fn load<T: serde::de::DeserializeOwned + Default>(path: &Path) -> Result<T> {
     }
 }
 
-fn save<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
+pub(crate) fn save<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
     let bytes = serde_json::to_vec_pretty(value).expect("user data always serializes");
     Ok(write_atomic(path, &bytes)?)
 }

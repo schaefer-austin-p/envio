@@ -29,6 +29,7 @@ fn take(store: &mut Store, uid: u32, kind: ActionKind) {
 
 fn queue(store: &Store, account: &str, id: &str) -> String {
     let item = NewOutboxItem {
+        send_after_ms: 0,
         account: account.into(),
         message_id: format!("<{id}@example.org>"),
         queued_at_ms: NOW_MS,
@@ -87,6 +88,23 @@ async fn a_replay_that_stops_ends_the_run() {
         .unwrap();
     assert_eq!(run.replayed.stopped, Some(ErrorKind::Temporary));
     assert!(run.folders.is_empty());
+}
+
+#[tokio::test]
+async fn held_item_is_not_due_mail() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server).await;
+    let item = NewOutboxItem {
+        send_after_ms: NOW_MS + 10_000,
+        account: ACCOUNT.into(),
+        message_id: "<held@example.org>".into(),
+        queued_at_ms: NOW_MS,
+        from: "carol@example.org".into(),
+        recipients: vec!["dave@example.org".into()],
+    };
+    store.outbox.enqueue(item, &eml("held")).unwrap();
+    assert!(!has_due_mail(&store.local(), ACCOUNT, NOW_MS).unwrap());
+    assert!(has_due_mail(&store.local(), ACCOUNT, NOW_MS + 10_000).unwrap());
 }
 
 #[tokio::test]

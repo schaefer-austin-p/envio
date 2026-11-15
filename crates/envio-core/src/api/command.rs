@@ -63,6 +63,36 @@ pub enum UserAction {
     Move { to: FolderId },
 }
 
+/// How the user answers a meeting invite. Kept here so the app's glue never
+/// names an `envio_mime` type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    Accepted,
+    Tentative,
+    Declined,
+}
+
+impl Answer {
+    /// The word the card contract uses: `accepted`, `tentative`, `declined`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Tentative => "tentative",
+            Self::Declined => "declined",
+        }
+    }
+
+    /// Anything else is `None`.
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "accepted" => Some(Self::Accepted),
+            "tentative" => Some(Self::Tentative),
+            "declined" => Some(Self::Declined),
+            _ => None,
+        }
+    }
+}
+
 /// One offer to take an action back, from `Event::UndoOffer`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UndoId(pub u64);
@@ -190,6 +220,15 @@ pub enum Command {
     },
     /// Take back an offered action while its window is open.
     Undo { undo: UndoId },
+    /// Answer the meeting invite in a cached message. The reply is queued at
+    /// once but held for the Undo window; the answer is an `UndoOffer`
+    /// (scope `Reader`) and `MessageOpened` again with the new card.
+    AnswerInvite {
+        id: MessageRowId,
+        answer: Answer,
+        /// Added to the reply; may be empty.
+        note: String,
+    },
     /// Open a compose window; the answer is `ComposeReady` or `ComposeRefused`.
     StartCompose {
         compose: ComposeId,
@@ -269,6 +308,7 @@ impl Command {
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",
+            Self::AnswerInvite { .. } => "AnswerInvite",
             Self::StartCompose { .. } => "StartCompose",
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",

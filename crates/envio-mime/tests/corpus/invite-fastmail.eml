@@ -1,0 +1,33 @@
+Date: Thu, 12 Nov 2026 09:00:00 +0000
+From: Alice Example <alice@example.org>
+To: bob@example.org
+Message-ID: <fastmail@example.org>
+Subject: Invitation: Design review
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b2"
+
+--b2
+Content-Type: text/plain; charset=utf-8
+
+See the attached invitation.
+
+--b2
+Content-Type: text/calendar; charset=utf-8; method=REQUEST; name="invite.ics"
+Content-Disposition: attachment; filename="invite.ics"
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Fastmail//Example//EN
+METHOD:REQUEST
+BEGIN:VEVENT
+UID:fastmail-1@example.org
+DTSTAMP:20261112T090000Z
+DTSTART;TZID=America/New_York:20261118T090000
+DURATION:PT1H30M
+SUMMARY:Design review\, round 2
+ORGANIZER;CN=Alice Example:mailto:alice@example.org
+ATTENDEE;PARTSTAT=NEEDS-ACTION;CN=Bob Example:mailto:bob@example.org
+END:VEVENT
+END:VCALENDAR
+
+--b2--

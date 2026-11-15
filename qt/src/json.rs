@@ -3,7 +3,9 @@
 
 use std::path::PathBuf;
 
-use envio_core::{AccountSetup, DraftInput, MessageView, Security, ServerAddr, SetupSource};
+use envio_core::{
+    AccountSetup, DraftInput, InviteCard, MessageView, Security, ServerAddr, SetupSource,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -193,7 +195,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
             })
         })
         .collect();
-    json!({
+    let mut value = json!({
         "id": id,
         "html": view.html,
         "blockedImages": view.blocked_images,
@@ -208,6 +210,36 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "account": h.account,
         "senderKnown": h.sender_known,
         "attachments": attachments,
+    });
+    if let (Some(card), Some(map)) = (&view.invite, value.as_object_mut()) {
+        map.insert("invite".into(), invite_value(card));
+    }
+    value
+}
+
+/// The meeting card with the contract's keys.
+fn invite_value(c: &InviteCard) -> Value {
+    json!({
+        "method": c.method.as_str(),
+        "state": c.state.as_str(),
+        "stateText": c.state_text,
+        "answer": c.answer.map_or("", |a| a.as_str()),
+        "sending": c.sending,
+        "sendFailed": c.send_failed,
+        "summary": c.summary,
+        "location": c.location,
+        "allDay": c.all_day,
+        "floating": c.floating,
+        "start": c.start,
+        "end": c.end,
+        "startDate": c.start_date,
+        "endDate": c.end_date,
+        "zoneUnknown": c.zone_unknown,
+        "repeats": c.repeats,
+        "organizer": c.organizer,
+        "organizerEmail": c.organizer_email,
+        "canAnswer": c.can_answer,
+        "icsIndex": c.ics_index,
     })
 }
 
@@ -307,6 +339,7 @@ mod tests {
             remote_images: vec![],
             own_colours: false,
             attachments: vec![],
+            invite: None,
         };
         assert_eq!(message_view_value(41, &view)["id"], 41);
     }
@@ -331,6 +364,7 @@ mod tests {
             remote_images: vec![],
             own_colours: true,
             attachments: vec![],
+            invite: None,
         };
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
         assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
@@ -341,5 +375,86 @@ mod tests {
         );
         view.own_colours = false;
         assert_eq!(message_view_value(1, &view)["ownColours"], false);
+    }
+
+    #[test]
+    fn invite_map_has_contract_keys() {
+        use envio_core::{Answer, CardMethod, CardState, MessageHeader};
+        let mut view = MessageView {
+            header: MessageHeader {
+                from: "f".into(),
+                from_address: "f@example.org".into(),
+                to: vec![],
+                cc: vec![],
+                subject: "s".into(),
+                date: None,
+                account: "a".into(),
+                sender_known: false,
+            },
+            html: String::new(),
+            raw: false,
+            blocked_images: 0,
+            remote_images: vec![],
+            own_colours: false,
+            attachments: vec![],
+            invite: None,
+        };
+        assert!(message_view_value(1, &view).get("invite").is_none());
+        view.invite = Some(InviteCard {
+            method: CardMethod::Request,
+            state: CardState::Answered,
+            state_text: "You accepted".into(),
+            answer: Some(Answer::Accepted),
+            sending: true,
+            send_failed: false,
+            summary: "Standup".into(),
+            location: "Room 1".into(),
+            all_day: true,
+            floating: false,
+            start: 0,
+            end: 0,
+            start_date: "2026-11-20".into(),
+            end_date: "2026-11-21".into(),
+            zone_unknown: false,
+            repeats: true,
+            organizer: "Grace".into(),
+            organizer_email: "grace@example.org".into(),
+            can_answer: true,
+            ics_index: -1,
+        });
+        let v = message_view_value(1, &view);
+        let c = v["invite"].as_object().unwrap();
+        let strings = [
+            ("method", "request"),
+            ("state", "answered"),
+            ("stateText", "You accepted"),
+            ("answer", "accepted"),
+            ("summary", "Standup"),
+            ("location", "Room 1"),
+            ("startDate", "2026-11-20"),
+            ("endDate", "2026-11-21"),
+            ("organizer", "Grace"),
+            ("organizerEmail", "grace@example.org"),
+        ];
+        for (k, want) in strings {
+            assert_eq!(c[k], want, "{k}");
+        }
+        let bools = [
+            ("sending", true),
+            ("sendFailed", false),
+            ("allDay", true),
+            ("floating", false),
+            ("zoneUnknown", false),
+            ("repeats", true),
+            ("canAnswer", true),
+        ];
+        for (k, want) in bools {
+            assert_eq!(c[k], want, "{k}");
+        }
+        for k in ["start", "end", "icsIndex"] {
+            assert!(c[k].is_i64(), "{k}");
+        }
+        assert_eq!(c["icsIndex"], -1);
+        assert_eq!(c.len(), 20);
     }
 }

@@ -210,7 +210,9 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         Event::MessageUnavailable { id, text } => Signal::MessageUnavailable { id: id.0, text },
         Event::AttachmentSaved { path, .. } => Signal::AttachmentSaved { path },
         Event::AttachmentFailed { id, .. } => Signal::AttachmentFailed { id: id.0 },
-        Event::UndoOffer { undo, text, .. } => Signal::UndoOffer { undo, text },
+        Event::UndoOffer {
+            undo, text, scope, ..
+        } => Signal::UndoOffer { undo, text, scope },
         Event::UndoClosed { undo, .. } => Signal::UndoClosed { undo },
         Event::ComposeReady {
             compose,

@@ -4,6 +4,7 @@ use envio_store::{NewOutboxItem, Outbox, SendState, StoreError};
 
 fn new(queued_at_ms: i64) -> NewOutboxItem {
     NewOutboxItem {
+        send_after_ms: 0,
         account: "1700".into(),
         message_id: format!("<{queued_at_ms}@example.org>"),
         queued_at_ms,
@@ -179,4 +180,37 @@ fn a_damaged_item_can_be_removed() {
     outbox.remove("77").unwrap();
     assert!(outbox.damaged().unwrap().is_empty());
     assert!(!dir.path().join("77.eml").exists());
+}
+
+#[test]
+fn old_meta_without_send_after_reads_as_zero() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    let path = dir.path().join(format!("{}.json", item.id));
+    let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("send_after_ms")
+        .unwrap();
+    fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    assert_eq!(outbox.items().unwrap()[0].meta.send_after_ms, 0);
+}
+
+#[test]
+fn a_held_item_keeps_its_send_after() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox
+        .enqueue(
+            NewOutboxItem {
+                send_after_ms: 9_000,
+                ..new(5)
+            },
+            b"x",
+        )
+        .unwrap();
+    assert_eq!(item.meta.send_after_ms, 9_000);
+    assert_eq!(outbox.items().unwrap()[0].meta.send_after_ms, 9_000);
 }

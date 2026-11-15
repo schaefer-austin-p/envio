@@ -34,6 +34,8 @@ pub(crate) struct ViewContext<'a> {
     pub inline_dir: Option<&'a Path>,
     /// Natural sizes the reader reported for its remote images.
     pub image_sizes: &'a super::shown::Sizes,
+    /// What the meeting card needs, when the message holds an invite.
+    pub invites: super::invite::InviteEnv<'a>,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -73,6 +75,7 @@ pub(crate) fn render_view(
     ctx: &ViewContext<'_>,
 ) -> (MessageView, Vec<envio_mime::Unsized>) {
     let message = envio_mime::parse(raw);
+    let invite = super::invite::card_of(raw, ctx.account, &ctx.invites);
     let mut header = stored_header(ctx.stored, ctx.account);
     if let Mime::Parsed { envelope, .. } = &message {
         let sender = envelope.from.first();
@@ -140,6 +143,7 @@ pub(crate) fn render_view(
         remote_images: rendered.remote_images,
         own_colours: rendered.own_colours,
         attachments,
+        invite,
     };
     (view, rendered.unsized_images)
 }
@@ -305,6 +309,7 @@ impl Worker<'_> {
         let inline_dir = (self.store.open_message == Some(message.id))
             .then(|| self.store.paths.inline().join(message.id.0.to_string()));
         let image_sizes = self.sizes_for(message.id);
+        let invites = self.invite_data(&account, raw);
         let ctx = ViewContext {
             account: &account,
             settings: &self.store.settings,
@@ -312,6 +317,7 @@ impl Worker<'_> {
             stored: &message.envelope,
             inline_dir: inline_dir.as_deref(),
             image_sizes: &image_sizes,
+            invites: invites.env(),
         };
         render_view(raw, images, width_px, &ctx)
     }
@@ -546,6 +552,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             stored: &stored,
             inline_dir: None,
             image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let view = render_view(raw, ImagesChoice::Default, 300, &ctx).0;
         assert_eq!(view.header.from, "x@evil.example");
@@ -563,6 +570,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             stored: &stored,
             inline_dir: None,
             image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let cut = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\
             X-Envio-Truncated: 9999999\r\n\r\nHi\r\n";
@@ -585,6 +593,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             stored: &stored,
             inline_dir: None,
             image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
@@ -612,6 +621,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             stored: &stored,
             inline_dir: None,
             image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <p><img src=\"https://example.org/a.png\"></p>\r\n";

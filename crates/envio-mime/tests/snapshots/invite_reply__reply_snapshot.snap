@@ -1,0 +1,34 @@
+---
+source: crates/envio-mime/tests/invite_reply.rs
+expression: "mail.replace(&boundary, \"BOUNDARY\")"
+---
+From: "Bob Example" <bob@example.org>
+Subject: Accepted: Planning, Q1
+Date: Fri, 6 Nov 2026 21:20:00 +0000
+Message-ID: <m1@example.org>
+To: "Olga Organizer" <olga@example.org>
+In-Reply-To: <inv@example.org>
+References: <inv@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Bob Example accepted.
+
+See you there
+--BOUNDARY
+Content-Type: text/calendar; method="REPLY"; charset="utf-8"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpQUk9ESUQ6LS8vRW52aW8vL0VudmlvIDAuMi8vRU4NClZFUlNJT046
+Mi4wDQpNRVRIT0Q6UkVQTFkNCkJFR0lOOlZFVkVOVA0KVUlEOmV2dC0xQGV4YW1wbGUub3JnDQpT
+RVFVRU5DRToyDQpEVFNUQU1QOjIwMjYxMTA2VDIxMjAwMFoNCkRUU1RBUlQ7VFpJRD1FdXJvcGUv
+QmVybGluOjIwMjYxMjAxVDEwMDAwMA0KT1JHQU5JWkVSO0NOPU9sZ2EgT3JnYW5pemVyOm1haWx0
+bzpvbGdhQGV4YW1wbGUub3JnDQpBVFRFTkRFRTtQQVJUU1RBVD1BQ0NFUFRFRDtDTj1Cb2IgRXhh
+bXBsZTptYWlsdG86Ym9iQGV4YW1wbGUub3JnDQpTVU1NQVJZOlBsYW5uaW5nXCwgUTENCkNPTU1F
+TlQ6U2VlIHlvdSB0aGVyZQ0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg0K
+--BOUNDARY--

@@ -129,10 +129,15 @@ impl qobject::EnvioCore {
             }
             Signal::AttachmentSaved { path } => self.attachment_saved(&q(&lossy(&path))),
             Signal::AttachmentFailed { id } => self.attachment_failed(crate::variant::js_num(id)),
-            Signal::UndoOffer { undo, text } => {
+            Signal::UndoOffer { undo, text, scope } => {
+                let scope = match scope {
+                    envio_core::UndoScope::List => "list",
+                    envio_core::UndoScope::Reader => "reader",
+                };
                 self.undo_offer(
                     crate::variant::js_num(i64::try_from(undo.0).unwrap_or(0)),
                     &q(&text),
+                    &q(scope),
                 );
             }
             Signal::UndoClosed { undo } => {

@@ -22,11 +22,24 @@ async fn store_with_sent(server: &mut FakeServer) -> Store {
 
 fn queue(store: &Store, id: &str) -> String {
     let item = NewOutboxItem {
+        send_after_ms: 0,
         account: ACCOUNT.into(),
         message_id: format!("<{id}@example.org>"),
         queued_at_ms: NOW_MS,
         from: "carol@example.org".into(),
         recipients: vec!["dave@example.org".into(), "erin@example.org".into()],
+    };
+    store.outbox.enqueue(item, &eml(id)).unwrap().id
+}
+
+fn queue_held(store: &Store, id: &str, send_after_ms: i64) -> String {
+    let item = NewOutboxItem {
+        send_after_ms,
+        account: ACCOUNT.into(),
+        message_id: format!("<{id}@example.org>"),
+        queued_at_ms: NOW_MS,
+        from: "carol@example.org".into(),
+        recipients: vec!["dave@example.org".into()],
     };
     store.outbox.enqueue(item, &eml(id)).unwrap().id
 }
@@ -66,6 +79,24 @@ async fn a_queued_message_is_sent_then_filed_in_sent_once() {
     assert_eq!(server.ids("Sent"), ["out@example.org"]);
     assert!(server.message("Sent", 1).unwrap().flags.seen);
     assert_eq!(state(&store, &id), None);
+}
+
+#[tokio::test]
+async fn held_item_is_not_sent_before_send_after() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server).await;
+    let id = queue_held(&store, "held", NOW_MS + 10_000);
+    let mut sender = FakeSender::default();
+    let sent = send_outbox(&mut sender, &mut store.local(), ACCOUNT, NOW_MS)
+        .await
+        .unwrap();
+    assert!(sent.accepted.is_empty());
+    assert!(sender.attempts.is_empty());
+    assert_eq!(state(&store, &id), Some(SendState::Queued));
+    let sent = send_outbox(&mut sender, &mut store.local(), ACCOUNT, NOW_MS + 10_000)
+        .await
+        .unwrap();
+    assert_eq!(sent.accepted, [id.as_str()]);
 }
 
 #[tokio::test]
@@ -183,6 +214,7 @@ async fn an_unusable_message_id_never_matches_anything_in_sent() {
     let mut server = FakeServer::new();
     let mut store = store_with_sent(&mut server).await;
     let item = NewOutboxItem {
+        send_after_ms: 0,
         account: ACCOUNT.into(),
         message_id: String::new(),
         queued_at_ms: NOW_MS,
@@ -361,6 +393,7 @@ async fn a_padded_message_id_is_searched_trimmed() {
     let mut server = FakeServer::new();
     let mut store = store_with_sent(&mut server).await;
     let item = NewOutboxItem {
+        send_after_ms: 0,
         account: ACCOUNT.into(),
         message_id: " <out@example.org> ".into(),
         queued_at_ms: NOW_MS,

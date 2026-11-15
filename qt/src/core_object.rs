@@ -96,7 +96,7 @@ pub mod qobject {
         fn attachment_failed(self: Pin<&mut EnvioCore>, id: f64);
         #[qsignal]
         #[cxx_name = "undoOffer"]
-        fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString);
+        fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString, scope: &QString);
         #[qsignal]
         #[cxx_name = "undoClosed"]
         fn undo_closed(self: Pin<&mut EnvioCore>, undo: f64);
@@ -211,6 +211,9 @@ pub mod qobject {
         fn act(self: Pin<&mut EnvioCore>, action: &QString, folder: i64) -> bool;
         #[qinvokable]
         fn undo(self: Pin<&mut EnvioCore>, id: i64);
+        #[qinvokable]
+        #[cxx_name = "answerInvite"]
+        fn answer_invite(self: Pin<&mut EnvioCore>, id: i64, answer: &QString, note: &QString);
         #[qinvokable]
         fn open(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
         #[qinvokable]

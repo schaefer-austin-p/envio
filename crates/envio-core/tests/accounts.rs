@@ -72,6 +72,7 @@ fn status_of(account: &str) -> impl Fn(&Event) -> Option<AccountStatus> + '_ {
 fn queue_mail(h: &Harness, account: &str) {
     let outbox = Outbox::open(&h.paths().outbox()).unwrap();
     let new = NewOutboxItem {
+        send_after_ms: 0,
         account: account.into(),
         message_id: "<m1@example.org>".into(),
         queued_at_ms: 1_000,

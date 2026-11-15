@@ -185,6 +185,7 @@ async fn sent_mail_is_filed_in_sent_once_and_leaves_the_outbox() {
     let (mut session, mut store, _) = synced(&server, &frank, &[]).await;
     let id = message_id();
     let item = NewOutboxItem {
+        send_after_ms: 0,
         account: frank.name.into(),
         message_id: id.clone(),
         queued_at_ms: now_ms(),

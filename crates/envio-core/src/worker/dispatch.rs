@@ -85,6 +85,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.act(&ids, action);
             Flow::Continue
         }
+        Command::AnswerInvite { id, answer, note } => {
+            worker.answer_invite(id, answer, &note);
+            Flow::Continue
+        }
         Command::Undo { undo } => {
             worker.undo_action(undo, at_ms);
             Flow::Continue

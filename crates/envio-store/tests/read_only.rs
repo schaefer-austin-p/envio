@@ -37,6 +37,7 @@ fn target() -> MessageRef {
 
 fn item() -> NewOutboxItem {
     NewOutboxItem {
+        send_after_ms: 0,
         account: "1".into(),
         message_id: "<a@example.org>".into(),
         queued_at_ms: 5,

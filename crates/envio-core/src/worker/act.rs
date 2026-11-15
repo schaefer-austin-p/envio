@@ -8,11 +8,11 @@ use envio_sync::driver::{self, Undo};
 
 use super::Worker;
 use crate::api::command::{UndoId, UserAction};
-use crate::api::event::Event;
+use crate::api::event::{Event, UndoScope};
 use crate::clock::now_ms;
 use crate::problem::{self, Problem};
 use crate::text;
-use crate::undo::Offer;
+use crate::undo::{Offer, Offered};
 
 /// The journal entry for `action`, given the message's account's folders.
 /// `None` when it has no target there.
@@ -108,9 +108,11 @@ impl Worker<'_> {
         let text = text::undo::offer(action, done.count());
         let expires_at_ms = now + UNDO_MS;
         let undo = self.undo.offer(Offer {
-            undos: done.undos,
-            accounts: done.accounts,
-            folders: done.folders,
+            what: Offered::Actions {
+                undos: done.undos,
+                accounts: done.accounts,
+                folders: done.folders,
+            },
             expires_at_ms,
         });
         // With nothing to take back the entry only times the replay.
@@ -119,6 +121,7 @@ impl Worker<'_> {
                 undo,
                 text,
                 expires_at_ms,
+                scope: UndoScope::List,
             });
         }
     }
@@ -183,12 +186,20 @@ impl Worker<'_> {
             });
             return;
         };
+        let (undos, accounts, folders) = match offer.what {
+            Offered::Actions {
+                undos,
+                accounts,
+                folders,
+            } => (undos, accounts, folders),
+            answer @ Offered::Answer { .. } => return self.undo_answer(undo, answer),
+        };
         let mut undone = 0;
         let mut late = 0;
         let mut failed = false;
         let mut may_still_apply = false;
         self.arm_journal_hook();
-        for item in &offer.undos {
+        for item in &undos {
             match driver::undo(&mut self.store.local(), item) {
                 Ok(true) => undone += 1,
                 Ok(false) => late += 1,
@@ -201,9 +212,9 @@ impl Worker<'_> {
         }
         if undone > 0 {
             self.emit(Event::MessagesChanged {
-                folders: offer.folders.iter().copied().collect(),
+                folders: folders.iter().copied().collect(),
             });
-            self.check_flags_in(&offer.folders);
+            self.check_flags_in(&folders);
         }
         self.emit(Event::UndoClosed {
             undo,
@@ -211,7 +222,7 @@ impl Worker<'_> {
         });
         if failed {
             // Those stay pending: replay them without waiting for a poll.
-            self.want_replay(&offer.accounts);
+            self.want_replay(&accounts);
             self.emit(Event::Notice {
                 text: if may_still_apply {
                     text::notice::undo_may_still_apply()
@@ -261,13 +272,24 @@ impl Worker<'_> {
         let mut closed = Vec::new();
         for (undo, offer) in self.undo.expire(now) {
             closed.push(undo);
-            if !offer.undos.is_empty() {
-                self.emit(Event::UndoClosed {
+            match offer.what {
+                Offered::Actions {
+                    undos, accounts, ..
+                } => {
+                    if !undos.is_empty() {
+                        self.emit(Event::UndoClosed {
+                            undo,
+                            undone: false,
+                        });
+                    }
+                    self.want_replay(&accounts);
+                }
+                // The held reply becomes due on its own.
+                Offered::Answer { .. } => self.emit(Event::UndoClosed {
                     undo,
                     undone: false,
-                });
+                }),
             }
-            self.want_replay(&offer.accounts);
         }
         closed
     }
@@ -433,9 +455,11 @@ mod worker_tests {
         let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
         // The window ended by the worker's clock, not by the user's.
         let id = worker.undo.offer(Offer {
-            undos: vec![undo],
-            accounts: BTreeSet::from([seeded.account.clone()]),
-            folders: BTreeSet::from([seeded.folder]),
+            what: Offered::Actions {
+                undos: vec![undo],
+                accounts: BTreeSet::from([seeded.account.clone()]),
+                folders: BTreeSet::from([seeded.folder]),
+            },
             expires_at_ms: now_ms() - 1,
         });
         worker.undo_action(id, now_ms() - 100);
@@ -458,9 +482,11 @@ mod worker_tests {
         };
         let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
         let id = worker.undo.offer(Offer {
-            undos: vec![undo],
-            accounts: BTreeSet::from([seeded.account.clone()]),
-            folders: BTreeSet::from([seeded.folder]),
+            what: Offered::Actions {
+                undos: vec![undo],
+                accounts: BTreeSet::from([seeded.account.clone()]),
+                folders: BTreeSet::from([seeded.folder]),
+            },
             expires_at_ms: now_ms() - 1,
         });
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
@@ -498,9 +524,11 @@ mod worker_tests {
         };
         let undo = driver::record(&mut worker.store.local(), seeded.message, kind, 0).unwrap();
         let id = worker.undo.offer(Offer {
-            undos: vec![undo],
-            accounts: BTreeSet::from([seeded.account.clone()]),
-            folders: BTreeSet::from([seeded.folder]),
+            what: Offered::Actions {
+                undos: vec![undo],
+                accounts: BTreeSet::from([seeded.account.clone()]),
+                folders: BTreeSet::from([seeded.folder]),
+            },
             expires_at_ms: now_ms() - 1,
         });
         worker.undo_action(id, now_ms());
