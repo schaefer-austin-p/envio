@@ -1,6 +1,10 @@
 // Puts the click package of a `v*` tag build on that tag's Forgejo release.
 //
 //   node tools/ci/release-click.mjs build-click/envio.aps_0.2.0_arm64.click
+//   node tools/ci/release-click.mjs --check
+//
+// --check only finds the notes (no network); the workflow runs it before the
+// build so a tag without notes fails fast.
 //
 // Env: GITHUB_TOKEN, GITHUB_SERVER_URL, GITHUB_REPOSITORY, GITHUB_REF_NAME
 // (set by the runner; the ref name is the tag).
@@ -60,6 +64,11 @@ export function releaseFor(tag, changelog) {
 }
 
 async function main() {
+  if (process.argv[2] === "--check") {
+    const { name, prerelease } = releaseFor(process.env.GITHUB_REF_NAME, readFileSync("CHANGELOG.md", "utf8"));
+    console.log(`release notes found for ${name}${prerelease ? " (pre-release)" : ""}`);
+    return;
+  }
   const { GITHUB_SERVER_URL: server, GITHUB_REPOSITORY: repo, GITHUB_TOKEN: token } = process.env;
   const tag = process.env.GITHUB_REF_NAME;
   if (!server || !repo || !token || !tag) {
