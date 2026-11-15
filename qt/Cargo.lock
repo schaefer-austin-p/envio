@@ -590,7 +590,7 @@ dependencies = [
 
 [[package]]
 name = "envio-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-mime",
  "envio-net",
@@ -609,7 +609,7 @@ dependencies = [
 
 [[package]]
 name = "envio-mime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ammonia",
  "getrandom 0.4.3",
@@ -622,7 +622,7 @@ dependencies = [
 
 [[package]]
 name = "envio-net"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-imap",
  "futures",
@@ -641,11 +641,11 @@ dependencies = [
 
 [[package]]
 name = "envio-stamp"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "envio-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "envio-sync"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-mime",
  "envio-net",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "envio-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-core",
  "envio-mime",
@@ -673,7 +673,7 @@ dependencies = [
 
 [[package]]
 name = "envio_qt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-qt",

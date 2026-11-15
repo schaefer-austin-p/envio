@@ -4,7 +4,7 @@
 # (ENVIO_RELEASE=1).
 [package]
 name = "envio-stamp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Build stamp of Envio development builds."
 edition = "2024"
 license = "GPL-3.0-only"
