@@ -100,7 +100,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (later); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
 | Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.3.0. Drafts save on their own. |
 | Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
-| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. |
+| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. The meeting invite card (0.2.0) sits above the body, in all its states, light and dark. |
 | Contacts | `*-contacts` | Superseded in part, see below. |
 | Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". |
 | Dark | `*-dark` | Inbox, reader and sync settings in each dark theme. |

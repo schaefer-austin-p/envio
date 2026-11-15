@@ -50,7 +50,7 @@ Item {
     signal messageUnavailable(real id, string text)
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
-    signal undoOffer(real undo, string text)
+    signal undoOffer(real undo, string text, string scope)
     signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted)
     signal draftSaved(real compose)
@@ -88,6 +88,7 @@ Item {
     // False: the selected row is gone, nothing was acted on.
     property bool actRuns: true
     function act(action, folder) { record("act", [action, folder]); return actRuns }
+    function answerInvite(id, answer, note) { record("answerInvite", [id, answer, note]) }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
     function reportImageSizes(id, sizesJson) { record("reportImageSizes", [id, sizesJson]) }
