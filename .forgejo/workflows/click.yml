@@ -35,6 +35,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # A v* tag needs its CHANGELOG section in the tagged commit (a re-run
+      # sees the same tree), so check that before the long build.
+      - name: Check the release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node tools/ci/release-click.mjs --check
+
       # Builds in clickable's image on the runner's dind daemon, then runs
       # click-review (errors fail, warnings print).
       - name: Build and review the click
@@ -45,6 +51,14 @@ jobs:
           name: envio-click
           path: build-click/*.click
           retention-days: 30
+
+      # A v* tag build is the official package: put it on the tag's release,
+      # creating the release from the CHANGELOG if it isn't there yet.
+      - name: Attach the click to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node tools/ci/release-click.mjs build-click/*.click
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Also after a failed build or review, so the report is still there.
       - uses: actions/upload-artifact@v3
