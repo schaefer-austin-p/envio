@@ -570,6 +570,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             stored: &stored,
             inline_dir: None,
             image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let cut = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\
             X-Envio-Truncated: 9999999\r\n\r\nHi\r\n";
