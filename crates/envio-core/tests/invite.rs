@@ -468,6 +468,15 @@ fn undo_keeps_the_reply_when_the_answer_cannot_be_restored() {
     let dir = invites.parent().unwrap().to_owned();
     let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // Root (CI's container) writes through file modes, and nothing else
+    // makes the store's write fail without also making it read as damaged.
+    let probe = dir.join(".probe");
+    if std::fs::File::create(&probe).is_ok() {
+        let _ = std::fs::remove_file(&probe);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
+        eprintln!("skipped: a read-only folder is still writable here (root)");
+        return;
+    }
     s.h.send(Command::Undo { undo: offer.undo });
     let undone = s.closed(offer.undo);
     std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
