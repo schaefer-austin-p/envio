@@ -250,7 +250,8 @@ impl Worker<'_> {
                 not_queued()
             })?;
         let current = self.remembered_answer(&account, &invite.uid, &invite.recurrence_id);
-        let sent_before = self.last_sent(current.clone(), now);
+        let withdrawing = self.withdrawable_reply(&account, &invite.uid, &invite.recurrence_id);
+        let sent_before = self.last_sent(current.clone(), withdrawing.as_deref());
         let remembered = InviteAnswer {
             account: account.clone(),
             uid: invite.uid.clone(),
@@ -262,7 +263,7 @@ impl Worker<'_> {
             reply_message_id: message_id,
             previous: sent_before.map(Box::new),
         };
-        if let Err(e) = record_invite(&self.store.paths.invites(), remembered, now) {
+        if let Err(e) = record_invite(&self.store.paths.invites(), remembered.clone(), now) {
             log::warn!("remembering an invite answer: {e}");
             // The answer is not kept, so the reply must not go.
             if let Err(e) = self.store.outbox.remove(&item.id) {
@@ -272,9 +273,19 @@ impl Worker<'_> {
         }
         // One held reply per invite: a new answer replaces an earlier one
         // that is still held, and Undo goes back to before the first.
-        let previous = self
-            .replace_held_answer(&account, &invite.uid, &invite.recurrence_id)
-            .unwrap_or(current);
+        let replaced = self.replace_held_answer(&account, &invite.uid, &invite.recurrence_id);
+        if replaced.is_none() && withdrawing.is_some() {
+            // The held reply could not be taken back, so it goes out after
+            // all: it is the answer that was sent before this one.
+            let fixed = InviteAnswer {
+                previous: self.last_sent(current.clone(), None).map(Box::new),
+                ..remembered
+            };
+            if let Err(e) = record_invite(&self.store.paths.invites(), fixed, now) {
+                log::warn!("remembering the answer sent before: {e}");
+            }
+        }
+        let previous = replaced.unwrap_or(current);
         let undo = self.undo.offer(Offer {
             what: Offered::Answer {
                 message: id,
@@ -298,18 +309,38 @@ impl Worker<'_> {
         Ok(())
     }
 
+    /// The Message-ID of the held reply that `replace_held_answer` will try
+    /// to take back: the one an open Undo offer holds, still queued in its
+    /// window. A held reply with no offer (after a restart) will go out.
+    fn withdrawable_reply(&self, account: &str, uid: &str, rid: &str) -> Option<String> {
+        let item = self.undo.answer_item(account, uid, rid)?;
+        let now = now_ms();
+        self.store
+            .outbox
+            .items()
+            .ok()?
+            .into_iter()
+            .find(|i| i.id == item && i.meta.state == SendState::Queued && held(&i.meta, now))
+            .map(|i| i.meta.message_id)
+    }
+
     /// The newest answer in the chain from `answer` back whose reply went
-    /// out or still will: one whose reply failed, or is still held in its
-    /// Undo window (and is about to be withdrawn by `replace_held_answer`),
-    /// was not sent, and its own `previous` is looked at instead. A reply
-    /// still queued past its window counts as sent.
-    fn last_sent(&self, mut answer: Option<InviteAnswer>, now_ms: i64) -> Option<InviteAnswer> {
+    /// out or still will: one whose reply failed, or is `withdrawn` (being
+    /// taken back by `replace_held_answer`), was not sent, and its own
+    /// `previous` is looked at instead. A reply still queued counts as sent.
+    fn last_sent(
+        &self,
+        mut answer: Option<InviteAnswer>,
+        withdrawn: Option<&str>,
+    ) -> Option<InviteAnswer> {
         let outbox = self.store.outbox.items().unwrap_or_default();
         while let Some(a) = answer {
-            if !outbox.iter().any(|i| {
-                i.meta.message_id == a.reply_message_id
-                    && (held(&i.meta, now_ms) || matches!(i.meta.state, SendState::Failed { .. }))
-            }) {
+            let unsent = withdrawn == Some(a.reply_message_id.as_str())
+                || outbox.iter().any(|i| {
+                    i.meta.message_id == a.reply_message_id
+                        && matches!(i.meta.state, SendState::Failed { .. })
+                });
+            if !unsent {
                 return Some(InviteAnswer {
                     previous: None,
                     ..a
@@ -848,6 +879,26 @@ END:VEVENT\r\nEND:VCALENDAR\r\n";
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn a_held_reply_whose_offer_was_lost_counts_as_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, first) = answered(&sink, dir.path());
+        let id = worker.store.shown.as_ref().unwrap().id;
+        // A restart inside the Accept's Undo window: the offer is gone, the
+        // held Accept stays in the Outbox and will go out.
+        worker.undo = crate::undo::UndoBook::default();
+        worker.answer_invite(id, Answer::Declined, "");
+        let items = worker.store.outbox.items().unwrap();
+        assert_eq!(items.len(), 2);
+        let second = items.into_iter().find(|i| i.id != first.id).unwrap();
+        mark_failed(&worker, &second);
+        worker.decide_outbox(&second.id, OutboxDecision::Delete);
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].answer, "accepted");
     }
 
     #[test]

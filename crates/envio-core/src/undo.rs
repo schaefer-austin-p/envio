@@ -55,19 +55,29 @@ impl UndoBook {
         uid: &str,
         rid: &str,
     ) -> Option<(UndoId, Offered)> {
-        let id = self
-            .offers
+        let (id, _) = self.find_answer(account, uid, rid)?;
+        self.offers.remove(&id).map(|offer| (id, offer.what))
+    }
+
+    /// The Outbox item of the answer offer for (account, uid, recurrence id),
+    /// if one is open.
+    pub fn answer_item(&self, account: &str, uid: &str, rid: &str) -> Option<&str> {
+        self.find_answer(account, uid, rid).map(|(_, item)| item)
+    }
+
+    fn find_answer(&self, account: &str, uid: &str, rid: &str) -> Option<(UndoId, &str)> {
+        self.offers
             .iter()
             .find_map(|(id, offer)| match &offer.what {
                 Offered::Answer {
                     account: a,
                     uid: u,
                     recurrence_id: r,
+                    outbox_item,
                     ..
-                } if a == account && u == uid && r == rid => Some(*id),
+                } if a == account && u == uid && r == rid => Some((*id, outbox_item.as_str())),
                 _ => None,
-            })?;
-        self.offers.remove(&id).map(|offer| (id, offer.what))
+            })
     }
 
     /// The offer, if its window is still open. An expired one is dropped
