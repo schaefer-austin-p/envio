@@ -28,6 +28,7 @@ pub enum Offered {
         outbox_item: String,
         account: String,
         uid: String,
+        recurrence_id: String,
         /// The answer this one replaced, to restore.
         previous: Option<InviteAnswer>,
     },
@@ -47,15 +48,23 @@ impl UndoBook {
         id
     }
 
-    /// Removes and returns the answer offer for (account, uid), if any.
-    pub fn take_answer(&mut self, account: &str, uid: &str) -> Option<(UndoId, Offered)> {
+    /// Removes and returns the answer offer for (account, uid, recurrence id), if any.
+    pub fn take_answer(
+        &mut self,
+        account: &str,
+        uid: &str,
+        rid: &str,
+    ) -> Option<(UndoId, Offered)> {
         let id = self
             .offers
             .iter()
             .find_map(|(id, offer)| match &offer.what {
                 Offered::Answer {
-                    account: a, uid: u, ..
-                } if a == account && u == uid => Some(*id),
+                    account: a,
+                    uid: u,
+                    recurrence_id: r,
+                    ..
+                } if a == account && u == uid && r == rid => Some(*id),
                 _ => None,
             })?;
         self.offers.remove(&id).map(|offer| (id, offer.what))

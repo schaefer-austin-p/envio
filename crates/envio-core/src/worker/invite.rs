@@ -55,10 +55,9 @@ fn mentions_calendar(raw: &[u8]) -> bool {
 /// The card of the invite in `raw`, if it holds one.
 pub(crate) fn card_of(raw: &[u8], account: &str, env: &InviteEnv<'_>) -> Option<InviteCard> {
     let (invite, ics) = envio_mime::invite_of(raw)?;
-    let remembered = env
-        .answers
-        .iter()
-        .find(|a| a.account == account && a.uid == invite.uid);
+    let remembered = env.answers.iter().find(|a| {
+        a.account == account && a.uid == invite.uid && a.recurrence_id == invite.recurrence_id
+    });
     let reply = remembered
         .and_then(|r| {
             env.outbox
@@ -142,12 +141,12 @@ impl Worker<'_> {
         }
     }
 
-    /// The remembered answer for (account, uid), if any.
-    fn remembered_answer(&self, account: &str, uid: &str) -> Option<InviteAnswer> {
+    /// The remembered answer for (account, uid, recurrence id), if any.
+    fn remembered_answer(&self, account: &str, uid: &str, rid: &str) -> Option<InviteAnswer> {
         match load_invites(&self.store.paths.invites()) {
             Ok(all) => all
                 .into_iter()
-                .find(|a| a.account == account && a.uid == uid),
+                .find(|a| a.account == account && a.uid == uid && a.recurrence_id == rid),
             Err(e) => {
                 log::warn!("reading remembered invite answers: {e}");
                 None
@@ -226,10 +225,11 @@ impl Worker<'_> {
                 log::warn!("queueing an invite answer: {e}");
                 not_queued()
             })?;
-        let current = self.remembered_answer(&account, &invite.uid);
+        let current = self.remembered_answer(&account, &invite.uid, &invite.recurrence_id);
         let remembered = InviteAnswer {
             account: account.clone(),
             uid: invite.uid.clone(),
+            recurrence_id: invite.recurrence_id.clone(),
             sequence: invite.sequence,
             answer: answer.as_str().to_owned(),
             answered_at_ms: now,
@@ -247,7 +247,7 @@ impl Worker<'_> {
         // One held reply per invite: a new answer replaces an earlier one
         // that is still held, and Undo goes back to before the first.
         let previous = self
-            .replace_held_answer(&account, &invite.uid)
+            .replace_held_answer(&account, &invite.uid, &invite.recurrence_id)
             .unwrap_or(current);
         let undo = self.undo.offer(Offer {
             what: Offered::Answer {
@@ -255,6 +255,7 @@ impl Worker<'_> {
                 outbox_item: item.id,
                 account,
                 uid: invite.uid,
+                recurrence_id: invite.recurrence_id,
                 previous,
             },
             expires_at_ms: send_after_ms,
@@ -271,11 +272,16 @@ impl Worker<'_> {
         Ok(())
     }
 
-    /// Withdraws the live answer offer for (account, uid), if any: its held
+    /// Withdraws the live answer offer for (account, uid, recurrence id), if any: its held
     /// reply leaves the Outbox and its offer closes. Returns the answer that
     /// offer would have restored.
-    fn replace_held_answer(&mut self, account: &str, uid: &str) -> Option<Option<InviteAnswer>> {
-        let (old, offered) = self.undo.take_answer(account, uid)?;
+    fn replace_held_answer(
+        &mut self,
+        account: &str,
+        uid: &str,
+        rid: &str,
+    ) -> Option<Option<InviteAnswer>> {
+        let (old, offered) = self.undo.take_answer(account, uid, rid)?;
         let Offered::Answer {
             outbox_item,
             previous,
@@ -316,6 +322,7 @@ impl Worker<'_> {
             outbox_item,
             account,
             uid,
+            recurrence_id,
             previous,
         } = offered
         else {
@@ -353,7 +360,7 @@ impl Worker<'_> {
         let path = self.store.paths.invites();
         let restored = match previous {
             Some(answer) => record_invite(&path, answer, now_ms()),
-            None => forget_invite(&path, &account, &uid),
+            None => forget_invite(&path, &account, &uid, &recurrence_id),
         };
         let undone = restored.is_ok();
         if let Err(e) = restored {
@@ -371,19 +378,51 @@ impl Worker<'_> {
     /// Shows the open message again, for a card that changed. Nothing is
     /// sent when the reader is not on `id`.
     fn reshow(&mut self, id: MessageRowId) {
-        let Some(shown) = self.store.shown.as_ref().filter(|s| s.id == id) else {
+        self.reshow_where(Some(id), false);
+    }
+
+    /// After the Outbox changed: the open message is shown again when it
+    /// holds an invite, so its card follows the reply (sent, or not sent).
+    pub(super) fn reshow_open_invite(&mut self) {
+        self.reshow_where(None, true);
+    }
+
+    fn reshow_where(&mut self, only: Option<MessageRowId>, invite_only: bool) {
+        let Some(shown) = self
+            .store
+            .shown
+            .as_ref()
+            .filter(|s| only.is_none_or(|id| s.id == id))
+        else {
             return;
         };
-        let choice: (ImagesChoice, u32) = shown.choice;
+        let (id, choice): (MessageRowId, (ImagesChoice, u32)) = (shown.id, shown.choice);
         let Ok(message) = self.store.db.message(id) else {
             return;
         };
         match self.store.bodies.read(message.folder, message.uid) {
             Ok(raw) => {
                 let view = self.view(&message, &raw, choice);
-                self.show(id, choice, view);
+                if !invite_only || view.0.invite.is_some() {
+                    self.show(id, choice, view);
+                }
             }
             Err(e) => log::warn!("reading a cached body: {e}"),
+        }
+    }
+
+    /// An Outbox item was deleted or edited away: a reply that never went
+    /// out is not remembered as an answer, so its card is open again.
+    pub(super) fn forget_answer_of_reply(&mut self, message_id: &str) {
+        let path = self.store.paths.invites();
+        let found = load_invites(&path)
+            .ok()
+            .and_then(|all| all.into_iter().find(|a| a.reply_message_id == message_id));
+        let Some(a) = found else {
+            return;
+        };
+        if let Err(e) = forget_invite(&path, &a.account, &a.uid, &a.recurrence_id) {
+            log::warn!("forgetting an invite answer: {e}");
         }
     }
 }
@@ -423,5 +462,139 @@ mod tests {
         };
         let floating = When::Floating { start: at, end: at };
         assert_eq!(event_end_unix(&floating, 0), 86_400 + 3723);
+    }
+}
+
+#[cfg(test)]
+mod reply_follow_tests {
+    use super::super::testing::{Sink, open, seed};
+    use super::*;
+    use crate::api::command::OutboxDecision;
+    use crate::api::view::CardState;
+
+    const MAIL: &[u8] = b"From: Ada <ada@example.org>\r\nTo: me@example.org\r\n\
+Subject: Planning\r\nMessage-ID: <i@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/calendar; method=REQUEST; charset=utf-8\r\n\r\n\
+BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:u1@example.org\r\n\
+DTSTART:20270115T080000Z\r\nDTEND:20270115T090000Z\r\nSUMMARY:Planning\r\n\
+ORGANIZER:mailto:ada@example.org\r\nATTENDEE:mailto:me@example.org\r\n\
+END:VEVENT\r\nEND:VCALENDAR\r\n";
+
+    /// A worker with the invite open and answered; the reply is the one
+    /// Outbox item returned.
+    fn answered<'s>(sink: &'s Sink, dir: &std::path::Path) -> (Worker<'s>, OutboxItem) {
+        let (config, seeded) = seed(dir);
+        let mut worker = open(&config, sink);
+        worker.store.bodies.write(seeded.folder, 1, MAIL).unwrap();
+        worker
+            .store
+            .db
+            .set_body_state(seeded.message, BodyState::Downloaded)
+            .unwrap();
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        worker.answer_invite(seeded.message, Answer::Accepted, "");
+        let item = worker.store.outbox.items().unwrap().remove(0);
+        (worker, item)
+    }
+
+    fn failed() -> SendState {
+        SendState::Failed {
+            reason: "no route".into(),
+        }
+    }
+
+    /// What the Outbox run writes when SMTP refuses the reply. Not spelled as
+    /// a call: only the worker's Outbox code may set a state.
+    fn mark_failed(worker: &Worker<'_>, item: &OutboxItem) {
+        let set = envio_store::Outbox::set_state;
+        set(&worker.store.outbox, &item.id, failed()).unwrap();
+    }
+
+    fn last_card(sink: &Sink) -> InviteCard {
+        sink.events()
+            .into_iter()
+            .rev()
+            .find_map(|e| match e {
+                Event::MessageOpened { view, .. } => view.invite,
+                _ => None,
+            })
+            .expect("a card was shown")
+    }
+
+    #[test]
+    fn a_sent_reply_turns_the_open_card_to_answered() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, item) = answered(&sink, dir.path());
+        assert!(last_card(&sink).sending);
+        // The Outbox run sent it and removed the item.
+        worker.store.outbox.remove(&item.id).unwrap();
+        worker.reshow_open_invite();
+        let card = last_card(&sink);
+        assert_eq!(card.state, CardState::Answered);
+        assert!(!card.sending && !card.send_failed);
+    }
+
+    #[test]
+    fn a_failed_reply_turns_the_open_card_to_not_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, item) = answered(&sink, dir.path());
+        mark_failed(&worker, &item);
+        worker.reshow_open_invite();
+        let card = last_card(&sink);
+        assert!(card.send_failed && !card.sending);
+    }
+
+    #[test]
+    fn deleting_the_failed_reply_opens_the_card_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, item) = answered(&sink, dir.path());
+        mark_failed(&worker, &item);
+        worker.decide_outbox(&item.id, OutboxDecision::Delete);
+        assert_eq!(last_card(&sink).state, CardState::Open);
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert!(kept.is_empty());
+    }
+
+    #[test]
+    fn a_sent_reply_leaving_the_outbox_keeps_the_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, item) = answered(&sink, dir.path());
+        worker.store.outbox.remove(&item.id).unwrap();
+        worker.reshow_open_invite();
+        let kept = load_invites(&worker.store.paths.invites()).unwrap();
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn an_occurrence_card_does_not_show_the_series_answer() {
+        let series = InviteAnswer {
+            account: "a".into(),
+            uid: "u1@example.org".into(),
+            recurrence_id: String::new(),
+            sequence: 0,
+            answer: "accepted".into(),
+            answered_at_ms: 1,
+            event_end_unix: 2_000_000_000,
+            reply_message_id: "<r@example.org>".into(),
+        };
+        let env = InviteEnv {
+            answers: std::slice::from_ref(&series),
+            outbox: &[],
+            me: "me@example.org",
+        };
+        let text = String::from_utf8(MAIL.to_vec()).unwrap();
+        let one = text.replace(
+            "UID:u1@example.org\r\n",
+            "UID:u1@example.org\r\nRECURRENCE-ID:20270115T080000Z\r\n",
+        );
+        assert_eq!(card_of(MAIL, "a", &env).unwrap().state, CardState::Answered);
+        assert_eq!(
+            card_of(one.as_bytes(), "a", &env).unwrap().state,
+            CardState::Open
+        );
     }
 }
