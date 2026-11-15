@@ -203,7 +203,10 @@ job service):
 - The clickable build (`click.yml`, not a required check): on pushes to
   master, tags and manual runs, and on a PR that touches `clickable.yaml`,
   `manifest.json`, `envio.apparmor`, `CMakeLists.txt`, `qt/`,
-  `.forgejo/workflows/` or the click scripts.
+  `.forgejo/workflows/` or the click scripts. On a `v*` tag it also puts
+  the package on the tag's Forgejo release (`tools/ci/release-click.mjs`),
+  creating the release from the version's CHANGELOG section if it isn't
+  there; a full release tag without a section fails the job.
 - Everything runs when `Cargo.lock`, the workspace `Cargo.toml` or
   `.forgejo/` change, and on pushes to master and on tags.
 

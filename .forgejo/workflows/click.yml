@@ -46,6 +46,14 @@ jobs:
           path: build-click/*.click
           retention-days: 30
 
+      # A v* tag build is the official package: put it on the tag's release,
+      # creating the release from the CHANGELOG if it isn't there yet.
+      - name: Attach the click to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node tools/ci/release-click.mjs build-click/*.click
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Also after a failed build or review, so the report is still there.
       - uses: actions/upload-artifact@v3
         if: always()
