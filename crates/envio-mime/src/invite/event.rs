@@ -58,6 +58,8 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
         location: text("LOCATION"),
         when,
         dtstart_line: dtstart.line.clone(),
+        recurrence_id: get("RECURRENCE-ID").map_or_else(String::new, |p| p.value.trim().to_owned()),
+        recurrence_id_line: get("RECURRENCE-ID").map(|p| p.line.clone()),
         organizer_line: get("ORGANIZER")
             .filter(|p| person(p).is_some())
             .map(|p| p.line.clone()),
@@ -183,7 +185,9 @@ fn person(p: &Prop) -> Option<Person> {
         .filter(|s| s.eq_ignore_ascii_case("mailto:"))
         .map(|_| &v[7..])?;
     let email = address.split('?').next().unwrap_or("").trim();
-    if email.is_empty() {
+    let email = strip_bidi_controls(&email.chars().take(MAX_TEXT).collect::<String>());
+    // What lettre would refuse as an address: nothing, or controls or spaces.
+    if email.is_empty() || email.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return None;
     }
     let partstat = p
@@ -196,7 +200,7 @@ fn person(p: &Prop) -> Option<Person> {
             _ => None,
         });
     Some(Person {
-        email: strip_bidi_controls(&email.chars().take(MAX_TEXT).collect::<String>()),
+        email,
         name: p
             .param("CN")
             .map_or_else(String::new, |cn| unescape(cn, MAX_TEXT)),

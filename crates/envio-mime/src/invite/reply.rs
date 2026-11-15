@@ -1,5 +1,5 @@
 //! The iMIP REPLY (RFC 6047 §2.2.4): the calendar text and the mail around
-//! it. Text values written here are escaped; the DTSTART and ORGANIZER lines
+//! it. Text values written here are escaped; the DTSTART, RECURRENCE-ID and ORGANIZER lines
 //! are copied as received (only re-folded).
 
 use super::{Invite, NaiveParts, PartStat};
@@ -28,6 +28,9 @@ pub fn reply_ics(
     line("METHOD:REPLY");
     line("BEGIN:VEVENT");
     line(&format!("UID:{}", invite.uid));
+    if let Some(recurrence_id) = &invite.recurrence_id_line {
+        line(recurrence_id);
+    }
     line(&format!("SEQUENCE:{}", invite.sequence));
     line(&format!("DTSTAMP:{}", stamp(dtstamp_unix)));
     line(&invite.dtstart_line);

@@ -55,6 +55,11 @@ pub struct Invite {
     /// The DTSTART line as received (unfolded, with its TZID), copied into
     /// a reply.
     pub dtstart_line: String,
+    /// The RECURRENCE-ID value (trimmed) of an event that is one occurrence
+    /// of a repeating meeting; empty for the series.
+    pub recurrence_id: String,
+    /// The RECURRENCE-ID line as received, copied into a reply.
+    pub recurrence_id_line: Option<String>,
     /// The ORGANIZER line as received; `Some` exactly when `organizer` is.
     pub organizer_line: Option<String>,
     /// Only a `mailto:` value counts.
