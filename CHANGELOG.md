@@ -7,6 +7,10 @@ All notable changes to Envio are listed here. The format follows
 
 ### Changed
 
+- The keyboard handling (pages and sheets rising above the on-screen
+  keyboard, the focused field scrolled into view) moved to the shared
+  [bindle](https://code.austinschaefer.com/schaefera/bindle) library,
+  vendored at `qml/bindle`. No visible change.
 - Hold to select, Select all and mailto: links now come from the shared
   bindle library (`qml/bindle`, a submodule). Select all in a field's
   edit menu opens the menu again with Cut and Copy ready, and a selection

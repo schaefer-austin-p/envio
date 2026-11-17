@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform" as Platform
 
 // Step 1: the address. The ISPDB note is always on screen here, so the
 // domain is never sent (Continue) before the user could read it.
@@ -21,7 +22,7 @@ Item {
         return at > 0 && at < t.length - 1 && t.indexOf("@", at + 1) < 0
     }
 
-    KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+    Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
     Flickable {
         id: flick

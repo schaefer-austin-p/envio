@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform" as Platform
 
 // Writing a message (reply, forward, new, a draft, an Outbox item or a
 // mailto: link). The core owns the draft: it fills the page with
@@ -199,7 +200,7 @@ Item {
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
 
-        KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+        Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
         Column {
             id: column
