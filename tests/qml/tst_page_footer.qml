@@ -4,7 +4,7 @@ import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/pages/accounts"
 import "../../qml/pages/reader"
-import "../../qml/bindle/Platform"
+import "../../qml/bindle/Platform" as Platform
 
 // #71: PageFooter pins the primary action to the page bottom (10 px above,
 // 16 below, a 52 px button, a hairline only in Carbon) and lifts above the
@@ -31,7 +31,7 @@ Item {
             Item { id: filler; width: 100; height: 100 }
             Field { id: input; theme: thm; y: filler.height; width: 280 }
         }
-        KeyboardAvoider { id: avoider; flickable: flick }
+        Platform.KeyboardAvoider { id: avoider; flickable: flick }
         PageFooter {
             id: bar
             theme: thm

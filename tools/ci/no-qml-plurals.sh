@@ -25,7 +25,8 @@ check() {
     echo "no-qml-plurals: not a directory: $1" >&2
     return 1
   fi
-  files=$(find "$1" -name '*.qml' | LC_ALL=C sort)
+  # qml/bindle is the vendored bindle library; it lints itself.
+  files=$(find "$1" -path '*/qml/bindle' -prune -o -name '*.qml' -print | LC_ALL=C sort)
   if [ -z "$files" ]; then
     echo "no-qml-plurals: no .qml files in $1" >&2
     return 1

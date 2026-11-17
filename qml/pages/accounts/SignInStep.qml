@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
-import "../../bindle/Platform"
+import "../../bindle/Platform" as Platform
 
 // Step 2: the settings that were found, and the password. The password
 // lives only in the field; the wizard reads it for `connect` and clears it.
@@ -19,7 +19,7 @@ Item {
     signal continued()
     signal editServersRequested()
 
-    KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+    Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
     Flickable {
         id: flick
