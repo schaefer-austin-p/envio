@@ -53,8 +53,6 @@
         <file>platform/Content.qml</file>
         <file>platform/ut/ContentExport.qml</file>
         <file>platform/ut/ContentImport.qml</file>
-        <file>platform/ut/UriSource.qml</file>
-        <file>platform/Uri.qml</file>
         <file>platform/fileUrl.js</file>
         <file>platform/stampTint.js</file>
         <file>components/qmldir</file>
@@ -72,7 +70,6 @@
         <file>components/Field.qml</file>
         <file>components/BusyLine.qml</file>
         <file>components/PageFooter.qml</file>
-        <file>components/HoldSelection.qml</file>
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>
         <file>components/richText.js</file>

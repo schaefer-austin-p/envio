@@ -380,6 +380,28 @@ Item {
             compare(helper.text, "keep@example.org")
         }
 
+        // Select all goes through the field's HoldSelection (bindle): the
+        // menu comes back with Cut and Copy live, as there is no drag to
+        // select on the phone.
+        function test_select_all_opens_the_menu_again_with_copy_live() {
+            for (const c of [fieldComponent, textBlockComponent]) {
+                const f = createTemporaryObject(c, root, { text: "all@example.org" })
+                waitForRendering(f)
+                holdOn(f)
+                tryVerify(function() { return f.editMenu.visible })
+                verify(!items(f).editCopy.enabled, "nothing selected yet")
+                const selectAll = items(f).editSelectAll
+                f.editMenu.close()
+                tryVerify(function() { return !f.editMenu.visible })
+                selectAll.triggered()
+                tryVerify(function() { return f.editMenu.visible })
+                compare(f.input.selectedText, "all@example.org")
+                verify(items(f).editCopy.enabled, "Copy is enabled")
+                f.editMenu.close()
+                tryVerify(function() { return !f.editMenu.visible })
+            }
+        }
+
         // The rows read the field once, as the menu opens (no live bindings:
         // they looped on the phone), and again on the next opening.
         function test_edit_menu_rows_are_read_when_it_opens() {
@@ -523,6 +545,7 @@ Item {
 
     TextField { id: helper; width: 100; y: 600 }
     Component { id: fieldComponent; Field { theme: thm; width: 300; y: 300 } }
+    Component { id: textBlockComponent; TextBlock { theme: thm; width: 300; y: 300 } }
     Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
     Component {
