@@ -59,4 +59,6 @@ add_dependencies(envio translations)
 
 install(TARGETS envio DESTINATION .)
 install(DIRECTORY ${ENVIO_LOCALE_DIR} DESTINATION share)
-install(FILES LICENSE DESTINATION .)
+install(FILES LICENSE NOTICES.md DESTINATION .)
+# bindle (LGPL-3.0-only) is compiled in: ship its licence texts too.
+install(FILES qml/bindle/COPYING qml/bindle/COPYING.LESSER DESTINATION licenses/bindle)
