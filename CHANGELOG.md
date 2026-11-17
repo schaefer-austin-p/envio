@@ -14,6 +14,9 @@ All notable changes to Envio are listed here. The format follows
   spaces at the ends) open, as a browser would read them, instead of
   losing their address. Sign-in and verification links often come this
   way.
+- Links written without `https://` (`//example.com/…` or
+  `www.example.com/…`) open over https instead of doing nothing, as
+  `www.` addresses in plain-text mail already did.
 
 ## [0.2.0] - 2026-11-15
 
