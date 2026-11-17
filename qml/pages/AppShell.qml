@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQml 2.15
 import "../platform"
 import "../components"
+import "../bindle/Platform" as Platform
 import "accounts"
 import "compose"
 import "inbox"
@@ -107,9 +108,10 @@ Item {
         if (id > 0) composeOpened(id)
     }
 
-    Uri {
+    Platform.Uri {
         id: links
-        onMailto: function(uri) { root.openMailto(uri) }
+        schemes: ["mailto"]
+        onOpened: function(uri) { root.openMailto(uri) }
     }
 
     // The page that leaves is hidden at once; the new one slides in a little
