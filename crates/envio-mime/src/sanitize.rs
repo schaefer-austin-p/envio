@@ -282,14 +282,11 @@ fn as_browser_reads(href: &str) -> Cow<'_, str> {
 
 /// A scheme-less `//host` or `www.` link with https added. A mail has no
 /// page address to resolve it against, and plain-text `www.` links open over
-/// https too. A third slash or a backslash after `//` names no host, so that
-/// link is left as it is and loses its href.
+/// https too. Only a host starting with a letter or digit counts: `///x`,
+/// `//?q`, `// host` or `//@x` name none, so they are left as they are and
+/// lose their href rather than open a sheet that can't open them.
 fn with_scheme(href: Cow<'_, str>) -> Cow<'_, str> {
-    let names_host = |rest: &str| {
-        rest.chars()
-            .next()
-            .is_some_and(|c| !matches!(c, '/' | '\\'))
-    };
+    let names_host = |rest: &str| rest.chars().next().is_some_and(char::is_alphanumeric);
     let www = href
         .get(..4)
         .is_some_and(|p| p.eq_ignore_ascii_case("www."));
