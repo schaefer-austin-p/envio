@@ -25,7 +25,8 @@ trap 'docker rm -f "$c" >/dev/null 2>&1 || true' EXIT
 docker start "$c" >/dev/null
 git archive --prefix=src/ HEAD | docker cp - "$c:/"
 # git archive leaves submodules out: add bindle (qml/bindle) so CMake finds bindle.qrc.
-git -C qml/bindle archive --prefix=src/qml/bindle/ HEAD | docker cp - "$c:/"
+# Archive the commit the gitlink pins, not whatever the submodule has checked out.
+git -C qml/bindle archive --prefix=src/qml/bindle/ "$(git rev-parse HEAD:qml/bindle)" | docker cp - "$c:/"
 
 # Which build this is (#198), taken here: the container gets no .git. The
 # v* tag build is the official release, which carries no stamp; ENVIO_GIT is

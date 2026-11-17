@@ -40,6 +40,9 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
 
 ## Commands
 
+- `git submodule update --init`: once per clone or worktree. `qml/bindle` is a
+  submodule; CMake fails with "Cannot find source file qml/bindle/bindle.qrc"
+  without it.
 - `cargo make ci`: fmt, clippy, tests, audit (Qt-free workspace).
 - `cargo make app-docker`: the app checks and build in the CI image.
 - `cargo make qml-test`: QML tests in the CI image.
