@@ -515,7 +515,7 @@ Item {
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
                 compare(find(name).font.family, thm.fontMono, name)
@@ -549,7 +549,7 @@ Item {
         function test_link_opens_only_from_the_sheet() {
             open(view([], 0))
             const url = "https://evil.example/login?next=%2Fa"
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             compare(root.openedUrls.length, 0)
             const sheet = find("linkSheet")
             tryVerify(function() { return sheet.opened })
@@ -565,7 +565,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens evil.example." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkHost").text, "evil.example")
             compare(find("linkHost").font.bold, true)
@@ -585,7 +585,7 @@ Item {
                                     "unicodeHost": "p\u0430ypal.com",
                                     "unicodeNote": "Displays as p\u0430ypal.com, which may imitate another site.",
                                     "afterHost": "/login", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkHost").text, "xn--pypal-4ve.com")
             compare(find("linkHost").font.bold, true)
@@ -602,7 +602,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": user, "host": host,
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens " + host + "." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             const row = find("linkAddress")
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
@@ -616,7 +616,7 @@ Item {
             const url = "https://example.org/"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "example.org",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkUserinfo").visible, false)
             compare(find("linkWarning").visible, false)
@@ -628,7 +628,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                     "afterHost": url, "openable": false,
                                     "warning": "This link looks malformed and can't be opened." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkOpen").enabled, false)
             compare(find("linkWarning").visible, true)
@@ -672,7 +672,7 @@ Item {
 
         function test_link_sheet_cancel_opens_nothing() {
             open(view([], 0))
-            find("bodyText").linkActivated("https://example.org/")
+            root.page.linkTapped("https://example.org/")
             tryVerify(function() { return find("linkSheet").opened })
             mouseClick(find("linkCancel"))
             compare(root.openedUrls.length, 0)
@@ -928,23 +928,82 @@ Item {
             compare(body.activeFocusOnPress, false)
             compare(body.selectByMouse, false)
             compare(body.cursorVisible, false)
-            body.linkActivated("https://example.org/")
+            root.page.linkTapped("https://example.org/")
             tryVerify(function() { return find("linkSheet").opened })
             compare(root.openedUrls.length, 0)
         }
 
-        // Review 620: a long press on a link word must not also open the link.
-        function test_a_long_press_on_a_link_does_not_open_the_sheet() {
-            open(view([], 0))
-            const body = find("bodyText")
-            root.page.holdBody(1, 1)
-            verify(body.selectedText !== "")
-            body.linkActivated("https://example.org/")
+        // A point inside the body's first link, in the body's coordinates.
+        function linkSpot(body) {
+            for (let y = 1; y < body.height; y += 3)
+                for (let x = 1; x < body.width; x += 4)
+                    if (body.linkAt(x, y) !== "") return Qt.point(x, y)
+            verify(false, "no link in the body")
+        }
+        function linkBody(href) {
+            const v = view([], 0)
+            v.html = "<p>Please <a href=\"" + href + "\">verify your email</a> now</p>"
+            open(v)
+            return find("bodyText")
+        }
+
+        // On the phone a link is tapped with a finger: the body's TapHandler
+        // takes a touch release, so TextEdit.linkActivated never fires there.
+        function test_a_touch_tap_on_a_link_opens_the_sheet() {
+            const url = "https://accounts.example/verify?t=1"
+            const body = linkBody(url)
+            const p = linkSpot(body)
+            touchEvent(body).press(0, body, p.x, p.y).commit()
+            touchEvent(body).release(0, body, p.x, p.y).commit()
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkSheet").address, url)
+            compare(root.openedUrls.length, 0)
+        }
+
+        function test_a_mouse_click_on_a_link_opens_the_sheet_once() {
+            const url = "https://accounts.example/verify?t=2"
+            const body = linkBody(url)
+            mock.reset()
+            const p = linkSpot(body)
+            mouseClick(body, p.x, p.y)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(mock.called("linkView").length, 1)
+        }
+
+        function test_a_tap_beside_a_link_opens_no_sheet() {
+            const body = linkBody("https://accounts.example/")
+            mouseClick(body, body.width - 2, body.height - 2)
             wait(50)
             compare(find("linkSheet").opened, false)
-            // The next press is a normal tap again.
-            root.page.pressBody()
-            body.linkActivated("https://example.org/")
+        }
+
+        // Review 620: a long press on a link word must not also open the link.
+        function test_a_long_press_on_a_link_does_not_open_the_sheet() {
+            const body = linkBody("https://accounts.example/")
+            const p = linkSpot(body)
+            touchEvent(body).press(0, body, p.x, p.y).commit()
+            wait(800)
+            touchEvent(body).release(0, body, p.x, p.y).commit()
+            wait(50)
+            verify(body.selectedText !== "")
+            compare(find("linkSheet").opened, false)
+        }
+
+        // Review 880: with a mouse, TapHandler reports `tapped` on the release
+        // of a long press; that release must not open the link either.
+        function test_a_mouse_long_press_on_a_link_does_not_open_the_sheet() {
+            const body = linkBody("https://accounts.example/")
+            const p = linkSpot(body)
+            mousePress(body, p.x, p.y)
+            wait(800)
+            mouseRelease(body, p.x, p.y)
+            wait(50)
+            verify(body.selectedText !== "")
+            compare(find("linkSheet").opened, false)
+            // Once the Copy menu is closed, the next click is a normal tap again.
+            root.page.dismissSelection()
+            tryVerify(function() { return !find("bodyMenu").visible })
+            mouseClick(body, p.x, p.y)
             tryVerify(function() { return find("linkSheet").opened })
         }
 

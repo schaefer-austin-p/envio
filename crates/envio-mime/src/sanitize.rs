@@ -238,12 +238,38 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
 /// (the reader shows it) but only for http, https and mailto.
 fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Option<Cow<'u, str>> {
     match attribute {
-        "href" => (clean_url(value) && has_scheme(value, &["http:", "https:", "mailto:"]))
-            .then(|| crate::link::safe_href(value))
-            .flatten(),
+        "href" => match as_browser_reads(value) {
+            Cow::Borrowed(href) => web_href(href),
+            Cow::Owned(href) => web_href(&href).map(|h| Cow::Owned(h.into_owned())),
+        },
         "src" => has_scheme(value, &["http:", "https:", "cid:"]).then_some(Cow::Borrowed(value)),
         "style" => filter_style(element, value).map(Cow::Owned),
         _ => Some(Cow::Borrowed(value)),
+    }
+}
+
+/// An http, https or mailto href made safe to show, else `None`.
+fn web_href(href: &str) -> Option<Cow<'_, str>> {
+    (clean_url(href) && has_scheme(href, &["http:", "https:", "mailto:"]))
+        .then(|| crate::link::safe_href(href))
+        .flatten()
+}
+
+/// The href as a browser reads it (WHATWG URL): spaces and C0 controls
+/// trimmed from both ends, tabs and newlines dropped anywhere. Mailers that
+/// wrap lines break long links this way. Any other control character stays,
+/// so `clean_url` still refuses it.
+fn as_browser_reads(href: &str) -> Cow<'_, str> {
+    let trimmed = href.trim_matches(|c: char| c <= ' ');
+    if trimmed.contains(['\t', '\n', '\r']) {
+        Cow::Owned(
+            trimmed
+                .chars()
+                .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+                .collect(),
+        )
+    } else {
+        Cow::Borrowed(trimmed)
     }
 }
 

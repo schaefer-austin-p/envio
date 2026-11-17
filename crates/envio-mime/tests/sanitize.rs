@@ -134,16 +134,28 @@ fn css_braces_are_refused() {
 }
 
 #[test]
-fn links_with_control_characters_or_spaced_schemes_lose_the_href() {
-    for href in [
-        "https://example.com/&#10;x",
-        "https://exa&#9;mple.com",
-        "ht tps://example.com",
-        "https ://example.com",
-        "mailto:a@b.com&#13;&#10;Bcc:x@y.org",
-    ] {
+fn links_with_spaced_schemes_lose_the_href() {
+    for href in ["ht tps://example.com", "https ://example.com"] {
         let html = format!(r#"<a href="{href}">x</a>"#);
         assert_eq!(clean(&html), "<a>x</a>", "{href}");
+    }
+}
+
+// Tabs and newlines are dropped as a browser drops them, so the href the
+// link sheet shows is the one that opens: no line break is left to start a
+// header, and the host is the joined one.
+#[test]
+fn tabs_and_newlines_in_links_are_dropped_not_kept() {
+    for (href, want) in [
+        ("https://example.com/&#10;x", "https://example.com/x"),
+        ("https://exa&#9;mple.com", "https://example.com"),
+        (
+            "mailto:a@b.com&#13;&#10;Bcc:x@y.org",
+            "mailto:a@b.comBcc:x@y.org",
+        ),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), format!(r#"<a href="{want}">x</a>"#), "{href}");
     }
 }
 

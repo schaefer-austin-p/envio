@@ -3,6 +3,18 @@
 All notable changes to Envio are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- Tapping a link in a message opens the link sheet again on the phone.
+  Since text selection arrived in 0.2.0, a finger tap on a link did
+  nothing; only a mouse click worked.
+- Links whose address a mailer broke over lines (a tab or newline inside,
+  spaces at the ends) open, as a browser would read them, instead of
+  losing their address. Sign-in and verification links often come this
+  way.
+
 ## [0.2.0] - 2026-11-15
 
 Release milestone:
