@@ -49,6 +49,51 @@ fn format_characters_in_a_link_host_or_scheme_lose_the_href() {
     }
 }
 
+// Mailers that wrap long lines put a newline inside a long sign-in or
+// verification link. Browsers drop tabs and newlines anywhere in a URL and
+// trim spaces at its ends (WHATWG URL), so the link keeps working, as the
+// browser would open it.
+#[test]
+fn tabs_newlines_and_edge_spaces_in_a_link_are_dropped_like_a_browser() {
+    for (href, want) in [
+        (
+            "https://a.example/verify?t=abc\n&amp;u=1",
+            "https://a.example/verify?t=abc&amp;u=1",
+        ),
+        ("https://a.example/x\r\ny\tz", "https://a.example/xyz"),
+        ("  https://a.example/sp ", "https://a.example/sp"),
+        ("\nhttps://a.exa\nmple/", "https://a.example/"),
+        (" mailto:a@b.example ", "mailto:a@b.example"),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(
+            clean(&html),
+            format!(r#"<a href="{want}">x</a>"#),
+            "{href:?}"
+        );
+    }
+}
+
+#[test]
+fn a_dropped_tab_or_newline_cannot_make_a_script_link() {
+    for href in [
+        "java\tscript:alert(1)",
+        "java\nscript:alert(1)",
+        " \njavascript:alert(1)",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
+#[test]
+fn other_control_characters_still_lose_the_href() {
+    for href in ["https://a.example/\u{7}x", "https://a.example/\u{1B}x"] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
 #[test]
 fn ordinary_unicode_links_are_untouched() {
     let out = clean("<a href=\"https://例え.jp/パス?q=é\">x</a>");
