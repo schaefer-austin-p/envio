@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../platform"
+import "../bindle/Behaviours" as Behaviours
 
 // A labelled single-line text field. `password` hides the text and turns
 // prediction off; the text is read from `text`, nothing else holds it.
@@ -53,6 +54,8 @@ Column {
             bottomPadding: 0
             selectByMouse: true
             persistentSelection: true
+            // A key ends a press a Flickable took over (no release came).
+            Keys.onPressed: function(event) { hold.endPress(); event.accepted = false }
             leftPadding: root.inset
             rightPadding: root.theme.gu(1.75)
             anchors.fill: parent
@@ -84,7 +87,8 @@ Column {
             theme: root.theme
             field: input
             password: root.password
+            hold: hold
         }
-        HoldSelection { field: input; menu: menu }
+        Behaviours.HoldSelection { id: hold; field: input; menu: menu }
     }
 }

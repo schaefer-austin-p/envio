@@ -13,6 +13,9 @@ Menu {
     property bool password: false
     // Read-only text (the reader's body): Copy and Select all, no Cut or Paste.
     property bool copyOnly: false
+    // The field's HoldSelection (bindle): Select all through it opens the
+    // menu again with Cut and Copy live. Without one, Select all only selects.
+    property var hold: null
 
     // What the field allows, read once as the menu opens. Live bindings to
     // the field's selection and clipboard state loop on the phone: opening
@@ -93,6 +96,6 @@ Menu {
         text: qsTr("Select all")
         visible: !root.password
         enabled: root.hasText
-        onTriggered: root.field.selectAll()
+        onTriggered: root.hold ? root.hold.selectAll() : root.field.selectAll()
     }
 }

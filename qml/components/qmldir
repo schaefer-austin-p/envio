@@ -22,4 +22,3 @@ DateText 1.0 DateText.qml
 FolderLabel 1.0 FolderLabel.qml
 EditMenu 1.0 EditMenu.qml
 SelectionHandles 1.0 SelectionHandles.qml
-HoldSelection 1.0 HoldSelection.qml

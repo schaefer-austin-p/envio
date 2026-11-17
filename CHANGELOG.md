@@ -5,6 +5,14 @@ All notable changes to Envio are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Hold to select, Select all and mailto: links now come from the shared
+  bindle library (`qml/bindle`, a submodule). Select all in a field's
+  edit menu opens the menu again with Cut and Copy ready, and a selection
+  the keyboard made while typing no longer comes back on a press and
+  hold.
+
 ### Fixed
 
 - Tapping a link in a message opens the link sheet again on the phone.

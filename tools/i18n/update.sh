@@ -9,7 +9,7 @@ pot=po/envio.aps.pot
 new=$(mktemp)
 trap 'rm -f "$new"' EXIT
 
-find qml \( -name '*.qml' -o -name '*.js' \) | LC_ALL=C sort | xgettext --files-from=- --output="$new" \
+find qml -path qml/bindle -prune -o \( -name '*.qml' -o -name '*.js' \) -print | LC_ALL=C sort | xgettext --files-from=- --output="$new" \
   --language=JavaScript --keyword=qsTr:1 --keyword=qsTr:1,2c \
   --from-code=UTF-8 --add-comments=TRANSLATORS --package-name=envio.aps
 

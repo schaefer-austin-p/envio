@@ -1,0 +1,3 @@
+[submodule "qml/bindle"]
+	path = qml/bindle
+	url = https://code.austinschaefer.com/schaefera/bindle.git

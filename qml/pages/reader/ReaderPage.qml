@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
+import "../../bindle/Platform" as Platform
 import "../../components/richText.js" as RichText
 
 // Reading one message (boards 2, 3, 4): header, the body as rich text with
@@ -34,7 +35,9 @@ Item {
     readonly property var noView: ({ from: "", to: [], cc: [], subject: "", date: 0, account: "" })
     // The platform's way to open a link and to export a file; the tests
     // replace them (neither has a visible effect on the desktop).
-    property var openUrl: function(url) { Qt.openUrlExternally(url) }
+    property var openUrl: function(url) { outbound.open(url) }
+    // Links out only: the app's incoming links are AppShell's.
+    Platform.Uri { id: outbound; sourceFile: "" }
     // Whether Content Hub can take a file here; a test sets it.
     property bool hubAvailable: content.hubAvailable
     property var exportFile: function(path, mode) { content.exportFile(path, mode) }
