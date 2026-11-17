@@ -5,6 +5,13 @@ All notable changes to Envio are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The keyboard handling (pages and sheets rising above the on-screen
+  keyboard, the focused field scrolled into view) moved to the shared
+  [bindle](https://code.austinschaefer.com/schaefera/bindle) library,
+  vendored at `qml/bindle`. No visible change.
+
 ### Fixed
 
 - Tapping a link in a message opens the link sheet again on the phone.

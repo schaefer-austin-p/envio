@@ -110,6 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          submodules: true
           persist-credentials: false
 
       # CARGO_HOME is /opt/rust/cargo in the clickable image.

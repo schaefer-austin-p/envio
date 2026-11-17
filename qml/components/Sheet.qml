@@ -1,8 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15 as QC
-import QtQuick.Window 2.15
 import "../platform"
-import "keyboardRect.js" as KeyboardRect
+import "../bindle/Platform" as Platform
 
 // A bottom sheet over the scrim, with a grab handle. Children go below the
 // handle; a tap on the scrim closes it.
@@ -15,12 +14,15 @@ QC.Popup {
     parent: QC.Overlay.overlay
     modal: true
     closePolicy: QC.Popup.CloseOnEscape | QC.Popup.CloseOnPressOutside
-    // The keyboard in window coordinates (tests set it). Where it covers the
-    // screen's bottom the sheet rests on its top edge, not behind it.
-    property rect keyboard: KeyboardRect.logical(Qt.inputMethod.keyboardRectangle,
-        Screen.width, Screen.devicePixelRatio)
-    readonly property real keyboardInset: parent && keyboard.height > 0
-        ? Math.max(0, parent.mapToItem(null, 0, parent.height).y - keyboard.y) : 0
+    // The keyboard in window coordinates (bindle KeyboardInset; tests set
+    // it). Where it covers the screen's bottom the sheet rests on its top
+    // edge, not behind it.
+    readonly property Platform.KeyboardInset keyboardArea: Platform.KeyboardInset {
+        id: keyboardArea
+        target: root.parent
+    }
+    property alias keyboard: keyboardArea.keyboard
+    readonly property real keyboardInset: keyboardArea.inset
     // In Airmail the sheet lies inside the screen ring's inner area (the ring
     // is the shell's, drawn once); the keyboard, when up, is its floor.
     readonly property real ringInset: keyboardInset > 0 ? 0 : theme.frameInset

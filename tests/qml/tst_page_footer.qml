@@ -4,6 +4,7 @@ import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/pages/accounts"
 import "../../qml/pages/reader"
+import "../../qml/bindle/Platform"
 
 // #71: PageFooter pins the primary action to the page bottom (10 px above,
 // 16 below, a 52 px button, a hairline only in Carbon) and lifts above the

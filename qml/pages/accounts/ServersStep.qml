@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform"
 
 // Manual setup: typed IMAP and SMTP servers. `setupJson(email)` is the
 // setup record `connect` takes (same keys as `detected` carries), with no

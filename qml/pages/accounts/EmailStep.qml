@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform"
 
 // Step 1: the address. The ISPDB note is always on screen here, so the
 // domain is never sent (Continue) before the user could read it.

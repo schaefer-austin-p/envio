@@ -21,7 +21,7 @@ cxx_qt_import_crate(MANIFEST_PATH qt/Cargo.toml CRATES envio_qt LOCKED
   QT_MODULES Qt5::Core Qt5::Gui Qt5::Qml)
 cxx_qt_import_qml_module(envio_qml URI "Envio" SOURCE_CRATE envio_qt)
 
-add_executable(envio qt/main.cpp qml/qml.qrc)
+add_executable(envio qt/main.cpp qml/qml.qrc qml/bindle/bindle.qrc)
 target_link_libraries(envio PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
 target_compile_options(envio PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
   -Wold-style-cast -Wnon-virtual-dtor -Woverloaded-virtual -Wformat=2)

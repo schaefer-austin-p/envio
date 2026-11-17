@@ -1,7 +1,6 @@
 import QtQuick 2.15
-import QtQuick.Window 2.15
 import "../platform"
-import "keyboardRect.js" as KeyboardRect
+import "../bindle/Platform" as Platform
 
 // The primary action pinned to the bottom of a page (board: a bottom bar):
 // 10 px above the button, 16 below, the button controlHeight high, a hairline
@@ -19,15 +18,14 @@ Item {
     // (the same height, so nothing jumps); the content is hidden, not removed.
     property bool busy: false
     property string busyText: ""
-    // The keyboard in window coordinates. Tests set it; on the phone it is
-    // Qt's, in logical pixels (Ubuntu Touch reports device pixels).
-    property rect keyboard: KeyboardRect.logical(Qt.inputMethod.keyboardRectangle,
-        Screen.width, Screen.devicePixelRatio)
+    // The keyboard in window coordinates (bindle KeyboardInset). Tests set it.
+    property alias keyboard: inset.keyboard
     // How far the keyboard covers the bottom of the parent.
-    readonly property real lift: {
-        if (keyboard.height <= 0 || !parent) return 0
-        const bottom = parent.mapToItem(null, 0, parent.height).y
-        return Math.max(0, Math.min(parent.height, bottom - keyboard.y))
+    readonly property real lift: inset.inset
+
+    Platform.KeyboardInset {
+        id: inset
+        target: root.parent
     }
 
     x: 0
