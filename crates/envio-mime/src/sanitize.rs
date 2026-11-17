@@ -200,11 +200,18 @@ fn cleaner(extra: &BTreeSet<String>) -> Builder<'_> {
         .tag_attributes(tag_attributes())
         .generic_attributes(["style"].into_iter().collect())
         .url_schemes(["http", "https", "mailto", "cid"].into_iter().collect())
-        .url_relative(UrlRelative::Deny)
+        // Ammonia checks URLs before `filter_attribute` and drops a relative
+        // one there under `Deny`; this policy runs after the filter, so a
+        // `//host` link it gave a scheme survives and every other one goes.
+        .url_relative(UrlRelative::Custom(Box::new(no_relative_url)))
         .link_rel(None)
         .strip_comments(true)
         .attribute_filter(filter_attribute);
     builder
+}
+
+fn no_relative_url(_: &str) -> Option<Cow<'_, str>> {
+    None
 }
 
 /// Sanitizes HTML mail into Qt rich text.
@@ -238,7 +245,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
 /// (the reader shows it) but only for http, https and mailto.
 fn filter_attribute<'u>(element: &str, attribute: &str, value: &'u str) -> Option<Cow<'u, str>> {
     match attribute {
-        "href" => match as_browser_reads(value) {
+        "href" => match with_scheme(as_browser_reads(value)) {
             Cow::Borrowed(href) => web_href(href),
             Cow::Owned(href) => web_href(&href).map(|h| Cow::Owned(h.into_owned())),
         },
@@ -270,6 +277,26 @@ fn as_browser_reads(href: &str) -> Cow<'_, str> {
         )
     } else {
         Cow::Borrowed(trimmed)
+    }
+}
+
+/// A scheme-less `//host` or `www.` link with https added. A mail has no
+/// page address to resolve it against, and plain-text `www.` links open over
+/// https too. A third slash or a backslash after `//` names no host, so that
+/// link is left as it is and loses its href.
+fn with_scheme(href: Cow<'_, str>) -> Cow<'_, str> {
+    let names_host = |rest: &str| {
+        rest.chars()
+            .next()
+            .is_some_and(|c| !matches!(c, '/' | '\\'))
+    };
+    let www = href
+        .get(..4)
+        .is_some_and(|p| p.eq_ignore_ascii_case("www."));
+    match href.strip_prefix("//") {
+        Some(rest) if names_host(rest) => Cow::Owned(format!("https:{href}")),
+        _ if www && names_host(&href[4..]) => Cow::Owned(format!("https://{href}")),
+        _ => href,
     }
 }
 

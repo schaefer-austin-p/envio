@@ -57,7 +57,6 @@ fn drops_other_link_schemes_but_keeps_text() {
         "file:///etc/passwd",
         "cid:part1",
         "relative/path",
-        "//example.com/x",
     ] {
         let html = format!(r#"<a href="{href}">x</a>"#);
         assert_eq!(clean(&html), "<a>x</a>", "{href}");

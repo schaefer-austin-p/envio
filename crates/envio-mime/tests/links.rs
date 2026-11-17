@@ -94,6 +94,45 @@ fn other_control_characters_still_lose_the_href() {
     }
 }
 
+// A mail has no page address to resolve a scheme-less link against, so
+// `//host` and `www.` links open over https, as plain-text `www.` links do.
+#[test]
+fn links_without_a_scheme_open_over_https() {
+    for (href, want) in [
+        ("//example.com/x?y=1", "https://example.com/x?y=1"),
+        (" //example.com", "https://example.com"),
+        ("//exa\nmple.com/x", "https://example.com/x"),
+        ("www.example.com/verify", "https://www.example.com/verify"),
+        ("WWW.Example.com", "https://WWW.Example.com"),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(
+            clean(&html),
+            format!(r#"<a href="{want}">x</a>"#),
+            "{href:?}"
+        );
+    }
+}
+
+#[test]
+fn scheme_less_links_with_no_host_or_a_tricky_host_still_lose_the_href() {
+    for href in [
+        "///example.com",
+        "//\\example.com",
+        "/\\example.com",
+        "//",
+        "www.",
+        "//exa\u{202E}mple.com",
+        "//a.example\\@b.example/",
+        "relative/path",
+        "/path",
+        "wwwexample.com",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
 #[test]
 fn ordinary_unicode_links_are_untouched() {
     let out = clean("<a href=\"https://例え.jp/パス?q=é\">x</a>");
