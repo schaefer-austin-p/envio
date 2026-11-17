@@ -989,6 +989,24 @@ Item {
             compare(find("linkSheet").opened, false)
         }
 
+        // Review 880: with a mouse, TapHandler reports `tapped` on the release
+        // of a long press; that release must not open the link either.
+        function test_a_mouse_long_press_on_a_link_does_not_open_the_sheet() {
+            const body = linkBody("https://accounts.example/")
+            const p = linkSpot(body)
+            mousePress(body, p.x, p.y)
+            wait(800)
+            mouseRelease(body, p.x, p.y)
+            wait(50)
+            verify(body.selectedText !== "")
+            compare(find("linkSheet").opened, false)
+            // Once the Copy menu is closed, the next click is a normal tap again.
+            root.page.dismissSelection()
+            tryVerify(function() { return !find("bodyMenu").visible })
+            mouseClick(body, p.x, p.y)
+            tryVerify(function() { return find("linkSheet").opened })
+        }
+
         function test_a_tap_clears_the_selection_handles_and_menu() {
             const v = view([], 0)
             v.html = "<p>Order 48213 shipped</p>"

@@ -63,6 +63,9 @@ Item {
     // pixmap cache; each time some are in, the body is set again (a
     // different string, so the TextEdit lays out) and draws them from there.
     property int imageRedraws: 0
+    // True from a long press until the next press: with a mouse, TapHandler
+    // still reports `tapped` when a long press is released.
+    property bool holdActive: false
     readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
     // A redraw due for the last message must not lay out the next one.
     onViewChanged: imageRedraw.stop()
@@ -129,6 +132,7 @@ Item {
     // not through TextEdit.linkActivated: the TapHandler takes a touch tap's
     // release, so on a touchscreen linkActivated never fires.
     function tapBody(x, y) {
+        if (holdActive) return
         const link = body.linkAt(x, y)
         if (link !== "") linkTapped(link)
         else dismissSelection()
@@ -330,13 +334,18 @@ Item {
                     onTextChanged: bodyMenu.close()
                     // A tap opens the link under the finger (or clears the
                     // selection); a long press selects the word under the
-                    // finger and opens Copy / Select all, and is never a tap,
-                    // so it opens no link. A flick is neither.
+                    // finger and opens Copy / Select all, and opens no link
+                    // (a mouse release after it is still reported as a tap,
+                    // hence holdActive). A flick is neither.
                     TapHandler {
                         objectName: "bodyHold"
                         longPressThreshold: 0.5
+                        onPressedChanged: if (pressed) root.holdActive = false
                         onTapped: root.tapBody(point.position.x, point.position.y)
-                        onLongPressed: root.holdBody(point.position.x, point.position.y)
+                        onLongPressed: {
+                            root.holdActive = true
+                            root.holdBody(point.position.x, point.position.y)
+                        }
                     }
                     EditMenu {
                         id: bodyMenu
