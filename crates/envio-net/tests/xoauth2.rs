@@ -103,7 +103,7 @@ async fn imap_wrong_token_is_a_sign_in_error_in_both_failure_shapes() {
 }
 
 #[tokio::test]
-async fn imap_without_xoauth2_is_a_sign_in_error_and_sends_no_token() {
+async fn imap_without_xoauth2_is_refused_and_sends_no_token() {
     let script = fake_imap::Script {
         xoauth2_accepts: "",
         signed_out_capabilities: "AUTH=PLAIN",
@@ -111,7 +111,8 @@ async fn imap_without_xoauth2_is_a_sign_in_error_and_sends_no_token() {
     };
     let (session, lines) = imap_open(script, "good-token").await;
     let err = session.err().unwrap();
-    assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
+    // Not SignIn: that would read as an expired token.
+    assert!(matches!(err, NetError::Refused(_)), "{err:?}");
     assert!(
         !lines
             .iter()
@@ -143,17 +144,26 @@ async fn smtp_wrong_token_is_a_sign_in_error_in_both_failure_shapes() {
         let err = result.unwrap_err();
         assert!(matches!(err, NetError::SignIn(_)), "{challenge}: {err:?}");
         assert!(!sends_password(&lines), "{lines:?}");
+        if challenge {
+            // lettre never answers a 334 error challenge for XOAUTH2: it
+            // fails on the client side ("does not expect a challenge",
+            // mapped by `client_error`), so the 535 is never read.
+            assert!(
+                lines.last().unwrap().starts_with("AUTH XOAUTH2 "),
+                "{lines:?}"
+            );
+        }
     }
 }
 
 #[tokio::test]
-async fn smtp_without_xoauth2_is_a_sign_in_error_and_sends_no_token() {
+async fn smtp_without_xoauth2_is_refused_and_sends_no_token() {
     let script = fake_smtp::Script {
         xoauth2_accepts: "",
         ..smtp_script()
     };
     let (result, lines) = smtp_login(script, "good-token").await;
     let err = result.unwrap_err();
-    assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
+    assert!(matches!(err, NetError::Refused(_)), "{err:?}");
     assert!(!lines.iter().any(|l| l.starts_with("AUTH ")), "{lines:?}");
 }

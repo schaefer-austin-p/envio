@@ -228,8 +228,11 @@ async fn authenticate<S: AsyncRead + AsyncWrite + Unpin>(
         io.write_all(format!("+ {json}\r\n").as_bytes())
             .await
             .ok()?;
-        // The client's (empty) acknowledgement.
-        line(io, true, log).await?;
+        // The client must acknowledge with an empty line (RFC style);
+        // anything else (such as the token again) is a protocol error.
+        if !line(io, true, log).await?.is_empty() {
+            return Some((false, format!("{tag} BAD expected an empty answer\r\n")));
+        }
     }
     let reply = match (ok, xoauth2) {
         (true, _) => format!("{tag} OK signed in\r\n"),

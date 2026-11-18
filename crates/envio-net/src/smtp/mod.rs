@@ -59,7 +59,8 @@ impl SmtpSession {
             credentials.username.clone(),
             credentials.password.expose_secret().to_owned(),
         );
-        let mechanisms: &[Mechanism] = if credentials.is_bearer() {
+        let bearer = credentials.is_bearer();
+        let mechanisms: &[Mechanism] = if bearer {
             &[Mechanism::Xoauth2]
         } else {
             &[Mechanism::Plain, Mechanism::Login]
@@ -69,7 +70,16 @@ impl SmtpSession {
                 .auth(mechanisms, &lettre)
                 .await
                 .map(drop)
-                .map_err(|e| map_error(e, true))
+                .map_err(|e| match map_error(e, true) {
+                    // A server without XOAUTH2 cannot do this; that is not
+                    // an expired token.
+                    NetError::SignIn(text)
+                        if bearer && text.contains("No compatible authentication mechanism") =>
+                    {
+                        NetError::Refused("the server does not offer XOAUTH2".into())
+                    }
+                    other => other,
+                })
         })
         .await
     }

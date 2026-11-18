@@ -95,6 +95,8 @@ fn xoauth2_response(username: &str, token: &str) -> Vec<u8>;
 
 **Stalwart:** `cargo make net-it`'s Stalwart (v1.0.3) has the XOAUTH2 and OAUTHBEARER mechanisms compiled in (strings present in the binary) but is configured through JMAP and the token would have to come from its own OAuth server; whether that can be scripted in `up.sh` is unverified. The fake servers are the baseline and enough for CI. As a timeboxed (1 h) extra in this task, probe the throwaway Stalwart's CAPABILITY for `AUTH=XOAUTH2`; if it is offered and a token can be had with a `curl` call, add one `#[ignore]`-free test in `tests/stalwart.rs`; if not, write the finding here and stop.
 
+**Outcome (T1):** the Stalwart probe was skipped; the fake servers are the CI baseline. A bearer credential against a server without XOAUTH2 returns `NetError::Refused` (IMAP and SMTP), not `SignIn`, so T5/T6 must not read it as an expired token: only `SignIn` triggers the refresh-and-retry rule.
+
 ---
 
 ### T2: The pure OAuth parts (envio-net `oauth` module)

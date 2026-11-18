@@ -20,6 +20,9 @@ pub(crate) enum Method {
     Xoauth2,
     /// Credentials LOGIN cannot carry and the server has no PLAIN for.
     Refuse(&'static str),
+    /// A bearer credential and a server without XOAUTH2: the server cannot
+    /// do this, which is not an expired or revoked token.
+    Unsupported(&'static str),
 }
 
 /// The choice, from the credentials and what the server offers. The
@@ -44,7 +47,7 @@ pub(crate) fn choose_bearer(offers_xoauth2: bool) -> Method {
     if offers_xoauth2 {
         Method::Xoauth2
     } else {
-        Method::Refuse("the server does not offer AUTH=XOAUTH2")
+        Method::Unsupported("the server does not offer AUTH=XOAUTH2")
     }
 }
 
@@ -140,6 +143,7 @@ pub(crate) async fn run(
                 .await
         }
         Method::Refuse(reason) => return Err(NetError::SignIn(reason.into())),
+        Method::Unsupported(reason) => return Err(NetError::Refused(reason.into())),
     }
     .map_err(|(error, _)| match error {
         // A "not now" NO (RFC 5530) is not a wrong password.
@@ -215,7 +219,7 @@ mod tests {
     #[test]
     fn a_bearer_credential_needs_xoauth2_from_the_server() {
         assert_eq!(choose_bearer(true), Method::Xoauth2);
-        assert!(matches!(choose_bearer(false), Method::Refuse(_)));
+        assert!(matches!(choose_bearer(false), Method::Unsupported(_)));
     }
 
     #[test]
