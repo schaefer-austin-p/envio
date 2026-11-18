@@ -119,7 +119,9 @@ fn parse_date(text: &str) -> Option<i64> {
         _ => return None,
     };
     // `hhmm`, as RFC 3501 writes it.
-    let digits = zone.get(1..).filter(|d| d.len() == 4 && d.is_ascii())?;
+    let digits = zone
+        .get(1..)
+        .filter(|d| d.len() == 4 && d.bytes().all(|b| b.is_ascii_digit()))?;
     let (zone_hours, zone_minutes): (i64, i64) =
         (digits[..2].parse().ok()?, digits[2..].parse().ok()?);
     // Every field is in range below, so none of the arithmetic can overflow.
@@ -189,6 +191,9 @@ mod tests {
             "08-Nov-2026 10:00:00 +9999",
             "08-Nov-2026 10:00:00 +1560",
             "08-Nov-2026 10:00:00 +1500",
+            "08-Nov-2026 10:00:00 +-123",
+            "08-Nov-2026 10:00:00 ++123",
+            "08-Nov-2026 10:00:00 -+100",
             "08-Nov-2026 10:00:00 +9223372036854775807",
         ] {
             assert_eq!(parse_date(text), None, "{text}");
