@@ -11,6 +11,15 @@ use crate::health::AccountStatus;
 use crate::servers::Service;
 use envio_store::{Cursor, FolderId, ListRef, MessageRowId, Settings};
 
+/// Which screen shows an Undo offer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UndoScope {
+    /// Actions on list rows: the inbox toast.
+    List,
+    /// An invite answer: the reader's toast.
+    Reader,
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     /// The store is open; sent at every (re)start of the worker.
@@ -176,12 +185,22 @@ pub enum Event {
         id: MessageRowId,
         index: usize,
     },
+    /// `ExportInvite` wrote the calendar file.
+    InviteExported {
+        id: MessageRowId,
+        path: PathBuf,
+    },
+    /// `ExportInvite` did not write it (a `Notice` says so too).
+    InviteExportFailed {
+        id: MessageRowId,
+    },
     /// An action was done; it can be taken back until `expires_at_ms`
     /// (unix milliseconds).
     UndoOffer {
         undo: UndoId,
         text: String,
         expires_at_ms: i64,
+        scope: UndoScope,
     },
     /// The offer is over: taken back (`undone`) or gone for good.
     UndoClosed {

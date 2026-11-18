@@ -21,6 +21,12 @@ pub struct Wants {
     pub full: bool,
     pub folders: BTreeSet<FolderId>,
     pub bodies: Vec<MessageRowId>,
+    /// Bodies in `bodies` that must come whole, however big (a forward
+    /// carries the attachments).
+    pub whole: BTreeSet<MessageRowId>,
+    /// Attachments of big messages (stored without them) the user asked to
+    /// save: fetched from the server one by one.
+    pub parts: Vec<PartWant>,
     /// Folders the user asked a batch of older mail for.
     pub older: BTreeSet<FolderId>,
     /// Server searches the user waits for: folder and query.
@@ -28,6 +34,21 @@ pub struct Wants {
     pub replay: bool,
     pub send: bool,
     pub file: bool,
+}
+
+/// One attachment of a partial message the user asked to save.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartWant {
+    pub id: MessageRowId,
+    /// The attachment's index in the message's list.
+    pub index: usize,
+    /// Its IMAP section and decoded size, from the stub.
+    pub section: String,
+    pub size: usize,
+    /// The file name to write it under.
+    pub name: String,
+    /// Where to write it.
+    pub dir: std::path::PathBuf,
 }
 
 impl Wants {
@@ -40,6 +61,9 @@ impl Wants {
 pub enum Step {
     Folders,
     Body(MessageRowId),
+    /// One attachment (by index) of a message stored without its
+    /// attachments, fetched to be saved.
+    Part(MessageRowId, usize),
     /// One batch of older mail ("Load older") in a folder.
     Older(FolderId),
     /// "Search on server" in one folder (the account is the step's).
@@ -61,6 +85,7 @@ impl Step {
         match self {
             Step::Folders => "folders",
             Step::Body(_) => "body",
+            Step::Part(..) => "part",
             Step::Older(_) => "older",
             Step::SearchServer { .. } => "search",
             Step::Replay => "replay",
@@ -118,6 +143,7 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
     );
     if !disk_full {
         out.extend(wants.bodies.iter().map(|id| Step::Body(*id)));
+        out.extend(wants.parts.iter().map(|p| Step::Part(p.id, p.index)));
         out.extend(wants.older.iter().map(|id| Step::Older(*id)));
     }
     if wants.full || wants.replay {

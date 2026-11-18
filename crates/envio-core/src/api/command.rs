@@ -1,5 +1,6 @@
 //! What the app asks the core to do.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use envio_net::autoconfig::Source;
@@ -60,6 +61,36 @@ pub enum UserAction {
     Archive,
     Delete,
     Move { to: FolderId },
+}
+
+/// How the user answers a meeting invite. Kept here so the app's glue never
+/// names an `envio_mime` type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    Accepted,
+    Tentative,
+    Declined,
+}
+
+impl Answer {
+    /// The word the card contract uses: `accepted`, `tentative`, `declined`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Tentative => "tentative",
+            Self::Declined => "declined",
+        }
+    }
+
+    /// Anything else is `None`.
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "accepted" => Some(Self::Accepted),
+            "tentative" => Some(Self::Tentative),
+            "declined" => Some(Self::Declined),
+            _ => None,
+        }
+    }
 }
 
 /// One offer to take an action back, from `Event::UndoOffer`.
@@ -168,12 +199,24 @@ pub enum Command {
         /// Widest image or table, in pixels.
         width_px: u32,
     },
+    /// The natural pixel size (width, height) of remote images the reader
+    /// loaded for message `id`, by URL. When the open message is that one
+    /// and a size changes how it draws (an image with no width wider than
+    /// the reader), it comes again as `MessageOpened`.
+    ImageSizes {
+        id: MessageRowId,
+        sizes: HashMap<String, (u32, u32)>,
+    },
     /// Write an attachment into `dir` under a safe name.
     SaveAttachment {
         id: MessageRowId,
         index: usize,
         dir: PathBuf,
     },
+    /// Write the meeting invite in cached message `id` into `dir` as a
+    /// file a calendar app can import; the answer is `InviteExported` or
+    /// `InviteExportFailed`.
+    ExportInvite { id: MessageRowId, dir: PathBuf },
     /// Do `action` to the messages; the answer is an `UndoOffer`.
     Act {
         ids: Vec<MessageRowId>,
@@ -181,6 +224,15 @@ pub enum Command {
     },
     /// Take back an offered action while its window is open.
     Undo { undo: UndoId },
+    /// Answer the meeting invite in a cached message. The reply is queued at
+    /// once but held for the Undo window; the answer is an `UndoOffer`
+    /// (scope `Reader`) and `MessageOpened` again with the new card.
+    AnswerInvite {
+        id: MessageRowId,
+        answer: Answer,
+        /// Added to the reply; may be empty.
+        note: String,
+    },
     /// Open a compose window; the answer is `ComposeReady` or `ComposeRefused`.
     StartCompose {
         compose: ComposeId,
@@ -256,9 +308,12 @@ impl Command {
             Self::SearchServer { .. } => "SearchServer",
             Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
+            Self::ImageSizes { .. } => "ImageSizes",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",
             Self::Undo { .. } => "Undo",
+            Self::AnswerInvite { .. } => "AnswerInvite",
+            Self::ExportInvite { .. } => "ExportInvite",
             Self::StartCompose { .. } => "StartCompose",
             Self::DraftChanged { .. } => "DraftChanged",
             Self::CloseCompose { .. } => "CloseCompose",

@@ -48,13 +48,18 @@ book of its own, encryption (OpenPGP).
 
 ### 0.2.0
 
-- Share into envio (a file shared from another app opens compose with it
-  attached).
 - Meeting invites (iMIP): invite card in the reader with Accept, Maybe,
   Decline and an optional note; reply sent as `METHOD:REPLY` through the
   Outbox; updates and cancellations shown on the card. "Add to calendar" only
   once the platform route is checked on a phone (Content Hub `.ics` handoff
   or reserved calendar access).
+
+Design: `2026-11-14-envio-invites-design.md`.
+
+### 0.3.0
+
+- Share into envio (a file shared from another app opens compose with it
+  attached). Moved from 0.2.0 on 2026-11-14 (#201).
 
 ### Later
 
@@ -198,7 +203,10 @@ job service):
 - The clickable build (`click.yml`, not a required check): on pushes to
   master, tags and manual runs, and on a PR that touches `clickable.yaml`,
   `manifest.json`, `envio.apparmor`, `CMakeLists.txt`, `qt/`,
-  `.forgejo/workflows/` or the click scripts.
+  `.forgejo/workflows/` or the click scripts. On a `v*` tag it also puts
+  the package on the tag's Forgejo release (`tools/ci/release-click.mjs`),
+  creating the release from the version's CHANGELOG section if it isn't
+  there; a full release tag without a section fails the job.
 - Everything runs when `Cargo.lock`, the workspace `Cargo.toml` or
   `.forgejo/` change, and on pushes to master and on tags.
 
@@ -208,9 +216,33 @@ The canvas is exported to `docs/design/` (20 plain HTML boards, Carbon and
 Airmail) and the design language written to `docs/10-design.md`, both in
 this change. The 0.2.0 invite card board is still to add.
 
-## Open questions to check on a phone
+## Budgets
 
-- Can a confined app reach a system secret store?
-- Does the Calendar app accept an `.ics` file through Content Hub?
-- Are the system CA certificates readable under confinement (expected yes)?
-- Real memory use with a few thousand messages, to set budgets.
+Set from the 0.1.0 release run (the results table in
+`docs/phone-checklist.md`) as the measured value × 1.5, rounded up. Those
+numbers are single runs, not medians of several, except cold start
+(median of 3). Memory is in MiB, as `/proc` reports it in KiB. A release
+whose phone run exceeds a budget needs a reason in the checklist or a fix.
+
+| Measure | Measured (0.1.0) | Budget |
+| ------- | ---------------- | ------ |
+| Idle memory (VmRSS) after first sync | about 213 MiB | 320 MiB |
+| Peak memory (VmHWM) | about 227 MiB | 340 MiB |
+| First sync, account add to first rows | 4 s (208 messages) | 6 s |
+| Cold start to the inbox | 2.34 s | 4 s |
+| First sync to Ready | not measured | none yet |
+
+## Answered on the phone (0.1.0)
+
+- **System secret store:** no. `gnome-keyring-daemon` owns
+  `org.freedesktop.secrets`, but AppArmor denies the confined app
+  (AccessDenied on Introspect and Ping), so passwords stay in the 0600
+  file.
+- **Calendar and `.ics`:** likely yes, untested. Calendar's Content Hub
+  hook accepts `documents` and `events` as a destination. Sending an
+  invite there is for the 0.2.0 invite work.
+- **System CA certificates under confinement:** yes. The log says
+  "CA roots: source system, 121 certificates".
+- **Real memory use:** see Budgets. In normal use, AppArmor denials for
+  Envio were only harmless reads (Mali config, the session's android.conf, the Qt shader
+  cache).

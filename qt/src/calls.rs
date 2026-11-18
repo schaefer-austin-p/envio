@@ -7,7 +7,7 @@ use std::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QMap, QMapPair_QString_QVariant, QString};
 use envio_core::{
-    Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
+    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
 };
 use secrecy::SecretString;
 use zeroize::Zeroize;
@@ -183,6 +183,19 @@ impl qobject::EnvioCore {
         self.send_command(Command::Undo { undo });
     }
 
+    /// `answer` is `accepted`, `tentative` or `declined`; anything else is
+    /// ignored.
+    pub fn answer_invite(self: Pin<&mut Self>, id: i64, answer: &QString, note: &QString) {
+        let Some(answer) = Answer::parse(&s(answer)) else {
+            return;
+        };
+        self.send_command(Command::AnswerInvite {
+            id: MessageRowId(id),
+            answer,
+            note: s(note),
+        });
+    }
+
     pub fn open(self: Pin<&mut Self>, id: i64, load_images: bool, width_px: i32) {
         self.send_command(Command::OpenMessage {
             id: MessageRowId(id),
@@ -193,6 +206,18 @@ impl qobject::EnvioCore {
             },
             width_px: u32::try_from(width_px).unwrap_or(0),
         });
+    }
+
+    /// The natural sizes of the remote images the reader loaded for
+    /// message `id`, as `{"url": [width, height]}`.
+    pub fn report_image_sizes(self: Pin<&mut Self>, id: i64, sizes_json: &QString) {
+        match crate::json::image_sizes_from_json(&s(sizes_json)) {
+            Ok(sizes) => self.send_command(Command::ImageSizes {
+                id: MessageRowId(id),
+                sizes,
+            }),
+            Err(error) => log::warn!("ignored malformed image sizes: {error}"),
+        }
     }
 
     pub fn allow_images_from(self: Pin<&mut Self>, address: &QString) {
@@ -211,6 +236,13 @@ impl qobject::EnvioCore {
         self.send_command(Command::SaveAttachment {
             id: MessageRowId(id),
             index: usize::try_from(index).unwrap_or(usize::MAX),
+            dir: PathBuf::from(s(dir)),
+        });
+    }
+
+    pub fn export_invite(self: Pin<&mut Self>, id: i64, dir: &QString) {
+        self.send_command(Command::ExportInvite {
+            id: MessageRowId(id),
             dir: PathBuf::from(s(dir)),
         });
     }
@@ -328,6 +360,16 @@ impl qobject::EnvioCore {
     /// The "Load older messages" row was tapped.
     pub fn load_older(mut self: Pin<&mut Self>) {
         let Some((command, outs)) = self.as_mut().rust_mut().ui.load_older() else {
+            return;
+        };
+        self.as_mut().run(outs);
+        self.send_command(command);
+    }
+
+    /// The list was scrolled to its end: the same load, once until rows
+    /// arrive and not again after a failure.
+    pub fn load_older_near_end(mut self: Pin<&mut Self>) {
+        let Some((command, outs)) = self.as_mut().rust_mut().ui.load_older_near_end() else {
             return;
         };
         self.as_mut().run(outs);

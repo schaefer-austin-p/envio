@@ -13,6 +13,8 @@ Item {
     // The compose id `editOutbox` started; the compose page follows it.
     signal composeOpened(var compose)
     signal backRequested()
+    // The way to the Accounts page, where the certificate is checked.
+    signal accountsRequested()
 
     property string asking: ""
 
@@ -34,6 +36,7 @@ Item {
         delegate: OutboxRow {
             theme: root.theme
             width: list.width
+            onAccountsRequested: root.accountsRequested()
             onDecided: root.core.decideOutbox(item, decision)
             onEditRequested: root.composeOpened(root.core.editOutbox(item))
             onDeleteRequested: { root.asking = item; deleteAsk.open() }

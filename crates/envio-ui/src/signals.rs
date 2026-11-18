@@ -2,7 +2,9 @@
 
 use std::path::PathBuf;
 
-use envio_core::{AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId};
+use envio_core::{
+    AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId, UndoScope,
+};
 
 /// The "Load older messages" row at the foot of a list.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -72,9 +74,18 @@ pub enum Signal {
     AttachmentFailed {
         id: i64,
     },
+    /// The calendar file of message `id`'s invite was written.
+    InviteExported {
+        id: i64,
+        path: PathBuf,
+    },
+    InviteExportFailed {
+        id: i64,
+    },
     UndoOffer {
         undo: UndoId,
         text: String,
+        scope: UndoScope,
     },
     UndoClosed {
         undo: UndoId,

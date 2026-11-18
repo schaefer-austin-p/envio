@@ -1,10 +1,13 @@
 //! The worker: one thread, one current-thread runtime, one command loop.
 
 mod act;
+mod attachment;
 mod compose;
 mod conn;
 mod dispatch;
 mod folder_order;
+mod inline;
+mod invite;
 mod older;
 mod outbox;
 mod plan;
@@ -15,6 +18,7 @@ mod rows;
 mod run;
 mod search;
 mod setup;
+mod shown;
 mod start;
 mod store;
 #[cfg(test)]
@@ -67,6 +71,8 @@ pub(crate) struct Worker<'s> {
     unfiled: BTreeSet<String>,
     /// The schedule entry already acted on.
     handled_due_ms: i64,
+    /// The held Outbox release time already acted on (its own watermark).
+    handled_release_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
     /// Servers found through DNS (SRV) by `Detect`: connecting to them
@@ -81,6 +87,12 @@ pub(crate) struct Worker<'s> {
     book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
+    /// Messages whose running body step found a forward that needs the
+    /// whole message (see `Worker::wait_for_whole`).
+    whole_again: BTreeSet<MessageRowId>,
+    /// Open messages that got a whole big message and still wait for their
+    /// partial body (see `Worker::body_fetched`).
+    open_again: BTreeSet<MessageRowId>,
     /// The thread that does the network half of account setup.
     setup: Arc<SetupThread>,
     /// The newest `Detect` ticket by address: an older answer is dropped.
@@ -200,12 +212,15 @@ impl<'s> Worker<'s> {
             asked: BTreeSet::new(),
             unfiled: BTreeSet::new(),
             handled_due_ms: i64::MIN,
+            handled_release_ms: i64::MIN,
             last_ran: None,
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),
             undo: UndoBook::default(),
             book: Arc::clone(book),
             composing: BTreeMap::new(),
+            whole_again: BTreeSet::new(),
+            open_again: BTreeSet::new(),
             setup: Arc::clone(setup),
             detecting: BTreeMap::new(),
             probing: BTreeMap::new(),

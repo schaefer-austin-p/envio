@@ -105,11 +105,11 @@ fn is_stale(name: &str, folder: FolderId, keep: &HashSet<(FolderId, u32)>) -> bo
 }
 
 impl Db {
-    /// Bodies to keep on disk: downloaded, dated at or after `cutoff` (unix seconds).
+    /// Bodies to keep on disk: downloaded (whole or partial), dated at or after `cutoff` (unix seconds).
     pub fn bodies_to_keep(&self, cutoff: i64) -> Result<HashSet<(FolderId, u32)>> {
         let mut stmt = self
             .conn()
-            .prepare("SELECT folder_id, uid FROM messages WHERE body_state = 1 AND date >= ?1")?;
+            .prepare("SELECT folder_id, uid FROM messages WHERE body_state >= 1 AND date >= ?1")?;
         let keep = stmt
             .query_map([cutoff], |row| Ok((FolderId(row.get(0)?), row.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
@@ -119,7 +119,7 @@ impl Db {
     /// Marks bodies dated before `cutoff` as missing; returns how many.
     pub fn mark_bodies_pruned(&self, cutoff: i64) -> Result<usize> {
         Ok(self.conn().execute(
-            "UPDATE messages SET body_state = 0 WHERE body_state = 1 AND date < ?1",
+            "UPDATE messages SET body_state = 0 WHERE body_state >= 1 AND date < ?1",
             [cutoff],
         )?)
     }

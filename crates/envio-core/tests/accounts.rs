@@ -72,6 +72,7 @@ fn status_of(account: &str) -> impl Fn(&Event) -> Option<AccountStatus> + '_ {
 fn queue_mail(h: &Harness, account: &str) {
     let outbox = Outbox::open(&h.paths().outbox()).unwrap();
     let new = NewOutboxItem {
+        send_after_ms: 0,
         account: account.into(),
         message_id: "<m1@example.org>".into(),
         queued_at_ms: 1_000,
@@ -214,6 +215,23 @@ fn remove_asks_first_when_work_is_unsent() {
     assert_eq!((unsent.outbox, unsent.drafts, unsent.actions), (1, 0, 0));
     assert!(text.contains("1 message in the Outbox"), "{text}");
     assert_eq!(saved_accounts(&h).len(), 1, "nothing is removed yet");
+}
+
+#[test]
+fn removing_an_account_clears_the_inline_images() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    h.start_core();
+    started(&h);
+    let folder = h.paths().inline().join("3");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join("0.png"), b"x").unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    assert!(!h.paths().inline().join("3").exists());
 }
 
 #[test]

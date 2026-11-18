@@ -59,6 +59,7 @@ impl Seeded {
                 undo,
                 text,
                 expires_at_ms,
+                ..
             } => Some((*undo, text.clone(), *expires_at_ms)),
             _ => None,
         })
@@ -330,6 +331,7 @@ fn a_mix_of_refused_and_accepted_items() {
             undo,
             text,
             expires_at_ms,
+            ..
         } => Some((*undo, text.clone(), *expires_at_ms)),
         _ => None,
     });

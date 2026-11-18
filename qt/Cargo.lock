@@ -590,7 +590,7 @@ dependencies = [
 
 [[package]]
 name = "envio-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-mime",
  "envio-net",
@@ -609,19 +609,20 @@ dependencies = [
 
 [[package]]
 name = "envio-mime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ammonia",
  "getrandom 0.4.3",
  "html5ever",
  "idna",
+ "jiff",
  "mail-builder",
  "mail-parser",
 ]
 
 [[package]]
 name = "envio-net"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-imap",
  "futures",
@@ -639,8 +640,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-stamp"
+version = "0.2.0"
+
+[[package]]
 name = "envio-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -650,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "envio-sync"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-mime",
  "envio-net",
@@ -660,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "envio-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "envio-core",
  "envio-mime",
@@ -668,13 +673,14 @@ dependencies = [
 
 [[package]]
 name = "envio_qt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cxx",
  "cxx-qt",
  "cxx-qt-build",
  "cxx-qt-lib",
  "envio-core",
+ "envio-stamp",
  "envio-ui",
  "log",
  "secrecy",
@@ -1168,6 +1174,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "jiff"
+version = "0.2.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac63a5a611e9d720726d6ab6ee2ee19e6f620503554ea5d303c7cb294ff40c12"
+dependencies = [
+ "jiff-core",
+ "jiff-static",
+ "jiff-tzdb",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
+ "windows-link",
+]
+
+[[package]]
+name = "jiff-core"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48e9635854583b49ce3c6c43a071f70b0a49e79ad3c261c7b3aa76b2280416d2"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "jiff-static"
+version = "0.2.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f9c27796c21cc8b33ce490f148d53fe41d679b887885bf0ef8f662cdb9b35c0"
+dependencies = [
+ "jiff-core",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "jiff-tzdb"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0980fca2cc272465bd60e82397607ba9f33add9e48defd77923301bbd03808f2"
+
+[[package]]
 name = "jni"
 version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1610,6 +1659,15 @@ name = "portable-atomic"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "potential_utf"

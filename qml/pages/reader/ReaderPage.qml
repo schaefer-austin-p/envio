@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import "../../platform"
 import "../../components"
 import "../inbox"
+import "../../bindle/Platform" as Platform
 import "../../components/richText.js" as RichText
 
 // Reading one message (boards 2, 3, 4): header, the body as rich text with
@@ -25,12 +26,20 @@ Item {
     property string accountName: ""
     // "open", "save" or "share" while an attachment is being saved.
     property string pendingMode: ""
+    // Add to calendar was tapped; the invite's file comes as inviteExported,
+    // apart from attachment saves, so neither takes the other's file.
+    property bool calendarPending: false
+    property int undoId: -1
     property bool started: false
     property bool moved: false
     readonly property var noView: ({ from: "", to: [], cc: [], subject: "", date: 0, account: "" })
     // The platform's way to open a link and to export a file; the tests
     // replace them (neither has a visible effect on the desktop).
-    property var openUrl: function(url) { Qt.openUrlExternally(url) }
+    property var openUrl: function(url) { outbound.open(url) }
+    // Links out only: the app's incoming links are AppShell's.
+    Platform.Uri { id: outbound; sourceFile: "" }
+    // Whether Content Hub can take a file here; a test sets it.
+    property bool hubAvailable: content.hubAvailable
     property var exportFile: function(path, mode) { content.exportFile(path, mode) }
 
     // The body is laid out once, after the push transition ends (a page
@@ -44,11 +53,25 @@ Item {
     onSettledChanged: if (settled) everSettled = true
     readonly property bool ready: view !== null && everSettled
     // What the body shows (a rich TextEdit's own `text` is Qt's re-serialised
-    // HTML, so this is the value to read).
+    // HTML, so this is the value to read; an image redraw adds only an empty
+    // comment).
     // Mail that sets its own colours (the core says so) sits on a light
     // paper card in both themes; nothing here reads the HTML.
     readonly property bool paper: view !== null && view.ownColours === true
-    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), theme.bodyLineHeight) : ""
+    // Paper mail is the sender's own design: no injected line height (#173).
+    readonly property string bodyHtml: ready ? RichText.withLinkColor(view.html, String(paper ? theme.paperLink : theme.link), paper ? 1.0 : theme.bodyLineHeight) : ""
+
+    // Qt 5's rich TextEdit reserves a remote image's space but never draws
+    // it once it arrives (#163). Hidden Images load the same URLs into Qt's
+    // pixmap cache; each time some are in, the body is set again (a
+    // different string, so the TextEdit lays out) and draws them from there.
+    property int imageRedraws: 0
+    // True from a long press until the next press: with a mouse, TapHandler
+    // still reports `tapped` when a long press is released.
+    property bool holdActive: false
+    readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
+    // A redraw due for the last message must not lay out the next one.
+    onViewChanged: imageRedraw.stop()
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
@@ -68,7 +91,11 @@ Item {
         load(false)
     }
     onWidthChanged: start()
-    onMessageIdChanged: { started = false; view = null; start() }
+    onMessageIdChanged: {
+        started = false; view = null
+        sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
+        start()
+    }
     Component.onCompleted: { if (settled) everSettled = true; start() }
 
     // Archive and Delete leave the page (the inbox offers the Undo); the
@@ -90,6 +117,33 @@ Item {
     }
     // A forward carries the message's attachments; the compose page shows
     // them as chips the user can remove.
+    // A long press on the body at (x, y) in its own coordinates: the word
+    // under the finger is selected and the Copy menu opens beside it.
+    function holdBody(x, y) {
+        body.cursorPosition = body.positionAt(x, y)
+        body.selectWord()
+        if (body.selectedText !== "")
+            bodyMenu.popup(body, x, y)
+    }
+    // Clears the selection, its handles and the menu.
+    function dismissSelection() {
+        bodyMenu.close()
+        body.deselect()
+    }
+    // A tap on the body at (x, y) in its own coordinates: on a link it opens
+    // the link sheet, anywhere it clears the selection. Links are found here,
+    // not through TextEdit.linkActivated: the TapHandler takes a touch tap's
+    // release, so on a touchscreen linkActivated never fires.
+    function tapBody(x, y) {
+        if (holdActive) return
+        const link = body.linkAt(x, y)
+        if (link !== "") linkTapped(link)
+        else dismissSelection()
+    }
+    function linkTapped(link) {
+        dismissSelection()
+        linkSheet.show(link)
+    }
     function forward() { compose("forward") }
     function save(mode) {
         pendingMode = mode
@@ -110,6 +164,59 @@ Item {
                 when: root.view !== null && account.model.key === root.view.account
             }
         }
+    }
+
+    Repeater {
+        model: root.remoteImages
+        delegate: Image {
+            required property string modelData
+            objectName: "preloadedImage"
+            visible: false
+            source: modelData
+            onStatusChanged: {
+                if (status !== Image.Ready) return
+                root.noteImageSize(modelData, implicitWidth, implicitHeight)
+                imageRedraw.restart()
+            }
+        }
+    }
+    // Qt's rich text has no max-width: an image with no width draws at its
+    // natural size. The core caps one wider than the body once it knows the
+    // size (#170), so each loaded image's size goes to it once, in batches.
+    property var pendingSizes: ({})
+    property var reportedSizes: ({})
+    function noteImageSize(url, w, h) {
+        if (w <= 0 || h <= 0 || reportedSizes[url] !== undefined) return
+        pendingSizes[url] = [Math.round(w), Math.round(h)]
+        sizeReport.restart()
+    }
+    // The core takes at most this many sizes from one report.
+    readonly property int sizesPerReport: 256
+    function reportSizes() {
+        const sizes = pendingSizes
+        pendingSizes = ({})
+        const urls = Object.keys(sizes)
+        for (let i = 0; i < urls.length; i += sizesPerReport) {
+            const batch = {}
+            for (const url of urls.slice(i, i + sizesPerReport)) {
+                batch[url] = sizes[url]
+                reportedSizes[url] = true
+            }
+            core.reportImageSizes(messageId, JSON.stringify(batch))
+        }
+    }
+    // Not stopped by a new view: the core shows the message again with the
+    // sizes it has, and sizes still pending must reach it too.
+    Timer {
+        id: sizeReport
+        interval: 300
+        onTriggered: root.reportSizes()
+    }
+    // Several images arriving close together cost one layout.
+    Timer {
+        id: imageRedraw
+        interval: 300
+        onTriggered: root.imageRedraws += 1
     }
 
     TopBar {
@@ -181,8 +288,20 @@ Item {
                 view: root.view !== null ? root.view : root.noView
                 accountName: root.accountName
             }
+            InviteCard {
+                objectName: "inviteCard"
+                width: parent.width
+                theme: root.theme
+                core: root.core
+                view: root.view
+                attachmentsDir: content.attachmentsDir
+                hubAvailable: root.hubAvailable
+                onCalendarRequested: root.calendarPending = true
+            }
             Rectangle {
                 objectName: "bodyCard"
+                // Above the attachment chips: the end handle can reach below the card.
+                z: 1
                 width: parent.width
                 height: body.height + root.theme.gu(3)
                 radius: root.theme.cardRadius
@@ -196,18 +315,54 @@ Item {
                     y: root.theme.gu(1.5)
                     width: parent.width - root.theme.gu(3)
                     readOnly: true
+                    // Selection is by long press (the TapHandler below), never
+                    // by drag: a drag on the body scrolls the page.
                     activeFocusOnPress: false
                     selectByMouse: false
                     cursorVisible: false
+                    persistentSelection: true
                     // The core's HTML has no remote image unless the user
                     // allowed it; a link is only ever shown, never followed.
-                    text: root.bodyHtml
+                    // An empty comment after an image redraw: same layout,
+                    // but a new string, so the TextEdit takes the images
+                    // from the cache.
+                    text: root.bodyHtml + (root.imageRedraws % 2 === 1 ? "<!---->" : "")
                     textFormat: TextEdit.RichText
                     wrapMode: TextEdit.Wrap
                     color: root.paper ? root.theme.paperText : root.theme.text
                     font.family: root.theme.fontBody
                     font.pixelSize: root.theme.bodySize
-                    onLinkActivated: linkSheet.show(link)
+                    // The text was reset (an image redraw or a new message):
+                    // the selection is gone, so the menu's Copy would be stale.
+                    onTextChanged: bodyMenu.close()
+                    // A tap opens the link under the finger (or clears the
+                    // selection); a long press selects the word under the
+                    // finger and opens Copy / Select all, and opens no link
+                    // (a mouse release after it is still reported as a tap,
+                    // hence holdActive). A flick is neither.
+                    TapHandler {
+                        objectName: "bodyHold"
+                        longPressThreshold: 0.5
+                        onPressedChanged: if (pressed) root.holdActive = false
+                        onTapped: root.tapBody(point.position.x, point.position.y)
+                        onLongPressed: {
+                            root.holdActive = true
+                            root.holdBody(point.position.x, point.position.y)
+                        }
+                    }
+                    EditMenu {
+                        id: bodyMenu
+                        objectName: "bodyMenu"
+                        theme: root.theme
+                        field: body
+                        copyOnly: true
+                    }
+                }
+                SelectionHandles {
+                    objectName: "bodyHandles"
+                    theme: root.theme
+                    edit: body
+                    flick: flick
                 }
             }
             AttachmentList {
@@ -260,6 +415,14 @@ Item {
         onForwardRequested: root.forward()
     }
 
+    Toast {
+        id: undoToast
+        objectName: "undoToast"
+        theme: root.theme
+        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        onActionTriggered: root.core.undo(root.undoId)
+    }
+
     ReaderMore {
         id: more
         theme: root.theme
@@ -308,6 +471,13 @@ Item {
             // A late failure from an earlier page's save is not ours.
             if (id === root.messageId) root.pendingMode = ""
         }
+        // Only the reader's own offers (an invite answer); the inbox shows the rest.
+        function onUndoOffer(undo, text, scope) {
+            if (scope !== "reader") return
+            root.undoId = undo
+            undoToast.show(text, qsTr("Undo"))
+        }
+        function onUndoClosed(undo) { if (undo === root.undoId) undoToast.hide() }
         function onMessageOpened(view) {
             if (view.id !== root.messageId) return
             root.unavailable = ""
@@ -317,6 +487,14 @@ Item {
             if (id !== root.messageId) return
             root.view = null
             root.unavailable = text
+        }
+        function onInviteExported(id, path) {
+            if (id !== root.messageId || !root.calendarPending) return
+            root.calendarPending = false
+            root.exportFile(path, "calendar")
+        }
+        function onInviteExportFailed(id) {
+            if (id === root.messageId) root.calendarPending = false
         }
         function onAttachmentSaved(path) {
             if (root.pendingMode === "") return

@@ -139,7 +139,8 @@ fn realistic_newsletter_shape_goes_through_ammonia() {
         html.push_str("</table>");
     }
     assert!(!fell_back(&html));
-    assert!(render(&html).contains("<table>"));
+    // Rendered as rich text (its layout cells are stacked into blocks).
+    assert!(render(&html).contains("<p>"));
     let sloppy = "<b><i>x</b></i> <p>y".repeat(40);
     assert!(!fell_back(&sloppy));
 }

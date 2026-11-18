@@ -1,9 +1,11 @@
-//! The JSON QML exchanges with the glue: drafts, account setups, and the
-//! opened message. Pure conversions; no Qt types.
+//! The JSON QML exchanges with the glue: drafts, account setups, the
+//! opened message and its image sizes. Pure conversions; no Qt types.
 
 use std::path::PathBuf;
 
-use envio_core::{AccountSetup, DraftInput, MessageView, Security, ServerAddr, SetupSource};
+use envio_core::{
+    AccountSetup, DraftInput, InviteCard, MessageView, Security, ServerAddr, SetupSource,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -43,6 +45,20 @@ struct DraftJson {
     in_reply_to: Option<String>,
     references: Vec<String>,
     attachments: Vec<PathBuf>,
+}
+
+/// The reader's report of its loaded remote images: `{"url": [width,
+/// height]}` in pixels. An entry that is not two whole pixel counts is left
+/// out on its own; the rest of the report still counts.
+pub fn image_sizes_from_json(
+    text: &str,
+) -> Result<std::collections::HashMap<String, (u32, u32)>, Rejected> {
+    let entries: serde_json::Map<String, Value> =
+        serde_json::from_str(text).map_err(|e| rejected(&e))?;
+    Ok(entries
+        .into_iter()
+        .filter_map(|(url, size)| Some((url, serde_json::from_value(size).ok()?)))
+        .collect())
 }
 
 pub fn draft_from_json(text: &str) -> Result<DraftInput, Rejected> {
@@ -179,10 +195,11 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
             })
         })
         .collect();
-    json!({
+    let mut value = json!({
         "id": id,
         "html": view.html,
         "blockedImages": view.blocked_images,
+        "remoteImages": view.remote_images,
         "ownColours": view.own_colours,
         "from": h.from,
         "fromAddress": h.from_address,
@@ -193,6 +210,36 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "account": h.account,
         "senderKnown": h.sender_known,
         "attachments": attachments,
+    });
+    if let (Some(card), Some(map)) = (&view.invite, value.as_object_mut()) {
+        map.insert("invite".into(), invite_value(card));
+    }
+    value
+}
+
+/// The meeting card with the contract's keys.
+fn invite_value(c: &InviteCard) -> Value {
+    json!({
+        "method": c.method.as_str(),
+        "state": c.state.as_str(),
+        "stateText": c.state_text,
+        "answer": c.answer.map_or("", |a| a.as_str()),
+        "sending": c.sending,
+        "sendFailed": c.send_failed,
+        "summary": c.summary,
+        "location": c.location,
+        "allDay": c.all_day,
+        "floating": c.floating,
+        "start": c.start,
+        "end": c.end,
+        "startDate": c.start_date,
+        "endDate": c.end_date,
+        "zoneUnknown": c.zone_unknown,
+        "repeats": c.repeats,
+        "organizer": c.organizer,
+        "organizerEmail": c.organizer_email,
+        "canAnswer": c.can_answer,
+        "icsIndex": c.ics_index,
     })
 }
 
@@ -216,6 +263,25 @@ mod tests {
         // The refusal quotes nothing QML sent.
         let bad = draft_from_json(r#"{"to":"bob@example.org"}"#).unwrap_err();
         assert!(!bad.to_string().contains("bob"), "{bad}");
+    }
+
+    #[test]
+    fn image_sizes_from_qml() {
+        let sizes = image_sizes_from_json(r#"{"https://example.org/a.png":[1200,400]}"#).unwrap();
+        assert_eq!(sizes["https://example.org/a.png"], (1200, 400));
+        assert!(image_sizes_from_json("[]").is_err());
+        assert!(image_sizes_from_json("not json").is_err());
+    }
+
+    #[test]
+    fn a_bad_image_size_drops_only_its_own_entry() {
+        let text = r#"{"https://e.test/a.png":[1200,400],"https://e.test/b.png":[-1,4],
+            "https://e.test/c.png":[1e12,4],"https://e.test/d.png":"wide",
+            "https://e.test/e.png":[3,2]}"#;
+        let sizes = image_sizes_from_json(text).unwrap();
+        assert_eq!(sizes.len(), 2);
+        assert_eq!(sizes["https://e.test/a.png"], (1200, 400));
+        assert_eq!(sizes["https://e.test/e.png"], (3, 2));
     }
 
     #[test]
@@ -270,8 +336,10 @@ mod tests {
             html: String::new(),
             raw: false,
             blocked_images: 0,
+            remote_images: vec![],
             own_colours: false,
             attachments: vec![],
+            invite: None,
         };
         assert_eq!(message_view_value(41, &view)["id"], 41);
     }
@@ -293,11 +361,100 @@ mod tests {
             html: String::new(),
             raw: false,
             blocked_images: 0,
+            remote_images: vec![],
             own_colours: true,
             attachments: vec![],
+            invite: None,
         };
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
+        assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
+        view.remote_images = vec!["https://example.org/a.png".into()];
+        assert_eq!(
+            message_view_value(1, &view)["remoteImages"],
+            json!(["https://example.org/a.png"])
+        );
         view.own_colours = false;
         assert_eq!(message_view_value(1, &view)["ownColours"], false);
+    }
+
+    #[test]
+    fn invite_map_has_contract_keys() {
+        use envio_core::{Answer, CardMethod, CardState, MessageHeader};
+        let mut view = MessageView {
+            header: MessageHeader {
+                from: "f".into(),
+                from_address: "f@example.org".into(),
+                to: vec![],
+                cc: vec![],
+                subject: "s".into(),
+                date: None,
+                account: "a".into(),
+                sender_known: false,
+            },
+            html: String::new(),
+            raw: false,
+            blocked_images: 0,
+            remote_images: vec![],
+            own_colours: false,
+            attachments: vec![],
+            invite: None,
+        };
+        assert!(message_view_value(1, &view).get("invite").is_none());
+        view.invite = Some(InviteCard {
+            method: CardMethod::Request,
+            state: CardState::Answered,
+            state_text: "You accepted".into(),
+            answer: Some(Answer::Accepted),
+            sending: true,
+            send_failed: false,
+            summary: "Standup".into(),
+            location: "Room 1".into(),
+            all_day: true,
+            floating: false,
+            start: 0,
+            end: 0,
+            start_date: "2026-11-20".into(),
+            end_date: "2026-11-21".into(),
+            zone_unknown: false,
+            repeats: true,
+            organizer: "Grace".into(),
+            organizer_email: "grace@example.org".into(),
+            can_answer: true,
+            ics_index: -1,
+        });
+        let v = message_view_value(1, &view);
+        let c = v["invite"].as_object().unwrap();
+        let strings = [
+            ("method", "request"),
+            ("state", "answered"),
+            ("stateText", "You accepted"),
+            ("answer", "accepted"),
+            ("summary", "Standup"),
+            ("location", "Room 1"),
+            ("startDate", "2026-11-20"),
+            ("endDate", "2026-11-21"),
+            ("organizer", "Grace"),
+            ("organizerEmail", "grace@example.org"),
+        ];
+        for (k, want) in strings {
+            assert_eq!(c[k], want, "{k}");
+        }
+        let bools = [
+            ("sending", true),
+            ("sendFailed", false),
+            ("allDay", true),
+            ("floating", false),
+            ("zoneUnknown", false),
+            ("repeats", true),
+            ("canAnswer", true),
+        ];
+        for (k, want) in bools {
+            assert_eq!(c[k], want, "{k}");
+        }
+        for k in ["start", "end", "icsIndex"] {
+            assert!(c[k].is_i64(), "{k}");
+        }
+        assert_eq!(c["icsIndex"], -1);
+        assert_eq!(c.len(), 20);
     }
 }

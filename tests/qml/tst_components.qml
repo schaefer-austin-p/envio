@@ -5,7 +5,6 @@ import "../../qml/platform"
 import "../../qml/components"
 import "../../qml/components/fileSize.js" as FileSize
 import "../../qml/platform/stampTint.js" as StampTint
-import "../../qml/components/keyboardRect.js" as KeyboardRect
 
 Item {
     id: root
@@ -35,6 +34,16 @@ Item {
     SignalSpy { id: chevRowClicked; target: chevRow; signalName: "clicked" }
     Chevron { id: lone; theme: thm; y: 300 }
     SignalSpy { id: rowHeld; target: row; signalName: "pressAndHold" }
+    property bool boundOn: true
+    ListRow {
+        id: boundRow
+        theme: thm
+        visible: false
+        width: 300
+        enabled: root.boundOn
+        Text { text: "Bound" }
+    }
+    SignalSpy { id: boundClicked; target: boundRow; signalName: "clicked" }
 
     Toast { id: toast; theme: thm; width: 300 }
     SignalSpy { id: toastExpired; target: toast; signalName: "expired" }
@@ -207,6 +216,29 @@ Item {
             verify(row.height >= 44)
         }
 
+        // A sideways drag cancels the tap without replacing the row's own
+        // `enabled` binding (the From row's follows the account count).
+        function test_sideways_drag_keeps_an_enabled_binding() {
+            const far = Qt.styleHints.startDragDistance * 3
+            row.visible = false
+            boundRow.visible = true
+            boundClicked.clear()
+            mouseClick(boundRow, 20, boundRow.height / 2)
+            compare(boundClicked.count, 1, "a tap opens")
+            boundClicked.clear()
+            mousePress(boundRow, 20, boundRow.height / 2)
+            mouseMove(boundRow, 20 + far / 2, boundRow.height / 2)
+            mouseMove(boundRow, 20 + far, boundRow.height / 2)
+            mouseRelease(boundRow, 20 + far, boundRow.height / 2)
+            compare(boundClicked.count, 0, "the swipe is not a tap")
+            root.boundOn = false
+            compare(boundRow.enabled, false, "the binding still disables the row")
+            root.boundOn = true
+            compare(boundRow.enabled, true)
+            boundRow.visible = false
+            row.visible = true
+        }
+
         function test_toast_defaults_to_five_seconds() {
             compare(toast.duration, 5000)
             compare(toast.visible, false)
@@ -348,6 +380,28 @@ Item {
             compare(helper.text, "keep@example.org")
         }
 
+        // Select all goes through the field's HoldSelection (bindle): the
+        // menu comes back with Cut and Copy live, as there is no drag to
+        // select on the phone.
+        function test_select_all_opens_the_menu_again_with_copy_live() {
+            for (const c of [fieldComponent, textBlockComponent]) {
+                const f = createTemporaryObject(c, root, { text: "all@example.org" })
+                waitForRendering(f)
+                holdOn(f)
+                tryVerify(function() { return f.editMenu.visible })
+                verify(!items(f).editCopy.enabled, "nothing selected yet")
+                const selectAll = items(f).editSelectAll
+                f.editMenu.close()
+                tryVerify(function() { return !f.editMenu.visible })
+                selectAll.triggered()
+                tryVerify(function() { return f.editMenu.visible })
+                compare(f.input.selectedText, "all@example.org")
+                verify(items(f).editCopy.enabled, "Copy is enabled")
+                f.editMenu.close()
+                tryVerify(function() { return !f.editMenu.visible })
+            }
+        }
+
         // The rows read the field once, as the menu opens (no live bindings:
         // they looped on the phone), and again on the next opening.
         function test_edit_menu_rows_are_read_when_it_opens() {
@@ -411,49 +465,6 @@ Item {
             compare(FileSize.fileSize(2000000000), "2.0 GB")
         }
 
-        // #61: with the keyboard over the bottom of a form, the focused
-        // field is scrolled above it. A simulated keyboard rectangle: the
-        // offscreen platform has no input panel.
-        function test_focused_field_scrolls_above_the_keyboard() {
-            kbFlick.contentY = 0
-            compare(avoider.covered, 0)
-            avoider.keyboard = Qt.rect(0, 100 + 300 - 150, 400, 150)
-            compare(avoider.covered, 150)
-            kbField.input.forceActiveFocus()
-            tryVerify(function() { return kbField.input.activeFocus })
-            const bottom = kbField.mapToItem(kbFlick, 0, kbField.height).y
-            const top = kbField.mapToItem(kbFlick, 0, 0).y
-            verify(bottom <= kbFlick.height - 150, "field bottom " + bottom + " is under the keyboard")
-            verify(top >= 0)
-            avoider.keyboard = Qt.rect(0, 0, 0, 0)
-            compare(avoider.covered, 0)
-            kbField.input.focus = false
-        }
-
-        // The compose body is a TextArea: the cursor line, not the whole
-        // (taller than the screen) text, ends up above the keyboard, and the
-        // view is back within its bounds once the keyboard hides.
-        function test_text_area_cursor_scrolls_above_the_keyboard() {
-            kbFlick.contentY = 0
-            kbArea.text = new Array(31).join("a line of the body\n")
-            avoider.keyboard = Qt.rect(0, 100 + 300 - 150, 400, 150)
-            kbArea.forceActiveFocus()
-            tryVerify(function() { return kbArea.activeFocus })
-            kbArea.cursorPosition = kbArea.length
-            const cursor = kbArea.cursorRectangle
-            tryVerify(function() {
-                return kbArea.mapToItem(kbFlick, 0, cursor.y + cursor.height).y <= kbFlick.height - 150
-            }, 5000, "the cursor line is under the keyboard")
-            verify(kbArea.mapToItem(kbFlick, 0, cursor.y).y >= 0, "the cursor line is above the view")
-            verify(kbFlick.contentY > 0, "the view did not scroll")
-            avoider.keyboard = Qt.rect(0, 0, 0, 0)
-            compare(avoider.covered, 0)
-            const most = Math.max(0, kbFlick.contentHeight - kbFlick.height)
-            tryVerify(function() { return kbFlick.contentY >= 0 && kbFlick.contentY <= most })
-            kbArea.focus = false
-            kbArea.text = ""
-        }
-
         // #64: the icon keeps its own size, in grid units, centred in the button.
         function test_icon_button_icon_is_theme_icon_size() {
             const ib = createTemporaryObject(iconButtonComponent, root)
@@ -486,33 +497,6 @@ Item {
             growSheet.close()
             tryVerify(function() { return !growSheet.visible })
             growBody.height = 0
-        }
-
-        // #61: Ubuntu Touch reports the keyboard in device pixels.
-        function test_keyboard_rect_in_device_pixels_becomes_logical() {
-            const r = KeyboardRect.logical(Qt.rect(0, 1470, 1080, 822), 411.43, 2.625)
-            fuzzyCompare(r.x, 0, 0.01)
-            fuzzyCompare(r.y, 560, 0.01)
-            fuzzyCompare(r.width, 411.43, 0.01)
-            fuzzyCompare(r.height, 313.14, 0.01)
-        }
-
-        function test_keyboard_rect_already_logical_is_unchanged() {
-            const r = KeyboardRect.logical(Qt.rect(0, 500, 400, 200), 400, 1)
-            compare(r.y, 500)
-            compare(r.width, 400)
-            compare(r.height, 200)
-        }
-
-        // The phone's numbers: the page's bottom is at 863, the keyboard's top at 560.
-        function test_avoider_with_the_converted_phone_rect_overlaps() {
-            const kb = KeyboardRect.logical(Qt.rect(0, 1470, 1080, 822), 411.43, 2.625)
-            phoneAvoider.keyboard = kb
-            const bottom = phoneFlick.mapToItem(null, 0, phoneFlick.height).y
-            verify(bottom > kb.y)
-            verify(phoneAvoider.covered > 0, "covered " + phoneAvoider.covered)
-            fuzzyCompare(phoneAvoider.covered, Math.min(phoneFlick.height, bottom - kb.y), 0.01)
-            phoneAvoider.keyboard = Qt.rect(0, 0, 0, 0)
         }
 
         // A sheet taller than the window keeps clear of the ring's top band in
@@ -551,26 +535,6 @@ Item {
         }
     }
 
-    Flickable {
-        id: kbFlick
-        y: 100
-        width: 300
-        height: 300
-        contentHeight: 1200
-        clip: true
-        Field { id: kbField; theme: thm; y: 900; width: 280 }
-        TextArea { id: kbArea; y: 200; width: 280 }
-        KeyboardAvoider { id: avoider; flickable: kbFlick }
-    }
-
-    Flickable {
-        id: phoneFlick
-        y: 563
-        width: 300
-        height: 300
-        contentHeight: 1200
-        KeyboardAvoider { id: phoneAvoider; flickable: phoneFlick }
-    }
     Item {
         id: offsetParent
         y: 100
@@ -581,6 +545,7 @@ Item {
 
     TextField { id: helper; width: 100; y: 600 }
     Component { id: fieldComponent; Field { theme: thm; width: 300; y: 300 } }
+    Component { id: textBlockComponent; TextBlock { theme: thm; width: 300; y: 300 } }
     Field { id: pwField; theme: thm; password: true; width: 300; y: 400 }
 
     Component {

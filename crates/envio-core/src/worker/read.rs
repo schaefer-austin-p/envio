@@ -2,7 +2,6 @@
 //! Nothing here writes the journal; the only network use is the body step
 //! an `OpenMessage` asks the account's runtime for.
 
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -30,6 +29,13 @@ pub(crate) struct ViewContext<'a> {
     pub contacts: &'a [envio_store::Contact],
     /// The cached envelope, for mail that can not be parsed.
     pub stored: &'a envio_store::Envelope,
+    /// Where this message's inline images are written; `None` shows them as
+    /// missing.
+    pub inline_dir: Option<&'a Path>,
+    /// Natural sizes the reader reported for its remote images.
+    pub image_sizes: &'a super::shown::Sizes,
+    /// What the meeting card needs, when the message holds an invite.
+    pub invites: super::invite::InviteEnv<'a>,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -67,8 +73,9 @@ pub(crate) fn render_view(
     images: ImagesChoice,
     width_px: u32,
     ctx: &ViewContext<'_>,
-) -> MessageView {
+) -> (MessageView, Vec<envio_mime::Unsized>) {
     let message = envio_mime::parse(raw);
+    let invite = super::invite::card_of(raw, ctx.account, &ctx.invites);
     let mut header = stored_header(ctx.stored, ctx.account);
     if let Mime::Parsed { envelope, .. } = &message {
         let sender = envelope.from.first();
@@ -84,13 +91,35 @@ pub(crate) fn render_view(
     }
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
     let load = loads_images(ctx.settings, images, &header.from_address);
+    let inlined = match (&message, ctx.inline_dir) {
+        (Mime::Parsed { attachments, .. }, Some(dir)) => {
+            super::inline::write(dir, raw, attachments)
+        }
+        (Mime::Raw(_), Some(dir)) => super::inline::write(dir, raw, &[]),
+        _ => super::inline::Inlined::default(),
+    };
     let options = RenderOptions {
         allow_remote_images: load,
-        cid_urls: HashMap::new(),
+        cid_urls: inlined.urls,
+        cid_sizes: inlined.sizes,
+        image_sizes: ctx.image_sizes.clone(),
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
     };
     let rendered = envio_mime::render(&message, &options);
+    let mut html = rendered.html;
+    if matches!(
+        message,
+        Mime::Parsed {
+            truncated: true,
+            ..
+        }
+    ) {
+        html.push_str(&format!(
+            "<p><i>{}</i></p>",
+            escape(&text::read::text_cut_short())
+        ));
+    }
     let (raw, attachments) = match &message {
         Mime::Raw(_) => (true, Vec::new()),
         Mime::Parsed { attachments, .. } => (
@@ -106,14 +135,23 @@ pub(crate) fn render_view(
                 .collect(),
         ),
     };
-    MessageView {
+    let view = MessageView {
         header,
-        html: rendered.html,
+        html,
         raw,
         blocked_images: rendered.blocked_images,
+        remote_images: rendered.remote_images,
         own_colours: rendered.own_colours,
         attachments,
-    }
+        invite,
+    };
+    (view, rendered.unsized_images)
+}
+
+fn escape(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// Unicode format characters (category Cf): invisible, and some reverse
@@ -160,7 +198,7 @@ fn numbered(name: &str, n: u32) -> String {
 }
 
 /// Writes `bytes` to a new file in `dir`, never over an existing one.
-fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
+pub(super) fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<PathBuf> {
     use io::Write;
     for n in 1..=1000 {
         let path = dir.join(numbered(name, n));
@@ -259,18 +297,27 @@ impl Worker<'_> {
     }
 
     /// The reader's view of a cached message's raw bytes.
-    fn view(
+    pub(super) fn view(
         &self,
         message: &Message,
         raw: &[u8],
         (images, width_px): (ImagesChoice, u32),
-    ) -> MessageView {
+    ) -> (MessageView, Vec<envio_mime::Unsized>) {
         let account = self.account_of(message.id).unwrap_or_default();
+        // A late view (its body arrived after the reader moved on) must not
+        // touch the folder of the message the reader shows now.
+        let inline_dir = (self.store.open_message == Some(message.id))
+            .then(|| self.store.paths.inline().join(message.id.0.to_string()));
+        let image_sizes = self.sizes_for(message.id);
+        let invites = self.invite_data(&account, raw);
         let ctx = ViewContext {
             account: &account,
             settings: &self.store.settings,
             contacts: &self.store.contacts,
             stored: &message.envelope,
+            inline_dir: inline_dir.as_deref(),
+            image_sizes: &image_sizes,
+            invites: invites.env(),
         };
         render_view(raw, images, width_px, &ctx)
     }
@@ -295,15 +342,20 @@ impl Worker<'_> {
         }
     }
 
+    /// A big message is cached as a partial body (see `BodyState::Partial`),
+    /// which shows like a whole one.
     pub(super) fn open_message(&mut self, id: MessageRowId, images: ImagesChoice, width_px: u32) {
+        let (images, width_px) = (images, width_px);
+        self.store.open_message = Some(id);
+        self.forget_other_shown(id);
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
-        if message.body == BodyState::Downloaded {
+        if message.body != BodyState::Missing {
             match self.store.bodies.read(message.folder, message.uid) {
                 Ok(raw) => {
-                    let view = self.view(&message, &raw, (images, width_px));
-                    self.emit(Event::MessageOpened { id, view });
+                    let shown = self.view(&message, &raw, (images, width_px));
+                    self.show(id, (images, width_px), shown);
                     self.correct_attachment_mark(&message, &raw);
                     return self.mark_opened_read(id);
                 }
@@ -330,15 +382,30 @@ impl Worker<'_> {
 
     /// A body step ended: show the message that waited for it. `None` is a
     /// body gone from the server.
-    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>) {
-        self.compose_body_fetched(id, raw);
+    pub(super) fn body_fetched(&mut self, id: MessageRowId, raw: Option<&[u8]>, whole: bool) {
+        self.compose_body_fetched(id, raw, whole);
+        if !self.opening.contains_key(&id) {
+            return;
+        }
+        // The whole message of a big one is the forward's. The reader gets
+        // the partial body in a step of its own, made when this one ends.
+        if whole
+            && self
+                .store
+                .db
+                .message(id)
+                .is_ok_and(|m| envio_sync::driver::is_big(m.size))
+        {
+            self.open_again.insert(id);
+            return;
+        }
         let Some((images, width_px)) = self.opening.remove(&id) else {
             return;
         };
         match (raw, self.store.db.message(id)) {
             (Some(raw), Ok(message)) => {
-                let view = self.view(&message, raw, (images, width_px));
-                self.emit(Event::MessageOpened { id, view });
+                let shown = self.view(&message, raw, (images, width_px));
+                self.show(id, (images, width_px), shown);
                 self.mark_opened_read(id);
             }
             _ => self.unavailable(id),
@@ -357,50 +424,14 @@ impl Worker<'_> {
             .collect();
         for id in waiting {
             self.opening.remove(&id);
+            self.open_again.remove(&id);
             for live in self.live.values_mut() {
                 live.wants.bodies.retain(|b| *b != id);
+                live.wants.whole.remove(&id);
             }
             self.unavailable(id);
         }
-    }
-
-    pub(super) fn save_attachment(&self, id: MessageRowId, index: usize, dir: &Path) {
-        match self.write_attachment(id, index, dir) {
-            Ok(path) => self.emit(Event::AttachmentSaved { id, index, path }),
-            Err(e) => {
-                log::warn!("saving an attachment: {e}");
-                self.emit(Event::AttachmentFailed { id, index });
-                self.emit(Event::Notice {
-                    text: text::read::attachment_not_saved(),
-                });
-            }
-        }
-    }
-
-    pub(super) fn write_attachment(
-        &self,
-        id: MessageRowId,
-        index: usize,
-        dir: &Path,
-    ) -> io::Result<PathBuf> {
-        let message = self.store.db.message(id).map_err(io::Error::other)?;
-        let raw = self
-            .store
-            .bodies
-            .read(message.folder, message.uid)
-            .map_err(io::Error::other)?;
-        let bytes = envio_mime::attachment_bytes(&raw, index)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such attachment"))?;
-        let filename = match envio_mime::parse(&raw) {
-            Mime::Parsed { attachments, .. } => attachments
-                .into_iter()
-                .find(|a| a.index == index)
-                .and_then(|a| a.filename),
-            Mime::Raw(_) => None,
-        };
-        let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
-        std::fs::create_dir_all(dir)?;
-        write_new(dir, &name, &bytes)
+        self.parts_failed(account);
     }
 }
 
@@ -408,6 +439,7 @@ impl Worker<'_> {
 mod tests {
     use super::*;
     use crate::worker::testing::{Sink, open, seed};
+    use std::fs;
 
     #[test]
     fn an_idle_error_answers_a_pending_open() {
@@ -426,6 +458,55 @@ mod tests {
             .into_iter()
             .any(|e| matches!(e, Event::MessageUnavailable { id, .. } if id == seeded.message));
         assert!(answered);
+    }
+
+    const WITH_IMAGE: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:l@example.org\">\r\n\
+--XX\r\nContent-Type: image/png\r\nContent-ID: <l@example.org>\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
+    #[test]
+    fn a_late_body_does_not_delete_the_open_messages_inline_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        // A (the seeded message) has no body yet: it waits.
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        assert!(worker.opening.contains_key(&seeded.message));
+        // The reader moves on to cached message B, whose images are on disk.
+        let b = MessageRowId(seeded.message.0 + 100);
+        worker.store.open_message = Some(b);
+        let b_dir = worker.store.paths.inline().join(b.0.to_string());
+        fs::create_dir_all(&b_dir).unwrap();
+        fs::write(b_dir.join("0.png"), b"hello").unwrap();
+        // A's body arrives.
+        worker.body_fetched(seeded.message, Some(WITH_IMAGE), false);
+        assert!(b_dir.join("0.png").exists());
+        let a_dir = worker
+            .store
+            .paths
+            .inline()
+            .join(seeded.message.0.to_string());
+        assert!(!a_dir.exists(), "a late view writes no files");
+    }
+
+    #[test]
+    fn removing_an_account_keeps_the_shown_messages_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let shown = MessageRowId(41);
+        worker.store.open_message = Some(shown);
+        let root = worker.store.paths.inline();
+        for id in ["41", "42"] {
+            fs::create_dir_all(root.join(id)).unwrap();
+        }
+        super::super::remove::remove_for_test(&mut worker.store, &seeded.account);
+        assert!(root.join("41").exists());
+        assert!(!root.join("42").exists());
     }
 
     #[test]
@@ -469,10 +550,36 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+            invites: Default::default(),
         };
-        let view = render_view(raw, ImagesChoice::Default, 300, &ctx);
+        let view = render_view(raw, ImagesChoice::Default, 300, &ctx).0;
         assert_eq!(view.header.from, "x@evil.example");
         assert_eq!(view.header.from_address, "x@evil.example");
+    }
+
+    #[test]
+    fn the_view_says_when_a_text_was_cut_short() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+            invites: Default::default(),
+        };
+        let cut = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\
+            X-Envio-Truncated: 9999999\r\n\r\nHi\r\n";
+        let whole = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
+        let note = text::read::text_cut_short();
+        let shown = render_view(cut, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(shown.contains(&note), "{shown}");
+        let shown = render_view(whole, ImagesChoice::Default, 300, &ctx).0.html;
+        assert!(!shown.contains(&note), "{shown}");
     }
 
     #[test]
@@ -484,12 +591,44 @@ mod tests {
             settings: &settings,
             contacts: &[],
             stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+            invites: Default::default(),
         };
         let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
             <table><tr><td style=\"color:#1a1f36\">Hi</td></tr></table>\r\n";
-        assert!(render_view(html, ImagesChoice::Default, 300, &ctx).own_colours);
+        assert!(
+            render_view(html, ImagesChoice::Default, 300, &ctx)
+                .0
+                .own_colours
+        );
         let text = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/plain\r\n\r\nHi\r\n";
-        assert!(!render_view(text, ImagesChoice::Default, 300, &ctx).own_colours);
+        assert!(
+            !render_view(text, ImagesChoice::Default, 300, &ctx)
+                .0
+                .own_colours
+        );
+    }
+
+    #[test]
+    fn the_view_lists_the_remote_images_it_loads() {
+        let stored = envio_store::Envelope::default();
+        let settings = envio_store::Settings::default();
+        let ctx = ViewContext {
+            account: "me",
+            settings: &settings,
+            contacts: &[],
+            stored: &stored,
+            inline_dir: None,
+            image_sizes: &Default::default(),
+            invites: Default::default(),
+        };
+        let html = b"From: a@example.org\r\nSubject: s\r\nContent-Type: text/html\r\n\r\n\
+            <p><img src=\"https://example.org/a.png\"></p>\r\n";
+        let blocked = render_view(html, ImagesChoice::Default, 300, &ctx).0;
+        assert!(blocked.remote_images.is_empty());
+        let loaded = render_view(html, ImagesChoice::Load, 300, &ctx).0;
+        assert_eq!(loaded.remote_images, ["https://example.org/a.png"]);
     }
 
     #[test]

@@ -49,6 +49,105 @@ fn format_characters_in_a_link_host_or_scheme_lose_the_href() {
     }
 }
 
+// Mailers that wrap long lines put a newline inside a long sign-in or
+// verification link. Browsers drop tabs and newlines anywhere in a URL and
+// trim spaces at its ends (WHATWG URL), so the link keeps working, as the
+// browser would open it.
+#[test]
+fn tabs_newlines_and_edge_spaces_in_a_link_are_dropped_like_a_browser() {
+    for (href, want) in [
+        (
+            "https://a.example/verify?t=abc\n&amp;u=1",
+            "https://a.example/verify?t=abc&amp;u=1",
+        ),
+        ("https://a.example/x\r\ny\tz", "https://a.example/xyz"),
+        ("  https://a.example/sp ", "https://a.example/sp"),
+        ("\nhttps://a.exa\nmple/", "https://a.example/"),
+        (" mailto:a@b.example ", "mailto:a@b.example"),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(
+            clean(&html),
+            format!(r#"<a href="{want}">x</a>"#),
+            "{href:?}"
+        );
+    }
+}
+
+#[test]
+fn a_dropped_tab_or_newline_cannot_make_a_script_link() {
+    for href in [
+        "java\tscript:alert(1)",
+        "java\nscript:alert(1)",
+        " \njavascript:alert(1)",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
+#[test]
+fn other_control_characters_still_lose_the_href() {
+    for href in ["https://a.example/\u{7}x", "https://a.example/\u{1B}x"] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
+// A mail has no page address to resolve a scheme-less link against, so
+// `//host` and `www.` links open over https, as plain-text `www.` links do.
+#[test]
+fn links_without_a_scheme_open_over_https() {
+    for (href, want) in [
+        ("//example.com/x?y=1", "https://example.com/x?y=1"),
+        (" //example.com", "https://example.com"),
+        ("//exa\nmple.com/x", "https://example.com/x"),
+        ("www.example.com/verify", "https://www.example.com/verify"),
+        ("WWW.Example.com", "https://WWW.Example.com"),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(
+            clean(&html),
+            format!(r#"<a href="{want}">x</a>"#),
+            "{href:?}"
+        );
+    }
+}
+
+#[test]
+fn scheme_less_links_with_no_host_or_a_tricky_host_still_lose_the_href() {
+    for href in [
+        "///example.com",
+        "//\\example.com",
+        "/\\example.com",
+        "//",
+        "www.",
+        "// example.com",
+        "//?x",
+        "//#f",
+        "//:80",
+        "//@/",
+        "www./x",
+        "//exa\u{202E}mple.com",
+        "//a.example\\@b.example/",
+        "relative/path",
+        "/path",
+        "wwwexample.com",
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), "<a>x</a>", "{href:?}");
+    }
+}
+
+// Only links get a scheme added; an image without one stays unloaded.
+#[test]
+fn images_without_a_scheme_lose_the_src() {
+    for src in ["//cdn.example.com/a.png", "www.example.com/a.png", "a.png"] {
+        let out = clean(&format!(r#"<img src="{src}" alt="a">"#));
+        assert!(!out.contains("src="), "{src}: {out}");
+    }
+}
+
 #[test]
 fn ordinary_unicode_links_are_untouched() {
     let out = clean("<a href=\"https://例え.jp/パス?q=é\">x</a>");

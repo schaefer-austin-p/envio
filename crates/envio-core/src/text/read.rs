@@ -7,12 +7,21 @@ pub fn blocked_images() -> String {
     tr("Image not loaded")
 }
 
+/// Shown after a message's text that envio kept only the start of.
+pub fn text_cut_short() -> String {
+    tr("The rest of this long text is not shown")
+}
+
 pub fn message_unavailable() -> String {
     tr("This message is not available right now. Check your connection and try again")
 }
 
 pub fn attachment_not_saved() -> String {
     tr("Could not save the attachment")
+}
+
+pub fn invite_not_exported() -> String {
+    tr("Could not add the invite to the calendar")
 }
 
 pub fn could_not_read() -> String {

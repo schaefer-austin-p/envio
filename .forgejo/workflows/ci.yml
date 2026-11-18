@@ -110,6 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          submodules: true
           persist-credentials: false
 
       # CARGO_HOME is /opt/rust/cargo in the clickable image.
@@ -130,7 +131,7 @@ jobs:
           path: |
             target/ci-qt
             build-ci
-          key: app-build-v1-24.04-2.x-1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'CMakeLists.txt') }}
+          key: app-build-v1-24.04-2.x-1-${{ hashFiles('qt/Cargo.lock', 'qt/Cargo.toml', 'crates/*/Cargo.toml', 'qt/build.rs', 'qt/stamp/Cargo.toml', 'qt/stamp/build.rs', 'CMakeLists.txt') }}
           restore-keys: |
             app-build-v1-24.04-2.x-1-
 
@@ -150,5 +151,5 @@ jobs:
           cargo audit
           cargo audit --file qt/Cargo.lock
 
-      - name: Advisory issue script tests
-        run: node --test tools/ci/advisory-issue.test.mjs
+      - name: CI script tests
+        run: node --test tools/ci/advisory-issue.test.mjs tools/ci/release-click.test.mjs

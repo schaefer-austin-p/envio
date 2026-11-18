@@ -23,6 +23,7 @@ Item {
         anchors.fill: parent
     }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
+    SignalSpy { id: wanted; target: page; signalName: "accountsRequested" }
 
     MockCore { id: shellCore }
     AppShell {
@@ -82,15 +83,25 @@ Item {
             core.outbox.clear()
             core.olderRow = 0
             thm.name = "carbon"
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 3, unreadText: "3" })
-            core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org",
-                                   status: "Up to date", state: "ok", unread: 0, unreadText: "" })
+            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
+                                   status: "Up to date", state: "ok", unread: 3, unreadText: "3", attention: false })
+            core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org", heading: "bob@example.org",
+                                   status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
             opened.clear()
+            wanted.clear()
             page.pendingInbox = ""
             find("undoToast", page).hide()
             find("noticeToast", page).hide()
             waitForRendering(page)
+        }
+        function test_drawer_heading_shows_what_the_model_says() {
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            const bob = find("account-bob", page)
+            tryVerify(function() { return find("accountName", ann).visible })
+            compare(find("accountName", ann).text, "Ann · ann@example.org")
+            compare(find("accountName", bob).text, "bob@example.org")
+            drawerOf(ann).visible = false
         }
         function test_folder_group_rows_have_a_chevron_but_leaf_rows_do_not() {
             core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
@@ -177,6 +188,49 @@ Item {
             core.reset()
             list.positionViewAtEnd()
             tryVerify(function() { return core.called("more").length > 0 })
+        }
+
+        // #130: the end of the list loads older mail by itself; the core holds
+        // the once-per-page guard, the view only reports reaching the end.
+        function test_reaching_the_end_asks_for_older_mail_once() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            core.olderRow = 1
+            const list = find("messageList", page)
+            list.positionViewAtBeginning()
+            waitForRendering(page)
+            core.reset()
+            list.positionViewAtEnd()
+            tryVerify(function() { return core.called("loadOlderNearEnd").length === 1 })
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 1, "one scroll asks once")
+            compare(core.called("loadOlder").length, 0, "the tap path is separate")
+        }
+
+        // The row turns Ready while the list already sits at its end: the
+        // footer grows the list, and the one request still goes out.
+        function test_the_row_turning_ready_at_the_end_asks_once() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            const list = find("messageList", page)
+            list.positionViewAtEnd()
+            waitForRendering(page)
+            wait(100)
+            core.reset()
+            core.olderRow = 1
+            tryVerify(function() { return core.called("loadOlderNearEnd").length === 1 })
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 1)
+        }
+
+        function test_the_row_turning_ready_mid_list_asks_nothing() {
+            for (let i = 1; i <= 40; i++) core.messages.append(message(i))
+            const list = find("messageList", page)
+            list.positionViewAtBeginning()
+            waitForRendering(page)
+            wait(100)
+            core.reset()
+            core.olderRow = 1
+            wait(200)
+            compare(core.called("loadOlderNearEnd").length, 0)
         }
 
         function test_hostile_sender_and_subject_fetch_nothing() {
@@ -322,6 +376,36 @@ Item {
             compare(opened.count, 0)
         }
 
+        // #146: the guard sat on message rows only; a folder row in the drawer
+        // opened on a sideways swipe.
+        function test_sideways_swipe_does_not_open_a_folder() {
+            core.folders.append({ id: 9, account: "ann", name: "Archive", role: "archive", unread: 0, depth: 0 })
+            mouseClick(find("menuButton", page))
+            const ann = find("account-ann", page)
+            let drawer = ann
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            // Every account lists the folders and hides the other accounts' ones.
+            const shownFolder = function() {
+                return everything(page, []).filter(function(o) { return o.objectName === "folder-9" && o.visible && o.height > 0 })[0]
+            }
+            tryVerify(function() { return shownFolder() !== undefined })
+            const row = shownFolder()
+            let opens = 0
+            const count = function() { opens++ }
+            drawer.folderRequested.connect(count)
+            const far = Qt.styleHints.startDragDistance * 3
+            mousePress(row, 20, row.height / 2)
+            mouseMove(row, 20 + far / 2, row.height / 2)
+            mouseMove(row, 20 + far, row.height / 2)
+            mouseRelease(row, 20 + far, row.height / 2)
+            compare(opens, 0, "a swipe opens nothing")
+            mouseClick(row)
+            compare(opens, 1, "a tap still opens the folder")
+            drawer.folderRequested.disconnect(count)
+            drawer.visible = false
+            core.folders.clear()
+        }
+
         function test_tap_with_a_little_jitter_still_opens_the_message() {
             core.messages.append(message(12))
             waitForRendering(page)
@@ -421,21 +505,35 @@ Item {
 
         function test_undo_toast_calls_undo() {
             const toast = find("undoToast", page)
-            core.undoOffer(5, "Archived “Plans”")
+            core.undoOffer(5, "Archived “Plans”", "list")
             verify(toast.visible)
             compare(toast.text, "Archived “Plans”")
             mouseClick(findText("Undo", toast))
             compare(core.called("undo").pop().args, [5])
-            core.undoOffer(6, "Deleted")
+            core.undoOffer(6, "Deleted", "list")
             verify(toast.visible)
             core.undoClosed(6)
             verify(!toast.visible)
         }
 
+        function test_reader_offer_does_not_show_in_inbox() {
+            const toast = find("undoToast", page)
+            core.undoOffer(9, "Replied: accepted", "reader")
+            verify(!toast.visible)
+            core.undoOffer(10, "Deleted", "list")
+            verify(toast.visible)
+            compare(toast.text, "Deleted")
+            core.undoOffer(11, "Replied: accepted", "reader")
+            compare(toast.text, "Deleted")
+            // The reader's offer never became the inbox's undo target.
+            mouseClick(findText("Undo", toast))
+            compare(core.called("undo").pop().args, [10])
+        }
+
         function test_an_older_offer_closing_leaves_the_newer_toast() {
             const toast = find("undoToast", page)
-            core.undoOffer(7, "Archived “A”")
-            core.undoOffer(8, "Archived “B”")
+            core.undoOffer(7, "Archived “A”", "list")
+            core.undoOffer(8, "Archived “B”", "list")
             core.undoClosed(7)
             verify(toast.visible)
             compare(toast.text, "Archived “B”")
@@ -514,6 +612,72 @@ Item {
             core.accounts.setProperty(1, "unreadText", "3")
             compare(bob.Accessible.name, "Bob  3, offline")
             core.accounts.setProperty(1, "unreadText", unread)
+            core.accounts.setProperty(1, "state", "ok")
+        }
+
+        // The drawer's ancestor with a closeRequested signal is the drawer.
+        function closeDrawer(row) {
+            let drawer = row
+            while (drawer.closeRequested === undefined) drawer = drawer.parent
+            drawer.visible = false
+        }
+        function stop(row, state) {
+            core.accounts.setProperty(row, "state", state)
+            core.accounts.setProperty(row, "attention", true)
+        }
+        function resume(row) {
+            core.accounts.setProperty(row, "state", "ok")
+            core.accounts.setProperty(row, "attention", false)
+        }
+
+        function test_stopped_account_tab_shows_the_alert_and_leads_to_accounts() {
+            stop(1, "pin")
+            const bob = find("tab-bob", page)
+            tryVerify(function() { return chipIcon(bob) !== null })
+            compare(chipIcon(bob).name, "alert")
+            compare(bob.Accessible.name, "Bob, sync stopped")
+            compare(chipIcon(find("tab-ann", page)), null)
+            // The first tap shows the account's saved mail, the next one goes on.
+            mouseClick(bob)
+            tryVerify(function() { return bob.selected })
+            compare(wanted.count, 0)
+            mouseClick(bob)
+            compare(wanted.count, 1)
+            mouseClick(find("tab-all", page))
+            resume(1)
+            tryVerify(function() { return chipIcon(bob) === null })
+        }
+
+        function test_stopped_account_drawer_row_shows_the_alert_and_leads_to_accounts() {
+            stop(1, "auth")
+            mouseClick(find("menuButton", page))
+            const bob = find("account-bob", page)
+            tryVerify(function() { return drawerIcon(bob) !== null })
+            compare(drawerIcon(bob).name, "alert")
+            compare(bob.Accessible.name, "bob@example.org, sync stopped")
+            compare(drawerIcon(find("account-ann", page)), null)
+            const link = find("stoppedLink", bob)
+            compare(link.Accessible.role, Accessible.Button)
+            compare(link.Accessible.name, "Open accounts")
+            // A tap on the name expands the row, it does not leave for Accounts.
+            const name = find("account-bob", page)
+            mouseClick(name, name.width / 2, name.height / 2)
+            compare(wanted.count, 0)
+            mouseClick(link)
+            compare(wanted.count, 1)
+            closeDrawer(bob)
+            resume(1)
+        }
+
+        function test_offline_account_is_no_stopped_link() {
+            core.accounts.setProperty(1, "state", "offline")
+            mouseClick(find("menuButton", page))
+            const bob = find("account-bob", page)
+            tryVerify(function() { return drawerIcon(bob) !== null })
+            compare(drawerIcon(bob).name, "offline")
+            mouseClick(find("stoppedLink", bob))
+            compare(wanted.count, 0)
+            closeDrawer(bob)
             core.accounts.setProperty(1, "state", "ok")
         }
 
@@ -647,7 +811,7 @@ Item {
             return everything(shell, []).some(function(o) { return o.objectName === name })
         }
         function addAccount() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
         }
 
@@ -660,7 +824,7 @@ Item {
         }
 
         function test_accounts_open_the_inbox() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })

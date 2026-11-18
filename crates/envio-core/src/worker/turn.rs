@@ -7,6 +7,8 @@ use envio_sync::Schedule;
 use crate::health::{AccountStatus, Health};
 
 use super::Worker;
+use envio_sync::plan::outbox::next_release;
+
 use super::conn::Conn;
 use super::plan::{Env, Next, POLL_MS, Step, Timing, Wants, next, prefetch_step, steps};
 
@@ -17,6 +19,13 @@ impl Worker<'_> {
         // Undo expiry has its own clock: it must not share the retry
         // watermark.
         self.expire_undos(now);
+        if let Some(at) = self.next_release().filter(|at| *at <= now) {
+            // A held message may go now.
+            self.handled_release_ms = at;
+            for live in self.live.values_mut() {
+                live.wants.send = true;
+            }
+        }
         if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {
             self.handled_due_ms = due;
             for live in self.live.values_mut() {
@@ -152,10 +161,19 @@ impl Worker<'_> {
         }
     }
 
+    /// The next time a held Outbox item may be sent, past the watermark.
+    fn next_release(&self) -> Option<i64> {
+        let items = self.store.outbox.items().ok()?;
+        next_release(items.iter().map(|item| &item.meta), self.handled_release_ms)
+    }
+
     /// When to look again with nothing to do: the earliest timer.
     pub(super) fn wake_at(&self, now: i64) -> Option<i64> {
         let retry = self.store.schedule.next_due_after(self.handled_due_ms);
-        let mut wake = [retry, self.undo.next_expiry()].into_iter().flatten().min();
+        let mut wake = [retry, self.next_release(), self.undo.next_expiry()]
+            .into_iter()
+            .flatten()
+            .min();
         for live in self.live.values() {
             let at = account_wake(
                 needs_timer(self.foreground, &live.conn),
@@ -488,6 +506,36 @@ mod tests {
         // And the folder in progress is still the next step.
         let next = runtime.block_on(worker.pick_for(&account, now_ms(), false));
         assert_eq!(next, Some(Step::Folder(archive)));
+    }
+
+    #[test]
+    fn worker_wakes_at_send_after() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let at = now_ms() + 600_000;
+        let new = envio_store::NewOutboxItem {
+            send_after_ms: at,
+            account: seeded.account.clone(),
+            message_id: "<held@example.org>".into(),
+            queued_at_ms: now_ms(),
+            from: "me@example.org".into(),
+            recipients: vec!["you@example.org".into()],
+        };
+        worker
+            .store
+            .outbox
+            .enqueue(new, b"Subject: x\r\n\r\n")
+            .unwrap();
+        assert_eq!(worker.wake_at(now_ms()), Some(at));
+        // Before the time nothing is asked; at it, a send is wanted once.
+        worker.live.get_mut(&seeded.account).unwrap().wants.send = false;
+        worker.on_timers(at - 1);
+        assert!(!worker.live[&seeded.account].wants.send);
+        worker.on_timers(at);
+        assert!(worker.live[&seeded.account].wants.send);
+        assert_ne!(worker.wake_at(at), Some(at));
     }
 
     #[test]

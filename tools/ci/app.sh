@@ -19,7 +19,7 @@ cargo fmt --manifest-path "$root/qt/Cargo.toml" --all --check
 
 section "lint: QML"
 qmllint=$(command -v qmllint || echo /usr/lib/qt5/bin/qmllint)
-find "$root/qml" -name '*.qml' -exec "$qmllint" {} +
+find "$root/qml" -path "$root/qml/bindle" -prune -o -name '*.qml' -print0 | xargs -0 -r "$qmllint"
 
 section "lint: QML formats no counts (#3)"
 "$root/tools/ci/no-qml-plurals.sh" --self-test
@@ -29,6 +29,20 @@ cargo clippy --manifest-path "$root/qt/Cargo.toml" --all-targets --locked -- -D 
 
 section "tests: qt/ Rust (the pure conversions)"
 cargo test --manifest-path "$root/qt/Cargo.toml" --locked
+
+section "build info: an official release has no git data or build time (#198)"
+# Builds the stamp with a probe source and time, as a development and as a
+# release build; only the first may hold them.
+stamped() {
+  ENVIO_RELEASE=$1 ENVIO_GIT=envio-probe-source SOURCE_DATE_EPOCH=1234567890 \
+    cargo build -q --manifest-path "$root/qt/Cargo.toml" -p envio-stamp --locked
+  cat "$CARGO_TARGET_DIR"/debug/deps/libenvio_stamp-*.rlib | grep -aq -e envio-probe-source -e 1234567890
+}
+stamped 0 || { echo "the probe isn't in a development build, so this check sees nothing"; exit 1; }
+if stamped 1; then
+  echo "a release build carries the stamp"
+  exit 1
+fi
 
 section "build: CMake, warnings as errors"
 cmake -S "$root" -B "$build" -DCMAKE_BUILD_TYPE=Release -DENVIO_WERROR=ON \

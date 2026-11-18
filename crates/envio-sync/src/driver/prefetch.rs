@@ -1,9 +1,9 @@
 //! Several bodies in one session, downloaded before they are opened (#102).
 
-use envio_store::{FolderId, MessageRowId};
+use envio_store::{BodyState, FolderId, MessageRowId};
 
 use super::Local;
-use super::folders::store_body;
+use super::body::store_body;
 use crate::error::Result;
 use crate::server::MailServer;
 
@@ -65,7 +65,7 @@ async fn prefetch_one(
     let size = usize::try_from(message.size).unwrap_or(usize::MAX);
     let fetched = server.fetch_body(message.uid, size).await?;
     match &fetched {
-        Some(eml) => store_body(local, &message, eml)?,
+        Some(eml) => store_body(local, &message, eml, BodyState::Downloaded)?,
         None => {
             local
                 .db

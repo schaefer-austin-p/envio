@@ -4,6 +4,8 @@
 //! a quote-aware scan finds where it ends.
 
 use crate::hidden::{Ends, is_unwrapped};
+use crate::image_label;
+use crate::natural::{Unsized, draws_wider};
 use crate::plain::escape_into;
 use crate::sanitize::{RenderOptions, Rendered};
 use crate::style::is_hidden;
@@ -44,7 +46,7 @@ impl Tag {
             .map(|(_, v)| v.as_str())
     }
 
-    fn write(&self, out: &mut String) {
+    pub(crate) fn write(&self, out: &mut String) {
         out.push('<');
         out.push_str(&self.name);
         for (name, value) in &self.attrs {
@@ -58,14 +60,28 @@ impl Tag {
     }
 }
 
-/// Applies the image and width rules to sanitized HTML.
-pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
+/// An image in [`fit`]'s result, shown or as its label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Placed {
+    /// Byte range of the `img` tag or the label.
+    pub(crate) at: usize,
+    pub(crate) end: usize,
+    /// The width the message gave it, in pixels, before scaling.
+    pub(crate) width: Option<u32>,
+}
+
+/// Applies the image and width rules to sanitized HTML. Pushes each image
+/// it writes, shown or as its label, to `images` in order.
+pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>) -> Rendered {
     let mut out = Rendered {
         html: String::with_capacity(html.len()),
         ..Rendered::default()
     };
     let mut rest = html;
     let mut ends: Option<Ends> = None;
+    // The pixel width of each open table cell, so a percentage image
+    // width is a share of its cell rather than of the whole reader.
+    let mut cells: Vec<Option<u32>> = Vec::new();
     while let Some(start) = rest.find('<') {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
@@ -82,13 +98,28 @@ pub(crate) fn fit(html: &str, options: &RenderOptions) -> Rendered {
                 continue;
             }
             _ if is_unwrapped(raw) => {}
-            Some(tag) if tag.name == "img" => image(&tag, options, &mut out),
+            Some(tag) if tag.name == "img" => {
+                let at = out.html.len();
+                let cell = cells.iter().rev().find_map(|w| *w);
+                if let Some(width) = image(&tag, options, cell, &mut out) {
+                    let end = out.html.len();
+                    images.push(Placed { at, end, width });
+                }
+            }
             Some(mut tag) if matches!(tag.name.as_str(), "table" | "td" | "th" | "col") => {
                 widths::carry(&mut tag, options.max_image_width);
                 limit_width(&mut tag, options.max_image_width);
+                if matches!(tag.name.as_str(), "td" | "th") {
+                    cells.push(tag.attr("width").and_then(pixels));
+                }
                 tag.write(&mut out.html);
             }
-            _ => out.html.push_str(raw),
+            _ => {
+                if closes_cell(raw) {
+                    cells.pop();
+                }
+                out.html.push_str(raw);
+            }
         }
         rest = &rest[start + len..];
     }
@@ -154,36 +185,85 @@ fn unescape(value: &str) -> String {
         .replace("&amp;", "&")
 }
 
-fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
+/// Writes the image, or its label when it isn't loaded. `Some` with the
+/// declared width when it stands for a picture; `None` for a tracker or an
+/// unusable `src`.
+fn image(
+    tag: &Tag,
+    options: &RenderOptions,
+    cell: Option<u32>,
+    out: &mut Rendered,
+) -> Option<Option<u32>> {
     let src = tag.attr("src").unwrap_or_default().trim();
     let width = size(tag, "width");
     let height = size(tag, "height");
     if is_tracker(src, width, height) {
         out.removed_trackers += 1;
-        return;
+        return None;
     }
     let lower = src.to_ascii_lowercase();
-    let url = if lower.starts_with("cid:") {
+    let is_cid = lower.starts_with("cid:");
+    let natural;
+    let url = if is_cid {
         match cid_url(&src[4..], options) {
-            Some(url) => url.to_owned(),
+            Some((url, size)) => {
+                natural = size;
+                url.to_owned()
+            }
             None => {
                 // Not in the message: shown like a blocked image, but not
                 // counted, since loading remote images won't bring it back.
-                alt_or_label(tag, options, out);
-                return;
+                image_label::write(tag, options, &mut out.html);
+                return Some(width);
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
         if !options.allow_remote_images {
             out.blocked_images += 1;
-            alt_or_label(tag, options, out);
-            return;
+            image_label::write(tag, options, &mut out.html);
+            return Some(width);
         }
+        if !out.remote_images.iter().any(|seen| seen == src) {
+            out.remote_images.push(src.to_owned());
+        }
+        natural = options.image_sizes.get(src).copied();
         src.to_owned()
     } else {
-        return;
+        return None;
     };
-    let (width, height) = scale(width, height, options.max_image_width);
+    let declared = width;
+    let room = match (options.max_image_width, cell) {
+        (0, _) => 0,
+        (max, Some(cell)) => cell.min(max),
+        (max, None) => max,
+    };
+    let (mut width, mut height) = match (width, share_of(tag, room)) {
+        // Qt's rich text has no percentage or max-width for an image and
+        // would draw it at the file's size; the height in another unit
+        // would distort it, so only the width is set.
+        (None, Some(share)) => (Some(share), None),
+        _ => scale(width, height, options.max_image_width),
+    };
+    // Likewise an image with no width whose natural size is known (a cid
+    // image's from its bytes, a remote one's as the reader reports it):
+    // draw it at the room if it would come out wider. The height goes, to
+    // keep the proportion.
+    if width.is_none()
+        && let Some(size) = natural
+        && draws_wider(size, height, room)
+    {
+        width = Some(room);
+        height = None;
+    }
+    // A remote image still without a width: a size the reader reports
+    // later may cap it.
+    if width.is_none() && room > 0 && !is_cid {
+        out.unsized_images.push(Unsized {
+            url: url.clone(),
+            room,
+            height,
+        });
+    }
     let mut attrs = vec![("src".to_owned(), url)];
     if let Some(alt) = tag.attr("alt") {
         attrs.push(("alt".to_owned(), alt.to_owned()));
@@ -199,23 +279,59 @@ fn image(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
         attrs,
     }
     .write(&mut out.html);
+    Some(declared)
 }
 
-/// The loadable URL for a `cid:` reference, with or without angle brackets.
-/// An image that isn't shown: its alt text, or the caller's label.
-fn alt_or_label(tag: &Tag, options: &RenderOptions, out: &mut Rendered) {
-    let alt = tag.attr("alt").map(str::trim).unwrap_or_default();
-    let label = if alt.is_empty() {
-        &options.blocked_label
-    } else {
-        alt
-    };
-    escape_into(label, &mut out.html);
+/// Whether `raw` is a `</td>` or `</th>` end tag (not `</thead>`).
+fn closes_cell(raw: &str) -> bool {
+    ["</td", "</th"].iter().any(|end| {
+        raw.strip_prefix(end)
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| c == '>' || c.is_ascii_whitespace())
+    })
 }
 
-fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<&'o str> {
+/// A percentage width (`width="100%"`, `width:50%`) as pixels of `max`
+/// (the reader, or the image's cell when narrower),
+/// capped by a pixel `max-width`; `None` without one or when `max` is 0.
+fn share_of(tag: &Tag, max: u32) -> Option<u32> {
+    let style = tag.attr("style");
+    let percent = tag.attr("width").and_then(percent).or_else(|| {
+        style
+            .and_then(|s| style_value(s, "width"))
+            .and_then(percent)
+    })?;
+    if max == 0 {
+        return None;
+    }
+    let cap = style
+        .and_then(|s| style_value(s, "max-width"))
+        .and_then(pixels)
+        .filter(|&w| w > PIXEL_MAX)
+        .map_or(max, |w| w.min(max));
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let px = (f64::from(max) * percent / 100.0).round() as u32;
+    Some(px.clamp(1, cap))
+}
+
+/// A percentage in (0, 100], with an optional trailing `!important`.
+fn percent(value: &str) -> Option<f64> {
+    let value = value.trim().to_ascii_lowercase();
+    let value = value.split('!').next().unwrap_or_default().trim();
+    let number = value.strip_suffix('%')?.trim();
+    if number.is_empty() || !number.chars().all(|c| c.is_ascii_digit() || c == '.') {
+        return None;
+    }
+    let n = number.parse::<f64>().ok()?;
+    (n > 0.0).then_some(n.min(100.0))
+}
+
+/// The loadable URL for a `cid:` reference and the image's natural size,
+/// when known.
+fn cid_url<'o>(cid: &str, options: &'o RenderOptions) -> Option<(&'o str, Option<(u32, u32)>)> {
     let id = crate::thread::normalize_id(cid)?;
-    options.cid_urls.get(&id).map(String::as_str)
+    let url = options.cid_urls.get(&id)?;
+    Some((url, options.cid_sizes.get(&id).copied()))
 }
 
 fn is_tracker(src: &str, width: Option<u32>, height: Option<u32>) -> bool {
@@ -245,7 +361,7 @@ fn size(tag: &Tag, name: &str) -> Option<u32> {
     })
 }
 
-fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
+pub(crate) fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
     style.split(';').find_map(|declaration| {
         let (prop, value) = declaration.split_once(':')?;
         prop.trim().eq_ignore_ascii_case(name).then_some(value)

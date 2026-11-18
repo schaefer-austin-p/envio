@@ -164,6 +164,7 @@ Item {
         accounts: root.accounts
         current: root.tab === "folder" ? "-" : root.tab
         onChosen: key === "" ? root.showUnified() : root.showAccount(key)
+        onAttentionRequested: root.accountsRequested()
     }
     Column {
         id: banners
@@ -245,7 +246,9 @@ Item {
 
     Connections {
         target: root.core
-        function onUndoOffer(undo, text) {
+        function onUndoOffer(undo, text, scope) {
+            // An invite answer's offer belongs to the reader.
+            if (scope === "reader") return
             root.undoId = undo
             undoToast.show(text, qsTr("Undo"))
         }

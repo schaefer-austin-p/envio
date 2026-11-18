@@ -41,7 +41,12 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
-        console.info("envio " + BuildInfo.version + " (" + BuildInfo.commit + ")")
+        // "envio 0.1.0 (master@0123abcdef built 2026-…Z installed 2026-…Z)";
+        // an official release logs only the version (#198).
+        const iso = function(ms) { return ms > 0 ? new Date(ms).toISOString() : "unknown" }
+        console.info("envio " + BuildInfo.version + (BuildInfo.dev
+            ? " (" + BuildInfo.source + " built " + iso(BuildInfo.built)
+              + " installed " + iso(BuildInfo.installed) + ")" : ""))
         // Models first: attachModel brings each up to date from what the
         // core already sent.
         for (const model of [accountsModel, foldersModel, messagesModel, outboxModel, suggestionsModel, searchModel]) core.attachModel(model)

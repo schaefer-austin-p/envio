@@ -9,7 +9,7 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 use super::Local;
 use crate::error::{ErrorKind, Result};
 use crate::plan::message_id::search_id;
-use crate::plan::outbox::{ItemStep, after_send, item_step};
+use crate::plan::outbox::{ItemStep, after_send, held, item_step};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
 
@@ -38,7 +38,10 @@ pub async fn send_outbox(
     let mut sent = Sent::default();
     for item in items(local, account)? {
         let key = Key::Outbox(item.id.clone());
-        if item_step(&item.meta.state) != ItemStep::Send || !local.schedule.is_due(&key, now_ms) {
+        if item_step(&item.meta.state) != ItemStep::Send
+            || held(&item.meta, now_ms)
+            || !local.schedule.is_due(&key, now_ms)
+        {
             continue;
         }
         let eml = local.outbox.eml(&item.id)?;

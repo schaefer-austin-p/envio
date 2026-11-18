@@ -27,6 +27,12 @@ impl StorePaths {
         self.cache.join("bodies")
     }
 
+    /// Inline (`cid:`) images of opened messages, `<dir>/<row id>/<n>.<ext>`.
+    /// Rewritten on every open and emptied at start.
+    pub fn inline(&self) -> PathBuf {
+        self.cache.join("inline")
+    }
+
     pub fn accounts(&self) -> PathBuf {
         self.data.join("accounts.json")
     }
@@ -45,6 +51,10 @@ impl StorePaths {
 
     pub fn contacts(&self) -> PathBuf {
         self.data.join("contacts.json")
+    }
+
+    pub fn invites(&self) -> PathBuf {
+        self.data.join("invites.json")
     }
 
     /// Copies of attached files, one folder per draft id. Inside the drafts

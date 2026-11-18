@@ -21,6 +21,11 @@ pub fn state_word(status: &AccountStatus) -> &'static str {
     }
 }
 
+/// Sync is stopped until the user acts: the states that lead to Accounts.
+pub fn needs_attention(state: &str) -> bool {
+    matches!(state, "auth" | "pin")
+}
+
 /// The unread count for display: the digits, or nothing for zero.
 pub fn unread_text(n: u32) -> String {
     if n == 0 { String::new() } else { n.to_string() }
@@ -36,10 +41,12 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         key: info.key.clone(),
         name: info.name.clone(),
         email: info.email.clone(),
+        heading: crate::heading::account_heading(&info.name, &info.email),
         status: status_text.to_owned(),
         state: state.to_owned(),
         unread: info.unread,
         unread_text: unread_text(info.unread),
+        attention: needs_attention(state),
         pin: Box::default(),
     }
 }
@@ -112,7 +119,29 @@ pub fn outbox_state(status: &OutboxStatus) -> &'static str {
     }
 }
 
-pub fn outbox_row(r: &OutboxRow) -> Row {
+/// Why a waiting message sits in the Outbox and the button that leads on:
+/// (the account's own words, the button's label). Both empty when nothing
+/// holds it. Two problems do: a changed certificate of the outgoing server,
+/// and a failed sign-in (the status does not say which server, and the
+/// password has to be fixed either way). A changed certificate of the
+/// incoming server alone does not stop sending, so it gives no reason.
+pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String) {
+    if !matches!(r.status, OutboxStatus::Queued) {
+        return Default::default();
+    }
+    let Some(a) = accounts.iter().find(|a| a.key == r.account) else {
+        return Default::default();
+    };
+    match a.state.as_str() {
+        "pin" if a.pin.service == "smtp" => {
+            (a.status.clone(), envio_core::check_certificate_label())
+        }
+        "auth" => (a.status.clone(), envio_core::open_accounts_label()),
+        _ => Default::default(),
+    }
+}
+
+pub fn outbox_row(r: &OutboxRow, (reason, reason_action): (String, String)) -> Row {
     let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
@@ -121,6 +150,8 @@ pub fn outbox_row(r: &OutboxRow) -> Row {
         to: r.recipients.join(", "),
         status: status.to_owned(),
         text: r.text.clone(),
+        reason,
+        reason_action,
     })
 }
 
@@ -179,7 +210,11 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         Event::MessageUnavailable { id, text } => Signal::MessageUnavailable { id: id.0, text },
         Event::AttachmentSaved { path, .. } => Signal::AttachmentSaved { path },
         Event::AttachmentFailed { id, .. } => Signal::AttachmentFailed { id: id.0 },
-        Event::UndoOffer { undo, text, .. } => Signal::UndoOffer { undo, text },
+        Event::InviteExported { id, path } => Signal::InviteExported { id: id.0, path },
+        Event::InviteExportFailed { id } => Signal::InviteExportFailed { id: id.0 },
+        Event::UndoOffer {
+            undo, text, scope, ..
+        } => Signal::UndoOffer { undo, text, scope },
         Event::UndoClosed { undo, .. } => Signal::UndoClosed { undo },
         Event::ComposeReady {
             compose,

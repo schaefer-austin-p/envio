@@ -198,10 +198,22 @@ Item {
             verify(find("themeCard-carbon", appearance).selected)
         }
 
-        function test_about_shows_version_and_commit() {
+        // The test build is a development build: it names its source and
+        // build time, and wasn't installed as a click.
+        function test_about_shows_version_and_build() {
             about.visible = true
             compare(find("version", about).text, BuildInfo.version)
-            compare(find("commit", about).text, BuildInfo.commit)
+            verify(BuildInfo.dev)
+            verify(BuildInfo.source.length > 0)
+            verify(BuildInfo.built > 0)
+            compare(BuildInfo.installed, 0)
+            const build = find("build", about)
+            verify(build.visible)
+            const lines = build.text.split("\n")
+            compare(lines.length, 4)
+            compare(lines[1], BuildInfo.source)
+            verify(lines[2].indexOf(about.when(BuildInfo.built)) >= 0, lines[2])
+            verify(lines[3].indexOf("not as a click") >= 0, lines[3])
         }
 
         function test_rows_lead_to_the_pages() {

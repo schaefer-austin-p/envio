@@ -9,9 +9,9 @@ mod older;
 mod search;
 mod selection;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use envio_core::{Command, Event, FolderRole, ListRef, Service};
+use envio_core::{Command, Event, FolderRole, ListRef, OutboxRow, Service};
 
 use crate::convert::{self, signal_of};
 use crate::lists::ShownList;
@@ -38,6 +38,9 @@ fn change(model: Model, op: Op) -> Output {
 #[derive(Debug, Default)]
 pub struct Ui {
     accounts: Vec<AccountRow>,
+    /// The Outbox as the core last listed it; rows are rebuilt from it when
+    /// an account's status changes their reason.
+    outbox: Vec<OutboxRow>,
     names: HashMap<String, String>,
     folders_of: Option<String>,
     /// The account the open drawer shows; `None` while it is closed.
@@ -61,6 +64,11 @@ pub struct Ui {
     /// Rows Load older cached are to be paged in: asked as soon as the
     /// list can take a page.
     older_paging: bool,
+    /// Lists whose last Load older failed or found nothing, for the session:
+    /// scrolling does not load them again (no retry loop, no toast nobody
+    /// asked for on reopen), the row is tapped. A batch that brings rows or
+    /// an `OlderReset` clears it.
+    older_auto_blocked: HashSet<ListRef>,
     mirror: Mirror,
     /// Certificates accepted for the account being set up; the next
     /// `Connect` carries them.
@@ -172,7 +180,11 @@ impl Ui {
             Event::SearchFailed { scope, query, text } => self.search_failed(&scope, &query, text),
             Event::OutboxChanged => vec![Output::Send(Command::ListOutbox)],
             Event::Outbox { items } => {
-                let rows = items.iter().map(convert::outbox_row).collect();
+                let rows = items
+                    .iter()
+                    .map(|r| convert::outbox_row(r, convert::outbox_reason(&self.accounts, r)))
+                    .collect();
+                self.outbox = items;
                 vec![change(Model::Outbox, Op::Reset(rows))]
             }
             Event::Suggestions { query, items } => {

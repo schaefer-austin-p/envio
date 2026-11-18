@@ -3,17 +3,35 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use envio_store::FolderId;
+use envio_store::{FolderId, InviteAnswer, MessageRowId};
 
 use crate::api::command::UndoId;
 
-/// Actions the user may take back, and what to refresh when they do.
+/// Something the user may take back until `expires_at_ms`.
 #[derive(Debug)]
 pub struct Offer {
-    pub undos: Vec<envio_sync::driver::Undo>,
-    pub accounts: BTreeSet<String>,
-    pub folders: BTreeSet<FolderId>,
+    pub what: Offered,
     pub expires_at_ms: i64,
+}
+
+#[derive(Debug)]
+pub enum Offered {
+    /// Actions on messages, and what to refresh when they are undone.
+    Actions {
+        undos: Vec<envio_sync::driver::Undo>,
+        accounts: BTreeSet<String>,
+        folders: BTreeSet<FolderId>,
+    },
+    /// An invite answer: its reply waits, held, in the Outbox.
+    Answer {
+        message: MessageRowId,
+        outbox_item: String,
+        account: String,
+        uid: String,
+        recurrence_id: String,
+        /// The answer this one replaced, to restore.
+        previous: Option<InviteAnswer>,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -28,6 +46,38 @@ impl UndoBook {
         let id = UndoId(self.last);
         self.offers.insert(id, offer);
         id
+    }
+
+    /// Removes and returns the answer offer for (account, uid, recurrence id), if any.
+    pub fn take_answer(
+        &mut self,
+        account: &str,
+        uid: &str,
+        rid: &str,
+    ) -> Option<(UndoId, Offered)> {
+        let (id, _) = self.find_answer(account, uid, rid)?;
+        self.offers.remove(&id).map(|offer| (id, offer.what))
+    }
+
+    /// The Outbox item of the answer offer for (account, uid, recurrence id),
+    /// if one is open.
+    pub fn answer_item(&self, account: &str, uid: &str, rid: &str) -> Option<&str> {
+        self.find_answer(account, uid, rid).map(|(_, item)| item)
+    }
+
+    fn find_answer(&self, account: &str, uid: &str, rid: &str) -> Option<(UndoId, &str)> {
+        self.offers
+            .iter()
+            .find_map(|(id, offer)| match &offer.what {
+                Offered::Answer {
+                    account: a,
+                    uid: u,
+                    recurrence_id: r,
+                    outbox_item,
+                    ..
+                } if a == account && u == uid && r == rid => Some((*id, outbox_item.as_str())),
+                _ => None,
+            })
     }
 
     /// The offer, if its window is still open. An expired one is dropped
@@ -63,9 +113,11 @@ mod tests {
 
     fn offer(expires_at_ms: i64) -> Offer {
         Offer {
-            undos: Vec::new(),
-            accounts: BTreeSet::new(),
-            folders: BTreeSet::new(),
+            what: Offered::Actions {
+                undos: Vec::new(),
+                accounts: BTreeSet::new(),
+                folders: BTreeSet::new(),
+            },
             expires_at_ms,
         }
     }

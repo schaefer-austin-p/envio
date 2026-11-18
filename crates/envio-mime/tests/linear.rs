@@ -78,10 +78,14 @@ fn linearising_keeps_text_order_and_alignment() {
     );
     in_order(&html, &["first", "<b>bold</b>", "second"]);
     assert!(
-        html.contains(r#"<div align="right" style="color:red">first"#),
+        html.contains(r#"<div align="right" style="background-color:#ff0000;color:red">first"#),
         "{html}"
     );
-    assert!(html.contains(r#"<div align="center">second"#), "{html}");
+    // The table's background reaches each cell (see tests/backgrounds.rs).
+    assert!(
+        html.contains(r#"<div align="center" style="background-color:#ff0000">second"#),
+        "{html}"
+    );
     for dropped in ["cellpadding", "bgcolor=", "width", "valign"] {
         assert!(!html.contains(dropped), "{dropped} kept in {html}");
     }
@@ -150,4 +154,359 @@ fn a_table_without_rows_is_kept() {
     // Nothing to judge: keep what the sanitiser produced.
     let html = clean(r#"<table></table>"#);
     assert_eq!(count(&html, "table"), 1, "{html}");
+}
+
+fn with_images(html: &str) -> String {
+    let options = RenderOptions {
+        max_image_width: 360,
+        allow_remote_images: true,
+        ..RenderOptions::default()
+    };
+    sanitize_html(html, &options).html
+}
+
+/// A newsletter header: logo | picture | tagline, side by side at 600 px.
+const HEADER: &str = r#"<table width="600"><tr>
+    <td width="200"><img src="https://news.example/logo.png" alt="Logo" width="180" height="40"></td>
+    <td width="200"><img src="https://news.example/hero.png" alt="Hero" width="180" height="120"></td>
+    <td width="200">Find your next home</td>
+    </tr></table>"#;
+
+#[test]
+fn a_multi_column_row_of_images_stacks_whether_or_not_they_load() {
+    let blocked = clean(HEADER);
+    let shown = with_images(HEADER);
+    assert!(!blocked.contains("<img"), "{blocked}");
+    assert_eq!(count(&shown, "img"), 2, "{shown}");
+    for html in [blocked, shown] {
+        for tag in ["table", "tr", "td"] {
+            assert_eq!(count(&html, tag), 0, "{tag} left in {html}");
+        }
+        assert_eq!(count(&html, "div"), 4, "{html}");
+        in_order(&html, &["Logo", "Hero", "Find your next home"]);
+    }
+}
+
+#[test]
+fn a_nested_table_in_a_wide_row_stacks() {
+    let html = clean(
+        r#"<table><tr><td>left</td><td><table><tr><td>a</td><td>b</td></tr></table></td></tr></table>"#,
+    );
+    // The outer table stacks; the inner one holds short text and stays.
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+    in_order(&html, &["left", "<table", "a", "b"]);
+}
+
+#[test]
+fn block_content_in_a_wide_row_stacks() {
+    let html = clean(r#"<table><tr><td><h1>News</h1></td><td><p>Read more</p></td></tr></table>"#);
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["News", "Read more"]);
+}
+
+#[test]
+fn a_presentation_table_stacks_even_with_short_text() {
+    for role in ["presentation", "none", "Presentation"] {
+        let html = clean(&format!(
+            r#"<table role="{role}"><tr><td>Home</td><td>Search</td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{role}: {html}");
+        assert!(!html.contains("role="), "{role}: {html}");
+        in_order(&html, &["Home", "Search"]);
+    }
+}
+
+#[test]
+fn a_header_cell_keeps_a_presentation_table() {
+    let html = clean(
+        r#"<table role="presentation"><tr><th>Item</th><th>Price</th></tr><tr><td><p>Tea</p></td><td>$3</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}
+
+#[test]
+fn a_receipt_of_short_text_keeps_its_columns() {
+    let html = clean(
+        r#"<table width="100%"><tr><td>Tea</td><td align="right">$3.00</td></tr><tr><td><b>Total</b></td><td align="right"><b>$3.00</b></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 4, "{html}");
+}
+
+#[test]
+fn a_narrow_icon_column_beside_the_content_stays() {
+    // An avatar or icon at a small fixed width leaves the rest of a phone
+    // screen to the text, so the columns are kept.
+    let html = clean(
+        r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>Ada commented</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}
+
+const ICONS: &str = r#"<table><tr>
+    <td><img src="https://news.example/f.png" alt="F" width="32" height="32"></td>
+    <td><img src="https://news.example/t.png" alt="T" width="32" height="32"></td>
+    <td><img src="https://news.example/i.png" alt="I" width="32" height="32"></td>
+    </tr><tr><td><img src="https://news.example/logo.png" alt="Logo" width="40" height="40"></td><td>Acme Inc</td></tr></table>"#;
+
+#[test]
+fn icons_sized_by_their_images_keep_their_columns() {
+    // The cells have no width of their own; their images do.
+    for html in [clean(ICONS), with_images(ICONS)] {
+        assert_eq!(count(&html, "table"), 1, "{html}");
+        assert_eq!(count(&html, "td"), 5, "{html}");
+    }
+}
+
+/// Icons, pretty-printed, with a spacer `&nbsp;` beside a smaller one. Taken
+/// as text, that cell would put the other two (150 px) over `SIDE_MAX`.
+const SPACED_ICONS: &str = "<table><tr>
+    <td>
+        <img src=\"https://news.example/f.png\" alt=\"F\" width=\"100\" height=\"100\">
+    </td>
+    <td>&nbsp;<img src=\"https://news.example/t.png\" alt=\"T\" width=\"50\" height=\"50\">&nbsp; </td>
+    <td>
+        <img src=\"https://news.example/i.png\" alt=\"I\" width=\"50\" height=\"50\">
+    </td>
+    </tr></table>";
+
+#[test]
+fn whitespace_and_spacers_beside_an_icon_are_not_text() {
+    for html in [clean(SPACED_ICONS), with_images(SPACED_ICONS)] {
+        assert_eq!(count(&html, "table"), 1, "{html}");
+        assert_eq!(count(&html, "td"), 3, "{html}");
+    }
+}
+
+const CARDS: &str = r#"<table><tr>
+    <td><img src="https://news.example/a.png" alt="A" width="100" height="80"> A flat by the river with a view</td>
+    <td><img src="https://news.example/b.png" alt="B" width="100" height="80"> A house with a garden</td>
+    </tr></table>"#;
+
+#[test]
+fn a_picture_with_a_caption_takes_the_width_of_the_text() {
+    for html in [clean(CARDS), with_images(CARDS)] {
+        assert_eq!(count(&html, "table"), 0, "{html}");
+        in_order(&html, &["A", "river", "B", "garden"]);
+    }
+}
+
+/// Stacked cards carrying payloads: scripts, event handlers, a script
+/// link, an iframe, a style that tries to close its quote, and escaped
+/// markup that looks like a cell.
+const HOSTILE_CARDS: &str = r#"<table role="presentation" onclick="x()"><tr>
+    <td onmouseover="x()" style='color: red" onclick="x()'><img src="https://news.example/a.png" alt="A" width="100" height="80" onerror="x()"> A flat &lt;td onclick=x()&gt; by the river<script>x()</script></td>
+    <td><a href="javascript:x()">B</a><iframe src="https://evil.example/"></iframe> A house &lt;/td&gt;&lt;/tr&gt; with a garden</td>
+    </tr></table>"#;
+
+#[test]
+fn stacking_lets_no_payload_through() {
+    for html in [clean(HOSTILE_CARDS), with_images(HOSTILE_CARDS)] {
+        assert_eq!(count(&html, "table"), 0, "not stacked: {html}");
+        assert_eq!(count(&html, "td"), 0, "{html}");
+        for bad in [
+            "<script",
+            "x()</",
+            "onclick=\"",
+            "onmouseover=\"",
+            "onerror=\"",
+            "javascript:",
+            "<iframe",
+            "evil.example",
+            "role=",
+        ] {
+            assert!(!html.contains(bad), "{bad} in {html}");
+        }
+        in_order(
+            &html,
+            &[
+                "&lt;td onclick=x()&gt;",
+                "river",
+                "B",
+                "&lt;/td&gt;&lt;/tr&gt;",
+                "garden",
+            ],
+        );
+    }
+}
+
+#[test]
+fn pictures_side_by_side_in_a_cell_add_up() {
+    let html = clean(
+        r#"<table><tr><td><img src="https://news.example/a.png" alt="A" width="100" height="40"><img src="https://news.example/b.png" alt="B" width="100" height="40"></td><td>Text</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["A", "B", "Text"]);
+}
+
+#[test]
+fn images_without_a_width_leave_their_cells_free() {
+    let html = clean(
+        r#"<table><tr><td><img src="https://news.example/a.png" alt="A"></td><td><img src="https://news.example/b.png" alt="B"></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["A", "B"]);
+}
+
+#[test]
+fn two_free_width_columns_beside_an_icon_stack() {
+    let html = clean(
+        r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>one</p></td><td><p>two</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    // The blocked 40 px icon leaves no label.
+    in_order(&html, &["<div></div>", "one", "two"]);
+}
+
+#[test]
+fn wide_fixed_side_columns_stack() {
+    let html = clean(
+        r#"<table><tr><td width="150"><p>left</p></td><td width="300"><p>main</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    in_order(&html, &["left", "main"]);
+}
+
+#[test]
+fn a_hidden_table_does_not_shift_the_verdicts() {
+    // `fit` drops hidden elements; the table after one is still judged on
+    // its own content.
+    let html = clean(
+        r#"<div style="display:none"><table><tr><td><p>x</p></td><td><p>y</p></td></tr></table></div><table><tr><td>Tea</td><td>$3</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert_eq!(count(&html, "td"), 2, "{html}");
+}
+
+#[test]
+fn a_layout_tables_align_does_not_centre_its_text() {
+    let html = clean(
+        r#"<table align="center" width="480"><tr><td><p>Item</p><ul><li>x</li></ul></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+    assert!(!html.contains(r#"align="center""#), "{html}");
+    in_order(&html, &["Item", "x"]);
+}
+
+#[test]
+fn a_cells_own_align_still_applies() {
+    let html = clean(r#"<table align="center"><tr><td align="right">price</td></tr></table>"#);
+    assert!(html.contains(r#"<div align="right""#), "{html}");
+    assert!(!html.contains(r#"align="center""#), "{html}");
+}
+
+#[test]
+fn a_bare_hex_bgcolor_becomes_a_css_colour() {
+    let html = clean(r#"<table><tr><td bgcolor="ffcc00">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#ffcc00"), "{html}");
+    let html = clean(r#"<table><tr bgcolor="fff"><td>hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#fff"), "{html}");
+    let html = clean(r#"<table><tr><td bgcolor="ffffff">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:#ffffff"), "{html}");
+}
+
+#[test]
+fn a_bgcolor_name_is_kept_and_junk_dropped() {
+    let html = clean(r#"<table><tr><td bgcolor="navy">hi</td></tr></table>"#);
+    assert!(html.contains("background-color:navy"), "{html}");
+    let html = clean(r#"<table><tr><td bgcolor="ffcc0">hi</td></tr></table>"#);
+    assert!(!html.contains("background-color"), "{html}");
+}
+
+#[test]
+fn a_padded_button_cell_stays_a_table() {
+    let html = clean(
+        r#"<table role="presentation"><tr><td bgcolor="1a1f36" style="padding:12px 24px"><a href="https://example.com/plan">Manage your plan</a></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    assert!(html.contains("padding:12px 24px"), "{html}");
+    assert!(html.contains("Manage your plan"), "{html}");
+}
+
+#[test]
+fn a_padded_cell_with_blocks_is_still_linearised() {
+    let html = clean(
+        r#"<table><tr><td bgcolor="eeeeee" style="padding:12px"><p>one</p><p>two</p></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+}
+
+#[test]
+fn only_a_real_padded_background_cell_is_a_button() {
+    for cell in [
+        r#"<td bgcolor="1a1f36" style="padding:0">"#,
+        r#"<td bgcolor="zzz1" style="padding:12px">"#,
+        r#"<td bgcolor="zz!1" style="padding:12px;border:1px solid red">"#,
+        r#"<td style="padding:12px;border:1px solid red">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+    let html = clean(
+        r#"<table role="presentation"><tr><td style="padding-top:8px;background-color:#556cd6"><a href="https://example.com/x">go</a></td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+}
+
+#[test]
+fn a_boxed_cell_beside_another_cell_is_still_linearised() {
+    let html = clean(
+        r#"<table role="presentation" width="600"><tr><td width="300" bgcolor="1a1f36" style="padding:12px">a</td><td width="300">b</td></tr></table>"#,
+    );
+    assert_eq!(count(&html, "table"), 0, "{html}");
+}
+
+#[test]
+fn a_buttons_padding_may_come_from_cellpadding() {
+    let html = clean(
+        r##"<table cellpadding="12"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##,
+    );
+    assert_eq!(count(&html, "table"), 1, "{html}");
+    for pad in ["0", "", "x"] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(count(&html, "table"), 0, "cellpadding {pad:?}: {html}");
+    }
+}
+
+#[test]
+fn a_transparent_background_is_not_a_button() {
+    for cell in [
+        r#"<td bgcolor="transparent" style="padding:12px">"#,
+        r#"<td style="padding:12px;background-color:transparent">"#,
+        r#"<td style="padding:12px;background-color:inherit">"#,
+    ] {
+        let html = clean(&format!(
+            r#"<table role="presentation"><tr>{cell}<a href="https://example.com/x">go</a></td></tr></table>"#
+        ));
+        assert_eq!(count(&html, "table"), 0, "{cell}: {html}");
+    }
+}
+
+#[test]
+fn cellpadding_reads_its_leading_digits() {
+    for (pad, button) in [
+        ("12", true),
+        ("12px", true),
+        (" 12 ", true),
+        ("0", false),
+        ("0px", false),
+        ("", false),
+        ("x", false),
+    ] {
+        let html = clean(&format!(
+            r##"<table cellpadding="{pad}"><tr><td bgcolor="#1a73e8"><a href="https://example.com/x">Go</a></td></tr></table>"##
+        ));
+        assert_eq!(
+            count(&html, "table"),
+            usize::from(button),
+            "{pad:?}: {html}"
+        );
+    }
 }

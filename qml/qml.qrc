@@ -21,6 +21,8 @@
         <file>pages/reader/AttachmentList.qml</file>
         <file>pages/reader/ReaderMore.qml</file>
         <file>pages/reader/ReplyBar.qml</file>
+        <file>pages/reader/InviteCard.qml</file>
+        <file>pages/reader/InviteLink.qml</file>
         <file>pages/compose/ComposePage.qml</file>
         <file>pages/compose/RecipientField.qml</file>
         <file>pages/compose/Suggestions.qml</file>
@@ -51,8 +53,6 @@
         <file>platform/Content.qml</file>
         <file>platform/ut/ContentExport.qml</file>
         <file>platform/ut/ContentImport.qml</file>
-        <file>platform/ut/UriSource.qml</file>
-        <file>platform/Uri.qml</file>
         <file>platform/fileUrl.js</file>
         <file>platform/stampTint.js</file>
         <file>components/qmldir</file>
@@ -66,16 +66,14 @@
         <file>components/FolderLabel.qml</file>
         <file>components/AppDialog.qml</file>
         <file>components/EditMenu.qml</file>
+        <file>components/SelectionHandles.qml</file>
         <file>components/Field.qml</file>
         <file>components/BusyLine.qml</file>
         <file>components/PageFooter.qml</file>
-        <file>components/HoldSelection.qml</file>
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>
-        <file>components/keyboardRect.js</file>
         <file>components/richText.js</file>
         <file>components/IconButton.qml</file>
-        <file>components/KeyboardAvoider.qml</file>
         <file>components/ListRow.qml</file>
         <file>components/RadioRow.qml</file>
         <file>components/Sheet.qml</file>

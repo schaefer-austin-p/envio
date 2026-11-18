@@ -1,0 +1,20 @@
+---
+source: crates/envio-mime/tests/corpus.rs
+expression: describe(&raw)
+---
+message_id: Some("thunderbird@example.org")
+subject: "Invitation: Retro"
+from: [Alice Example <alice@example.org>]
+to: [bob@example.org]
+cc: []
+reply_to: []
+date: Some(1794474000)
+in_reply_to: None
+references: []
+thread_root: "thunderbird@example.org"
+preview: "See the invitation."
+has_attachments: true
+attachment 0: None text/calendar 562 bytes cid=None inline=false
+blocked: 0 trackers: 0
+---
+<div style="white-space:pre-wrap">See the invitation.</div>

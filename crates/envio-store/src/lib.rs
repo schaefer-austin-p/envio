@@ -11,6 +11,7 @@ mod drafts;
 mod error;
 mod folders;
 mod ids;
+mod invites;
 mod journal;
 mod journal_replay;
 mod lookup;
@@ -30,6 +31,7 @@ pub use db::Db;
 pub use drafts::{Draft, Drafts};
 pub use error::{Result, StoreError};
 pub use folders::{Folder, FolderId, FolderRole, SyncState};
+pub use invites::{InviteAnswer, forget_invite, load_invites, record_invite};
 pub use journal::{Action, ActionKind, Journal, MessageRef};
 pub use journal_replay::{SkipReason, Skipped};
 pub use messages::{

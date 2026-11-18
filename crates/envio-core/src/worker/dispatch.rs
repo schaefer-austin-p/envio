@@ -73,12 +73,24 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.open_message(id, images, width_px);
             Flow::Continue
         }
+        Command::ImageSizes { id, sizes } => {
+            worker.image_sizes(id, sizes);
+            Flow::Continue
+        }
         Command::SaveAttachment { id, index, dir } => {
             worker.save_attachment(id, index, &dir);
             Flow::Continue
         }
+        Command::ExportInvite { id, dir } => {
+            worker.export_invite(id, &dir);
+            Flow::Continue
+        }
         Command::Act { ids, action } => {
             worker.act(&ids, action);
+            Flow::Continue
+        }
+        Command::AnswerInvite { id, answer, note } => {
+            worker.answer_invite(id, answer, &note);
             Flow::Continue
         }
         Command::Undo { undo } => {

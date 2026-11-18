@@ -121,8 +121,10 @@ fn an_opened_message_names_its_id() {
         html: String::new(),
         raw: false,
         blocked_images: 0,
+        remote_images: vec![],
         own_colours: false,
         attachments: vec![],
+        invite: None,
     };
     let outs = feed(
         &mut ui,
@@ -135,4 +137,62 @@ fn an_opened_message_names_its_id() {
         signals(&outs)[..],
         [Signal::MessageOpened { id: 7, .. }]
     ));
+}
+
+#[test]
+fn message_opened_carries_the_invite_card() {
+    use envio_core::{CardMethod, CardState, InviteCard};
+    let mut ui = Ui::new();
+    let card = InviteCard {
+        method: CardMethod::Request,
+        state: CardState::Open,
+        state_text: String::new(),
+        answer: None,
+        sending: false,
+        send_failed: false,
+        summary: "Standup".into(),
+        location: String::new(),
+        all_day: false,
+        floating: false,
+        start: 1_800_000_000,
+        end: 1_800_003_600,
+        start_date: String::new(),
+        end_date: String::new(),
+        zone_unknown: false,
+        repeats: false,
+        organizer: "Grace".into(),
+        organizer_email: "grace@example.org".into(),
+        can_answer: true,
+        ics_index: 0,
+    };
+    let view = MessageView {
+        header: MessageHeader {
+            from: "f".into(),
+            from_address: "f@example.org".into(),
+            to: vec![],
+            cc: vec![],
+            subject: "s".into(),
+            date: None,
+            account: "a".into(),
+            sender_known: false,
+        },
+        html: String::new(),
+        raw: false,
+        blocked_images: 0,
+        remote_images: vec![],
+        own_colours: false,
+        attachments: vec![],
+        invite: Some(card.clone()),
+    };
+    let outs = feed(
+        &mut ui,
+        Event::MessageOpened {
+            id: MessageRowId(7),
+            view,
+        },
+    );
+    match &signals(&outs)[..] {
+        [Signal::MessageOpened { view, .. }] => assert_eq!(view.invite, Some(card)),
+        other => panic!("{other:?}"),
+    }
 }

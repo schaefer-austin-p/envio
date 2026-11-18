@@ -2,7 +2,7 @@
 
 use mail_parser::{MessagePart, MimeHeaders, PartType};
 
-use crate::attachments::{AttachmentInfo, list};
+use crate::attachments::{AttachmentInfo, is_truncated, list};
 use crate::envelope::{Envelope, from_parsed};
 use crate::mail::{Parsed, is_broken_multipart, parse_mail};
 use crate::plain::unflow_text;
@@ -14,6 +14,9 @@ pub enum Message {
         envelope: Box<Envelope>,
         body: Body,
         attachments: Vec<AttachmentInfo>,
+        /// A text part of a big message that envio cached cut short (see
+        /// `X-Envio-Truncated`): the body is not the whole text.
+        truncated: bool,
     },
     /// The whole message as lossy UTF-8.
     Raw(String),
@@ -42,6 +45,7 @@ pub fn parse(raw: &[u8]) -> Message {
                 envelope: Box::new(from_parsed(&message, &attachments)),
                 body: body(&message),
                 attachments,
+                truncated: is_truncated(&message),
             }
         }
         _ => Message::Raw(String::from_utf8_lossy(raw).into_owned()),

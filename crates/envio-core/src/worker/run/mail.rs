@@ -34,6 +34,7 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
         }
         worker.emit(Event::OutboxChanged);
         worker.emit_outbox();
+        worker.reshow_open_invite();
     }
     match sent.stopped {
         Some(kind) => Err(problem::from_kind(kind)),
@@ -65,6 +66,7 @@ pub(super) async fn file(
     if !(filed.removed.is_empty() && filed.ask.is_empty() && filed.unfiled.is_empty()) {
         worker.emit(Event::OutboxChanged);
         worker.emit_outbox();
+        worker.reshow_open_invite();
     }
     Ok(())
 }

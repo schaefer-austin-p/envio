@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtTest 1.2
 import "../../qml/platform"
 import "../../qml/pages"
+import "../../qml/bindle/Platform" as Platform
 
 // The app shell's compose wiring (which page opens, which one a late
 // Queued closes, when a mailto: link starts) and platform/Uri.qml.
@@ -20,9 +21,9 @@ Item {
             uriSource: ""
         }
     }
-    Component { id: uriComponent; Uri { sourceFile: "" } }
+    Component { id: uriComponent; Platform.Uri { sourceFile: ""; schemes: ["mailto"] } }
 
-    SignalSpy { id: links; signalName: "mailto" }
+    SignalSpy { id: links; signalName: "opened" }
 
     TestCase {
         name: "Shell"

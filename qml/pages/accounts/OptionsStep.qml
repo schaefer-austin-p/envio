@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform" as Platform
 
 // Step 3: what the new account is called and whether it is the default
 // sender. Sync and retention are fixed in 0.1.0 and shown as text.
@@ -11,7 +12,7 @@ Item {
     property alias isDefault: defaultToggle.checked
     signal done()
 
-    KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+    Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
     component Caption: Text {
         textFormat: Text.PlainText

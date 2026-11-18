@@ -17,6 +17,10 @@ Item {
     property var openedUrls: []
     property var exported: []
     property var page: null
+    // A 1x1 PNG: the preload test needs an image that loads offline.
+    readonly property string pixel: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    // A 3x2 PNG, for a second image of another size.
+    readonly property string wide: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEElEQVR4nGP4z8AAQQxwFgBB0gX7h/C5SAAAAABJRU5ErkJggg=="
 
     Component {
         id: readerComponent
@@ -37,6 +41,8 @@ Item {
     SignalSpy { id: composing; target: root.page; signalName: "composeOpened" }
     SignalSpy { id: heightSpy; signalName: "contentHeightChanged" }
     SignalSpy { id: backed; target: root.page; signalName: "backRequested" }
+    SignalSpy { id: bodySet; signalName: "textChanged" }
+    TextEdit { id: pasteTarget; visible: false; textFormat: TextEdit.PlainText }
 
     MockCore { id: shellCore }
     AppShell {
@@ -122,6 +128,121 @@ Item {
             compare(find("headerSubject").text, evil)
         }
 
+        function findText(text, from) {
+            const hit = everything(from, []).filter(function(o) { return o.text === text && o.visible })
+            verify(hit.length > 0, "no item with text " + text)
+            return hit[0]
+        }
+        function test_reader_offer_shows_undo_toast() {
+            open(view([], 0))
+            const toast = find("undoToast")
+            verify(!toast.visible)
+            mock.undoOffer(31, "Reply to Grace queued", "reader")
+            verify(toast.visible)
+            compare(toast.text, "Reply to Grace queued")
+            // Another offer's close leaves it; its own close hides it.
+            mock.undoClosed(30)
+            verify(toast.visible)
+            mock.undoClosed(31)
+            verify(!toast.visible)
+        }
+
+        function test_undo_calls_core_undo() {
+            open(view([], 0))
+            mock.undoOffer(32, "Reply to Grace queued", "reader")
+            mouseClick(findText("Undo", find("undoToast")))
+            compare(mock.called("undo").pop().args, [32])
+        }
+
+        function test_list_offer_does_not_show_in_reader() {
+            open(view([], 0))
+            mock.undoOffer(33, "Archived “Plans”", "list")
+            verify(!find("undoToast").visible)
+        }
+
+        function test_add_to_calendar_exports_the_saved_ics() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 1 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            const saved = mock.called("exportInvite").pop().args
+            compare(saved[0], 5)
+            verify(saved[1].length > 0)
+            // Another message's export is not this tap's.
+            mock.inviteExported(6, "/tmp/envio-test/attachments/other.ics")
+            compare(root.exported.length, 0)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/invite.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invite.ics", mode: "calendar" }])
+            // A later save is not a calendar one.
+            mock.attachmentSaved("/tmp/envio-test/attachments/other.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/again.ics")
+            compare(root.exported.length, 1)
+        }
+
+        // An attachment save still in flight keeps its file, and the
+        // calendar keeps its own (review 733).
+        function test_a_pending_attachment_save_and_the_calendar_do_not_swap_files() {
+            root.page.hubAvailable = true
+            const v = view(pdf(), 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: -1 }
+            open(v)
+            // The card pushes the attachment below the fold: scroll to it.
+            const flick = everything(root.page, []).filter(function(o) {
+                return o.contentY !== undefined && o.boundsBehavior !== undefined })[0]
+            flick.contentY = Math.max(0, flick.contentHeight - flick.height)
+            waitForRendering(root.page)
+            mouseClick(find("attachmentRow-0"))
+            tryVerify(function() { return find("attachmentSheet").opened })
+            wait(100)
+            mouseClick(find("attachment-share"))
+            tryVerify(function() { return !find("attachmentSheet").opened })
+            mouseClick(find("inviteCalendar"))
+            mock.attachmentSaved("/tmp/envio-test/attachments/invoice.pdf")
+            mock.inviteExported(5, "/tmp/envio-test/attachments/Q.ics")
+            compare(root.exported, [{ path: "/tmp/envio-test/attachments/invoice.pdf", mode: "share" },
+                                    { path: "/tmp/envio-test/attachments/Q.ics", mode: "calendar" }])
+        }
+
+        function test_a_failed_calendar_save_forgets_the_export() {
+            root.page.hubAvailable = true
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
+                         start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
+                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
+            open(v)
+            mouseClick(find("inviteCalendar"))
+            mock.inviteExportFailed(5)
+            mock.inviteExported(5, "/tmp/envio-test/attachments/x.ics")
+            compare(root.exported.length, 0)
+        }
+
+        // No offer yet: no id (0 is a real one) can close a toast never shown.
+        function test_no_undo_target_before_an_offer() {
+            compare(root.page.undoId, -1)
+        }
+
+        function test_invite_card_shows_only_with_an_invite() {
+            open(view([], 0))
+            verify(!shown("inviteCard"))
+            const v = view([], 0)
+            v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
+                         sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
+                         floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         icsIndex: 0 }
+            open(v)
+            verify(shown("inviteCard"))
+        }
+
         function test_opens_the_message_on_show() {
             const calls = mock.called("open")
             compare(calls.length, 1)
@@ -181,6 +302,63 @@ Item {
             compare(String(thm.paperLink).toUpperCase(), data.link)
             thm.name = "carbon"
             thm.darkMode = "system"
+        }
+
+        // #163: a rich TextEdit never draws a remote image that arrives
+        // after it laid out; once the preload has it, the body is set again.
+        function test_a_loaded_image_sets_the_body_again() {
+            const v = view([], 0)
+            v.html = '<p>Hi</p><img src="' + root.pixel + '" width="20" height="20">'
+            v.remoteImages = [root.pixel]
+            open(v)
+            // Qt's re-serialised text drops the redraw's empty comment, so
+            // count the sets instead of comparing the text.
+            bodySet.target = find("bodyText")
+            bodySet.clear()
+            tryCompare(find("preloadedImage"), "status", Image.Ready)
+            tryVerify(function() { return root.page.imageRedraws > 0 }, 2000)
+            verify(bodySet.count > 0)
+        }
+
+        // #170: the core caps a too-wide image with no width once it knows
+        // the natural size, so the page reports what it loaded, batched.
+        function test_loaded_image_sizes_go_to_the_core_once() {
+            const v = view([], 0)
+            v.html = '<p>Hi</p><img src="' + root.pixel + '"><img src="' + root.wide + '">'
+            v.remoteImages = [root.pixel, root.wide]
+            open(v)
+            tryVerify(function() { return mock.called("reportImageSizes").length > 0 }, 2000)
+            const calls = mock.called("reportImageSizes")
+            compare(calls.length, 1)
+            compare(calls[0].args[0], 5)
+            const sizes = JSON.parse(calls[0].args[1])
+            compare(sizes[root.pixel], [1, 1])
+            compare(sizes[root.wide], [3, 2])
+            // The core shows the message again: the same images are not
+            // reported a second time.
+            open(v)
+            wait(700)
+            compare(mock.called("reportImageSizes").length, 1)
+        }
+
+        // The core takes at most 256 sizes from one report: more go in
+        // several.
+        function test_many_image_sizes_go_in_batches() {
+            for (let i = 0; i < 300; i++) root.page.noteImageSize("https://e.test/" + i, 10, 10)
+            root.page.reportSizes()
+            const calls = mock.called("reportImageSizes")
+            compare(calls.length, 2)
+            compare(Object.keys(JSON.parse(calls[0].args[1])).length, 256)
+            compare(Object.keys(JSON.parse(calls[1].args[1])).length, 44)
+        }
+
+        function test_a_view_without_images_preloads_nothing() {
+            open(view([], 0))
+            const hit = everything(root.page, []).filter(function(o) { return o.objectName === "preloadedImage" })
+            compare(hit.length, 0)
+            wait(400)
+            compare(root.page.imageRedraws, 0)
+            compare(mock.called("reportImageSizes").length, 0)
         }
 
         function test_plain_mail_keeps_the_theme_card_in_dark() {
@@ -337,7 +515,7 @@ Item {
             const url = "https://bank.example@evil.example/login"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
                 compare(find(name).font.family, thm.fontMono, name)
@@ -371,7 +549,7 @@ Item {
         function test_link_opens_only_from_the_sheet() {
             open(view([], 0))
             const url = "https://evil.example/login?next=%2Fa"
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             compare(root.openedUrls.length, 0)
             const sheet = find("linkSheet")
             tryVerify(function() { return sheet.opened })
@@ -387,7 +565,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "bank.example", "host": "evil.example",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens evil.example." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkHost").text, "evil.example")
             compare(find("linkHost").font.bold, true)
@@ -407,7 +585,7 @@ Item {
                                     "unicodeHost": "p\u0430ypal.com",
                                     "unicodeNote": "Displays as p\u0430ypal.com, which may imitate another site.",
                                     "afterHost": "/login", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkHost").text, "xn--pypal-4ve.com")
             compare(find("linkHost").font.bold, true)
@@ -424,7 +602,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": user, "host": host,
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/login", "openable": true,
                                     "warning": "Before the @ is decoration. This link opens " + host + "." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             const row = find("linkAddress")
             for (const name of ["linkBefore", "linkUserinfo", "linkHost", "linkAfter"])
@@ -438,7 +616,7 @@ Item {
             const url = "https://example.org/"
             mock.linkViews[url] = { "beforeHost": "https://", "userinfo": "", "host": "example.org",
                                     "unicodeHost": "", "unicodeNote": "", "afterHost": "/", "openable": true, "warning": "" }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkUserinfo").visible, false)
             compare(find("linkWarning").visible, false)
@@ -450,7 +628,7 @@ Item {
             mock.linkViews[url] = { "beforeHost": "", "userinfo": "", "host": "", "unicodeHost": "", "unicodeNote": "",
                                     "afterHost": url, "openable": false,
                                     "warning": "This link looks malformed and can't be opened." }
-            find("bodyText").linkActivated(url)
+            root.page.linkTapped(url)
             tryVerify(function() { return find("linkSheet").opened })
             compare(find("linkOpen").enabled, false)
             compare(find("linkWarning").visible, true)
@@ -494,7 +672,7 @@ Item {
 
         function test_link_sheet_cancel_opens_nothing() {
             open(view([], 0))
-            find("bodyText").linkActivated("https://example.org/")
+            root.page.linkTapped("https://example.org/")
             tryVerify(function() { return find("linkSheet").opened })
             mouseClick(find("linkCancel"))
             compare(root.openedUrls.length, 0)
@@ -676,6 +854,73 @@ Item {
             compare(root.page.bodyHtml.indexOf("line-height"), -1)
         }
 
+        // #173: sender-designed (paper) mail keeps its own spacing; only
+        // plain-text mail gets the board's body line height.
+        function test_paper_mail_gets_no_injected_line_height() {
+            thm.name = "airmail"
+            const v = view([], 0)
+            v.ownColours = true
+            open(v)
+            compare(root.page.bodyHtml.indexOf("line-height"), -1)
+            verify(root.page.bodyHtml.indexOf("<style>a{color:") === 0)
+            thm.name = "carbon"
+        }
+
+        function test_plain_mail_keeps_the_airmail_line_height() {
+            thm.name = "airmail"
+            const v = view([], 0)
+            v.ownColours = false
+            open(v)
+            verify(root.page.bodyHtml.indexOf("p,li,div{line-height:160%}") > 0, root.page.bodyHtml)
+            thm.name = "carbon"
+        }
+
+        // #165: a long press selects a word and offers Copy; a drag or tap
+        // never selects (selectByMouse stays off so a flick scrolls).
+        function entry(menu, name) {
+            for (let i = 0; i < menu.count; i++)
+                if (menu.itemAt(i).objectName === name) return menu.itemAt(i)
+            verify(false, "no menu entry " + name)
+        }
+        function test_long_press_selects_a_word_and_shows_handles() {
+            const v = view([], 0)
+            v.html = "<p>Order 48213 shipped</p>"
+            open(v)
+            const body = find("bodyText")
+            const handles = find("bodyHandles")
+            compare(handles.visible, false)
+            const r = body.positionToRectangle(body.text.length > 0 ? 8 : 0)
+            root.page.holdBody(r.x + 1, r.y + r.height / 2)
+            compare(body.selectedText, "48213")
+            compare(handles.visible, true)
+            verify(find("bodyMenu").visible || find("bodyMenu").opened)
+            compare(find("bodyMenu").copyOnly, true)
+        }
+
+        function test_copy_puts_the_selection_on_the_clipboard_as_plain_text() {
+            const v = view([], 0)
+            v.html = "<p>Code <b>7391</b> inside</p>"
+            open(v)
+            const body = find("bodyText")
+            body.select(0, body.length)
+            const menu = find("bodyMenu")
+            menu.open()
+            entry(menu, "editCopy").triggered()
+            pasteTarget.text = ""
+            pasteTarget.paste()
+            compare(pasteTarget.text, "Code 7391 inside")
+        }
+
+        function test_the_body_menu_offers_no_cut_or_paste() {
+            open(view([], 0))
+            const menu = find("bodyMenu")
+            menu.open()
+            compare(entry(menu, "editCut").visible, false)
+            compare(entry(menu, "editPaste").visible, false)
+            compare(entry(menu, "editCopy").visible, true)
+            compare(entry(menu, "editSelectAll").visible, true)
+        }
+
         function test_body_is_read_only_and_links_open_the_sheet() {
             open(view([], 0))
             const body = find("bodyText")
@@ -683,9 +928,121 @@ Item {
             compare(body.activeFocusOnPress, false)
             compare(body.selectByMouse, false)
             compare(body.cursorVisible, false)
-            body.linkActivated("https://example.org/")
+            root.page.linkTapped("https://example.org/")
             tryVerify(function() { return find("linkSheet").opened })
             compare(root.openedUrls.length, 0)
+        }
+
+        // A point inside the body's first link, in the body's coordinates.
+        function linkSpot(body) {
+            for (let y = 1; y < body.height; y += 3)
+                for (let x = 1; x < body.width; x += 4)
+                    if (body.linkAt(x, y) !== "") return Qt.point(x, y)
+            verify(false, "no link in the body")
+        }
+        function linkBody(href) {
+            const v = view([], 0)
+            v.html = "<p>Please <a href=\"" + href + "\">verify your email</a> now</p>"
+            open(v)
+            return find("bodyText")
+        }
+
+        // On the phone a link is tapped with a finger: the body's TapHandler
+        // takes a touch release, so TextEdit.linkActivated never fires there.
+        function test_a_touch_tap_on_a_link_opens_the_sheet() {
+            const url = "https://accounts.example/verify?t=1"
+            const body = linkBody(url)
+            const p = linkSpot(body)
+            touchEvent(body).press(0, body, p.x, p.y).commit()
+            touchEvent(body).release(0, body, p.x, p.y).commit()
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(find("linkSheet").address, url)
+            compare(root.openedUrls.length, 0)
+        }
+
+        function test_a_mouse_click_on_a_link_opens_the_sheet_once() {
+            const url = "https://accounts.example/verify?t=2"
+            const body = linkBody(url)
+            mock.reset()
+            const p = linkSpot(body)
+            mouseClick(body, p.x, p.y)
+            tryVerify(function() { return find("linkSheet").opened })
+            compare(mock.called("linkView").length, 1)
+        }
+
+        function test_a_tap_beside_a_link_opens_no_sheet() {
+            const body = linkBody("https://accounts.example/")
+            mouseClick(body, body.width - 2, body.height - 2)
+            wait(50)
+            compare(find("linkSheet").opened, false)
+        }
+
+        // Review 620: a long press on a link word must not also open the link.
+        function test_a_long_press_on_a_link_does_not_open_the_sheet() {
+            const body = linkBody("https://accounts.example/")
+            const p = linkSpot(body)
+            touchEvent(body).press(0, body, p.x, p.y).commit()
+            wait(800)
+            touchEvent(body).release(0, body, p.x, p.y).commit()
+            wait(50)
+            verify(body.selectedText !== "")
+            compare(find("linkSheet").opened, false)
+        }
+
+        // Review 880: with a mouse, TapHandler reports `tapped` on the release
+        // of a long press; that release must not open the link either.
+        function test_a_mouse_long_press_on_a_link_does_not_open_the_sheet() {
+            const body = linkBody("https://accounts.example/")
+            const p = linkSpot(body)
+            mousePress(body, p.x, p.y)
+            wait(800)
+            mouseRelease(body, p.x, p.y)
+            wait(50)
+            verify(body.selectedText !== "")
+            compare(find("linkSheet").opened, false)
+            // Once the Copy menu is closed, the next click is a normal tap again.
+            root.page.dismissSelection()
+            tryVerify(function() { return !find("bodyMenu").visible })
+            mouseClick(body, p.x, p.y)
+            tryVerify(function() { return find("linkSheet").opened })
+        }
+
+        function test_a_tap_clears_the_selection_handles_and_menu() {
+            const v = view([], 0)
+            v.html = "<p>Order 48213 shipped</p>"
+            open(v)
+            const body = find("bodyText")
+            root.page.holdBody(1, 1)
+            verify(body.selectedText !== "")
+            root.page.dismissSelection()
+            compare(body.selectedText, "")
+            compare(find("bodyHandles").visible, false)
+            tryVerify(function() { return !find("bodyMenu").visible })
+        }
+
+        function test_a_text_reset_closes_the_menu() {
+            const v = view([], 0)
+            v.html = "<p>Order 48213 shipped</p>"
+            open(v)
+            root.page.holdBody(1, 1)
+            verify(find("bodyMenu").visible)
+            root.page.imageRedraws += 1
+            tryVerify(function() { return !find("bodyMenu").visible })
+        }
+
+        function test_paragraphs_and_breaks_copy_as_lines() {
+            const v = view([], 0)
+            v.html = "<p>First line<br>second line</p><p>Next paragraph</p>"
+            open(v)
+            const body = find("bodyText")
+            body.select(0, body.length)
+            const menu = find("bodyMenu")
+            menu.open()
+            entry(menu, "editCopy").triggered()
+            pasteTarget.text = ""
+            pasteTarget.paste()
+            const lines = pasteTarget.text.split(/\r?\n/).filter(l => l !== "")
+            compare(lines, ["First line", "second line", "Next paragraph"])
         }
 
         function test_another_messages_view_is_ignored() {

@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../platform"
+import "../bindle/Behaviours" as Behaviours
 
 // A multi-line text area with the edit menu, for a message body. It grows
 // with its text (the page scrolls, not the area). Like Field, a press and
@@ -29,6 +30,8 @@ Rectangle {
         textFormat: TextEdit.PlainText
         selectByMouse: true
         persistentSelection: true
+        // A key ends a press a Flickable took over (no release came).
+        Keys.onPressed: function(event) { hold.endPress(); event.accepted = false }
         color: root.theme.text
         selectionColor: root.theme.tintB
         selectedTextColor: root.theme.text
@@ -49,6 +52,7 @@ Rectangle {
         id: menu
         theme: root.theme
         field: input
+        hold: hold
     }
-    HoldSelection { field: input; menu: menu }
+    Behaviours.HoldSelection { id: hold; field: input; menu: menu }
 }

@@ -29,6 +29,7 @@ fn outgoing() -> Outgoing {
             content_type: "application/pdf".to_owned(),
             bytes: b"%PDF-1.4 test".to_vec(),
         }],
+        calendar: None,
     }
 }
 

@@ -137,6 +137,29 @@ fn remote_images_stay_blocked_until_asked() {
     assert!(shown.html.contains("images.example.net/a.png"));
 }
 
+const INLINE_IMAGE: &[u8] =
+    b"From: Ada <ada@example.org>\r\nSubject: inline\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/related; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Logo</p><img src=\"cid:logo@example.org\" alt=\"Logo\">\r\n\
+--XX\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\
+Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+
+#[test]
+fn inline_images_show_even_while_remote_images_are_blocked() {
+    let s = seeded(&[(1, INLINE_IMAGE)]);
+    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
+    assert_eq!(view.blocked_images, 0);
+    let start = view.html.find("src=\"file://").expect(&view.html);
+    let url = &view.html[start + 5..];
+    let path = &url[7..url.find('"').unwrap()];
+    assert!(
+        path.starts_with(s.h.cache_dir().join("inline").to_str().unwrap()),
+        "{path}"
+    );
+    assert_eq!(std::fs::read(path).unwrap(), b"hello");
+}
+
 #[test]
 fn search_finds_by_subject() {
     let s = seeded(&[(7, HTML), (8, HTML)]);
@@ -595,4 +618,98 @@ fn folders_are_listed_role_first() {
     });
     let paths: Vec<&str> = folders.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(paths, ["INBOX", "Drafts", "Sent", "Trash", "Banking"]);
+}
+
+/// A cached message whose server size is `size` bytes (the cached body is
+/// small: the size is what the cap looks at).
+fn seeded_sized(size: u32) -> (Seeded, MessageRowId) {
+    seeded_sized_with(size, Some("pw"), false)
+}
+
+fn seeded_sized_with(
+    size: u32,
+    password: Option<&str>,
+    foreground: bool,
+) -> (Seeded, MessageRowId) {
+    let mut h = Harness::unstarted();
+    h.foreground = foreground;
+    let key = h.seed_account(ME, password);
+    let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, HTML)]);
+    let conn = rusqlite::Connection::open(h.paths().db()).unwrap();
+    conn.execute("UPDATE messages SET size = ?1", [size])
+        .unwrap();
+    drop(conn);
+    h.start_core();
+    let s = Seeded { h, key, folder };
+    let id = s.id_of("message 1");
+    (s, id)
+}
+
+#[test]
+fn a_big_message_opens() {
+    let (s, id) = seeded_sized(30 * 1000 * 1000);
+    s.h.send(Command::OpenMessage {
+        id,
+        images: ImagesChoice::Default,
+        width_px: 300,
+    });
+    s.h.wait(|e| match e {
+        Event::MessageOpened { id: i, .. } if *i == id => Some(()),
+        _ => None,
+    });
+}
+
+#[test]
+fn a_partial_body_opens_from_disk() {
+    let (s, id) = seeded_sized(30 * 1000 * 1000);
+    let db = Db::open(&s.h.paths().db()).unwrap();
+    db.set_body_state(id, BodyState::Partial).unwrap();
+    drop(db);
+    let view = s.open(id, ImagesChoice::Default);
+    assert!(view.html.contains("Hello"));
+}
+
+const STUBBED: &str = "From: a@x.test\r\nSubject: message 1\r\nMIME-Version: 1.0\r\n\
+    Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+    --b\r\nContent-Type: text/plain\r\n\r\nHello\r\n\
+    --b\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\n\
+    Content-Disposition: attachment; filename=\"big.pdf\"\r\n\
+    Content-Transfer-Encoding: base64\r\n\
+    X-Envio-Section: 2\r\nX-Envio-Size: 31457280\r\n\r\n\r\n--b--\r\n";
+
+/// The attachment of a partial body is on the server: with no connection it
+/// is not saved, and no empty file stands in for it.
+#[test]
+fn a_stubbed_attachment_is_not_saved_as_an_empty_file_without_a_session() {
+    let (s, id) = seeded_sized_with(30 * 1000 * 1000, None, true);
+    let db = Db::open(&s.h.paths().db()).unwrap();
+    let message = db.message(id).unwrap();
+    db.set_body_state(id, BodyState::Partial).unwrap();
+    drop(db);
+    envio_store::Bodies::new(s.h.paths().bodies())
+        .write(message.folder, message.uid, STUBBED.as_bytes())
+        .unwrap();
+    let dir = s.h.paths().db().parent().unwrap().join("saved");
+    s.h.send(Command::SaveAttachment {
+        id,
+        index: 0,
+        dir: dir.clone(),
+    });
+    s.h.wait(|e| match e {
+        Event::AttachmentSaved { .. } => panic!("saved without the server"),
+        Event::AttachmentFailed { id: i, .. } if *i == id => Some(()),
+        _ => None,
+    });
+    assert!(
+        !dir.exists(),
+        "{:?}",
+        std::fs::read_dir(&dir).map(|d| d.count())
+    );
+}
+
+#[test]
+fn a_message_at_the_cap_opens_normally() {
+    let (s, id) = seeded_sized(20 * 1024 * 1024);
+    let view = s.open(id, ImagesChoice::Default);
+    assert!(view.html.contains("Hello"));
 }

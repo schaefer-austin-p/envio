@@ -35,6 +35,18 @@ AbstractButton {
         id: holder
         implicitHeight: childrenRect.height
     }
+    // A sideways drag is not a tap. A horizontal-only DragHandler with no
+    // target moves nothing; once the finger travels past the drag distance it
+    // takes the touch point's grab, the button's press is cancelled and no
+    // `clicked` follows. Vertical drags never activate it, so the list's
+    // scroll and press-and-hold are untouched, and the row's own `enabled`
+    // is not written (a bound `enabled` keeps working). Every row has this,
+    // so a swipe (an edge gesture gone slightly wrong) opens nothing.
+    DragHandler {
+        id: swipeWatch
+        target: null
+        yAxis.enabled: false
+    }
     // Built only for a row that has one, so a plain row carries no chevron.
     Loader {
         active: root.chevron

@@ -57,7 +57,6 @@ fn drops_other_link_schemes_but_keeps_text() {
         "file:///etc/passwd",
         "cid:part1",
         "relative/path",
-        "//example.com/x",
     ] {
         let html = format!(r#"<a href="{href}">x</a>"#);
         assert_eq!(clean(&html), "<a>x</a>", "{href}");
@@ -117,7 +116,10 @@ fn ordinary_nesting_still_goes_through_ammonia() {
         "</td><td>x</td></tr></table>".repeat(n)
     );
     let out = clean(&html);
-    assert_eq!(out.matches("<table>").count(), n);
+    // Each outer table lays out a nested one beside text, so it stacks into
+    // blocks; the innermost holds only short text and stays a table.
+    assert_eq!(out.matches("<table>").count(), 1, "{out}");
+    assert_eq!(out.matches("<td>").count(), 2, "{out}");
     assert!(out.contains("<b>cell</b>"));
     assert!(!out.contains("white-space"));
 }
@@ -131,16 +133,28 @@ fn css_braces_are_refused() {
 }
 
 #[test]
-fn links_with_control_characters_or_spaced_schemes_lose_the_href() {
-    for href in [
-        "https://example.com/&#10;x",
-        "https://exa&#9;mple.com",
-        "ht tps://example.com",
-        "https ://example.com",
-        "mailto:a@b.com&#13;&#10;Bcc:x@y.org",
-    ] {
+fn links_with_spaced_schemes_lose_the_href() {
+    for href in ["ht tps://example.com", "https ://example.com"] {
         let html = format!(r#"<a href="{href}">x</a>"#);
         assert_eq!(clean(&html), "<a>x</a>", "{href}");
+    }
+}
+
+// Tabs and newlines are dropped as a browser drops them, so the href the
+// link sheet shows is the one that opens: no line break is left to start a
+// header, and the host is the joined one.
+#[test]
+fn tabs_and_newlines_in_links_are_dropped_not_kept() {
+    for (href, want) in [
+        ("https://example.com/&#10;x", "https://example.com/x"),
+        ("https://exa&#9;mple.com", "https://example.com"),
+        (
+            "mailto:a@b.com&#13;&#10;Bcc:x@y.org",
+            "mailto:a@b.comBcc:x@y.org",
+        ),
+    ] {
+        let html = format!(r#"<a href="{href}">x</a>"#);
+        assert_eq!(clean(&html), format!(r#"<a href="{want}">x</a>"#), "{href}");
     }
 }
 
@@ -172,6 +186,96 @@ fn absurd_or_unparseable_lengths_are_dropped() {
             "{decl}"
         );
     }
-    let ok = r#"<p style="margin:0 auto;padding:10px 2em;font-size:12PT !important">t</p>"#;
+    let ok = r#"<p style="margin-top:0;padding:10px 2em;font-size:12PT !important">t</p>"#;
     assert_eq!(clean(ok), ok);
+}
+
+/// Qt 5's TextEdit draws a box's background from the left edge but its
+/// text after the left margin, and reads `auto` as a wide margin; only the
+/// top and bottom margins survive.
+#[test]
+fn only_vertical_margins_are_kept() {
+    for (style, kept) in [
+        ("margin:0 auto", "margin-top:0;margin-bottom:0"),
+        (
+            "margin:0px auto !important",
+            "margin-top:0px;margin-bottom:0px",
+        ),
+        ("margin:4px", "margin-top:4px;margin-bottom:4px"),
+        ("margin:0 ! important", "margin-top:0;margin-bottom:0"),
+        ("margin-top:5px ! important", "margin-top:5px"),
+        ("margin:1px 20px 3px", "margin-top:1px;margin-bottom:3px"),
+        (
+            "margin:1px 20px 3px 40px",
+            "margin-top:1px;margin-bottom:3px",
+        ),
+        ("margin:auto 20px 3px", "margin-bottom:3px"),
+        ("margin-top:5px", "margin-top:5px"),
+        ("margin-bottom:6px", "margin-bottom:6px"),
+    ] {
+        assert_eq!(
+            clean(&format!(
+                r#"<div style="background-color:#eee;{style}">t</div>"#
+            )),
+            format!(r#"<div style="background-color:#eee;{kept}">t</div>"#),
+            "{style}"
+        );
+    }
+    for style in [
+        "margin-left:20px",
+        "margin-right:2em",
+        "margin:auto",
+        "margin-top:auto",
+    ] {
+        assert_eq!(
+            clean(&format!(r#"<div style="{style};color:red">t</div>"#)),
+            r#"<div style="color:red">t</div>"#,
+            "{style}"
+        );
+    }
+}
+
+#[test]
+fn a_zero_font_size_becomes_one_pixel() {
+    for zero in [
+        "0",
+        "0px",
+        "0pt",
+        "0em",
+        "0.0px",
+        "0px !important",
+        "0.5px",
+        "0.3pt",
+        "0px ! important",
+    ] {
+        assert_eq!(
+            clean(&format!(r#"<div style="font-size:{zero}">&nbsp;</div>"#)),
+            r#"<div style="font-size:1px">&nbsp;</div>"#,
+            "{zero}"
+        );
+    }
+}
+
+#[test]
+fn a_very_large_font_size_is_clamped() {
+    for big in [
+        "40px",
+        "30pt",
+        "3em",
+        "26.5px",
+        "2.5rem",
+        "40px ! important",
+        "+40px",
+        "40px !important",
+    ] {
+        assert_eq!(
+            clean(&format!(r#"<h1 style="font-size:{big}">t</h1>"#)),
+            r#"<h1 style="font-size:26px">t</h1>"#,
+            "{big}"
+        );
+    }
+    for ok in ["26px", "14px", "12pt", "1.2em", "large", "120%", "1px"] {
+        let html = format!(r#"<h1 style="font-size:{ok}">t</h1>"#);
+        assert_eq!(clean(&html), html, "{ok}");
+    }
 }

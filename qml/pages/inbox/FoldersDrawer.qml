@@ -194,25 +194,43 @@ Rectangle {
                         chevron: true
                         chevronDirection: root.expanded === acct.model.key ? "down" : "forward"
                         onClicked: root.expand(acct.model.key)
-                        Accessible.name: offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text
+                        readonly property bool stopped: acct.model.attention === true
+                        Accessible.name: stopped ? qsTr("%1, sync stopped").arg(accountName.text)
+                                                 : (offlineIcon.visible ? qsTr("%1, offline").arg(accountName.text) : accountName.text)
+                        // The state icon: cloud-off while offline, the alert sign
+                        // while sync is stopped (a tap on it opens Accounts).
                         Icon {
                             id: offlineIcon
                             objectName: "offlineIcon"
-                            visible: acct.model.state === "offline"
+                            visible: group.stopped || acct.model.state === "offline"
                             theme: root.theme
-                            name: "offline"
+                            name: group.stopped ? "alert" : "offline"
                             color: root.theme.accent
                             size: root.theme.gu(2.5)
                             x: root.theme.gu(2.5)
                             y: root.theme.gu(1.75) + (accountName.height - height) / 2
+                            MouseArea {
+                                objectName: "stoppedLink"
+                                enabled: group.stopped
+                                // The icon's own cell: from the row's edge to the
+                                // account name, so a tap on the name still expands.
+                                x: -offlineIcon.x
+                                width: offlineIcon.x + offlineIcon.width + root.theme.gu(1)
+                                height: root.theme.touch
+                                anchors.verticalCenter: parent.verticalCenter
+                                Accessible.role: Accessible.Button
+                                Accessible.name: qsTr("Open accounts")
+                                onClicked: root.accountsRequested()
+                            }
                         }
                         Text {
                             id: accountName
+                            objectName: "accountName"
                             textFormat: Text.PlainText
                             x: root.theme.gu(2.5) + (offlineIcon.visible ? offlineIcon.width + root.theme.gu(1) : 0)
                             y: root.theme.gu(1.75)
                             width: parent.width - x - group.chevronSpace
-                            text: acct.model.name + " · " + acct.model.email
+                            text: acct.model.heading
                             elide: Text.ElideRight
                             color: root.theme.heading
                             font.family: root.theme.fontUi

@@ -17,6 +17,15 @@ Item {
         return base.replace(/^file:\/\//, "") + "/" + Qt.application.name + "/attachments"
     }
 
+    // Whether the hub's picker exists here: its file needs Lomiri.Content,
+    // which only the phone has. Compiled, not shown.
+    readonly property bool hubAvailable: {
+        const probe = Qt.createComponent(Qt.resolvedUrl("ut/ContentExport.qml"))
+        const ok = probe.status === Component.Ready
+        probe.destroy()
+        return ok
+    }
+
     // The paths of the files the user picked to attach.
     signal filesImported(var paths)
 
@@ -31,7 +40,7 @@ Item {
         picker.item.start()
     }
 
-    // `mode` is "open", "save" or "share". (Not `export`: that is a
+    // `mode` is "open", "save", "share" or "calendar". (Not `export`: that is a
     // reserved word in JavaScript.)
     function exportFile(path, mode) {
         hub.setSource("ut/ContentExport.qml", { theme: root.theme })

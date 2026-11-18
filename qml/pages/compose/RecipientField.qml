@@ -14,6 +14,8 @@ Item {
     required property var core
     required property var suggestions
     property string label: ""
+    // Where chips and text start: the page margin, the label and a gap.
+    property real labelColumn: theme.gu(9.5)
     property var entries: []
     readonly property alias input: field.input
     // A quiet action at the trailing end of the first line (Cc Bcc on To);
@@ -72,7 +74,7 @@ Item {
             width: parent.width
             Text {
                 textFormat: Text.PlainText
-                width: root.theme.gu(6.5)
+                width: root.labelColumn
                 height: root.theme.touch
                 verticalAlignment: Text.AlignVCenter
                 leftPadding: root.theme.gu(2)
@@ -83,7 +85,7 @@ Item {
             }
             Flow {
                 id: flow
-                width: parent.width - root.theme.gu(6.5) - root.theme.gu(1) - trailing.width
+                width: parent.width - root.labelColumn - root.theme.gu(1) - trailing.width
                 Repeater {
                     id: chips
                     model: root.entries
@@ -135,7 +137,19 @@ Item {
                         return left >= root.theme.gu(8) ? left : flow.width - root.theme.gu(1)
                     }
                     inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                    onAccepted: root.commit(true)
+                    // Enter makes a chip and stays: the cursor and the keyboard
+                    // are kept for the next address. The refocus is deferred so
+                    // it runs after whatever the platform does on Enter.
+                    onAccepted: {
+                        // Only when a chip was made: Enter on an empty field
+                        // may be the user closing the keyboard.
+                        const before = root.entries.length
+                        root.commit(true)
+                        if (root.entries.length > before) Qt.callLater(function() {
+                            field.input.forceActiveFocus()
+                            Qt.inputMethod.show()
+                        })
+                    }
                 }
                 Connections {
                     target: field.input

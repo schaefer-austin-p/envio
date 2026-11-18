@@ -8,6 +8,9 @@ pub struct AccountRow {
     pub key: String,
     pub name: String,
     pub email: String,
+    /// What the drawer shows: name and address, or the address once when the
+    /// name is empty or the same.
+    pub heading: String,
     /// The status in words.
     pub status: String,
     /// "ok", "offline", "local", "auth", "pin", "broken" or "diskfull".
@@ -16,6 +19,10 @@ pub struct AccountRow {
     /// The count as the number's digits, empty for none: QML shows it
     /// without formatting anything.
     pub unread_text: String,
+    /// Sync is stopped by a problem only the user can fix (sign-in failed,
+    /// certificate changed): tab and drawer row show a signal that leads to
+    /// Accounts.
+    pub attention: bool,
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
@@ -77,6 +84,11 @@ pub struct OutboxRowUi {
     /// "waiting", "sending", "sentnotfiled", "failed" or "maybesent".
     pub status: String,
     pub text: String,
+    /// Why a waiting message does not leave, when the account's outgoing
+    /// server problem is the cause (its words); empty otherwise.
+    pub reason: String,
+    /// The label of the button that leads to the fix; empty with no reason.
+    pub reason_action: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,10 +123,12 @@ const ACCOUNT: &[&str] = &[
     "key",
     "name",
     "email",
+    "heading",
     "status",
     "state",
     "unread",
     "unreadText",
+    "attention",
     "pinService",
     "pinHost",
     "pinTitle",
@@ -138,7 +152,16 @@ const MESSAGE: &[&str] = &[
     "hasAttachments",
     "selected",
 ];
-const OUTBOX: &[&str] = &["id", "account", "subject", "to", "status", "text"];
+const OUTBOX: &[&str] = &[
+    "id",
+    "account",
+    "subject",
+    "to",
+    "status",
+    "text",
+    "reason",
+    "reasonAction",
+];
 const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
 fn s(v: &str) -> RowValue {
@@ -164,10 +187,12 @@ impl Row {
             (Self::Account(r), "key") => s(&r.key),
             (Self::Account(r), "name") => s(&r.name),
             (Self::Account(r), "email") => s(&r.email),
+            (Self::Account(r), "heading") => s(&r.heading),
             (Self::Account(r), "status") => s(&r.status),
             (Self::Account(r), "state") => s(&r.state),
             (Self::Account(r), "unread") => Int(r.unread.into()),
             (Self::Account(r), "unreadText") => s(&r.unread_text),
+            (Self::Account(r), "attention") => Bool(r.attention),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
             (Self::Account(r), "pinTitle") => s(&r.pin.title),
@@ -199,6 +224,8 @@ impl Row {
             (Self::Outbox(r), "to") => s(&r.to),
             (Self::Outbox(r), "status") => s(&r.status),
             (Self::Outbox(r), "text") => s(&r.text),
+            (Self::Outbox(r), "reason") => s(&r.reason),
+            (Self::Outbox(r), "reasonAction") => s(&r.reason_action),
             (Self::Suggestion(r), "name") => s(&r.name),
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),

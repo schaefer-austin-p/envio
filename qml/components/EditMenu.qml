@@ -11,6 +11,11 @@ Menu {
     // The TextField (or any item with cut/copy/paste/selectAll) it edits.
     required property Item field
     property bool password: false
+    // Read-only text (the reader's body): Copy and Select all, no Cut or Paste.
+    property bool copyOnly: false
+    // The field's HoldSelection (bindle): Select all through it opens the
+    // menu again with Cut and Copy live. Without one, Select all only selects.
+    property var hold: null
 
     // What the field allows, read once as the menu opens. Live bindings to
     // the field's selection and clipboard state loop on the phone: opening
@@ -23,6 +28,16 @@ Menu {
         hasText = field.text !== ""
         pasteable = field.canPaste
     }
+
+    // Copy puts plain text on the clipboard (a rich TextEdit's own copy()
+    // also carries HTML). The clipboard has no QML API; a hidden TextEdit copies.
+    function copyPlain() {
+        plainClip.text = field.selectedText
+        plainClip.selectAll()
+        plainClip.copy()
+    }
+    // A property, not a child: a child Item would become a menu entry.
+    readonly property TextEdit plainClip: TextEdit { visible: false; textFormat: TextEdit.PlainText }
 
     objectName: "editMenu"
     implicitWidth: theme.gu(25)
@@ -58,7 +73,7 @@ Menu {
     EditRow {
         objectName: "editCut"
         text: qsTr("Cut")
-        visible: !root.password
+        visible: !root.password && !root.copyOnly
         enabled: root.hasSelection
         onTriggered: root.field.cut()
     }
@@ -67,11 +82,12 @@ Menu {
         text: qsTr("Copy")
         visible: !root.password
         enabled: root.hasSelection
-        onTriggered: root.field.copy()
+        onTriggered: root.copyOnly ? root.copyPlain() : root.field.copy()
     }
     EditRow {
         objectName: "editPaste"
         text: qsTr("Paste")
+        visible: !root.copyOnly
         enabled: root.pasteable
         onTriggered: root.field.paste()
     }
@@ -80,6 +96,6 @@ Menu {
         text: qsTr("Select all")
         visible: !root.password
         enabled: root.hasText
-        onTriggered: root.field.selectAll()
+        onTriggered: root.hold ? root.hold.selectAll() : root.field.selectAll()
     }
 }

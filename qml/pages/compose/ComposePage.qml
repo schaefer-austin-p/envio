@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform" as Platform
 
 // Writing a message (reply, forward, new, a draft, an Outbox item or a
 // mailto: link). The core owns the draft: it fills the page with
@@ -21,6 +22,18 @@ Item {
     // The platform's file picker; the tests replace it (the Content Hub only
     // exists on the phone).
     property var importFiles: function() { content.importFiles() }
+    // Where the From, To, Cc, Bcc and Subject values start: the page margin,
+    // the widest label (at least the design's 52 px) and a gap, so a long
+    // translated label never runs into its value.
+    readonly property real labelColumn: {
+        // Reading the font makes the column follow it once the UI font loads.
+        void labelFont.font
+        let widest = theme.gu(6.5)
+        for (const t of [qsTr("From"), qsTr("To"), qsTr("Cc"), qsTr("Bcc"), qsTr("Subject")])
+            widest = Math.max(widest, labelFont.advanceWidth(t))
+        return theme.gu(2) + Math.ceil(widest) + theme.gu(1)
+    }
+    FontMetrics { id: labelFont; font.family: root.theme.fontUi; font.pixelSize: 14 }
 
     // The message was queued: the Outbox has it. The text is core's, for a
     // toast.
@@ -187,13 +200,14 @@ Item {
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
 
-        KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
+        Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
         Column {
             id: column
             width: flick.width
             FromRow {
                 width: parent.width
+                labelColumn: root.labelColumn
                 theme: root.theme
                 accounts: root.accounts
                 account: root.account
@@ -203,6 +217,7 @@ Item {
                 id: to
                 objectName: "to"
                 width: parent.width
+                labelColumn: root.labelColumn
                 theme: root.theme
                 core: root.core
                 suggestions: root.suggestions
@@ -217,6 +232,7 @@ Item {
                 id: cc
                 objectName: "ccField"
                 width: parent.width
+                labelColumn: root.labelColumn
                 visible: root.showCc
                 height: visible ? implicitHeight : 0
                 theme: root.theme
@@ -230,6 +246,7 @@ Item {
                 id: bcc
                 objectName: "bccField"
                 width: parent.width
+                labelColumn: root.labelColumn
                 visible: root.showCc
                 height: visible ? implicitHeight : 0
                 theme: root.theme
@@ -243,6 +260,7 @@ Item {
                 id: subject
                 objectName: "subjectField"
                 width: parent.width
+                labelColumn: root.labelColumn
                 theme: root.theme
                 onTextChanged: root.edited()
             }

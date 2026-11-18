@@ -26,4 +26,6 @@ The canvas notes that changed the first boards are kept in
 `docs/10-design.md` under "Changes to the first boards"; where a board and that
 section disagree, the section wins.
 
-Not in the export, so still to add: the meeting invite card (0.2.0).
+Added after the export: the meeting invite card (0.2.0), at the foot of
+`carbon-reading` and `airmail-reading`, in light and dark. It shows every state:
+open, with a note, answered, updated, cancelled, reply, sending and send failed.

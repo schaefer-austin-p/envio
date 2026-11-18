@@ -11,13 +11,16 @@ Item {
     // For tests: the inner field and its input.
     readonly property alias field: field
     readonly property alias input: field.input
+    // Where the text starts: the page margin, the label and a gap. The
+    // page gives every header row the same column.
+    property real labelColumn: theme.gu(9.5)
 
     implicitHeight: root.theme.touch + 1
 
     Text {
         objectName: "subjectLabel"
         textFormat: Text.PlainText
-        width: root.theme.gu(6.5)
+        width: root.labelColumn
         height: root.theme.touch
         verticalAlignment: Text.AlignVCenter
         leftPadding: root.theme.gu(2)
@@ -30,8 +33,8 @@ Item {
     }
     Field {
         id: field
-        x: root.theme.gu(6.5)
-        width: root.width - root.theme.gu(6.5) - root.theme.gu(1)
+        x: root.labelColumn
+        width: root.width - root.labelColumn - root.theme.gu(1)
         theme: root.theme
         framed: false
     }

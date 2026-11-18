@@ -243,14 +243,35 @@ Item {
             compare(find("subjectField").field.framed, false)
             const label = find("subjectLabel")
             verify(label !== undefined, "the label is in the row")
-            // Same column as From and To: text starts at the page margin, label column gu(6.5).
+            // Same column as From and To: text starts at the page margin, the
+            // label column is the page's.
             compare(label.mapToItem(page, 0, 0).x + label.leftPadding, find("fromLabel").mapToItem(page, 0, 0).x)
-            compare(label.width, thm.gu(6.5))
+            compare(label.width, page.labelColumn)
             mouseClick(label)
             verify(find("subjectField").input.activeFocus, "tapping the row focuses the input")
             const n = mock.called("draftChanged").length
             find("subjectField").input.text = "Hi"
             verify(mock.called("draftChanged").length > n, "editing marks the draft edited")
+        }
+
+        // Phone shot of a reply: "Subject" ran into "Re: …", and the From address,
+        // the To chip and the subject text started at three different x.
+        function test_header_values_share_one_column_after_the_labels() {
+            mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [],
+                                   subject: "Re: FW: a long subject that fills the whole row and more",
+                                   body: "", inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const col = page.labelColumn
+            verify(col >= thm.gu(9.5), "at least margin + 52 px label + gap, as designed")
+            compare(find("fromValue").mapToItem(page, 0, 0).x, col)
+            compare(find("to-remove-0").mapToItem(page, 0, 0).x, col)
+            const input = find("subjectField").input
+            compare(input.mapToItem(page, input.leftPadding, 0).x, col)
+            for (const name of ["subjectLabel", "fromLabel"]) {
+                const label = find(name)
+                const end = label.mapToItem(page, 0, 0).x + label.leftPadding + label.contentWidth
+                verify(end + thm.gu(1) <= col, name + " keeps a gap before its value")
+            }
         }
 
         // #138 review: with Cc Bcc showing, a long chip uses what the first line
@@ -264,7 +285,7 @@ Item {
             const chip = find("to-remove-0")
             const input = to.input.mapToItem(chip.parent, 0, 0)
             verify(shown("showCc"))
-            verify(chip.width >= 150 && chip.width >= to.width - thm.gu(16.5) - find("showCc").width - 2, "chip is " + chip.width + " wide")
+            verify(chip.width >= to.width - page.labelColumn - thm.gu(10) - find("showCc").width - 2, "chip is " + chip.width + " wide")
             compare(input.y, chip.y, "the input is on the chip's line")
             verify(chip.x + chip.width + to.input.width <= chip.parent.width + 1)
             verify(to.height <= find("fromRow").height + 2, "one line")
@@ -448,6 +469,25 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        // Phone shot: the accounts in "Send from" sat at the sheet's left
+        // edge and at the top of their rows.
+        function test_from_sheet_rows_line_up_with_its_title() {
+            mock.composeReady(1, reply, "")
+            mouseClick(find("fromRow"))
+            tryVerify(function() { return shown("account-work") })
+            waitForRendering(page)
+            const row = find("account-work")
+            const text = find("accountText-work")
+            compare(text.mapToItem(row, 0, 0).x, thm.gu(2.5))
+            verify(text.mapToItem(row, 0, 0).x + text.width <= row.width - thm.gu(2.5))
+            const top = text.mapToItem(row, 0, 0).y
+            const bottom = row.height - top - text.height
+            verify(Math.abs(top - bottom) <= 1, "text sits " + top + " from the top, " + bottom + " from the bottom")
+            // Close the sheet, so it doesn't cover the next test's clicks.
+            mouseClick(row)
+            tryVerify(function() { return !shown("account-work") })
+        }
+
         function chevronIn(item) {
             return everything(item, []).filter(function(o) { return o.objectName === "chevron" })[0]
         }
@@ -482,6 +522,48 @@ Item {
             waitForRendering(page)
             compare(find("suggestionAddress-0").mapToItem(page, 0, 0).x, margin)
             compare(find("suggestionNote-0").mapToItem(page, 0, 0).x, margin)
+        }
+
+        // #145: Enter made a chip but the cursor and keyboard went away, so a
+        // second address typed next went nowhere.
+        function test_enter_keeps_focus_in_the_field() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            to.input.forceActiveFocus()
+            verify(to.input.activeFocus)
+            // On the phone the platform drops focus once Enter is handled
+            // (offscreen it does not): do the same after the field's own
+            // handler, so the field has to take focus back.
+            const drop = function() { to.input.focus = false }
+            to.input.accepted.connect(drop)
+            keyClick("a"); keyClick("@"); keyClick("e"); keyClick("x")
+            keyClick(Qt.Key_Return)
+            to.input.accepted.disconnect(drop)
+            compare(to.entries, ["a@ex"])
+            compare(to.input.text, "")
+            tryVerify(function() { return to.input.activeFocus }, 1000, "the field keeps focus after Enter")
+            keyClick("b")
+            compare(to.input.text, "b")
+            compare(to.entries, ["a@ex"], "the refocus did not commit the new text")
+        }
+
+        // Enter on an empty field is the user dismissing the keyboard: it must
+        // not be forced back open.
+        function test_enter_on_an_empty_field_does_not_take_focus_back() {
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "")
+            waitForRendering(page)
+            const to = find("to")
+            to.input.forceActiveFocus()
+            const drop = function() { to.input.focus = false }
+            to.input.accepted.connect(drop)
+            keyClick(Qt.Key_Return)
+            to.input.accepted.disconnect(drop)
+            wait(100)
+            compare(to.entries, [])
+            verify(!to.input.activeFocus, "an empty Enter does not refocus")
         }
 
         function test_recipient_row_is_one_line_beside_a_chip() {

@@ -8,6 +8,7 @@ use futures::TryStreamExt;
 use super::client::map_error;
 use super::names;
 use super::query::{self, Flag, MessageFlags};
+use super::untrusted::neutralize;
 use super::{FlagUpdate, Folder, FolderState, ImapSession, Summary};
 use crate::connect;
 use crate::error::{NetError, Result};
@@ -118,10 +119,12 @@ impl ImapSession {
         uids: &[u32],
         changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>> {
-        let Some(set) = query::uid_set(uids) else {
-            return Ok(Vec::new());
-        };
-        self.fetch_flags_in(&set, uids.len(), changed_since).await
+        // One command per chunk keeps each line under the server's limit.
+        let mut updates = Vec::new();
+        for (set, count) in query::uid_set_chunks(uids, query::MAX_SET_LEN) {
+            updates.extend(self.fetch_flags_in(&set, count, changed_since).await?);
+        }
+        Ok(updates)
     }
 
     /// Flags of every message from `first` up (`first:*`).
@@ -180,11 +183,13 @@ impl ImapSession {
                 .try_collect()
                 .await
                 .map_err(map_error)?;
+            // The reply that carries the body (an unsolicited update for the
+            // same UID may come first).
             Ok(fetches
                 .iter()
-                .find(|fetch| fetch.uid == Some(uid))
-                .and_then(|fetch| fetch.body())
-                .map(<[u8]>::to_vec))
+                .filter(|fetch| fetch.uid == Some(uid))
+                .find_map(|fetch| fetch.body())
+                .map(|body| neutralize(body).into_owned()))
         })
         .await
     }

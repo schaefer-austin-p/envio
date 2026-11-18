@@ -3,8 +3,8 @@ import Lomiri.Content 1.3
 
 // Hands one file to another app through Content Hub (Ubuntu Touch only; the
 // only file that imports Lomiri.Content for export). The file is already in
-// the app's cache. "share" lists the apps that take shares; "open" and
-// "save" list destinations (Document Viewer, Files). `done` fires when the
+// the app's cache. "share" lists the apps that take shares; "open",
+// "save" and "calendar" list destinations (Document Viewer, Files, Calendar). `done` fires when the
 // user cancelled or the hand-over is charged.
 Rectangle {
     id: root
@@ -29,7 +29,8 @@ Rectangle {
         id: picker
         anchors.fill: parent
         showTitle: true
-        contentType: ContentType.All
+        // "calendar" lists the apps that take events (Calendar).
+        contentType: root.mode === "calendar" ? ContentType.Events : ContentType.All
         handler: root.mode === "share" ? ContentHandler.Share : ContentHandler.Destination
         onPeerSelected: {
             picker.peer.selectionType = ContentTransfer.Single

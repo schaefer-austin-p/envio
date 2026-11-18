@@ -6,17 +6,22 @@
 mod address;
 mod attach_part;
 mod attachments;
+mod backgrounds;
 mod build;
 mod colours;
 mod content_type;
 mod envelope;
 mod hidden;
+mod image_label;
+mod image_size;
 mod images;
+mod invite;
 mod linear;
 mod link;
 mod mail;
 mod mailto;
 mod message;
+mod natural;
 mod nesting;
 mod plain;
 mod preview;
@@ -29,14 +34,22 @@ mod thread;
 mod widths;
 
 pub use address::{Address, same_email};
-pub use attachments::{AttachmentInfo, attachment_bytes};
-pub use build::{Built, Outgoing, OutgoingAttachment, build, new_message_id};
+pub use attachments::{
+    AttachmentInfo, attachment_bytes, attachments_bytes, decode_part, with_attachments,
+};
+pub use build::{Built, CalendarPart, Outgoing, OutgoingAttachment, build, new_message_id};
 pub use colours::{parse_colour, sets_colours};
 pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
+pub use image_size::size as image_size;
+pub use invite::{
+    Invite, InviteMethod, NaiveParts, PartStat, Person, When, calendar_file, invite_of,
+    parse_invite, reply_ics, reply_outgoing,
+};
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};
 pub use message::{Body, Message, parse, quote_text};
+pub use natural::Unsized;
 pub use plain::plain_to_rich;
 pub use preview::{PREVIEW_CHARS, preview};
 pub use render::render;

@@ -95,8 +95,14 @@ pub mod qobject {
         #[cxx_name = "attachmentFailed"]
         fn attachment_failed(self: Pin<&mut EnvioCore>, id: f64);
         #[qsignal]
+        #[cxx_name = "inviteExported"]
+        fn invite_exported(self: Pin<&mut EnvioCore>, id: f64, path: &QString);
+        #[qsignal]
+        #[cxx_name = "inviteExportFailed"]
+        fn invite_export_failed(self: Pin<&mut EnvioCore>, id: f64);
+        #[qsignal]
         #[cxx_name = "undoOffer"]
-        fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString);
+        fn undo_offer(self: Pin<&mut EnvioCore>, undo: f64, text: &QString, scope: &QString);
         #[qsignal]
         #[cxx_name = "undoClosed"]
         fn undo_closed(self: Pin<&mut EnvioCore>, undo: f64);
@@ -197,6 +203,9 @@ pub mod qobject {
         #[cxx_name = "loadOlder"]
         fn load_older(self: Pin<&mut EnvioCore>);
         #[qinvokable]
+        #[cxx_name = "loadOlderNearEnd"]
+        fn load_older_near_end(self: Pin<&mut EnvioCore>);
+        #[qinvokable]
         #[cxx_name = "setSyncWindow"]
         fn set_sync_window(self: Pin<&mut EnvioCore>, days: i32);
         #[qinvokable]
@@ -209,7 +218,13 @@ pub mod qobject {
         #[qinvokable]
         fn undo(self: Pin<&mut EnvioCore>, id: i64);
         #[qinvokable]
+        #[cxx_name = "answerInvite"]
+        fn answer_invite(self: Pin<&mut EnvioCore>, id: i64, answer: &QString, note: &QString);
+        #[qinvokable]
         fn open(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
+        #[qinvokable]
+        #[cxx_name = "reportImageSizes"]
+        fn report_image_sizes(self: Pin<&mut EnvioCore>, id: i64, sizes_json: &QString);
         #[qinvokable]
         #[cxx_name = "allowImagesFrom"]
         fn allow_images_from(self: Pin<&mut EnvioCore>, address: &QString);
@@ -219,6 +234,9 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "saveAttachment"]
         fn save_attachment(self: Pin<&mut EnvioCore>, id: i64, index: i32, dir: &QString);
+        #[qinvokable]
+        #[cxx_name = "exportInvite"]
+        fn export_invite(self: Pin<&mut EnvioCore>, id: i64, dir: &QString);
         #[qinvokable]
         #[cxx_name = "startCompose"]
         fn start_compose(
