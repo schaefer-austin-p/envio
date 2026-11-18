@@ -54,12 +54,26 @@ fn narrow(path: &Path) -> io::Result<()> {
 }
 
 /// Narrows `root` and everything below it, so an install made before files
-/// were private is tightened at its next start: access for group and other
-/// is removed, owner bits stay. Symlinks are not followed. A missing `root`
-/// is fine.
+/// were private is tightened: access for group and other is removed, owner
+/// bits stay. Symlinks are not followed. A missing `root` is fine.
+///
+/// An entry that cannot be read or changed (owned by someone else, gone
+/// meanwhile) does not stop the walk: everything else is still narrowed, and
+/// the first error is returned at the end.
 pub fn tighten_tree(root: &Path) -> io::Result<()> {
-    narrow(root)?;
-    let entries = match fs::read_dir(root) {
+    let mut first = None;
+    walk(root, &mut first);
+    first.map_or(Ok(()), Err)
+}
+
+fn walk(path: &Path, first: &mut Option<io::Error>) {
+    let mut note = |result: io::Result<()>| {
+        if let Err(error) = result {
+            first.get_or_insert(error);
+        }
+    };
+    note(narrow(path));
+    let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error)
             if matches!(
@@ -67,18 +81,35 @@ pub fn tighten_tree(root: &Path) -> io::Result<()> {
                 io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
             ) =>
         {
-            return Ok(());
+            return;
         }
-        Err(error) => return Err(error),
+        Err(error) => return note(Err(error)),
     };
+    let mut subfolders = Vec::new();
     for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        if entry.file_type()?.is_dir() {
-            tighten_tree(&path)?;
-        } else {
-            narrow(&path)?;
+        match entry.and_then(|entry| Ok((entry.path(), entry.file_type()?))) {
+            Ok((path, kind)) if kind.is_dir() => subfolders.push(path),
+            Ok((path, _)) => note(narrow(&path)),
+            Err(error) => note(Err(error)),
         }
     }
-    Ok(())
+    for folder in subfolders {
+        walk(&folder, first);
+    }
+}
+
+/// Marks a root whose existing files `tighten_tree` has narrowed.
+const MARKER: &str = ".private-v1";
+
+/// `tighten_tree` as a one-time migration: once a whole walk of `root` has
+/// succeeded a private marker file is written, and later calls return at
+/// once (files made since are created private). A walk with errors leaves no
+/// marker, so the next start tries again.
+pub fn tighten_once(root: &Path) -> io::Result<()> {
+    let marker = root.join(MARKER);
+    if marker.exists() {
+        return Ok(());
+    }
+    tighten_tree(root)?;
+    create_private_file(&marker)
 }

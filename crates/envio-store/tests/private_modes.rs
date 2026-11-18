@@ -141,3 +141,48 @@ fn tighten_tree_narrows_what_is_too_open() {
     assert_eq!(mode(&outside), 0o644, "links are not followed");
     envio_store::tighten_tree(&dir.path().join("missing")).unwrap();
 }
+
+#[test]
+fn tighten_tree_keeps_going_past_an_entry_it_cannot_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("root");
+    fs::create_dir_all(&root).unwrap();
+    let files: Vec<_> = (0..30).map(|n| root.join(format!("{n}.eml"))).collect();
+    for file in &files {
+        fs::write(file, b"x").unwrap();
+        fs::set_permissions(file, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    // Made last and also first in a listing on some filesystems, last on
+    // others: 30 files either side make an abort show.
+    let bad = root.join("bad");
+    fs::create_dir_all(&bad).unwrap();
+    fs::set_permissions(&bad, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&bad).is_ok() {
+        fs::set_permissions(&bad, fs::Permissions::from_mode(0o700)).unwrap();
+        return; // root ignores modes: nothing to fail on
+    }
+    let result = envio_store::tighten_tree(&root);
+    fs::set_permissions(&bad, fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(result.is_err(), "the unreadable folder is reported");
+    for file in &files {
+        assert_eq!(mode(file), 0o600, "{file:?}");
+    }
+}
+
+#[test]
+fn tighten_once_walks_only_until_it_has_succeeded() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("root");
+    fs::create_dir_all(&root).unwrap();
+    let file = root.join("a.eml");
+    fs::write(&file, b"x").unwrap();
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+    envio_store::tighten_once(&root).unwrap();
+    assert_eq!(mode(&file), 0o600);
+    assert_eq!(mode(&root.join(".private-v1")), 0o600);
+    // Intended: after the migration new files are private from creation, so
+    // the walk does not look again; a file loosened by hand stays loose.
+    fs::set_permissions(&file, fs::Permissions::from_mode(0o644)).unwrap();
+    envio_store::tighten_once(&root).unwrap();
+    assert_eq!(mode(&file), 0o644);
+}
