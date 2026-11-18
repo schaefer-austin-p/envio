@@ -161,7 +161,8 @@ pub fn srv_candidates(
 
 /// The first implicit-TLS server of each kind, else the first STARTTLS
 /// one. None unless there is both an IMAP and an SMTP server. `confirm`
-/// is set only for SRV answers with a host outside `domain`.
+/// is set when either host is outside `domain`, whatever the source: the
+/// password would go there.
 pub fn best(candidates: &Candidates, source: Source, domain: &str) -> Option<Found> {
     fn pick(list: &[Setting]) -> Option<&Setting> {
         list.iter()
@@ -171,7 +172,7 @@ pub fn best(candidates: &Candidates, source: Source, domain: &str) -> Option<Fou
     let imap = pick(&candidates.imap)?.clone();
     let smtp = pick(&candidates.smtp)?.clone();
     let outside = |s: &Setting| !within(&s.endpoint.host, domain);
-    let confirm = source == Source::Srv && (outside(&imap) || outside(&smtp));
+    let confirm = outside(&imap) || outside(&smtp);
     Some(Found {
         imap,
         smtp,
@@ -332,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn only_srv_servers_outside_the_domain_need_confirming() {
+    fn servers_outside_the_domain_need_confirming_from_any_source() {
         let pair = |imap: &str, smtp: &str| Candidates {
             imap: vec![setting(imap, 993, Security::Tls)],
             smtp: vec![setting(smtp, 465, Security::Tls)],
@@ -361,7 +362,9 @@ mod tests {
         ));
         for source in [Source::Ispdb, Source::Provider, Source::WellKnown] {
             let off = pair("evil.attacker.net", "smtp.attacker.net");
-            assert!(!confirm(&off, source), "{source:?}");
+            assert!(confirm(&off, source), "{source:?}");
+            let on = pair("imap.example.org", "smtp.example.org");
+            assert!(!confirm(&on, source), "{source:?}");
         }
     }
 }
