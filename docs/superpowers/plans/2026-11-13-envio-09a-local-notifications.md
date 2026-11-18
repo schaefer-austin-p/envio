@@ -235,7 +235,7 @@ On synthetic accounts, with Envio exempted (UT Tweak Tool):
 2. Deliver three messages, and check one card that says 3 new messages.
 3. Turn the text switch on, deliver one, and check sender and subject.
 4. Tap the card by hand (ute2e's synthetic tap doesn't trigger card
-   actions), and check that Envio comes to the front on its Inbox.
+   actions), and check that Envio comes to the front (where the user left it).
 5. Check the badge equals the Inbox unread count.
 6. Without the exemption, check that no card shows while suspended and a
    card shows on resume only if Envio is not focused (expected: none).

@@ -75,8 +75,10 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   screen, a card appears: summary "‹account name›", body "3 new messages"
   (gettext plural, `text::count::new_mail`). Bursts collapse: the card
   uses tag `new-‹account key›`, so a later card replaces the earlier one.
-  Tapping the card brings Envio to the front on its Inbox (an
-  `appid://` card action).
+  Postal does not replace by tag on a local `Post` (phone run, 2026-11-18),
+  so the poster calls `ClearPersistent(app, tag)` first and posts when that
+  call has finished. Tapping the card brings Envio to the front (an
+  `appid://` card action); it opens where the user left it.
 - The launcher badge shows the total Inbox unread count across accounts.
   It is cleared when the count is 0.
 - Settings → Notifications:

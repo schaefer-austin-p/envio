@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use super::Alert;
 
-/// What a tap on the card opens: Envio, in front, on its usual Inbox.
+/// What a tap on the card opens: Envio, in front, where the user left it.
 const OPEN_ENVIO: &str = "appid://envio.aps/envio/current-user-version";
 
 impl Alert {
