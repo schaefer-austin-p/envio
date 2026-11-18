@@ -29,7 +29,6 @@ fn extension(content_type: &str) -> Option<&'static str> {
         "image/jpeg" | "image/jpg" | "image/pjpeg" => Some("jpg"),
         "image/gif" => Some("gif"),
         "image/webp" => Some("webp"),
-        "image/bmp" => Some("bmp"),
         _ => None,
     }
 }
