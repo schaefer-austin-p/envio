@@ -260,14 +260,16 @@ impl Worker<'_> {
         result: envio_net::Result<(ImapSession, Woke)>,
     ) {
         let before = self.status_of(account);
-        let foreground = self.foreground;
+        // A background session stays only for an account that notifies: its
+        // Inbox goes back to IDLE.
+        let keep = self.foreground || self.notifies(account);
         let inbox = self.inbox_of(account);
         let Some(live) = self.live.get_mut(account) else {
             return;
         };
         match result {
             Ok((session, woke)) => {
-                live.conn = if foreground {
+                live.conn = if keep {
                     Conn::Ready(session)
                 } else {
                     Conn::Closed
@@ -296,7 +298,13 @@ impl Worker<'_> {
     pub(crate) fn app_active(&mut self, active: bool) {
         self.foreground = active;
         if !active {
-            for live in self.live.values_mut() {
+            let notify_off = &self.store.settings.notify_off;
+            for (account, live) in &mut self.live {
+                // An account that notifies keeps Inbox IDLE (or the session
+                // that is about to start it); the others stop.
+                if !notify_off.contains(account) {
+                    continue;
+                }
                 match &live.conn {
                     Conn::Idling(notify) => notify.notify_one(),
                     Conn::Ready(_) => live.conn = Conn::Closed,
@@ -428,5 +436,55 @@ mod tests {
         let secrets = Secrets::open(dir.path()).unwrap();
         let result = connect_imap(&account(None), &secrets, &Roots::empty()).await;
         assert!(matches!(result, Err(Problem::SignIn)));
+    }
+
+    /// Whether going to the background woke the account's IDLE, and whether
+    /// it still idles afterwards.
+    fn background_wakes(notify_off: bool) -> (bool, bool) {
+        use crate::worker::testing::{Sink, open, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        if notify_off {
+            worker
+                .store
+                .settings
+                .notify_off
+                .insert(seeded.account.clone());
+        }
+        let stop = Rc::new(Notify::new());
+        worker.live.get_mut(&seeded.account).unwrap().conn = Conn::Idling(stop.clone());
+        worker.app_active(false);
+        let woken = stop.notified().now_or_never().is_some();
+        let idling = matches!(worker.live[&seeded.account].conn, Conn::Idling(_));
+        (woken, idling)
+    }
+
+    #[test]
+    fn background_keeps_inbox_idle_when_notify_is_on() {
+        assert_eq!(background_wakes(false), (false, true));
+    }
+
+    #[test]
+    fn background_closes_when_notify_is_off() {
+        // Woken, so its session comes back through `idle_done` and closes.
+        assert_eq!(background_wakes(true), (true, true));
+    }
+
+    #[test]
+    fn resume_reconnects_every_account() {
+        use crate::worker::testing::{Sink, open, seed};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.live.get_mut(&seeded.account).unwrap().conn = Conn::Idling(Rc::new(Notify::new()));
+        worker.app_active(false);
+        worker.app_active(true);
+        assert!(matches!(worker.live[&seeded.account].conn, Conn::Closed));
     }
 }

@@ -185,6 +185,8 @@ pub struct Timing {
     pub next_full_ms: i64,
     pub has_wants: bool,
     pub idle_capable: bool,
+    /// The account raises alerts: in the background it keeps Inbox IDLE.
+    pub notifies: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,9 +197,11 @@ pub enum Next {
 }
 
 /// What an account does now. When a full run is due (`Run` with nothing
-/// wanted) the caller sets `wants.full`.
+/// wanted) the caller sets `wants.full`. In the background only an account
+/// that notifies works, and only on its Inbox: it never polls, it waits in
+/// IDLE and `has_wants` then means the Inbox changed.
 pub fn next(timing: &Timing, now_ms: i64) -> Next {
-    if !timing.foreground || timing.paused {
+    if timing.paused || !(timing.foreground || timing.notifies) {
         return Next::Sleep { until_ms: None };
     }
     if !timing.can_run {
@@ -205,18 +209,34 @@ pub fn next(timing: &Timing, now_ms: i64) -> Next {
             until_ms: timing.retry_at_ms,
         };
     }
-    if timing.has_wants || now_ms >= timing.next_full_ms {
+    if timing.has_wants || (timing.foreground && now_ms >= timing.next_full_ms) {
         return Next::Run;
     }
     if timing.idle_capable {
         let max = i64::try_from(IDLE_MAX.as_millis()).unwrap_or(i64::MAX);
+        let renew = now_ms.saturating_add(max);
         return Next::Idle {
-            until_ms: timing.next_full_ms.min(now_ms.saturating_add(max)),
+            until_ms: if timing.foreground {
+                timing.next_full_ms.min(renew)
+            } else {
+                renew
+            },
         };
     }
     Next::Sleep {
-        until_ms: Some(timing.next_full_ms),
+        until_ms: timing.foreground.then_some(timing.next_full_ms),
     }
+}
+
+/// The steps of a background wake: the Inbox, if it is wanted, and nothing
+/// else (no folder list, other folders, actions or bodies).
+pub fn background_steps(wants: &Wants, folders: &[Folder]) -> Vec<Step> {
+    folders
+        .iter()
+        .find(|f| f.role == FolderRole::Inbox && wants.folders.contains(&f.id))
+        .map(|f| Step::Folder(f.id))
+        .into_iter()
+        .collect()
 }
 
 #[cfg(test)]
@@ -421,7 +441,71 @@ mod tests {
             next_full_ms: 10_000,
             has_wants: false,
             idle_capable: false,
+            notifies: false,
         }
+    }
+
+    #[test]
+    fn background_plans_inbox_idle_for_a_notifying_account() {
+        let t = Timing {
+            foreground: false,
+            notifies: true,
+            idle_capable: true,
+            next_full_ms: 10,
+            ..timing()
+        };
+        let max = i64::try_from(envio_net::imap::IDLE_MAX.as_millis()).unwrap();
+        // A full run that is long overdue does not matter: no polling.
+        assert_eq!(
+            next(&t, 1_000),
+            Next::Idle {
+                until_ms: 1_000 + max
+            }
+        );
+    }
+
+    #[test]
+    fn background_sleeps_for_an_account_with_notify_off() {
+        let t = Timing {
+            foreground: false,
+            notifies: false,
+            idle_capable: true,
+            ..timing()
+        };
+        assert_eq!(next(&t, 0), Next::Sleep { until_ms: None });
+    }
+
+    #[test]
+    fn background_without_idle_does_not_poll() {
+        let t = Timing {
+            foreground: false,
+            notifies: true,
+            next_full_ms: 10,
+            ..timing()
+        };
+        assert_eq!(next(&t, 1_000), Next::Sleep { until_ms: None });
+    }
+
+    #[test]
+    fn background_wake_plans_an_inbox_only_sync() {
+        let wants = Wants {
+            full: true,
+            replay: true,
+            send: true,
+            file: true,
+            folders: [FolderId(1), FolderId(2), FolderId(3)].into(),
+            bodies: [MessageRowId(9)].into(),
+            ..Wants::default()
+        };
+        assert_eq!(
+            background_steps(&wants, &folders()),
+            vec![Step::Folder(FolderId(2))]
+        );
+        let other = Wants {
+            folders: [FolderId(1)].into(),
+            ..Wants::default()
+        };
+        assert!(background_steps(&other, &folders()).is_empty());
     }
 
     #[test]

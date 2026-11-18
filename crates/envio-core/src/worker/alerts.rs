@@ -17,11 +17,13 @@ pub(super) fn own_addresses(settings: &AccountSettings) -> Vec<Address> {
 
 impl Worker<'_> {
     /// Whether the user is looking at the app, so mail needs no alert.
+    /// Whether the account raises alerts, so keeps Inbox IDLE in the
+    /// background.
+    pub(super) fn notifies(&self, account: &str) -> bool {
+        !self.store.settings.notify_off.contains(account)
+    }
+
     pub(super) fn focused(&self) -> bool {
-        #[cfg(feature = "test-hooks")]
-        if crate::hooks::unfocused() {
-            return false;
-        }
         self.foreground
     }
 

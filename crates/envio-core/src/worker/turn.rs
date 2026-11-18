@@ -10,7 +10,9 @@ use super::Worker;
 use envio_sync::plan::outbox::next_release;
 
 use super::conn::Conn;
-use super::plan::{Env, Next, POLL_MS, Step, Timing, Wants, next, prefetch_step, steps};
+use super::plan::{
+    Env, Next, POLL_MS, Step, Timing, Wants, background_steps, next, prefetch_step, steps,
+};
 
 impl Worker<'_> {
     /// Timers that are not accounts' own: an Undo window ended, or a retry in
@@ -94,6 +96,7 @@ impl Worker<'_> {
                 paused: live.health.is_paused(),
                 prefetch,
             };
+            let inbox_wanted = !disk_full && !background_steps(&live.wants, &folders).is_empty();
             let timing = Timing {
                 foreground: self.foreground,
                 can_run: live.health.can_run(now),
@@ -101,10 +104,14 @@ impl Worker<'_> {
                 retry_at_ms: live.health.wake_at(),
                 next_full_ms: live.next_full_ms,
                 has_wants: forced_wants()
-                    || !live.wants.is_empty()
-                    || prefetch_step(&env).is_some(),
+                    || if self.foreground {
+                        !live.wants.is_empty() || prefetch_step(&env).is_some()
+                    } else {
+                        inbox_wanted
+                    },
                 idle_capable: live.idle_capable
                     && folders.iter().any(|f| f.role == FolderRole::Inbox),
+                notifies: !self.store.settings.notify_off.contains(account),
             };
             match next(&timing, now) {
                 Next::Sleep { .. } => return None,
@@ -127,6 +134,22 @@ impl Worker<'_> {
                         // Its session comes back through `idle_done`.
                         stop.notify_one();
                         return None;
+                    }
+                    if !env.foreground {
+                        // Only the Inbox, after a wake: the rest waits for
+                        // the app to come back.
+                        let todo = background_steps(&live.wants, &folders).into_iter().next();
+                        match backstop.plan(timing.has_wants, todo.is_none()) {
+                            Pass::Run => return todo,
+                            Pass::Stop => {
+                                log::error!("planner wanted to run but had no step");
+                                return None;
+                            }
+                            Pass::ResetAndRetry => {
+                                live.wants.folders.clear();
+                                continue;
+                            }
+                        }
                     }
                     if now >= live.next_full_ms {
                         live.wants.full = true;
@@ -174,11 +197,11 @@ impl Worker<'_> {
             .into_iter()
             .flatten()
             .min();
-        for live in self.live.values() {
+        for (account, live) in &self.live {
             let at = account_wake(
-                needs_timer(self.foreground, &live.conn),
+                needs_timer(self.foreground, self.notifies(account), &live.conn),
                 &live.health,
-                live.next_full_ms,
+                self.foreground.then_some(live.next_full_ms),
                 now,
             );
             wake = match (wake, at) {
@@ -252,10 +275,11 @@ fn forced_wants() -> bool {
     false
 }
 
-/// Whether an account needs the loop to wake for it: not in the background,
-/// and not in IDLE, whose own future wakes the loop.
-fn needs_timer(foreground: bool, conn: &Conn) -> bool {
-    foreground && !matches!(conn, Conn::Idling(_))
+/// Whether an account needs the loop to wake for it: in the foreground, or
+/// in the background when it notifies (its retries), and not in IDLE, whose
+/// own future wakes the loop.
+fn needs_timer(foreground: bool, notifies: bool, conn: &Conn) -> bool {
+    (foreground || notifies) && !matches!(conn, Conn::Idling(_))
 }
 
 /// The retry timer to handle now: the earliest one after the watermark, if
@@ -267,11 +291,16 @@ fn due_retry(schedule: &Schedule, handled_ms: i64, now: i64) -> Option<i64> {
 }
 
 /// When an account needs the loop to wake, if it needs a timer at all.
-fn account_wake(needs_timer: bool, health: &Health, next_full_ms: i64, now: i64) -> Option<i64> {
+fn account_wake(
+    needs_timer: bool,
+    health: &Health,
+    next_full_ms: Option<i64>,
+    now: i64,
+) -> Option<i64> {
     if !needs_timer || health.is_paused() {
         None
     } else if health.can_run(now) {
-        Some(next_full_ms)
+        next_full_ms
     } else {
         health.wake_at()
     }
@@ -542,16 +571,19 @@ mod tests {
     fn an_idling_account_yields_no_wake_time() {
         let health = Health::default();
         // Its full run is overdue, which would spin the loop if it counted.
-        assert_eq!(account_wake(false, &health, 0, 10_000), None);
-        assert_eq!(account_wake(true, &health, 0, 10_000), Some(0));
+        assert_eq!(account_wake(false, &health, Some(0), 10_000), None);
+        assert_eq!(account_wake(true, &health, Some(0), 10_000), Some(0));
     }
 
     #[test]
-    fn only_a_foreground_account_outside_idle_needs_a_timer() {
+    fn only_a_foreground_or_notifying_account_outside_idle_needs_a_timer() {
         let idling = Conn::Idling(Rc::new(Notify::new()));
-        assert!(!needs_timer(true, &idling));
-        assert!(!needs_timer(false, &Conn::Closed));
-        assert!(needs_timer(true, &Conn::Closed));
+        assert!(!needs_timer(true, true, &idling));
+        assert!(!needs_timer(false, false, &Conn::Closed));
+        assert!(needs_timer(true, false, &Conn::Closed));
+        // A notifying account in the background waits for its retries only.
+        assert!(needs_timer(false, true, &Conn::Closed));
+        assert!(!needs_timer(false, true, &idling));
     }
 
     #[test]
