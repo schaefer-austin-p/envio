@@ -41,6 +41,9 @@ pub(crate) struct PosterSlot {
     /// starts from it, not from the `Config` (the app may have moved to the
     /// background since).
     foreground: Mutex<Option<bool>>,
+    /// New mail alerted since the app was last on screen, per account. Here
+    /// so a restarted worker continues the count: the user saw nothing.
+    unseen: Mutex<Tally>,
 }
 
 type Shared = Arc<Mutex<Box<dyn Poster>>>;
@@ -60,6 +63,24 @@ impl PosterSlot {
 
     pub(crate) fn foreground(&self) -> Option<bool> {
         *unpoisoned(&self.foreground)
+    }
+
+    /// Adds alerted mail; returns the account's total unseen.
+    pub(crate) fn add_unseen(
+        &self,
+        mail: &crate::api::event::NewMail,
+    ) -> crate::api::event::NewMail {
+        unpoisoned(&self.unseen).add(mail)
+    }
+
+    /// The app is on screen: nothing is unseen.
+    pub(crate) fn reset_unseen_all(&self) {
+        unpoisoned(&self.unseen).reset_all();
+    }
+
+    /// The account's switch went off.
+    pub(crate) fn reset_unseen(&self, account: &str) {
+        unpoisoned(&self.unseen).reset(account);
     }
 
     fn current(&self) -> Option<Shared> {

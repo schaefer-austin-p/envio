@@ -43,7 +43,7 @@ impl Worker<'_> {
         let alerted = if self.focused() || !self.notifies(&mail.account) {
             mail.clone()
         } else {
-            self.unseen.borrow_mut().add(&mail)
+            self.poster.add_unseen(&mail)
         };
         let card = alert::plan(&alerted, &name, &self.store.settings, self.focused());
         let (account, count) = (alerted.account.clone(), alerted.count);
@@ -376,5 +376,23 @@ mod tests {
         // The supervisor opens the next worker with the same slot.
         let again = crate::worker::testing::open_with(&config, &sink, &slot);
         assert!(!again.foreground);
+    }
+
+    #[test]
+    fn a_restarted_worker_continues_the_unseen_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let slot = Arc::new(crate::alert::PosterSlot::default());
+        let recorder = Recorder::default();
+        slot.set(Box::new(recorder.clone()));
+        let worker = crate::worker::testing::open_with(&config, &sink, &slot);
+        worker.new_mail(mail(&seeded.account, 1));
+        drop(worker);
+        // The supervisor opens the next worker with the same slot.
+        let again = crate::worker::testing::open_with(&config, &sink, &slot);
+        again.new_mail(mail(&seeded.account, 1));
+        let alerts = recorder.0.lock().unwrap().0.clone();
+        assert_eq!(alerts.last().unwrap().body, "2 new messages");
     }
 }

@@ -312,7 +312,7 @@ impl Worker<'_> {
         self.foreground = active;
         self.poster.set_foreground(active);
         if active {
-            self.unseen.borrow_mut().reset_all();
+            self.poster.reset_unseen_all();
         }
         if !active {
             let notify_off = &self.store.settings.notify_off;

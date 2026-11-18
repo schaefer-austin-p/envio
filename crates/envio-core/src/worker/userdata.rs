@@ -193,7 +193,7 @@ impl Worker<'_> {
             settings.notify_off.remove(account);
         } else {
             settings.notify_off.insert(account.to_owned());
-            self.unseen.borrow_mut().reset(account);
+            self.poster.reset_unseen(account);
         }
         self.save_settings(settings);
     }
