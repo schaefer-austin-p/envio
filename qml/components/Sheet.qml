@@ -9,7 +9,7 @@ QC.Popup {
     id: root
     required property Theme theme
     property string title: ""
-    default property alias content: column.data
+    default property alias content: body.data
 
     parent: QC.Overlay.overlay
     modal: true
@@ -30,9 +30,10 @@ QC.Popup {
     width: parent ? parent.width - 2 * theme.frameInset : 0
     // Follow the content as it grows after open (a popup left to itself kept
     // its first height on the phone and rested far too low).
-    // Capped at the window less the ring's top band; past that the content
-    // scrolls (#83), so the last rows stay reachable.
-    height: parent ? Math.min(implicitHeight, parent.height - theme.frameInset) : implicitHeight
+    // Capped at the window less the ring's top band and what the bottom rests
+    // on (keyboard or ring); past that the content scrolls (#83), so the last
+    // rows stay reachable.
+    height: parent ? Math.min(implicitHeight, parent.height - theme.frameInset - keyboardInset - ringInset) : implicitHeight
     y: parent ? Math.max(theme.frameInset, parent.height - height - keyboardInset - ringInset) : 0
     padding: 0
 
@@ -98,6 +99,7 @@ QC.Popup {
                 font.pixelSize: 18
                 font.weight: Font.DemiBold
             }
+            Column { id: body; width: parent.width }
         }
     }
 }

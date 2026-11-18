@@ -525,7 +525,7 @@ Item {
             tallSheet.open()
             tryVerify(function() { return tallSheet.opened })
             tryVerify(function() { return tallSheet.implicitHeight > tallSheet.parent.height })
-            const cap = tallSheet.parent.height - thm.frameInset
+            const cap = tallSheet.parent.height - thm.frameInset - tallSheet.keyboardInset - tallSheet.ringInset
             compare(tallSheet.height, cap)
             verify(tallSheet.y >= thm.frameInset, "y " + tallSheet.y)
             verify(tallSheet.y + tallSheet.height <= tallSheet.parent.height, "bottom runs off")
@@ -541,6 +541,36 @@ Item {
             verify(tallLast.mapToItem(null, 0, tallLast.height).y <= tallSheet.parent.height)
             tallSheet.close()
             tryVerify(function() { return !tallSheet.visible })
+        }
+
+        // The cap leaves room for what the bottom rests on: the Airmail ring
+        // band, or the keyboard.
+        function test_capped_sheet_stays_above_the_ring_and_the_keyboard() {
+            thm.name = "airmail"
+            tallSheet.open()
+            tryVerify(function() { return tallSheet.opened })
+            tryVerify(function() { return tallSheet.implicitHeight > tallSheet.parent.height })
+            verify(tallSheet.y + tallSheet.height <= tallSheet.parent.height - thm.frameInset,
+                   "ring: bottom " + (tallSheet.y + tallSheet.height))
+            tallSheet.keyboard = Qt.rect(0, 400, 400, 300)
+            verify(tallSheet.keyboardInset > 0)
+            tryVerify(function() { return tallSheet.y + tallSheet.height <= 400 })
+            verify(tallSheet.y >= thm.frameInset)
+            tallSheet.keyboard = Qt.rect(0, 0, 0, 0)
+            tallSheet.close()
+            tryVerify(function() { return !tallSheet.visible })
+            thm.name = "carbon"
+        }
+
+        // Rows in a sheet sit flush: the gap above the first row is the
+        // content's own, none is added between rows.
+        function test_sheet_rows_sit_flush() {
+            flushSheet.open()
+            tryVerify(function() { return flushSheet.opened })
+            tryVerify(function() { return flushB.y > 0 })
+            compare(flushB.y, flushA.height)
+            flushSheet.close()
+            tryVerify(function() { return !flushSheet.visible })
         }
 
         // A sheet shorter than the window keeps its natural height and does not flick.
@@ -608,6 +638,12 @@ Item {
         title: "Tall"
         Repeater { model: 30; Rectangle { width: 100; height: 44; color: "#ccc" } }
         Rectangle { id: tallLast; width: 100; height: 44; color: "#f00" }
+    }
+    Sheet {
+        id: flushSheet
+        theme: thm
+        Rectangle { id: flushA; width: 100; height: 40 }
+        Rectangle { id: flushB; width: 100; height: 40 }
     }
     Sheet { id: shortSheet; theme: thm; Item { width: 10; height: 80 } }
     Sheet {
