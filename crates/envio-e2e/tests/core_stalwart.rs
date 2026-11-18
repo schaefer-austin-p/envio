@@ -35,17 +35,25 @@ async fn find() -> Option<(Stalwart, tokio::sync::MutexGuard<'static, ()>)> {
     Stalwart::find().await.map(|server| (server, turn))
 }
 
-/// Tells when the account's server accepts IDLE next: mail that arrives
-/// after that is reported, so tests deliver after it, never on a timer.
-fn idle_entered(account: &str) -> std::sync::mpsc::Receiver<()> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let tx = std::sync::Mutex::new(tx);
-    hooks::before_next(Point::IdleEntered, account, move || {
-        if let Ok(tx) = tx.lock() {
-            let _ = tx.send(());
-        }
-    });
-    rx
+/// Waits until the account's server has accepted IDLE more than `before`
+/// times (`idles(account)` taken earlier; 0 for a new account): mail that
+/// arrives after that is reported, so tests deliver after it, never on a
+/// timer. It counts rather than registers a hook, because the first IDLE
+/// after `Connect` can come before the test gets to register one.
+fn idle_entered(account: &str, before: usize) {
+    let end = Instant::now() + NET;
+    while hooks::reached_count(Point::IdleEntered, account) <= before {
+        assert!(
+            Instant::now() < end,
+            "IDLE was never entered (entered {} times, wanted more than {before})",
+            hooks::reached_count(Point::IdleEntered, account)
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn idles(account: &str) -> usize {
+    hooks::reached_count(Point::IdleEntered, account)
 }
 
 fn unique(tag: &str) -> String {
@@ -387,8 +395,7 @@ async fn new_mail_wakes_idle_after_a_full_sync() {
     let run = CoreRun::start(LevelFilter::Info);
     let account = run.add_account(&server, "grace");
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
-    let idle = idle_entered(&account);
-    idle.recv_timeout(NET).expect("IDLE was never entered");
+    idle_entered(&account, 0);
     let subject = unique("Wake up");
     deliver(&server, "grace", &subject).await;
     run.row_with(inbox, &subject);
@@ -403,8 +410,7 @@ async fn idle_comes_back_after_the_connection_drops() {
     let run = CoreRun::start(LevelFilter::Info);
     let account = run.add_account_with("grace", &setup_at(&server, "grace", proxy.port));
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
-    let idle = idle_entered(&account);
-    idle.recv_timeout(NET).expect("IDLE was never entered");
+    idle_entered(&account, 0);
     let first = unique("Before the drop");
     deliver(&server, "grace", &first).await;
     run.row_with(inbox, &first);
@@ -420,7 +426,7 @@ async fn idle_comes_back_after_the_connection_drops() {
     // Mail arrives while the connection is down; the retry finds it.
     let during = unique("During the drop");
     deliver(&server, "grace", &during).await;
-    let idle = idle_entered(&account);
+    let before = idles(&account);
     proxy.up();
     run.wait(Duration::from_secs(90), |event| match event {
         Event::AccountStatus {
@@ -431,7 +437,7 @@ async fn idle_comes_back_after_the_connection_drops() {
     });
     run.row_with(inbox, &during);
     // And IDLE is back: new mail arrives without a Refresh.
-    idle.recv_timeout(NET).expect("IDLE did not come back");
+    idle_entered(&account, before);
     let after = unique("After the drop");
     deliver(&server, "grace", &after).await;
     run.row_with(inbox, &after);
