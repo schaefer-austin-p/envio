@@ -136,19 +136,14 @@ pub async fn sync_folder_as(
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
-    let reused = memo.filter(|m| {
-        m.folder == id
-            && m.uidvalidity == state.uid_validity
-            && m.uidnext == state.uid_next
-            && m.days == window_days
-    });
-    let window = match reused {
-        Some(memo) => memo.uids,
-        None => Arc::new(match window_start(now_ms, window_days) {
-            Some(since) => server.search_since(since).await?,
-            None => server.search_all().await?,
-        }),
-    };
+    let mut reused = memo
+        .filter(|m| {
+            m.folder == id
+                && m.uidvalidity == state.uid_validity
+                && m.uidnext == state.uid_next
+                && m.days == window_days
+        })
+        .map(|m| m.uids);
     let pending = Pending::of(
         local.journal.pending(),
         &folder.account,
@@ -156,29 +151,48 @@ pub async fn sync_folder_as(
         state.uid_validity,
     );
     let cached_uids = local.db.uids(id)?;
-    let plan = plan_folder(
-        &FolderView {
-            server: state,
-            window: &window,
-            cached: folder.sync,
-            cached_uids: &cached_uids,
-            kept: kept.as_ref(),
-            condstore: server.caps().condstore,
-        },
-        &pending,
-    );
+    let (window, plan) = loop {
+        let remembered = reused.is_some();
+        let window = match reused.take() {
+            Some(uids) => uids,
+            None => Arc::new(match window_start(now_ms, window_days) {
+                Some(since) => server.search_since(since).await?,
+                None => server.search_all().await?,
+            }),
+        };
+        let plan = plan_folder(
+            &FolderView {
+                server: state,
+                window: &window,
+                cached: folder.sync,
+                cached_uids: &cached_uids,
+                kept: kept.as_ref(),
+                condstore: server.caps().condstore,
+            },
+            &pending,
+        );
+        // The last part searches afresh: mail expunged since the remembered
+        // search would otherwise stay cached until the next sync.
+        if remembered && plan.fetch.len() <= BATCHES_PER_STEP {
+            continue;
+        }
+        break (window, plan);
+    };
     begin(local, id, &plan)?;
     let mut synced = Synced {
         removed: local.db.step(|db| db.delete_messages(id, &plan.remove))?,
         ..Synced::default()
     };
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
+    let mut missing = false;
     for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
+        // Expunged since the search: the remembered list is stale.
+        missing |= summaries.len() < batch.len();
         synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
-    synced.window = synced.more.then(|| WindowMemo {
+    synced.window = (synced.more && !missing).then(|| WindowMemo {
         folder: id,
         uidvalidity: state.uid_validity,
         uidnext: state.uid_next,

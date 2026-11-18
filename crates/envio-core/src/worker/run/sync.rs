@@ -70,7 +70,8 @@ pub(super) async fn folder(
         window: worker
             .live
             .get_mut(account)
-            .and_then(|live| live.window.take()),
+            .and_then(|live| live.window.take())
+            .filter(|memo| memo.folder == id),
     };
     let synced = driver::sync_folder_as(session, &mut worker.store.local(), id, options)
         .await
