@@ -335,17 +335,10 @@ impl<'s> Worker<'s> {
     /// Their results are handled after the step.
     async fn run_polling(&mut self, account: &str, step: plan::Step) {
         let mut opens = std::mem::take(&mut self.opens);
-        let mut ended = Vec::new();
-        {
+        let ended = {
             let run = run::run_one(self, account, step);
-            tokio::pin!(run);
-            loop {
-                tokio::select! {
-                    () = &mut run => break,
-                    Some(end) = opens.next(), if !opens.is_empty() => ended.push(end),
-                }
-            }
-        }
+            open::polling(&mut opens, run).await.1
+        };
         opens.extend(std::mem::take(&mut self.opens));
         self.opens = opens;
         for (account, result) in ended {

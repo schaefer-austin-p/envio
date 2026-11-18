@@ -6,7 +6,9 @@ use std::future::Future;
 use std::pin::Pin;
 
 use envio_net::imap::{FolderState, ImapSession};
+use futures::StreamExt;
 use futures::future::{Aborted, abortable};
+use futures::stream::FuturesUnordered;
 
 use super::Worker;
 use super::conn::{Conn, changed_since_sync, login, prepare_idle, start_idle, sync_first};
@@ -36,6 +38,25 @@ struct Job {
     until_ms: i64,
     #[cfg_attr(not(feature = "test-hooks"), allow(dead_code))]
     account: String,
+}
+
+/// What an `OpenFuture` ends with.
+pub(crate) type OpenEnd = (String, Result<Result<Opened, Problem>, Aborted>);
+
+/// Awaits `run` while the connects in `opens` are polled too. Their results
+/// come back with it, not applied: the caller does that after `run`.
+pub(crate) async fn polling<T>(
+    opens: &mut FuturesUnordered<OpenFuture>,
+    run: impl Future<Output = T>,
+) -> (T, Vec<OpenEnd>) {
+    let mut ended = Vec::new();
+    tokio::pin!(run);
+    loop {
+        tokio::select! {
+            out = &mut run => return (out, ended),
+            Some(end) = opens.next(), if !opens.is_empty() => ended.push(end),
+        }
+    }
 }
 
 async fn open_inbox(job: Job) -> Result<Opened, Problem> {
@@ -308,5 +329,39 @@ mod tests {
         ));
         assert!(!seen.is_aborted());
         assert!(matches!(worker.live[&account].conn, Conn::Opening(_)));
+    }
+
+    #[test]
+    fn connects_are_polled_while_a_step_runs() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        use std::time::Duration;
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        let connected = Rc::new(Cell::new(false));
+        let flag = Rc::clone(&connected);
+        let (connect, _handle) = abortable(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            flag.set(true);
+            Err(Problem::Temporary)
+        });
+        let mut opens = FuturesUnordered::new();
+        opens.push(Box::pin(async move { ("b".to_owned(), connect.await) }) as OpenFuture);
+        let seen = Rc::clone(&connected);
+        // The step takes longer than the connect and never polls it itself.
+        let step = async move {
+            tokio::time::sleep(Duration::from_millis(60)).await;
+            seen.get()
+        };
+        let (connected_in_step, ended) = runtime.block_on(polling(&mut opens, step));
+        // Polled to its end during the step, and handed back, not applied.
+        assert!(connected_in_step);
+        assert_eq!(ended.len(), 1);
+        assert_eq!(ended[0].0, "b");
+        assert!(matches!(ended[0].1, Ok(Err(Problem::Temporary))));
+        assert!(opens.is_empty());
     }
 }
