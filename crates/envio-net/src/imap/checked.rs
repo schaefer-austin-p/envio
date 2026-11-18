@@ -73,14 +73,25 @@ impl ImapSession {
         }
     }
 
-    /// Runs a command whose replies don't matter (UID EXPUNGE's EXPUNGE
-    /// lines) and returns the error of its tagged NO or BAD.
-    pub(super) async fn checked_ok(&mut self, command: &str) -> Result<()> {
+    /// Runs a command whose replies carry no data (UID STORE, UID EXPUNGE)
+    /// and returns the error of its tagged NO or BAD. Unsolicited changes
+    /// are tracked; `own_expunge` says EXPUNGE lines are the command's own
+    /// result (UID EXPUNGE), not a change.
+    pub(super) async fn checked_ok(&mut self, command: &str, own_expunge: bool) -> Result<()> {
         let id = self.session.run_command(command).await.map_err(map_error)?;
         loop {
             let response = reply(self.session.read_response().await)?;
-            if let Some(end) = command_end(response.parsed(), &id) {
-                return end;
+            match response.parsed() {
+                Response::Expunge(_) if own_expunge => {}
+                Response::Fetch(..)
+                | Response::Expunge(_)
+                | Response::Vanished { .. }
+                | Response::MailboxData(MailboxDatum::Exists(_)) => self.missed_changes = true,
+                other => {
+                    if let Some(end) = command_end(other, &id) {
+                        return end;
+                    }
+                }
             }
         }
     }

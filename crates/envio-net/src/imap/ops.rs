@@ -177,18 +177,7 @@ impl ImapSession {
             if add { '+' } else { '-' },
             query::flag_list(flags)?
         );
-        connect::within(async {
-            let _: Vec<_> = self
-                .session
-                .uid_store(&set, &change)
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            Ok(())
-        })
-        .await
+        connect::within(self.checked_ok(&format!("UID STORE {set} {change}"), false)).await
     }
 
     /// Moves `uids` from the selected folder to `target`. Without MOVE:
@@ -221,7 +210,7 @@ impl ImapSession {
         if !self.caps.uidplus {
             return Ok(());
         }
-        connect::within(self.checked_ok(&format!("UID EXPUNGE {set}"))).await
+        connect::within(self.checked_ok(&format!("UID EXPUNGE {set}"), true)).await
     }
 
     /// UIDs of live (not \\Deleted) messages in the selected folder with

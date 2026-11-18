@@ -62,6 +62,11 @@ pub struct Script {
     /// When not empty, a UID EXPUNGE is answered with this tagged status
     /// (such as `NO nope`) instead of OK.
     pub expunge_refusal: &'static str,
+    /// Untagged lines (each ending in CRLF) sent before a UID EXPUNGE's
+    /// tagged reply.
+    pub expunge_untagged: &'static str,
+    /// When not empty, a UID STORE is answered with this tagged status.
+    pub store_refusal: &'static str,
 }
 
 impl Default for Script {
@@ -87,6 +92,8 @@ impl Default for Script {
             fetch_canned: &[],
             select_exists: 0,
             expunge_refusal: "",
+            expunge_untagged: "",
+            store_refusal: "",
         }
     }
 }
@@ -250,7 +257,8 @@ fn answers(script: &Script, verb: &str, sub_verb: &str) -> bool {
         _ => match sub_verb {
             "FETCH" => script.fetch_flags,
             "SEARCH" => !(script.search_refusal.is_empty() && script.search_untagged.is_empty()),
-            "EXPUNGE" => !script.expunge_refusal.is_empty(),
+            "EXPUNGE" => !(script.expunge_refusal.is_empty() && script.expunge_untagged.is_empty()),
+            "STORE" => !script.store_refusal.is_empty(),
             _ => false,
         },
     }
@@ -278,7 +286,14 @@ fn scripted_reply(
             };
             Some(format!("{}{tag} {status}\r\n", script.search_untagged))
         }
-        ("UID", "EXPUNGE") => Some(format!("{tag} {}\r\n", script.expunge_refusal)),
+        ("UID", "EXPUNGE") => {
+            let status = match script.expunge_refusal {
+                "" => "OK done",
+                refusal => refusal,
+            };
+            Some(format!("{}{tag} {status}\r\n", script.expunge_untagged))
+        }
+        ("UID", "STORE") => Some(format!("{tag} {}\r\n", script.store_refusal)),
         _ => fetch_reply(command, tag, script, fetches),
     }
 }

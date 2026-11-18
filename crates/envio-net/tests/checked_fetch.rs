@@ -4,7 +4,7 @@
 
 mod support;
 
-use envio_net::imap::ImapSession;
+use envio_net::imap::{Flag, ImapSession};
 use envio_net::{Credentials, Endpoint, Fingerprint, NetError, Roots, Security};
 use support::certs::Cert;
 use support::fake_imap::{Script, serve};
@@ -209,4 +209,41 @@ async fn a_refused_uid_expunge_is_an_error() {
         let result = s.delete(&[4]).await;
         check(refusal, busy, &result.unwrap_err());
     }
+}
+
+#[tokio::test]
+async fn a_refused_uid_store_is_an_error() {
+    // A read-only mailbox refuses \Deleted; the delete must not go on.
+    for (refusal, busy) in REFUSALS {
+        let script = Script {
+            store_refusal: refusal,
+            ..Script::default()
+        };
+        let mut s = session(script).await;
+        let result = s.store_flags(&[4], true, &[Flag::Seen]).await;
+        check(refusal, busy, &result.unwrap_err());
+        let mut s = session(script).await;
+        check(refusal, busy, &s.delete(&[4]).await.unwrap_err());
+    }
+}
+
+/// What `take_changes` says after a UID EXPUNGE whose reply carried `lines`.
+async fn changed_by_expunge(lines: &'static str) -> bool {
+    let mut s = session(Script {
+        expunge_untagged: lines,
+        ..Script::default()
+    })
+    .await;
+    assert!(!s.take_changes());
+    s.delete(&[4]).await.unwrap();
+    s.take_changes()
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_uid_expunge_are_reported() {
+    assert!(changed_by_expunge("* 9 EXISTS\r\n").await);
+    assert!(changed_by_expunge("* 3 FETCH (UID 3 FLAGS (\\Seen))\r\n").await);
+    assert!(changed_by_expunge("* VANISHED 5\r\n").await);
+    // The EXPUNGE lines are the command's own result.
+    assert!(!changed_by_expunge("* 4 EXPUNGE\r\n").await);
 }
