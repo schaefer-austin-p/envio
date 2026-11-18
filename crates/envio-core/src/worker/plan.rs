@@ -34,6 +34,9 @@ pub struct Wants {
     pub replay: bool,
     pub send: bool,
     pub file: bool,
+    /// Upload changed drafts to the Drafts folder and delete the server
+    /// copies of sent or discarded ones.
+    pub drafts: bool,
 }
 
 /// One attachment of a partial message the user asked to save.
@@ -74,6 +77,8 @@ pub enum Step {
     Replay,
     Send,
     File,
+    /// Drafts to and from the server's Drafts folder.
+    Drafts,
     Folder(FolderId),
     /// A batch of recent Inbox bodies, downloaded before they are opened.
     Prefetch(FolderId),
@@ -91,6 +96,7 @@ impl Step {
             Step::Replay => "replay",
             Step::Send => "send",
             Step::File => "file",
+            Step::Drafts => "drafts",
             Step::Folder(_) => "folder",
             Step::Prefetch(_) => "prefetch",
         }
@@ -106,6 +112,7 @@ impl Wants {
             self.replay = true;
             self.send = true;
             self.file = true;
+            self.drafts = true;
             self.folders.extend(folders.iter().map(|f| f.id));
         }
     }
@@ -155,6 +162,9 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
     if wants.full || wants.file {
         out.push(Step::File);
     }
+    if wants.full || wants.drafts {
+        out.push(Step::Drafts);
+    }
     if !disk_full {
         out.extend(
             sync_order(folders)
@@ -163,11 +173,15 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
                 .map(Step::Folder),
         );
     }
-    // A LIST starts every run, so a run that only sends (the user pressed
-    // Send; Sent is known) goes without it.
-    let only_send = out.iter().all(|step| *step == Step::Send);
-    let sent_known = folders.iter().any(|f| f.role == FolderRole::Sent);
-    if !out.is_empty() && !(only_send && sent_known && !relist) {
+    // A LIST starts every run, so a run that only sends or syncs drafts
+    // (the folder it needs is known) goes without it.
+    let known = |role| folders.iter().any(|f| f.role == role);
+    let quick = out.iter().all(|step| match step {
+        Step::Send => known(FolderRole::Sent),
+        Step::Drafts => known(FolderRole::Drafts),
+        _ => false,
+    });
+    if !out.is_empty() && !(quick && !relist) {
         out.insert(0, Step::Folders);
     }
     // Last: nothing the user or the sync waits for is held up by it. It
@@ -384,6 +398,21 @@ mod tests {
     }
 
     #[test]
+    fn a_draft_run_skips_the_list_when_the_drafts_folder_is_known() {
+        let wants = Wants {
+            drafts: true,
+            ..Wants::default()
+        };
+        let mut known = folders();
+        known.push(folder(4, "Drafts", FolderRole::Drafts));
+        assert_eq!(steps(&wants, &known, &env()), [Step::Drafts]);
+        assert_eq!(
+            steps(&wants, &folders(), &env()),
+            [Step::Folders, Step::Drafts]
+        );
+    }
+
+    #[test]
     fn nothing_wanted_is_no_steps() {
         assert!(steps(&Wants::default(), &folders(), &env()).is_empty());
     }
@@ -397,7 +426,13 @@ mod tests {
         };
         assert_eq!(
             steps(&wants, &folders(), &env_with(|e| e.disk_full = true)),
-            [Step::Folders, Step::Replay, Step::Send, Step::File]
+            [
+                Step::Folders,
+                Step::Replay,
+                Step::Send,
+                Step::File,
+                Step::Drafts
+            ]
         );
     }
 
@@ -408,7 +443,7 @@ mod tests {
             ..Wants::default()
         };
         wants.expand(&folders());
-        assert!(!wants.full && wants.replay && wants.send && wants.file);
+        assert!(!wants.full && wants.replay && wants.send && wants.file && wants.drafts);
         assert_eq!(wants.folders.len(), 3);
     }
 

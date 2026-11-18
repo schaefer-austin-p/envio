@@ -113,6 +113,9 @@ impl Core {
             Command::Attach { compose, path } => return self.keeper.attach(compose, path),
             Command::CloseCompose { compose, discard } => {
                 self.keeper.close(compose, discard);
+                // The worker uploads the draft the close saved: wait for
+                // the save (a file write, at most 500 ms).
+                self.keeper.flush();
                 // The worker still forgets a reply waiting for its body.
                 Command::CloseCompose { compose, discard }
             }

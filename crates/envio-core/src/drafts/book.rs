@@ -45,6 +45,9 @@ struct BookState {
     save_failed: BTreeSet<ComposeId>,
     /// Accounts being or already removed: their drafts are not saved.
     removed: BTreeSet<String>,
+    /// Accounts with a window that closed since the worker last asked: their
+    /// drafts may be ready to upload, or have a server copy to delete.
+    closed_accounts: BTreeSet<String>,
 }
 
 impl BookState {
@@ -102,6 +105,16 @@ impl DraftBook {
         if let Some(wake) = waker.as_ref() {
             wake();
         }
+    }
+
+    /// Drafts of windows that are open: kept off the server until closed.
+    pub fn open_drafts(&self) -> BTreeSet<String> {
+        self.lock().ids.values().cloned().collect()
+    }
+
+    /// The accounts whose windows closed since the last call.
+    pub fn take_closed_accounts(&self) -> BTreeSet<String> {
+        std::mem::take(&mut self.lock().closed_accounts)
     }
 
     /// A compose window opened for `account`.
@@ -170,7 +183,9 @@ impl DraftBook {
         let pending = st.throttle.take(compose);
         let was_sent = st.sent.contains(&compose);
         st.save_failed.remove(&compose);
-        st.accounts.remove(&compose);
+        if let Some(account) = st.accounts.remove(&compose) {
+            st.closed_accounts.insert(account);
+        }
         if discard {
             let id = st
                 .ids
@@ -496,6 +511,24 @@ mod tests {
         assert_eq!(book.next_due(), None);
         assert_eq!(book.drafts().unwrap().list().unwrap()[0].1.body, "keep");
         assert_eq!(book.id_of(A), None);
+    }
+
+    #[test]
+    fn a_draft_is_open_until_its_window_closes_and_the_close_names_the_account() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        book.opened(A, &input("x").account);
+        book.changed(A, input("x"), 0);
+        book.save_due(DRAFT_SAVE_MS);
+        assert_eq!(book.open_drafts().len(), 1);
+        assert!(book.take_closed_accounts().is_empty());
+        book.close(A, false);
+        assert!(book.open_drafts().is_empty());
+        assert_eq!(
+            book.take_closed_accounts().into_iter().collect::<Vec<_>>(),
+            [input("x").account]
+        );
+        assert!(book.take_closed_accounts().is_empty(), "taken once");
     }
 
     #[test]

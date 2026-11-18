@@ -116,6 +116,7 @@ pub(crate) async fn run_step(
         }
         Step::Replay => sync::replay(worker, account, &mut session).await,
         Step::File => mail::file(worker, account, &mut session).await,
+        Step::Drafts => mail::drafts(worker, account, &mut session).await,
         Step::Folder(id) => sync::folder(worker, account, &mut session, *id).await,
         Step::Prefetch(id) => prefetch::run(worker, account, &mut session, *id).await,
         Step::Send => Ok(()),
@@ -224,6 +225,7 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
         Step::Replay => live.wants.replay = false,
         Step::Send => live.wants.send = false,
         Step::File => live.wants.file = false,
+        Step::Drafts => live.wants.drafts = false,
         Step::Prefetch(_) => {}
         Step::Folder(id) => {
             // Parts remain: the same folder runs again, ahead of the others.
