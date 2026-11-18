@@ -1,5 +1,5 @@
 {
   "template": "ubuntu-push-helper",
-  "policy_groups": [],
+  "policy_groups": ["push-notification-client"],
   "policy_version": "$ENV{APPARMOR_POLICY}"
 }
