@@ -147,12 +147,14 @@ pub async fn sync_folder_as(
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
     if !synced.more {
-        local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
+        // Before the state is stored: if this fails the old UIDNEXT stays
+        // and the retry reports the same messages.
         if folder.role == FolderRole::Inbox {
             let prev = folder.sync.map(|s| s.uidnext).filter(|next| *next > 0);
             let stored = new_rows(local, id, prev, plan.finish.uidnext)?;
             synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
         }
+        local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
     }
     Ok(synced)
 }
@@ -172,10 +174,29 @@ fn new_rows(local: &Local<'_>, id: FolderId, prev: Option<u32>, next: u32) -> Re
         .map(|m| NewRow {
             uid: m.uid,
             seen: m.flags.contains(Flags::SEEN),
-            from: Address::parse(&m.envelope.from).unwrap_or_default(),
+            from: first_address(&m.envelope.from),
             subject: m.envelope.subject,
         })
         .collect())
+}
+
+/// The first address of a cached, comma-joined From display
+/// (`Name <a@x>, b@y`); commas inside quotes or `<>` do not split.
+fn first_address(shown: &str) -> Address {
+    let (mut quoted, mut angled) = (false, false);
+    let end = shown
+        .char_indices()
+        .find(|&(_, c)| {
+            match c {
+                '"' => quoted = !quoted,
+                '<' if !quoted => angled = true,
+                '>' if !quoted => angled = false,
+                _ => {}
+            }
+            c == ',' && !quoted && !angled
+        })
+        .map_or(shown.len(), |(at, _)| at);
+    Address::parse(&shown[..end]).unwrap_or_default()
 }
 
 /// Caches one fetched batch in a single transaction (and remembers its

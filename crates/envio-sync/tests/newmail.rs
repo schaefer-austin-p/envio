@@ -6,7 +6,7 @@ use envio_mime::Address;
 use envio_net::NetError;
 use envio_net::imap::{Flag, MessageFlags, Role};
 use envio_sync::driver::{Options, Synced, sync_folder, sync_folder_as, sync_folders};
-use support::fake::{FakeServer, NOW_MS};
+use support::fake::{FakeServer, NOW_MS, NOW_SECS};
 use support::local::{ACCOUNT, Store};
 
 async fn sync(server: &mut FakeServer, store: &mut Store, folder: &str) -> Synced {
@@ -164,4 +164,40 @@ async fn a_cut_sync_still_reports_what_it_stored_when_retried() {
     let retried = sync(&mut server, &mut store, "INBOX").await;
     assert!(!retried.more);
     assert_eq!(retried.new_mail.count, 120);
+}
+
+fn from_eml(from: &str) -> Vec<u8> {
+    format!(
+        "From: {from}\r\nTo: bob@example.org\r\nSubject: Hi\r\n\
+         Message-ID: <m@example.org>\r\nDate: Thu, 14 Jan 2027 10:00:00 +0000\r\n\r\nHello\r\n"
+    )
+    .into_bytes()
+}
+
+/// Syncs the Inbox after delivering a message with this From header.
+async fn after_from(from: &str, own: &[Address]) -> Synced {
+    let mut server = FakeServer::new();
+    server.deliver_id("INBOX", "a");
+    let mut store = Store::new();
+    sync(&mut server, &mut store, "INBOX").await;
+    server.deliver("INBOX", &from_eml(from), NOW_SECS);
+    let id = store.folder("INBOX").id;
+    let how = Options {
+        now_ms: NOW_MS,
+        window_days: Some(30),
+        kept: None,
+        own,
+    };
+    sync_folder_as(&mut server, &mut store.local(), id, how)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn the_first_of_several_from_addresses_is_the_sender() {
+    let own = [Address::new(None, "me@own.org")];
+    let got = after_from("Me <me@own.org>, Other <o@x.org>", &own).await;
+    assert_eq!(got.new_mail.count, 0);
+    let got = after_from("a@x.org, b@y.org", &[]).await;
+    assert_eq!(got.new_mail.first, Some(("a@x.org".into(), "Hi".into())));
 }
