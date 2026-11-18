@@ -171,6 +171,30 @@ mod tests {
         assert_eq!(badges(&recorder), [3, 2]);
     }
 
+    #[test]
+    fn a_new_poster_is_told_the_current_total_in_order_with_later_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        runtime.block_on(worker.input(crate::worker::Input::PosterSet));
+        assert_eq!(badges(&recorder), [1]);
+        worker
+            .store
+            .db
+            .set_flags(seeded.folder, 1, envio_store::Flags::SEEN)
+            .unwrap();
+        worker.emit(Event::MessagesChanged {
+            folders: vec![seeded.folder],
+        });
+        assert_eq!(badges(&recorder), [1, 0]);
+    }
+
     #[derive(Clone)]
     struct PanicsOnce(Arc<Mutex<Vec<u32>>>, Arc<std::sync::atomic::AtomicBool>);
 

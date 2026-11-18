@@ -20,10 +20,6 @@ impl qobject::EnvioCore {
     /// An event from the core, on the Qt thread.
     pub(crate) fn apply(mut self: Pin<&mut Self>, event: Event) {
         let started = matches!(event, Event::Started { .. });
-        if let Event::Started { accounts, .. } = &event {
-            // The core badges only on a change: the start's own count is ours.
-            crate::postal::set_badge(accounts.iter().map(|a| a.unread).sum());
-        }
         let (now, offset) = clock();
         let outs = self.as_mut().rust_mut().ui.apply(event, now, offset);
         self.as_mut().run(outs);

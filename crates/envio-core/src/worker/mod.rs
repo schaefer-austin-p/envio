@@ -124,6 +124,9 @@ pub(crate) type Stamped = (Command, i64);
 pub(crate) enum Input {
     Command(Stamped),
     Setup(SetupDone),
+    /// `Core::set_poster` ran: the poster is told the current badge, on the
+    /// worker's thread, in order with later unread changes.
+    PosterSet,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -185,6 +188,7 @@ impl<'s> Worker<'s> {
                                     .map(|input| match input {
                                         Input::Command((c, _)) => c.name(),
                                         Input::Setup(_) => "setup result",
+                                        Input::PosterSet => "poster set",
                                     })
                                     .collect();
                                 log::warn!(
@@ -375,6 +379,10 @@ impl<'s> Worker<'s> {
             Input::Command((command, at_ms)) => handle(self, command, at_ms).await,
             Input::Setup(done) => {
                 self.setup_done(done);
+                Flow::Continue
+            }
+            Input::PosterSet => {
+                self.badge();
                 Flow::Continue
             }
         }

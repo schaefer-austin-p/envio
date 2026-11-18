@@ -117,10 +117,10 @@ impl Core {
 
     /// Where new-mail alerts and the launcher badge go (the platform's
     /// part). Until one is set they go nowhere; a later call replaces it.
-    /// The badge is told on the next unread change, so a platform sets its
-    /// initial badge from `Event::Started`.
+    /// The worker tells the new poster the current badge, then each change.
     pub fn set_poster(&self, poster: Box<dyn Poster>) {
         self.poster.set(poster);
+        let _ = self.commands.send(Input::PosterSet);
     }
 
     /// Stops the worker and waits for it (what `Drop` does).

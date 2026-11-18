@@ -30,14 +30,9 @@ impl Poster for PostalPoster {
     }
 
     fn badge(&self, total_unread: u32) {
-        set_badge(total_unread);
+        // SAFETY: a plain value; the C++ side takes no pointers.
+        unsafe { envio_postal_set_counter(counter(total_unread)) };
     }
-}
-
-/// The launcher badge; 0 clears it.
-pub(crate) fn set_badge(total_unread: u32) {
-    // SAFETY: a plain value; the C++ side takes no pointers.
-    unsafe { envio_postal_set_counter(counter(total_unread)) };
 }
 
 fn counter(total_unread: u32) -> i32 {

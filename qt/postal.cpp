@@ -10,6 +10,7 @@
 #include <QtCore/QString>
 #include <QtCore/QVariantList>
 #include <QtDBus/QDBusConnection>
+#include <QtDBus/QDBusError>
 #include <QtDBus/QDBusMessage>
 #include <QtDBus/QDBusPendingCall>
 #include <QtDBus/QDBusPendingCallWatcher>
@@ -42,6 +43,15 @@ void call(const QString& method, const QVariantList& args)
             QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher, method]() {
                 const QDBusPendingReply<> reply = *watcher;
                 if (reply.isError()) {
+                    // No Postal on this system (desktop, dev): say so once.
+                    static bool missingLogged = false;
+                    if (reply.error().type() == QDBusError::ServiceUnknown) {
+                        if (missingLogged) {
+                            watcher->deleteLater();
+                            return;
+                        }
+                        missingLogged = true;
+                    }
                     qWarning().noquote() << "envio: Postal" << method << "failed:"
                                          << reply.error().message();
                 }
