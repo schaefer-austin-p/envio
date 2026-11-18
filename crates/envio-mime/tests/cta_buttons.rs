@@ -43,6 +43,8 @@ fn unsafe_parts_drop_the_whole_shorthand() {
         "background:red @import",
         "background:red javascript:alert(1)",
         "background:red env(x)",
+        "background:linear-gradient(var(--x),red)",
+        "background:radial-gradient(env(x),red)",
         "background:url(javascript:alert(1))",
     ] {
         let html = style_of(value);
@@ -57,6 +59,8 @@ fn accepted_forms_are_written_normalised() {
         ("background:#0A6CFF", "background-color:#0a6cff"),
         ("background:RED", "background-color:#ff0000"),
         ("background:#fff !important", "background-color:#ffffff"),
+        ("background:#f00 ! important", "background-color:#ff0000"),
+        ("background:#f00 !  IMPORTANT", "background-color:#ff0000"),
         ("background:#fff!important", "background-color:#ffffff"),
         ("background:RGB(10, 108, 255)", "background-color:#0a6cff"),
         ("background:#111 #eee", "background-color:#111111"),

@@ -141,6 +141,11 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
 /// [`filter_style`] drops the whole value, colour included, so a value
 /// with a URL is never partially trusted.
 fn shorthand_colour(value: &str) -> Option<String> {
+    let value = strip_important(value);
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("var(") || lower.contains("env(") {
+        return None;
+    }
     let mut colour = None;
     for token in tokens(value) {
         let lower = token.to_ascii_lowercase();
@@ -165,6 +170,15 @@ fn shorthand_colour(value: &str) -> Option<String> {
         "background-color:{}",
         colour.as_deref().unwrap_or("transparent")
     ))
+}
+
+/// `value` without a trailing `!important`, however it is spaced
+/// (`! important`).
+fn strip_important(value: &str) -> &str {
+    match value.rsplit_once('!') {
+        Some((head, tail)) if tail.trim().eq_ignore_ascii_case("important") => head.trim_end(),
+        _ => value,
+    }
 }
 
 /// `value` split at whitespace outside parentheses.
