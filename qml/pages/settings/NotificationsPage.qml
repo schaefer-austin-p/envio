@@ -202,7 +202,7 @@ Item {
                     x: root.theme.gu(2)
                     width: col.width - root.theme.gu(4)
                     height: commandText.implicitHeight + root.theme.gu(3)
-                    radius: root.theme.gu(1)
+                    radius: root.theme.fieldRadius
                     color: root.theme.selected
                     border.width: 1
                     border.color: root.theme.hairline
