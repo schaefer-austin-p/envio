@@ -56,6 +56,12 @@ pub struct Script {
     /// with the nth of these (untagged lines, each ending in CRLF) instead
     /// of the flags; the commands after the last get no untagged line.
     pub fetch_canned: &'static [&'static str],
+    /// When not zero, SELECT is answered with this many messages (and
+    /// UIDVALIDITY 1), so the session knows the folder's size.
+    pub select_exists: u32,
+    /// When not empty, a UID EXPUNGE is answered with this tagged status
+    /// (such as `NO nope`) instead of OK.
+    pub expunge_refusal: &'static str,
 }
 
 impl Default for Script {
@@ -79,6 +85,8 @@ impl Default for Script {
             search_refusal: "",
             search_untagged: "",
             fetch_canned: &[],
+            select_exists: 0,
+            expunge_refusal: "",
         }
     }
 }
@@ -210,6 +218,20 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     return;
                 };
                 reply
+            }
+            // A FETCH by message number, answered like a UID FETCH.
+            "FETCH" if script.fetch_flags => {
+                let Some(reply) = fetch_reply(&command, &tag, &script, &mut fetches) else {
+                    return;
+                };
+                reply
+            }
+            "SELECT" if script.select_exists != 0 => format!(
+                "* {} EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n{tag} OK [READ-WRITE] done\r\n",
+                script.select_exists
+            ),
+            "UID" if sub_verb == "EXPUNGE" && !script.expunge_refusal.is_empty() => {
+                format!("{tag} {}\r\n", script.expunge_refusal)
             }
             "IDLE" => idle_reply(io, log, &tag, &script).await,
             // Accepted and recorded; the tests read the transcript.

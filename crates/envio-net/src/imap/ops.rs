@@ -6,7 +6,7 @@ use std::time::Duration;
 use futures::TryStreamExt;
 
 use super::client::map_error;
-use super::names;
+use super::{fetched, names};
 use super::query::{self, Flag, MessageFlags};
 use super::untrusted::neutralize;
 use super::{FlagUpdate, Folder, FolderState, ImapSession, Summary};
@@ -87,27 +87,17 @@ impl ImapSession {
         };
         let items = query::summary_items(self.caps.condstore);
         connect::within_for(fetch_timeout(uids.len(), SUMMARY_BYTES), async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(&set, items)
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            Ok(fetches
-                .iter()
-                .filter_map(|fetch| {
-                    Some(Summary {
-                        uid: fetch.uid?,
-                        flags: flags_of(fetch),
-                        size: fetch.size.unwrap_or(0),
-                        internal_date: fetch.internal_date().map(|date| date.timestamp()),
-                        modseq: fetch.modseq,
-                        header: fetch.header().unwrap_or_default().to_vec(),
-                    })
+            self.checked_fetch(&format!("UID FETCH {set} {items}"), |attributes| {
+                Some(Summary {
+                    uid: fetched::uid(attributes)?,
+                    flags: fetched::flags(attributes),
+                    size: fetched::size(attributes).unwrap_or(0),
+                    internal_date: fetched::internal_date(attributes),
+                    modseq: fetched::modseq(attributes),
+                    header: fetched::header(attributes).unwrap_or_default().to_vec(),
                 })
-                .collect())
+            })
+            .await
         })
         .await
     }
@@ -159,21 +149,17 @@ impl ImapSession {
     /// it does for sending.
     pub async fn fetch_body(&mut self, uid: u32, size: usize) -> Result<Option<Vec<u8>>> {
         connect::within_for(connect::transfer_timeout(size), async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(uid.to_string(), "(UID BODY.PEEK[])")
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
             // The reply that carries the body (an unsolicited update for the
             // same UID may come first).
-            Ok(fetches
-                .iter()
-                .filter(|fetch| fetch.uid == Some(uid))
-                .find_map(|fetch| fetch.body())
-                .map(|body| neutralize(body).into_owned()))
+            let bodies = self
+                .checked_fetch(&format!("UID FETCH {uid} (UID BODY.PEEK[])"), |attributes| {
+                    (fetched::uid(attributes) == Some(uid))
+                        .then(|| fetched::body(attributes))
+                        .flatten()
+                        .map(|body| neutralize(body).into_owned())
+                })
+                .await?;
+            Ok(bodies.into_iter().next())
         })
         .await
     }
@@ -232,18 +218,7 @@ impl ImapSession {
         if !self.caps.uidplus {
             return Ok(());
         }
-        connect::within(async {
-            let _: Vec<_> = self
-                .session
-                .uid_expunge(&set)
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            Ok(())
-        })
-        .await
+        connect::within(self.checked_ok(&format!("UID EXPUNGE {set}"))).await
     }
 
     /// UIDs of live (not \\Deleted) messages in the selected folder with
@@ -258,26 +233,20 @@ impl ImapSession {
         }
         let first = self.exists.saturating_sub(SCAN - 1).max(1);
         connect::within(async {
-            let fetches: Vec<_> = self
-                .session
-                .fetch(
-                    format!("{first}:*"),
-                    "(UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])",
+            // A refused scan is an error: "not found" would send again.
+            let mut uids: Vec<u32> = self
+                .checked_fetch(
+                    &format!("FETCH {first}:* (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
+                    |attributes| {
+                        let live = !fetched::flags(attributes).deleted;
+                        let same = query::message_id_of(
+                            fetched::header(attributes).unwrap_or_default(),
+                        )
+                        .is_some_and(|found| query::same_message_id(&found, message_id));
+                        (live && same).then(|| fetched::uid(attributes)).flatten()
+                    },
                 )
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            let mut uids: Vec<u32> = fetches
-                .iter()
-                .filter(|fetch| !flags_of(fetch).deleted)
-                .filter(|fetch| {
-                    query::message_id_of(fetch.header().unwrap_or_default())
-                        .is_some_and(|found| query::same_message_id(&found, message_id))
-                })
-                .filter_map(|fetch| fetch.uid)
-                .collect();
+                .await?;
             uids.sort_unstable();
             Ok(uids)
         })
@@ -299,10 +268,6 @@ impl ImapSession {
     pub(super) async fn search(&mut self, key: &str) -> Result<Vec<u32>> {
         connect::within(self.checked_search(key)).await
     }
-}
-
-fn flags_of(fetch: &async_imap::types::Fetch) -> MessageFlags {
-    message_flags(fetch.flags())
 }
 
 pub(super) fn message_flags<'a>(

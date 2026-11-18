@@ -4,13 +4,10 @@
 //! These read the replies themselves and map the status like every other
 //! command (`command_end`).
 
-use std::borrow::Cow;
-
 use async_imap::imap_proto::{AttributeValue, MailboxDatum, Response};
-use async_imap::types::Flag;
 
 use super::client::{command_end, map_error};
-use super::ops::message_flags;
+use super::fetched::{self, Attributes};
 use super::{FlagUpdate, ImapSession};
 use crate::error::{NetError, Result};
 
@@ -44,6 +41,50 @@ impl ImapSession {
         }
     }
 
+    /// Runs a FETCH (or UID FETCH) and returns what `map` makes of each
+    /// reply that has a UID (`None`: not one it wants), or the error of the
+    /// tagged NO or BAD. A reply without a UID is an unsolicited change.
+    pub(super) async fn checked_fetch<T>(
+        &mut self,
+        command: &str,
+        mut map: impl FnMut(Attributes<'_>) -> Option<T>,
+    ) -> Result<Vec<T>> {
+        let id = self.session.run_command(command).await.map_err(map_error)?;
+        let mut out = Vec::new();
+        loop {
+            let response = reply(self.session.read_response().await)?;
+            match response.parsed() {
+                Response::Fetch(_, attributes) => {
+                    if fetched::uid(attributes).is_none() {
+                        self.missed_changes = true;
+                    } else if let Some(item) = map(attributes) {
+                        out.push(item);
+                    }
+                }
+                Response::Expunge(_)
+                | Response::Vanished { .. }
+                | Response::MailboxData(MailboxDatum::Exists(_)) => self.missed_changes = true,
+                other => {
+                    if let Some(end) = command_end(other, &id) {
+                        return end.map(|()| out);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Runs a command whose replies don't matter (UID EXPUNGE's EXPUNGE
+    /// lines) and returns the error of its tagged NO or BAD.
+    pub(super) async fn checked_ok(&mut self, command: &str) -> Result<()> {
+        let id = self.session.run_command(command).await.map_err(map_error)?;
+        loop {
+            let response = reply(self.session.read_response().await)?;
+            if let Some(end) = command_end(response.parsed(), &id) {
+                return end;
+            }
+        }
+    }
+
     /// Runs a UID FETCH for flags and returns its updates, or the error of
     /// its tagged NO or BAD. A reply without a UID counts as a change.
     pub(super) async fn checked_flag_fetch(&mut self, command: &str) -> Result<Vec<FlagUpdate>> {
@@ -72,21 +113,10 @@ impl ImapSession {
 }
 
 fn flag_update(attributes: &[AttributeValue<'_>]) -> Option<FlagUpdate> {
-    let mut uid = None;
-    let mut modseq = None;
-    let mut names: &[Cow<'_, str>] = &[];
-    for attribute in attributes {
-        match attribute {
-            AttributeValue::Uid(value) => uid = Some(*value),
-            AttributeValue::ModSeq(value) => modseq = Some(*value),
-            AttributeValue::Flags(flags) => names = flags,
-            _ => {}
-        }
-    }
     Some(FlagUpdate {
-        uid: uid?,
-        flags: message_flags(names.iter().map(|name| Flag::from(name.as_ref()))),
-        modseq,
+        uid: fetched::uid(attributes)?,
+        flags: fetched::flags(attributes),
+        modseq: fetched::modseq(attributes),
     })
 }
 

@@ -6,6 +6,7 @@
 mod append;
 mod checked;
 mod client;
+mod fetched;
 mod idle;
 pub mod names;
 mod ops;
