@@ -24,6 +24,22 @@ Item {
         t[compose] = { left: count, transfers: transfers }
         tracking = t
     }
+    // Attached and AttachFailed do not say which attach they answer (the
+    // copy may be renamed, a failure has no path), so every attach of the
+    // compose is counted: the files the user picks meanwhile add to what is
+    // due, and the transfer is finalized only once all of them settled,
+    // never early.
+    function expect(compose, count) {
+        const t = tracking[compose]
+        if (t !== undefined) t.left += count
+    }
+    // The compose ended before anything was attached.
+    function cancel(compose) {
+        const t = tracking[compose]
+        if (t === undefined) return
+        delete tracking[compose]
+        finish(t.transfers)
+    }
     function settle(compose) {
         const t = tracking[compose]
         if (t === undefined) return

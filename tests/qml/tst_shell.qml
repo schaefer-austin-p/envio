@@ -148,6 +148,46 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_picked_file_does_not_finalize_the_transfer_early() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const t = newTransfer()
+            b.shell.shares.accept(t)
+            b.core.composeReady(1, draft, "")
+            // The user attaches one more file while the shared ones copy.
+            b.shell.currentPage.pick(["/p/picked.pdf"])
+            b.core.attached(1, "/d/picked.pdf", "picked.pdf", 3)
+            b.core.attached(1, "/d/a b.pdf", "a b.pdf", 3)
+            compare(t.finalized, 0, "one shared file is still being copied")
+            b.core.attached(1, "/d/c.png", "c.png", 3)
+            compare(t.finalized, 1)
+            b.shell.destroy()
+        }
+
+        function test_a_refused_compose_finalizes_and_attaches_nothing() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const t = newTransfer()
+            b.shell.shares.accept(t)
+            b.core.composeRefused(1, "no account")
+            compare(t.finalized, 1)
+            b.core.composeReady(1, draft, "")
+            compare(b.core.called("attach").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_back_before_composeReady_attaches_nothing_and_finalizes() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const t = newTransfer()
+            b.shell.shares.accept(t)
+            b.shell.currentPage.leave()
+            compare(t.finalized, 1)
+            b.core.composeReady(1, draft, "")
+            compare(b.core.called("attach").length, 0, "no orphan draft")
+            b.shell.destroy()
+        }
+
         function test_a_transfer_without_files_is_finalized_at_once() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

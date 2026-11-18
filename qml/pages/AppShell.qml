@@ -138,6 +138,14 @@ Item {
         shareWaiting = waiting
         composeOpened(id)
     }
+    // The compose ended before it was ready (refused, or Back): nothing is
+    // attached, so the transfer is done with. Once the files are handed to
+    // the core they settle through its Attached and AttachFailed instead.
+    function dropShare(compose) {
+        if (shareWaiting[compose] === undefined) return
+        delete shareWaiting[compose]
+        shareIn.cancel(compose)
+    }
     // Attaching follows composeReady, so the page's fill() has run before
     // any Attached arrives (the attach result is an event queued after it).
     function attachShared(compose) {
@@ -339,7 +347,8 @@ Item {
             core: root.core
             accounts: root.accounts
             suggestions: root.suggestions
-            onClosed: stack.pop()
+            onClosed: { root.dropShare(compose); stack.pop() }
+            onAttachStarted: function(count) { shareIn.expect(compose, count) }
             // Queued arrives late: close this page, not whatever is on top
             // by now. A page below the top closes when it is shown again.
             onSent: function(text) {
@@ -370,6 +379,7 @@ Item {
             root.startPendingShare()
         }
         function onComposeReady(compose) { root.attachShared(compose) }
+        function onComposeRefused(compose) { root.dropShare(compose) }
         function onAttached(compose) { shareIn.settle(compose) }
         function onAttachFailed(compose) { shareIn.settle(compose) }
         function onStoreProblem(text) { root.retrying = false; root.problem = text }
