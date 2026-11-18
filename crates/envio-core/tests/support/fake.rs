@@ -20,7 +20,9 @@ pub enum Kind {
     /// SEARCH answer for it, and every command line is kept in `log`.
     Mailbox,
     /// Like `Mailbox`, with one message in the INBOX (UID 1, no flags)
-    /// whose whole text is [`MESSAGE`].
+    /// whose whole text is [`MESSAGE`]. UID SEARCH answers `1` for any
+    /// criteria (it ignores SINCE and UID ranges), so a test of a different
+    /// window must not use this kind.
     Message,
     /// Like `Mailbox`, with an INBOX of UIDs 1 to 10 (UIDNEXT 11): UID 10
     /// is new, 1 to 9 are dated 2020. SEARCH, FETCH of summaries and flags
