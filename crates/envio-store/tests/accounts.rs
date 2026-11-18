@@ -260,3 +260,36 @@ fn two_accounts_with_one_key_are_a_bad_record() {
         Err(StoreError::BadRecord { .. })
     ));
 }
+
+#[test]
+fn an_account_without_a_label_still_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let old = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org",
+      "username": "ada", "imap": {"host": "imap.example.org", "port": 993},
+      "smtp": {"host": "smtp.example.org", "port": 465}}}]}"#;
+    fs::write(&path, old).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    assert_eq!(accounts.list()[0].label, None);
+    assert_eq!(accounts.list()[0].settings.name, "Ada");
+}
+
+#[test]
+fn a_label_round_trips_and_clearing_it_drops_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let key = accounts.add(settings("ada@example.org"), 1_000).unwrap();
+    accounts.set_label(&key, Some("  Work ")).unwrap();
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&key).unwrap().label.as_deref(), Some("Work"));
+    assert_eq!(reopened.get(&key).unwrap().settings.name, "Ada");
+    // A settings edit keeps the label.
+    accounts.update(&key, settings("ada@example.org")).unwrap();
+    assert_eq!(accounts.get(&key).unwrap().label.as_deref(), Some("Work"));
+    accounts.set_label(&key, Some("   ")).unwrap();
+    let cleared = Accounts::open(&path).unwrap();
+    assert_eq!(cleared.get(&key).unwrap().label, None);
+    assert!(!fs::read_to_string(&path).unwrap().contains("label"));
+}

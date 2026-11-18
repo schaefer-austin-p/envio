@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 14:50+0100\n"
+"POT-Creation-Date: 2026-11-18 20:40+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -96,36 +96,40 @@ msgstr ""
 msgid "Try again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:283
+#: qml/pages/accounts/AccountsPage.qml:27 qml/pages/inbox/FoldersDrawer.qml:283
 #: qml/pages/settings/SettingsPage.qml:36
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:31 qml/pages/accounts/WizardPage.qml:99
+#: qml/pages/accounts/AccountsPage.qml:33 qml/pages/accounts/WizardPage.qml:99
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:95
+#: qml/pages/accounts/AccountsPage.qml:100
 #: crates/envio-core/src/text/outbox.rs:26
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:129
+#: qml/pages/accounts/AccountsPage.qml:134
+msgid "Rename"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:152
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:148
-#: qml/pages/accounts/AccountsPage.qml:163
+#: qml/pages/accounts/AccountsPage.qml:171
+#: qml/pages/accounts/AccountsPage.qml:192
 #: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:161
+#: qml/pages/accounts/AccountsPage.qml:190
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:162
+#: qml/pages/accounts/AccountsPage.qml:191
 msgid "Keep account"
 msgstr ""
 
@@ -140,9 +144,9 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/TrustDialog.qml:21 qml/pages/inbox/OutboxPage.qml:61
-#: qml/pages/reader/AttachmentsSheet.qml:79 qml/pages/reader/LinkSheet.qml:132
-#: qml/pages/search/SearchPage.qml:193
+#: qml/pages/accounts/RenameSheet.qml:66 qml/pages/accounts/TrustDialog.qml:21
+#: qml/pages/inbox/OutboxPage.qml:61 qml/pages/reader/AttachmentsSheet.qml:79
+#: qml/pages/reader/LinkSheet.qml:132 qml/pages/search/SearchPage.qml:193
 msgid "Cancel"
 msgstr ""
 
@@ -213,6 +217,23 @@ msgstr ""
 
 #: qml/pages/accounts/OptionsStep.qml:110
 msgid "Done"
+msgstr ""
+
+#: qml/pages/accounts/RenameSheet.qml:17
+msgid "Rename account"
+msgstr ""
+
+#: qml/pages/accounts/RenameSheet.qml:46
+msgid "Label"
+msgstr ""
+
+#: qml/pages/accounts/RenameSheet.qml:53
+msgid "Leave empty to show the default."
+msgstr ""
+
+#: qml/pages/accounts/RenameSheet.qml:75
+#: qml/pages/reader/AttachmentsSheet.qml:38
+msgid "Save"
 msgstr ""
 
 #: qml/pages/accounts/ServersStep.qml:71
@@ -539,10 +560,6 @@ msgstr ""
 
 #: qml/pages/reader/AttachmentsSheet.qml:37
 msgid "Pick an app, like Document Viewer"
-msgstr ""
-
-#: qml/pages/reader/AttachmentsSheet.qml:38
-msgid "Save"
 msgstr ""
 
 #: qml/pages/reader/AttachmentsSheet.qml:38

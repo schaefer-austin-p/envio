@@ -9,6 +9,7 @@ mod dispatch;
 mod folder_order;
 mod inline;
 mod invite;
+mod label;
 mod older;
 mod open;
 mod outbox;
@@ -282,6 +283,7 @@ impl<'s> Worker<'s> {
                 unread: self.seed_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
+                label: a.label.clone().unwrap_or_default(),
                 email: a.settings.email.clone(),
                 status: a
                     .broken

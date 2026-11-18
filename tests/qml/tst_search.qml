@@ -65,7 +65,7 @@ Item {
                      flagged: false, hasAttachments: false, selected: false }
         }
         function account(key, name) {
-            return { key: key, name: name, email: key + "@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+            return { key: key, name: name, display: name, label: "", email: key + "@example.org", status: "", state: "ok", unread: 0, unreadText: "",
                      pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" }
         }
         function init() {

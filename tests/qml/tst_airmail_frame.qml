@@ -110,7 +110,7 @@ Item {
         function test_shell_page_width() {
             thm.name = "airmail"
             const c = coreComponent.createObject(root)
-            c.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            c.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
             const s = shellComponent.createObject(root, {
                 theme: thm, core: c, accounts: c.accounts, folders: c.folders,
                 messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,

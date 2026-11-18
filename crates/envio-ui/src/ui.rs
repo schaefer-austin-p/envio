@@ -145,6 +145,7 @@ impl Ui {
                 status,
                 text,
             } => self.account_status(account, &status, text),
+            Event::AccountLabel { account, label } => self.account_label(&account, &label),
             Event::AccountRemoved { account } => self.account_removed(&account),
             Event::AccountUnread { account, unread } => {
                 let mut outs = self.account_unread(&account, unread);

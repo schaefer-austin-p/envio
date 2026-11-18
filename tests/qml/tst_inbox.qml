@@ -83,9 +83,9 @@ Item {
             core.outbox.clear()
             core.olderRow = 0
             thm.name = "carbon"
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", heading: "Ann · ann@example.org",
                                    status: "Up to date", state: "ok", unread: 3, unreadText: "3", attention: false })
-            core.accounts.append({ key: "bob", name: "Bob", email: "bob@example.org", heading: "bob@example.org",
+            core.accounts.append({ key: "bob", name: "Bob", display: "Bob", label: "", email: "bob@example.org", heading: "bob@example.org",
                                    status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
             opened.clear()
             wanted.clear()
@@ -811,7 +811,7 @@ Item {
             return everything(shell, []).some(function(o) { return o.objectName === name })
         }
         function addAccount() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
         }
 
@@ -824,7 +824,7 @@ Item {
         }
 
         function test_accounts_open_the_inbox() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", heading: "Ann · ann@example.org",
+            shellCore.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", heading: "Ann · ann@example.org",
                                         status: "Up to date", state: "ok", unread: 0, unreadText: "" })
             shellCore.ready = true
             tryVerify(function() { return find("inboxPage").visible })

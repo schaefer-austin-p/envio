@@ -5,7 +5,7 @@ use envio_core::{
     Suggestion,
 };
 
-use crate::rows::{AccountRow, FolderRowUi, OutboxRowUi, Row, SuggestionRow};
+use crate::rows::{AccountRow, FolderRowUi, NameRow, OutboxRowUi, Row, SuggestionRow};
 use crate::signals::Signal;
 
 /// The state word QML switches on.
@@ -40,8 +40,19 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
     AccountRow {
         key: info.key.clone(),
         name: info.name.clone(),
+        names: Box::new(NameRow {
+            label: info.label.clone(),
+            display: crate::heading::display_name(&info.label, &info.name, &info.email),
+        }),
         email: info.email.clone(),
-        heading: crate::heading::account_heading(&info.name, &info.email),
+        heading: crate::heading::account_heading(
+            if info.label.trim().is_empty() {
+                &info.name
+            } else {
+                &info.label
+            },
+            &info.email,
+        ),
         status: status_text.to_owned(),
         state: state.to_owned(),
         unread: info.unread,

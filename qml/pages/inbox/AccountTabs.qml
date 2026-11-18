@@ -50,7 +50,7 @@ Item {
             objectName: "tab-" + model.key
             theme: root.theme
             // The count is a number beside the name, not counted prose.
-            text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
+            text: model.unreadText !== "" ? model.display + "  " + model.unreadText : model.display
             selected: root.current === model.key
             readonly property bool offline: model.state === "offline"
             // Sign-in failed or certificate changed: sync is stopped.

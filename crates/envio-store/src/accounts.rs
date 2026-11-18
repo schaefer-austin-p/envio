@@ -57,6 +57,11 @@ pub struct Account {
     /// Never changes; the cache, journal and Outbox name the account by it.
     pub key: String,
     pub settings: AccountSettings,
+    /// What the user calls the account (tabs, drawer, Accounts page). Absent
+    /// or empty: the screens show the name, else the address. Not the sender
+    /// name, which stays in `settings.name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// Set when this entry of the file could not be read: what failed, with
     /// no secrets. `settings` then holds only what parsed (name, email) and
     /// empty values elsewhere, and the account must not be used. The file
@@ -113,6 +118,7 @@ impl Accounts {
         let account = Account {
             key: key.clone(),
             settings,
+            label: None,
             broken: None,
         };
         self.change(|accounts| accounts.push(account))?;
@@ -126,6 +132,17 @@ impl Accounts {
             accounts[index].settings = settings;
             accounts[index].broken = None;
         })
+    }
+
+    /// Sets the label; blank (or `None`) clears it. Surrounding whitespace is
+    /// dropped. A broken entry is written back as read, so it takes none.
+    pub fn set_label(&mut self, key: &str, label: Option<&str>) -> Result<()> {
+        let index = self.index(key)?;
+        let label = label
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_owned);
+        self.change(|accounts| accounts[index].label = label)
     }
 
     /// Removes the settings. The caller also drops the account's cache
@@ -258,6 +275,7 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             imap: server(),
             smtp: server(),
         },
+        label: None,
         broken: Some(reason),
     }
 }

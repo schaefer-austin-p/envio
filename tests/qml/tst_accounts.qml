@@ -55,7 +55,7 @@ Item {
             const sheet = find("actionSheet", page)
             tryVerify(function() { return !sheet.visible })
             core.accounts.clear()
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
                                    status: "Up to date", state: "ok", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
@@ -117,6 +117,39 @@ Item {
             compare(core.called("removeAccount")[1].args[1], true)
         }
 
+        function test_rename_row_saves_the_label_and_the_row_text_follows() {
+            core.accounts.setProperty(0, "label", "Home")
+            openActions()
+            mouseClick(find("renameRow", page))
+            const sheet = find("renameSheet", page)
+            tryVerify(function() { return sheet.opened })
+            const field = find("labelField", sheet)
+            compare(field.text, "Home", "prefilled with the current label")
+            compare(find("labelHint", sheet).text, "Leave empty to show the default.")
+            field.text = "Work"
+            mouseClick(find("renameSave", sheet))
+            compare(core.called("setAccountLabel").length, 1)
+            compare(core.called("setAccountLabel")[0].args[0], "ann")
+            compare(core.called("setAccountLabel")[0].args[1], "Work")
+            tryVerify(function() { return !sheet.visible })
+            // The core answers; the row shows the label, not the sender name.
+            compare(find("accountLabel", find("account-ann", page)).text, "Ann")
+            core.accounts.setProperty(0, "display", "Work")
+            core.accounts.setProperty(0, "label", "Work")
+            compare(find("accountLabel", find("account-ann", page)).text, "Work")
+        }
+
+        function test_rename_cancel_sends_nothing() {
+            openActions()
+            mouseClick(find("renameRow", page))
+            const sheet = find("renameSheet", page)
+            tryVerify(function() { return sheet.opened })
+            wait(300)
+            mouseClick(find("renameCancel", sheet))
+            tryVerify(function() { return !sheet.visible })
+            compare(core.called("setAccountLabel").length, 0)
+        }
+
         function test_update_password_row_asks_for_the_page() {
             openActions()
             mouseClick(find("updatePasswordRow", page))
@@ -159,7 +192,7 @@ Item {
         }
         function pinRow() {
             core.accounts.clear()
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
                                    status: "Certificate changed", state: "pin", unread: 0, unreadText: "",
                                    pinService: "smtp", pinHost: "smtp.example.org", pinTitle: "Can't verify the outgoing mail server (SMTP)", pinFingerprint: "AB:CD", pinHex: "abcd",
                                    pinText: "The server's certificate is not the one you trusted." })
@@ -176,7 +209,7 @@ Item {
             const fp1 = "03:10:17:24:31:38:45:52:59:66:73:80:87:94:01:08:15:22:29:36:43:50:57:64:71:78:85:92:99:06:13:20"  // digits only: no break after ":"
             const fp2 = "02:27:4C:71:96:BB:E0:05:2A:4F:74:99:BE:E3:08:2D:52:77:9C:C1:E6:0B:30:55:7A:9F:C4:E9:0E:33:58:7D"
             core.accounts.clear()
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
                                    status: "The server's certificate changed.\nOld fingerprint: " + fp1 + "\nNew fingerprint: " + fp2,
                                    state: "pin", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
@@ -206,7 +239,7 @@ Item {
         // offers nothing to trust.
         function test_pin_row_without_details_has_no_button() {
             core.accounts.clear()
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
                                    status: "The server certificate needs your attention", state: "pin", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             tryVerify(function() {
