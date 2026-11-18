@@ -39,7 +39,3 @@ pub fn not_now() -> String {
 pub fn change_failed() -> String {
     tr("Could not change the message in the Outbox")
 }
-
-pub fn edit_has_attachments() -> String {
-    tr("This message has attachments and can't be edited. Retry it, or delete it.")
-}

@@ -50,15 +50,6 @@ fn shown(list: &[Address]) -> Vec<String> {
     list.iter().map(Address::display).collect()
 }
 
-/// The message carries attachments. The draft store keeps only paths of
-/// files, so Edit refuses such a message instead of losing them.
-pub fn has_attachments(eml: &[u8]) -> bool {
-    matches!(
-        envio_mime::parse(eml),
-        Message::Parsed { attachments, .. } if !attachments.is_empty()
-    )
-}
-
 /// The draft a queued message was made from. Bcc is not in the `.eml`, so it
 /// is every recipient of the envelope not shown in To or Cc. `None` for
 /// mail that can not be read as a message.
@@ -221,20 +212,6 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nSee you\r\n"
         assert!(draft.body.contains("See you"));
         assert_eq!(draft.in_reply_to.as_deref(), Some("p@example.org"));
         assert_eq!(draft.references, vec!["o@example.org", "p@example.org"]);
-    }
-
-    #[test]
-    fn attachments_are_detected() {
-        let with = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
-Content-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\n\
-Content-Type: text/plain\r\n\r\nhi\r\n--b\r\n\
-Content-Type: application/pdf; name=a.pdf\r\n\
-Content-Disposition: attachment; filename=a.pdf\r\n\
-Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
-        assert!(has_attachments(with));
-        assert!(!has_attachments(
-            b"From: a@example.org\r\nSubject: s\r\n\r\nhi\r\n"
-        ));
     }
 
     #[test]

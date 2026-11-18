@@ -2,6 +2,8 @@
 //! Sending states are written by envio-sync; only `decide_outbox` below
 //! changes an existing item, and only as `outbox::decide` allows.
 
+use std::path::PathBuf;
+
 use envio_store::{OutboxItem, SendState};
 use envio_sync::schedule::Key;
 
@@ -182,9 +184,6 @@ impl Worker<'_> {
         let Some(eml) = eml else {
             return self.notice(text::outbox::not_now());
         };
-        if outbox::has_attachments(&eml) {
-            return self.notice(text::outbox::edit_has_attachments());
-        }
         let draft = outbox::draft_from_eml(&item.meta.account, &eml, &item.meta.recipients);
         let Some(mut draft) = draft else {
             return self.notice(text::outbox::not_now());
@@ -197,6 +196,19 @@ impl Worker<'_> {
                 return self.notice(text::compose::draft_not_saved());
             }
         };
+        // The message's attachments go into the draft's own files folder
+        // and the draft names them. Until that is stored the item stays,
+        // and a failure deletes the half-made draft.
+        match self.keep_attachments_of(&draft_id, &eml, stored) {
+            Ok(paths) => draft.attachments = paths,
+            Err(e) => {
+                log::warn!("keeping an Outbox item's attachments: {e}");
+                if let Err(e) = self.store.drafts.delete(&draft_id) {
+                    log::warn!("deleting the half-made draft: {e}");
+                }
+                return self.notice(text::compose::draft_not_saved());
+            }
+        }
         self.book.adopt(compose, draft_id.clone());
         draft.draft_id = Some(draft_id.clone());
         self.compose_ready(compose, draft, String::new());
@@ -204,6 +216,41 @@ impl Worker<'_> {
         self.remove_item(id);
         self.emit_outbox();
         self.reshow_open_invite();
+    }
+
+    /// Writes the attachments of `eml` into the draft's files folder and
+    /// saves the draft naming them; returns their paths.
+    fn keep_attachments_of(
+        &self,
+        draft_id: &str,
+        eml: &[u8],
+        mut stored: envio_store::Draft,
+    ) -> Result<Vec<PathBuf>, String> {
+        let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(eml) else {
+            return Ok(Vec::new());
+        };
+        if attachments.is_empty() {
+            return Ok(Vec::new());
+        }
+        let indexes: Vec<usize> = attachments.iter().map(|a| a.index).collect();
+        let bytes = envio_mime::attachments_bytes(eml, &indexes);
+        let mut paths = Vec::new();
+        for (info, bytes) in attachments.iter().zip(bytes) {
+            let bytes = bytes.ok_or("an attachment has no bytes")?;
+            let name = info.filename.as_deref().unwrap_or("attachment");
+            let path = self
+                .store
+                .drafts
+                .keep_bytes(draft_id, name, &bytes)
+                .map_err(|e| e.to_string())?;
+            paths.push(path);
+        }
+        stored.attachments.clone_from(&paths);
+        self.store
+            .drafts
+            .save(draft_id, &stored)
+            .map_err(|e| e.to_string())?;
+        Ok(paths)
     }
 }
 
