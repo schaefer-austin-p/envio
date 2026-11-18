@@ -67,6 +67,10 @@ pub(super) async fn folder(
         window_days: window,
         kept: floor,
         own: &own,
+        window: worker
+            .live
+            .get_mut(account)
+            .and_then(|live| live.window.take()),
     };
     let synced = driver::sync_folder_as(session, &mut worker.store.local(), id, options)
         .await
@@ -82,6 +86,9 @@ pub(super) async fn folder(
         worker.emit(event);
     }
     folder_synced(worker, account, (id, synced.more));
+    if let Some(live) = worker.live.get_mut(account) {
+        live.window = synced.window;
+    }
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
     }

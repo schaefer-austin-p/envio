@@ -1,5 +1,7 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use std::sync::Arc;
+
 use envio_mime::Address;
 use envio_net::imap::{FlagUpdate, Summary};
 use envio_store::{Flags, Folder, FolderId, FolderRole, MessageRowId};
@@ -53,6 +55,23 @@ pub struct Synced {
     /// finishes the sync (`more` false), for everything cached from the
     /// old UIDNEXT up, even when earlier calls stored it.
     pub new_mail: NewMail,
+    /// The window search of an unfinished sync (`more` true), for the next
+    /// call's [`Options::window`]. `None` once the sync is finished.
+    pub window: Option<WindowMemo>,
+}
+
+/// The server's UIDs inside the window, kept between the calls of one
+/// sync so a big first sync searches once, not once per call (#98). It
+/// only answers for the same folder state: a new UIDVALIDITY, mail that
+/// arrived (UIDNEXT moved) or another window search again. A restart
+/// loses it, which only costs one more search.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowMemo {
+    pub folder: FolderId,
+    pub uidvalidity: u32,
+    pub uidnext: u32,
+    pub days: Option<u32>,
+    pub uids: Arc<Vec<u32>>,
 }
 
 /// Batches (of [`crate::plan::sync::BATCH`] messages) fetched per call, so
@@ -82,6 +101,7 @@ pub async fn sync_folder(
         window_days,
         kept,
         own: &[],
+        window: None,
     };
     sync_folder_as(server, local, id, how).await
 }
@@ -94,6 +114,8 @@ pub struct Options<'a> {
     pub window_days: Option<u32>,
     pub kept: Option<Kept>,
     pub own: &'a [Address],
+    /// The previous call's [`Synced::window`], if this call continues it.
+    pub window: Option<WindowMemo>,
 }
 
 /// [`sync_folder`] that also knows the account's own addresses, so Inbox
@@ -109,13 +131,23 @@ pub async fn sync_folder_as(
         window_days,
         kept,
         own,
+        window: memo,
     }: Options<'_>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
-    let window = match window_start(now_ms, window_days) {
-        Some(since) => server.search_since(since).await?,
-        None => server.search_all().await?,
+    let reused = memo.filter(|m| {
+        m.folder == id
+            && m.uidvalidity == state.uid_validity
+            && m.uidnext == state.uid_next
+            && m.days == window_days
+    });
+    let window = match reused {
+        Some(memo) => memo.uids,
+        None => Arc::new(match window_start(now_ms, window_days) {
+            Some(since) => server.search_since(since).await?,
+            None => server.search_all().await?,
+        }),
     };
     let pending = Pending::of(
         local.journal.pending(),
@@ -146,6 +178,13 @@ pub async fn sync_folder_as(
         synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
+    synced.window = synced.more.then(|| WindowMemo {
+        folder: id,
+        uidvalidity: state.uid_validity,
+        uidnext: state.uid_next,
+        days: window_days,
+        uids: window.clone(),
+    });
     if !synced.more {
         // Before the state is stored: if this fails the old UIDNEXT stays
         // and the retry reports the same messages.

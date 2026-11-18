@@ -1,0 +1,80 @@
+//! A first sync split over several calls searches the window once (#98).
+
+mod support;
+
+use envio_sync::driver::{Options, Synced, WindowMemo, sync_folder_as, sync_folders};
+use support::fake::{FakeServer, NOW_MS};
+use support::local::{ACCOUNT, Store};
+
+/// 450 messages: several calls of `BATCHES_PER_STEP` batches are needed.
+fn busy() -> FakeServer {
+    let mut server = FakeServer::new();
+    for n in 0..450 {
+        server.deliver_id("INBOX", &format!("m{n}"));
+    }
+    server
+}
+
+async fn part(server: &mut FakeServer, store: &mut Store, window: Option<WindowMemo>) -> Synced {
+    sync_folders(server, &mut store.local(), ACCOUNT)
+        .await
+        .unwrap();
+    let id = store.folder("INBOX").id;
+    let how = Options {
+        now_ms: NOW_MS,
+        window_days: Some(30),
+        kept: None,
+        own: &[],
+        window,
+    };
+    sync_folder_as(server, &mut store.local(), id, how)
+        .await
+        .unwrap()
+}
+
+async fn finish(server: &mut FakeServer, store: &mut Store, mut synced: Synced) {
+    while synced.more {
+        synced = part(server, store, synced.window.take()).await;
+    }
+}
+
+fn searches(server: &FakeServer) -> usize {
+    server
+        .calls
+        .iter()
+        .filter(|call| call.starts_with("search_"))
+        .count()
+}
+
+#[tokio::test]
+async fn a_first_sync_over_several_calls_searches_the_window_once() {
+    let mut server = busy();
+    let mut store = Store::new();
+    let first = part(&mut server, &mut store, None).await;
+    assert!(first.more);
+    finish(&mut server, &mut store, first).await;
+    assert_eq!(store.uids("INBOX").len(), 450);
+    assert_eq!(searches(&server), 1, "{:?}", server.calls);
+}
+
+#[tokio::test]
+async fn mail_that_arrives_mid_sync_is_still_fetched() {
+    let mut server = busy();
+    let mut store = Store::new();
+    let first = part(&mut server, &mut store, None).await;
+    assert!(first.more);
+    server.deliver_id("INBOX", "late");
+    finish(&mut server, &mut store, first).await;
+    assert_eq!(store.uids("INBOX").len(), 451);
+}
+
+#[tokio::test]
+async fn a_new_uidvalidity_ignores_the_remembered_window() {
+    let mut server = busy();
+    let mut store = Store::new();
+    let first = part(&mut server, &mut store, None).await;
+    server.renumber("INBOX");
+    let before = searches(&server);
+    part(&mut server, &mut store, first.window).await;
+    assert_eq!(searches(&server), before + 1);
+}

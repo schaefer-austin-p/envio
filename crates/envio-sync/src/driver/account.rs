@@ -54,6 +54,7 @@ pub async fn sync_account(
             window_days: window,
             kept: None,
             own,
+            window: None,
         };
         match sync_folder_as(server, local, id, options).await {
             Ok(one) => synced.folders.push((id, one)),

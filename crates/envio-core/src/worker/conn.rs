@@ -11,6 +11,7 @@ use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
 use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
+use envio_sync::driver::WindowMemo;
 use futures::future::AbortHandle;
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
@@ -53,6 +54,8 @@ pub(crate) struct Live {
     pub relist: bool,
     /// A folder with parts left: it is synced again before the others.
     pub continuing: Option<FolderId>,
+    /// That folder's window search, reused by its next part (#98).
+    pub window: Option<WindowMemo>,
     /// Messages whose body could not be prefetched: not tried again while
     /// the worker lives.
     pub prefetch_skip: BTreeSet<MessageRowId>,
@@ -73,6 +76,7 @@ impl Live {
             listed: false,
             relist: false,
             continuing: None,
+            window: None,
             prefetch_skip: BTreeSet::new(),
             prefetch_off: BTreeSet::new(),
         }
