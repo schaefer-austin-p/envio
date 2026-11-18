@@ -110,8 +110,9 @@ fn sizes_of(html: &str) -> Vec<f64> {
 
 fn element() -> impl Strategy<Value = (&'static str, &'static str, &'static str)> {
     let tag = prop::sample::select(vec![
-        "div", "span", "p", "font", "h1", "h3", "big", "small", "section", "table", "tbody", "tr",
-        "td", "center", "b", "i",
+        // Tags a second parse leaves where they are (no `p` in `p`, no
+        // block in `h1`), so the output can be cleaned again.
+        "div", "span", "font", "big", "small", "section", "center", "b", "i",
     ]);
     let size = prop::sample::select(vec![
         "",
