@@ -70,6 +70,7 @@ async fn own_addresses_are_not_new_mail() {
             window_days: Some(30),
             kept: None,
             own: &own,
+            window: None,
         },
     )
     .await
@@ -187,6 +188,7 @@ async fn after_from(from: &str, own: &[Address]) -> Synced {
         window_days: Some(30),
         kept: None,
         own,
+        window: None,
     };
     sync_folder_as(&mut server, &mut store.local(), id, how)
         .await

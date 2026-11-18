@@ -11,6 +11,7 @@ use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
 use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
+use envio_sync::driver::WindowMemo;
 use futures::future::AbortHandle;
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
@@ -53,6 +54,8 @@ pub(crate) struct Live {
     pub relist: bool,
     /// A folder with parts left: it is synced again before the others.
     pub continuing: Option<FolderId>,
+    /// That folder's window search, reused by its next part (#98).
+    pub window: Option<WindowMemo>,
     /// Messages whose body could not be prefetched: not tried again while
     /// the worker lives.
     pub prefetch_skip: BTreeSet<MessageRowId>,
@@ -73,6 +76,7 @@ impl Live {
             listed: false,
             relist: false,
             continuing: None,
+            window: None,
             prefetch_skip: BTreeSet::new(),
             prefetch_off: BTreeSet::new(),
         }
@@ -80,6 +84,24 @@ impl Live {
 }
 
 impl Live {
+    /// The remembered window search for `id`'s next part. Another folder's
+    /// memo stays where it is.
+    pub fn take_window(&mut self, id: FolderId) -> Option<WindowMemo> {
+        if self.window.as_ref().is_some_and(|memo| memo.folder == id) {
+            self.window.take()
+        } else {
+            None
+        }
+    }
+
+    /// Stores what `id`'s sync left (`None` once it finished). A finish
+    /// never clears another folder's memo.
+    pub fn keep_window(&mut self, id: FolderId, left: Option<WindowMemo>) {
+        if left.is_some() || self.window.as_ref().is_some_and(|memo| memo.folder == id) {
+            self.window = left;
+        }
+    }
+
     /// An account as loaded: one that cannot be read is stopped for good.
     pub fn for_account(account: &Account) -> Self {
         let mut live = Self::new();
@@ -331,8 +353,34 @@ impl Worker<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+
     use envio_store::{AccountSettings, Security, Server};
     use secrecy::SecretString;
+
+    fn memo(folder: i64) -> WindowMemo {
+        WindowMemo {
+            folder: FolderId(folder),
+            uidvalidity: 1,
+            uidnext: 2,
+            days: Some(30),
+            uids: Arc::new(vec![1]),
+        }
+    }
+
+    #[test]
+    fn another_folders_sync_leaves_the_remembered_window_alone() {
+        let mut live = Live::new();
+        live.keep_window(FolderId(1), Some(memo(1)));
+        // Folder 2 neither takes folder 1's memo nor clears it when done.
+        assert_eq!(live.take_window(FolderId(2)), None);
+        live.keep_window(FolderId(2), None);
+        assert_eq!(live.take_window(FolderId(1)), Some(memo(1)));
+        // The owner finishing clears it.
+        live.keep_window(FolderId(1), Some(memo(1)));
+        live.keep_window(FolderId(1), None);
+        assert_eq!(live.window, None);
+    }
 
     fn account(pin: Option<&str>) -> Account {
         let server = |pin: Option<&str>| Server {
