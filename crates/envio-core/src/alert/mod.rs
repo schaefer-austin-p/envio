@@ -2,6 +2,7 @@
 //! the platform). Not `notice`: `Event::Notice` is an in-app message.
 
 mod plan;
+mod postal;
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 

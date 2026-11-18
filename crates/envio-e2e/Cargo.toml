@@ -21,6 +21,7 @@ envio-net = { path = "../envio-net" }
 envio-store = { path = "../envio-store" }
 envio-sync = { path = "../envio-sync" }
 log = "0.4"
+serde_json = "1"
 secrecy = "0.10"
 tempfile = "3"
 tokio = { version = "1.54", features = ["macros", "rt"] }

@@ -566,6 +566,7 @@ dependencies = [
  "envio-sync",
  "log",
  "secrecy",
+ "serde_json",
  "tempfile",
  "tokio",
 ]
