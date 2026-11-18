@@ -191,6 +191,7 @@ impl qobject::EnvioCore {
             .set_dark_mode(QString::from(convert::dark_word(settings.dark)));
         self.as_mut()
             .set_sync_days(i32::try_from(settings.sync_window_days).unwrap_or(30));
+        self.as_mut().set_notify_show_text(settings.notify_show_text);
         self.as_mut()
             .set_images_always(settings.images == envio_core::ImagesDefault::Always);
         self.as_mut().set_default_account(QString::from(

@@ -5,6 +5,7 @@
 mod accounts;
 mod folder_counts;
 mod messages;
+mod notify;
 mod older;
 mod search;
 mod selection;
@@ -22,6 +23,8 @@ use crate::signals::{OlderRow, Signal};
 use messages::Current;
 use search::SearchState;
 
+pub use notify::{settings_with_notify, settings_with_show_text};
+
 /// What `Ui::apply` hands the glue, in order.
 #[derive(Debug)]
 pub enum Output {
@@ -38,6 +41,8 @@ fn change(model: Model, op: Op) -> Output {
 #[derive(Debug, Default)]
 pub struct Ui {
     accounts: Vec<AccountRow>,
+    /// Accounts whose notifications are off, as the settings last said.
+    notify_off: BTreeSet<String>,
     /// The Outbox as the core last listed it; rows are rebuilt from it when
     /// an account's status changes their reason.
     outbox: Vec<OutboxRow>,
@@ -123,7 +128,13 @@ impl Ui {
             self.folders_failed();
         }
         if let Some(signal) = signal_of(&event) {
-            return vec![Output::Signal(signal)];
+            let mut outs = match &event {
+                Event::Settings(settings) => self.notify_off_is(&settings.notify_off),
+                _ => Vec::new(),
+            };
+            self.mirror.track(&outs);
+            outs.push(Output::Signal(signal));
+            return outs;
         }
         let outs = match event {
             Event::Started { accounts, .. } => self.started(&accounts),

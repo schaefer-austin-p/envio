@@ -47,6 +47,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         unread: info.unread,
         unread_text: unread_text(info.unread),
         attention: needs_attention(state),
+        notify: true,
         pin: Box::default(),
     }
 }
