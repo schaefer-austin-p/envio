@@ -13,7 +13,9 @@ Item {
     required property var core
     signal backRequested()
 
-    // To be confirmed on the phone in Plan 9a Task 8
+    // Confirmed on the phone 2026-11-18 (Plan 9a Task 8): the list holds package
+    // names ("music.ubports"), so Envio's entry is 'envio.aps', not the
+    // app id "envio.aps_envio"; qtmir stops suspending it at once.
     readonly property string exemptCommand:
         "gsettings get com.canonical.qtmir lifecycle-exempt-appids\n" +
         "gsettings set com.canonical.qtmir lifecycle-exempt-appids \"[<the apps it printed>, 'envio.aps']\""
@@ -208,7 +210,7 @@ Item {
                 }
                 Help {
                     textFormat: Text.RichText
-                    text: qsTr("<b>UT Tweak Tool:</b> Apps, Envio, then turn on Prevent app suspension.")
+                    text: qsTr("<b>UT Tweak Tool:</b> Apps + Scopes, Envio, then turn on Prevent app suspension.")
                 }
                 Help {
                     textFormat: Text.RichText

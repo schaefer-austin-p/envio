@@ -241,3 +241,6 @@ On synthetic accounts, with Envio exempted (UT Tweak Tool):
    card shows on resume only if Envio is not focused (expected: none).
 
 Check every shot for private data before it goes in the PR.
+
+Run 2026-11-18: see "Notifications run (Plan 9a)" in `docs/phone-checklist.md`.
+The exemption entry is `'envio.aps'` (package name), confirmed.

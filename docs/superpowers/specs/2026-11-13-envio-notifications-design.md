@@ -56,6 +56,10 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   name is in `com.canonical.qtmir lifecycle-exempt-appids`. The user sets
   this, either with UT Tweak Tool ("Prevent app suspension") or with
   `gsettings` in the Terminal. A confined app cannot set it itself.
+  Confirmed on the phone 2026-11-18: the entry is `'envio.aps'` (package
+  name, like `'music.ubports'`), and the exemption takes effect at once.
+  UT Tweak Tool path: Apps + Scopes, Envio, Details, General, "Prevent app
+  suspension" (read from the tool's QML; it asks for the passcode).
 - Remote push: `POST https://push.ubports.com/notify` with `appid`
   (`envio.aps_envio`), `token`, `expire_on`, and the optional
   `replace_tag`, `clear_pending` and `data`. `data` may be at most 4 KiB

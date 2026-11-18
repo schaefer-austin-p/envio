@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 11:56+0100\n"
+"POT-Creation-Date: 2026-11-18 12:34+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -773,49 +773,51 @@ msgstr ""
 msgid "No senders yet. Choose \"Always load from this sender\" in a message."
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:40
+#: qml/pages/settings/NotificationsPage.qml:42
 #: qml/pages/settings/SettingsPage.qml:34
 msgid "Notifications"
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:76
+#: qml/pages/settings/NotificationsPage.qml:78
 msgid "Notify me about new mail"
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:124
+#: qml/pages/settings/NotificationsPage.qml:126
 msgid "No notifications. New mail still arrives while Envio is open."
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:152
-#: qml/pages/settings/NotificationsPage.qml:175
+#: qml/pages/settings/NotificationsPage.qml:154
+#: qml/pages/settings/NotificationsPage.qml:177
 msgid "Show sender and subject"
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:163
+#: qml/pages/settings/NotificationsPage.qml:165
 msgid "Turn on an account first."
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:189
+#: qml/pages/settings/NotificationsPage.qml:191
 msgid ""
 "Off: a notification says only the account and how many new messages. On: it "
 "also shows who wrote and the subject, even on the lock screen."
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:205
+#: qml/pages/settings/NotificationsPage.qml:207
 msgid "Keep checking in the background"
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:207
+#: qml/pages/settings/NotificationsPage.qml:209
 msgid ""
 "Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. "
 "To keep it running, either:"
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:211
-msgid "<b>UT Tweak Tool:</b> Apps, Envio, then turn on Prevent app suspension."
+#: qml/pages/settings/NotificationsPage.qml:213
+msgid ""
+"<b>UT Tweak Tool:</b> Apps + Scopes, Envio, then turn on Prevent app "
+"suspension."
 msgstr ""
 
-#: qml/pages/settings/NotificationsPage.qml:215
+#: qml/pages/settings/NotificationsPage.qml:217
 msgid ""
 "<b>Terminal:</b> run these. The second keeps the apps already in the list."
 msgstr ""
