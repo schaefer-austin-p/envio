@@ -216,3 +216,17 @@ fn outgoing_without_calendar_is_unchanged() {
     let mixed = mail.find("multipart/mixed").unwrap();
     assert!(mixed < mail.find("multipart/alternative").unwrap());
 }
+
+#[test]
+fn the_built_reply_lists_an_unnamed_calendar_part_with_method_reply() {
+    let built = build(&outgoing(&Envelope::default(), ""), STAMP, "m1@example.org");
+    let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(&built.bytes) else {
+        panic!("not parsed");
+    };
+    let part = attachments
+        .iter()
+        .find(|a| a.content_type == "text/calendar")
+        .unwrap();
+    assert_eq!(part.method.as_deref(), Some("REPLY"));
+    assert_eq!(part.filename, None);
+}
