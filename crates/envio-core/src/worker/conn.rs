@@ -231,6 +231,7 @@ impl Worker<'_> {
         let disk_full = self.disk_full(now_ms());
         if let Some(live) = self.live.get_mut(account) {
             let failed = live.health.failures > 0;
+            live.health.connected(disk_full);
             if sync_first(failed, behind && !disk_full, live.idle_synced_first) {
                 // Back after a failure, or the Inbox changed after its sync:
                 // sync it first; IDLE starts on the next turn. The failures
@@ -277,7 +278,7 @@ impl Worker<'_> {
         match result {
             Ok((session, woke)) => {
                 // The IDLE ran (it did not fail at once): the backoff ends.
-                live.health.ok_step("idle", disk_full);
+                live.health.idle_ran(disk_full);
                 live.conn = if keep {
                     Conn::Ready(session)
                 } else {
