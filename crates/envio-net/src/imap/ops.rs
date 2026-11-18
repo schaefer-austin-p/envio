@@ -216,7 +216,8 @@ impl ImapSession {
     /// UIDs of live (not \\Deleted) messages in the selected folder with
     /// this Message-ID (the Outbox's "may have been sent" check). Some servers (Stalwart 1.0) never
     /// match HEADER Message-ID, so an empty answer is checked against the
-    /// Message-ID headers of the newest [`SCAN`] messages.
+    /// Message-ID headers of the newest [`SCAN`] messages (only those are
+    /// listed, so a miss on a large folder stays cheap).
     pub async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         self.find_message_id(message_id, false).await
     }
@@ -242,8 +243,17 @@ impl ImapSession {
         }
         // The folder's own list of UIDs, not sequence numbers counted from
         // the EXISTS of SELECT, which an expunge or an append since has
-        // made wrong.
-        let all = self.search("UNDELETED").await?;
+        // made wrong. Not deep: only the newest SCAN messages are listed,
+        // by a sequence range (`*` is the current last message and the
+        // answer is UIDs, so a stale EXISTS only shifts the window).
+        let all = if deep {
+            self.search("UNDELETED").await?
+        } else if self.exists == 0 {
+            Vec::new()
+        } else {
+            let first = self.exists.saturating_sub(SCAN - 1).max(1);
+            self.search(&format!("{first}:* UNDELETED")).await?
+        };
         let mut uids = Vec::new();
         let mut end = all.len();
         while end > 0 {

@@ -167,6 +167,43 @@ async fn a_scan_names_the_folders_uids_not_numbers_counted_from_select() {
 }
 
 #[tokio::test]
+async fn a_non_deep_miss_lists_only_the_newest_messages() {
+    let header = "Message-ID: <a@b>\r\n\r\n";
+    let reply = leak(format!(
+        "* 450 FETCH (UID 9 FLAGS (\\Seen) BODY[HEADER.FIELDS (MESSAGE-ID)] {{{}}}\r\n{header})\r\n",
+        header.len()
+    ));
+    let (mut s, log) = session_logged(Script {
+        select_exists: 450,
+        search_untagged: "* SEARCH\r\n",
+        search_all_untagged: "* SEARCH 9\r\n",
+        fetch_canned: leak_all(vec![reply]),
+        ..Script::default()
+    })
+    .await;
+    s.select("Sent").await.unwrap();
+    assert_eq!(s.search_message_id("<a@b>").await.unwrap(), vec![9]);
+    let searches: Vec<String> = log
+        .lines()
+        .into_iter()
+        .map(|(_, line)| line)
+        .filter(|line| line.contains("SEARCH"))
+        .collect();
+    assert!(
+        searches
+            .iter()
+            .any(|l| l.contains("SEARCH 251:* UNDELETED")),
+        "{searches:?}"
+    );
+    assert!(
+        !searches
+            .iter()
+            .any(|l| l.trim_end().ends_with("SEARCH UNDELETED")),
+        "{searches:?}"
+    );
+}
+
+#[tokio::test]
 async fn a_miss_is_trusted_once_the_server_has_found_a_message_by_header() {
     let (mut s, log) = session_logged(Script {
         select_exists: 5,
