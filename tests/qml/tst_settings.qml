@@ -23,6 +23,7 @@ Item {
     SettingsPage { id: settings; theme: thm; core: core; anchors.fill: parent; visible: false }
     SignalSpy { id: toAppearance; target: settings; signalName: "appearanceRequested" }
     SignalSpy { id: toSync; target: settings; signalName: "syncRequested" }
+    SignalSpy { id: toNotifications; target: settings; signalName: "notificationsRequested" }
     SignalSpy { id: toImages; target: settings; signalName: "imagesRequested" }
     SignalSpy { id: toAccounts; target: settings; signalName: "accountsRequested" }
     SignalSpy { id: toAbout; target: settings; signalName: "aboutRequested" }
@@ -55,7 +56,7 @@ Item {
         }
         function test_settings_rows_each_show_a_chevron() {
             settings.visible = true
-            for (const key of ["appearance", "sync", "images", "accounts", "about"]) {
+            for (const key of ["appearance", "sync", "notifications", "images", "accounts", "about"]) {
                 const c = find("chevron", find("row-" + key, settings))
                 verify(c.visible, key + " has a chevron")
                 verify(c.width > 0)
@@ -89,7 +90,7 @@ Item {
             core.allowedSenders = []
             core.accounts.clear()
             for (const p of [appearance, images, sync, about, settings]) p.visible = false
-            for (const s of [toAppearance, toSync, toImages, toAccounts, toAbout]) s.clear()
+            for (const s of [toAppearance, toSync, toNotifications, toImages, toAccounts, toAbout]) s.clear()
             core.reset()
         }
 
@@ -220,10 +221,11 @@ Item {
             settings.visible = true
             mouseClick(find("row-appearance", settings))
             mouseClick(find("row-sync", settings))
+            mouseClick(find("row-notifications", settings))
             mouseClick(find("row-images", settings))
             mouseClick(find("row-accounts", settings))
             mouseClick(find("row-about", settings))
-            for (const s of [toAppearance, toSync, toImages, toAccounts, toAbout]) compare(s.count, 1)
+            for (const s of [toAppearance, toSync, toNotifications, toImages, toAccounts, toAbout]) compare(s.count, 1)
         }
     }
 }

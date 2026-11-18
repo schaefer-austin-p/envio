@@ -1,0 +1,224 @@
+import QtQuick 2.15
+import "../../platform"
+import "../../components"
+
+// Notifications (board 13d): a switch per account, whether a notification
+// shows the sender and subject, and how to keep Envio checking while it is
+// in the background (instructions only: a confined app cannot set it).
+Item {
+    id: root
+    objectName: "notificationsPage"
+    required property Theme theme
+    required property var accounts
+    required property var core
+    signal backRequested()
+
+    // Confirmed on the phone in Plan 9a Task 8
+    readonly property string exemptCommand:
+        "gsettings get com.canonical.qtmir lifecycle-exempt-appids\n" +
+        "gsettings set com.canonical.qtmir lifecycle-exempt-appids \"[<the apps it printed>, 'envio.aps']\""
+
+    // Whether any account notifies; the text switch and the help need one.
+    property bool anyOn: false
+    function recount() {
+        let on = false
+        for (let i = 0; i < col.children.length; i++)
+            if (col.children[i].notifyOn === true) on = true
+        anyOn = on
+    }
+
+    TopBar {
+        id: bar
+        theme: root.theme
+        width: parent.width
+        showBack: true
+        title: qsTr("Notifications")
+        onBackClicked: root.backRequested()
+    }
+
+    Flickable {
+        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        clip: true
+        contentHeight: col.height + root.theme.gu(2)
+        Column {
+            id: col
+            width: parent.width
+
+            component Eyebrow: Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2)
+                topPadding: root.theme.gu(2)
+                width: col.width - root.theme.gu(4)
+                wrapMode: Text.WordWrap
+                color: root.theme.secondary
+                font.family: root.theme.eyebrowFamily
+                font.pixelSize: root.theme.eyebrowSize
+                font.weight: root.theme.eyebrowWeight
+                font.letterSpacing: root.theme.eyebrowSpacing
+                font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
+            }
+            component Help: Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2)
+                width: col.width - root.theme.gu(4)
+                wrapMode: Text.WordWrap
+                color: root.theme.secondary
+                font.family: root.theme.fontUi
+                font.pixelSize: 13
+            }
+
+            Eyebrow { text: qsTr("Notify me about new mail") }
+            Repeater {
+                model: root.accounts
+                delegate: ListRow {
+                    id: acct
+                    required property var model
+                    readonly property bool notifyOn: acct.model.notify === true
+                    objectName: "notifyRow-" + acct.model.key
+                    theme: root.theme
+                    width: col.width
+                    separator: false
+                    implicitHeight: root.theme.touch
+                    onNotifyOnChanged: root.recount()
+                    Component.onCompleted: root.recount()
+                    Component.onDestruction: Qt.callLater(root.recount)
+                    onClicked: root.core.setNotify(acct.model.key, !acct.notifyOn)
+                    Text {
+                        textFormat: Text.PlainText
+                        x: root.theme.gu(2)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - x - accountToggle.width - root.theme.gu(4)
+                        text: acct.model.email
+                        elide: Text.ElideRight
+                        color: root.theme.text
+                        font.family: root.theme.fontUi
+                        font.pixelSize: 16
+                        font.weight: Font.Medium
+                    }
+                    Toggle {
+                        id: accountToggle
+                        objectName: "notify-" + acct.model.key
+                        theme: root.theme
+                        anchors { right: parent.right; rightMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
+                        text: acct.model.email
+                        checked: acct.notifyOn
+                        onToggled: root.core.setNotify(acct.model.key, checked)
+                    }
+                }
+            }
+            Help {
+                objectName: "noNotifications"
+                visible: !root.anyOn
+                height: visible ? implicitHeight + root.theme.gu(1) : 0
+                text: qsTr("No notifications. New mail still arrives while Envio is open.")
+            }
+            Rectangle {
+                x: root.theme.gu(2)
+                width: col.width - root.theme.gu(4)
+                height: 1
+                color: root.theme.hairline
+            }
+
+            ListRow {
+                id: textRow
+                objectName: "notifyTextRow"
+                theme: root.theme
+                width: col.width
+                separator: false
+                implicitHeight: Math.max(root.theme.touch, textCol.height + root.theme.gu(2))
+                enabled: root.anyOn
+                onClicked: root.core.setNotifyText(!root.core.notifyShowText)
+                Column {
+                    id: textCol
+                    x: root.theme.gu(2)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - x - textToggle.width - root.theme.gu(4)
+                    opacity: root.anyOn ? 1 : 0.45
+                    Text {
+                        objectName: "notifyTextLabel"
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: qsTr("Show sender and subject")
+                        wrapMode: Text.WordWrap
+                        color: root.theme.text
+                        font.family: root.theme.fontUi
+                        font.pixelSize: 16
+                        font.weight: Font.Medium
+                    }
+                    Text {
+                        objectName: "notifyTextOff"
+                        visible: !root.anyOn
+                        textFormat: Text.PlainText
+                        width: parent.width
+                        text: qsTr("Turn on an account first.")
+                        wrapMode: Text.WordWrap
+                        color: root.theme.secondary
+                        font.family: root.theme.fontUi
+                        font.pixelSize: 13
+                    }
+                }
+                Toggle {
+                    id: textToggle
+                    objectName: "notifyText"
+                    theme: root.theme
+                    anchors { right: parent.right; rightMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
+                    text: qsTr("Show sender and subject")
+                    enabled: root.anyOn
+                    checked: root.core.notifyShowText
+                    onToggled: root.core.setNotifyText(checked)
+                }
+            }
+            Help {
+                objectName: "notifyTextCaption"
+                visible: root.anyOn
+                height: visible ? implicitHeight + root.theme.gu(1) : 0
+                text: qsTr("Off: a notification says only the account and how many new messages. On: it also shows who wrote and the subject, even on the lock screen.")
+            }
+
+            Column {
+                id: background
+                objectName: "backgroundHelp"
+                visible: root.anyOn
+                width: col.width
+                height: visible ? implicitHeight : 0
+                spacing: root.theme.gu(0.5)
+                Rectangle {
+                    x: root.theme.gu(2)
+                    width: col.width - root.theme.gu(4)
+                    height: 1
+                    color: root.theme.hairline
+                }
+                Eyebrow { text: qsTr("Keep checking in the background") }
+                Help {
+                    text: qsTr("Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. To keep it running, either:")
+                }
+                Help {
+                    text: qsTr("UT Tweak Tool: Apps, Envio, then turn on Prevent app suspension.")
+                }
+                Help {
+                    text: qsTr("Terminal: run these. The second keeps the apps already in the list.")
+                }
+                Rectangle {
+                    x: root.theme.gu(2)
+                    width: col.width - root.theme.gu(4)
+                    height: commandText.implicitHeight + root.theme.gu(3)
+                    radius: root.theme.gu(1)
+                    color: root.theme.selected
+                    border.width: 1
+                    border.color: root.theme.hairline
+                    Text {
+                        id: commandText
+                        objectName: "exemptCommand"
+                        textFormat: Text.PlainText
+                        anchors { fill: parent; margins: root.theme.gu(1.5) }
+                        text: root.exemptCommand
+                        wrapMode: Text.WrapAnywhere
+                        color: root.theme.text
+                        font.family: root.theme.fontAddress
+                        font.pixelSize: 11
+                    }
+                }
+            }
+        }
+    }
+}

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 11:09+0100\n"
+"POT-Creation-Date: 2026-11-18 11:44+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -97,7 +97,7 @@ msgid "Try again"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:283
-#: qml/pages/settings/SettingsPage.qml:34
+#: qml/pages/settings/SettingsPage.qml:36
 msgid "Accounts"
 msgstr ""
 
@@ -190,7 +190,7 @@ msgstr ""
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:33
 #: qml/pages/settings/SyncPage.qml:21
 msgid "Sync"
 msgstr ""
@@ -443,7 +443,7 @@ msgstr ""
 msgid "Open accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:24
 msgid "Settings"
 msgstr ""
 
@@ -695,7 +695,7 @@ msgstr ""
 msgid "unknown"
 msgstr ""
 
-#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:35
+#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:37
 msgid "About"
 msgstr ""
 
@@ -716,7 +716,7 @@ msgid "not as a click"
 msgstr ""
 
 #: qml/pages/settings/AppearancePage.qml:25
-#: qml/pages/settings/SettingsPage.qml:31
+#: qml/pages/settings/SettingsPage.qml:32
 msgid "Appearance"
 msgstr ""
 
@@ -744,7 +744,7 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:33
+#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:35
 msgid "Load remote images"
 msgstr ""
 
@@ -771,6 +771,52 @@ msgstr ""
 
 #: qml/pages/settings/ImagesPage.qml:73
 msgid "No senders yet. Choose \"Always load from this sender\" in a message."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:35
+#: qml/pages/settings/SettingsPage.qml:34
+msgid "Notifications"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:70
+msgid "Notify me about new mail"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:113
+msgid "No notifications. New mail still arrives while Envio is open."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:141
+#: qml/pages/settings/NotificationsPage.qml:165
+msgid "Show sender and subject"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:153
+msgid "Turn on an account first."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:175
+msgid ""
+"Off: a notification says only the account and how many new messages. On: it "
+"also shows who wrote and the subject, even on the lock screen."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:191
+msgid "Keep checking in the background"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:193
+msgid ""
+"Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. "
+"To keep it running, either:"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:196
+msgid "UT Tweak Tool: Apps, Envio, then turn on Prevent app suspension."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:199
+msgid "Terminal: run these. The second keeps the apps already in the list."
 msgstr ""
 
 #: qml/pages/settings/SyncPage.qml:37

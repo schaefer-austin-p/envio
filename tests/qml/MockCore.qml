@@ -18,6 +18,8 @@ Item {
     property int olderRow: 0
     // The sync window in days; 0 is all mail.
     property int syncDays: 30
+    // Whether a notification shows the sender and subject.
+    property bool notifyShowText: false
 
     // What the page called, in order.
     property var calls: []
@@ -85,6 +87,8 @@ Item {
     function loadOlder() { record("loadOlder", []) }
     function loadOlderNearEnd() { record("loadOlderNearEnd", []) }
     function setSyncWindow(days) { record("setSyncWindow", [days]) }
+    function setNotify(account, on) { record("setNotify", [account, on]) }
+    function setNotifyText(on) { record("setNotifyText", [on]) }
     function select(id, on) { record("select", [id, on]) }
     function clearSelection() { record("clearSelection", []) }
     // False: the selected row is gone, nothing was acted on.
