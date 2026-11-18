@@ -380,9 +380,18 @@ fn every_listed_url_keeps_a_size_slot() {
 }
 
 #[test]
-fn counts_the_blocked_images_past_the_cap_while_blocked() {
+fn counts_only_the_blocked_images_that_would_load() {
+    // The count is what "Load images" brings back: at most the cap.
     let r = sanitize_html(&many(10_000), &blocked());
-    assert_eq!(r.blocked_images, 10_000);
+    assert_eq!(r.blocked_images, CAP);
     assert!(r.remote_images.is_empty());
     assert_eq!(r.html.matches("<img").count(), 0);
+}
+
+#[test]
+fn counts_a_blocked_url_once() {
+    let html = r#"<img src="https://example.com/a.png">"#.repeat(5);
+    let r = sanitize_html(&html, &blocked());
+    assert_eq!(r.blocked_images, 1);
+    assert_eq!(r.html.matches("[image]").count(), 5);
 }
