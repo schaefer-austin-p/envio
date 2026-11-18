@@ -81,12 +81,16 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             }
             let allowed = STYLE_PROPS.contains(&prop.as_str())
                 || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()))
-                || (matches!(element, "table" | "td" | "th" | "col") && prop == "width");
+                || (matches!(element, "table" | "td" | "th" | "col") && prop == "width")
+                || prop == "background";
             if !(allowed && safe_css_value(value) && sane_lengths(&prop, value)) {
                 return None;
             }
             if prop.starts_with("margin") {
                 return vertical_margins(&prop, value);
+            }
+            if prop == "background" {
+                return shorthand_colour(value);
             }
             Some(format!("{prop}:{value}"))
         })
@@ -121,6 +125,35 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
         .filter_map(|(side, v)| v.filter(|v| *v != "auto").map(|v| format!("{side}:{v}")))
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
+}
+
+/// The `background` shorthand reduced to its colour as `background-color`
+/// (Qt 5 rich text has no shorthand), so a call-to-action link or cell
+/// keeps its fill (#178). Images, gradients and other layers are dropped;
+/// `None` when no token is a colour.
+fn shorthand_colour(value: &str) -> Option<String> {
+    let mut tokens = Vec::new();
+    let (mut start, mut depth) = (None, 0usize);
+    for (i, c) in value.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        match (c.is_whitespace() && depth == 0, start) {
+            (true, Some(s)) => {
+                tokens.push(&value[s..i]);
+                start = None;
+            }
+            (false, None) => start = Some(i),
+            _ => {}
+        }
+    }
+    tokens.extend(start.map(|s| &value[s..]));
+    let colour = tokens.into_iter().find(|t| {
+        t.eq_ignore_ascii_case("transparent") || crate::colours::parse_colour(t).is_some()
+    })?;
+    Some(format!("background-color:{colour}"))
 }
 
 fn safe_css_value(value: &str) -> bool {

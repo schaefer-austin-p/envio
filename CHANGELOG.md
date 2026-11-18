@@ -19,6 +19,9 @@ All notable changes to Envio are listed here. The format follows
 
 ### Fixed
 
+- Call-to-action buttons in mail keep their fill: a link or cell styled
+  with the `background` shorthand now shows its background colour (#178).
+  Qt rich text cannot draw borders or rounded corners, so those stay plain.
 - New mail on an account that is not in the foreground could wait up to
   29 minutes to show up when it arrived at the moment Envio began
   listening for mail; it now shows within 5 minutes (#48).
