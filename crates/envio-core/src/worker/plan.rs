@@ -16,6 +16,10 @@ pub use prefetch::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
 
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
 
+// The renewal is `min(IDLE_MAX, POLL_MS)`: the poll interval must stay the
+// shorter, or the 29 minute bound would be the one that applies.
+const _: () = assert!(POLL_MS <= IDLE_MAX.as_millis() as i64);
+
 /// What an account has been asked for since it last ran.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Wants {
@@ -200,8 +204,10 @@ pub enum Next {
 
 /// What an account does now. When a full run is due (`Run` with nothing
 /// wanted) the caller sets `wants.full`. In the background only an account
-/// that notifies works, and only on its Inbox: it never polls, it waits in
-/// IDLE and `has_wants` then means the Inbox changed.
+/// that notifies works, and only on its Inbox: it does not run full polls,
+/// it waits in IDLE, and `has_wants` then means the Inbox changed. Each
+/// IDLE ends after at most `POLL_MS` so the next SELECT can find mail from
+/// the gap before IDLE (#48).
 pub fn next(timing: &Timing, now_ms: i64) -> Next {
     if timing.paused || !(timing.foreground || timing.notifies) {
         return Next::Sleep { until_ms: None };
@@ -215,8 +221,12 @@ pub fn next(timing: &Timing, now_ms: i64) -> Next {
         return Next::Run;
     }
     if timing.idle_capable {
+        // Mail that lands between the SELECT and the IDLE command is not
+        // reported by the server (#48). Ending IDLE every `POLL_MS` re-SELECTs
+        // the Inbox, and `changed_since_sync` then finds it, so the gap costs
+        // at most one poll even in the background.
         let max = i64::try_from(IDLE_MAX.as_millis()).unwrap_or(i64::MAX);
-        let renew = now_ms.saturating_add(max);
+        let renew = now_ms.saturating_add(max.min(POLL_MS));
         return Next::Idle {
             until_ms: if timing.foreground {
                 timing.next_full_ms.min(renew)
@@ -471,12 +481,13 @@ mod tests {
             next_full_ms: 10,
             ..timing()
         };
-        let max = i64::try_from(envio_net::imap::IDLE_MAX.as_millis()).unwrap();
-        // A full run that is long overdue does not matter: no polling.
+        // A full run that is long overdue does not matter: no polling, but
+        // IDLE ends every POLL_MS so mail from the SELECT-to-IDLE gap is
+        // found by the next SELECT (#48).
         assert_eq!(
             next(&t, 1_000),
             Next::Idle {
-                until_ms: 1_000 + max
+                until_ms: 1_000 + POLL_MS
             }
         );
     }
@@ -585,17 +596,16 @@ mod tests {
     }
 
     #[test]
-    fn idle_is_capped_at_idle_max() {
+    fn idle_is_capped_at_the_poll_interval() {
         let t = Timing {
             idle_capable: true,
             next_full_ms: 10 * 3_600_000,
             ..timing()
         };
-        let max = i64::try_from(envio_net::imap::IDLE_MAX.as_millis()).unwrap();
         assert_eq!(
             next(&t, 1_000),
             Next::Idle {
-                until_ms: 1_000 + max
+                until_ms: 1_000 + POLL_MS
             }
         );
     }

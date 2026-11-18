@@ -175,6 +175,8 @@ pub(crate) fn start_idle(
     #[cfg(feature = "test-hooks")]
     let name = account.clone();
     let future = async move {
+        #[cfg(feature = "test-hooks")]
+        crate::hooks::reached(crate::hooks::Point::IdleBegin, &name);
         let entered = || {
             #[cfg(feature = "test-hooks")]
             crate::hooks::reached(crate::hooks::Point::IdleEntered, &name);
