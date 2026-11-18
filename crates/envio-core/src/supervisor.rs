@@ -87,7 +87,7 @@ pub(crate) fn supervise(
 }
 
 pub(crate) fn write_crash_log(dir: &Path, message: &str) -> io::Result<PathBuf> {
-    fs::create_dir_all(dir)?;
+    envio_store::create_private_dir(dir)?;
     let path = dir.join(format!("crash-{}.txt", now_ms()));
     crate::fsutil::write_atomic(&path, message.as_bytes(), 0o600)?;
     prune_crash_logs(dir);

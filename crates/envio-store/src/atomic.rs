@@ -1,9 +1,12 @@
 //! Replacing a file so a crash leaves the old content or the new, never half.
 
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::private::create_private_dir;
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -16,7 +19,7 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "no file name"));
     };
-    fs::create_dir_all(dir)?;
+    create_private_dir(dir)?;
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let temp = dir.join(format!(
         ".{}.{}-{n}.tmp",
@@ -32,7 +35,12 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 }
 
 fn write_and_rename(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut file = File::create(temp)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(temp)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
@@ -47,6 +55,7 @@ pub(crate) fn is_temp(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::private::open_private_append;
 
     #[test]
     fn writes_and_replaces_without_leaving_a_temp_file() {
@@ -67,6 +76,24 @@ mod tests {
         fs::write(target.join("inside"), b"x").unwrap();
         assert!(write_atomic(&target, b"data").is_err());
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    fn mode(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt;
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn files_and_new_folders_are_private() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a").join("b").join("a.json");
+        write_atomic(&path, b"x").unwrap();
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        assert_eq!(mode(path.parent().unwrap().parent().unwrap()), 0o700);
+        let log = dir.path().join("a").join("log");
+        drop(open_private_append(&log).unwrap());
+        assert_eq!(mode(&log), 0o600);
     }
 
     #[test]

@@ -2,8 +2,8 @@ import QtQuick 2.15
 import "../../platform"
 import "../../components"
 
-// The settings came from DNS records of a host outside the address's
-// domain (#33): name the servers and ask. Cancel is the filled, listed-first
+// The settings name a host outside the address's domain, from any source
+// (#33, #158): name the servers and ask. Cancel is the filled, listed-first
 // action; only "Use these servers" emits `confirmed`.
 AppDialog {
     id: root
@@ -15,7 +15,7 @@ AppDialog {
     signal cancelled()
 
     title: qsTr("Use these servers?")
-    message: qsTr("These servers are not on your address's domain. They came from the domain's DNS records. Use them only if you recognise them.")
+    message: qsTr("These servers are not on your address's domain. Use them only if you recognise them.")
     primaryText: qsTr("Cancel")
     secondaryText: qsTr("Use these servers")
     onPrimaryActivated: cancelled()

@@ -3,7 +3,7 @@
 //! has nothing older. Search results are their own page without the row,
 //! so a search leaves it alone: the list behind it keeps its row.
 
-use envio_core::{Command, ListRef};
+use envio_core::{Command, FolderId, ListRef};
 
 use super::{Output, Ui};
 use crate::signals::{OlderRow, Signal};
@@ -15,6 +15,7 @@ impl Ui {
             return None;
         }
         let list = self.current.as_ref()?.list;
+        self.older_reset_while_loading = false;
         let outs = self.set_older(OlderRow::Loading);
         Some((Command::LoadOlder { list }, outs))
     }
@@ -48,11 +49,23 @@ impl Ui {
         self.set_older(OlderRow::Hidden)
     }
 
-    /// What Load older reached is dropped: "no older messages" no longer
-    /// holds, so the row can be pressed again.
-    pub(super) fn older_dropped(&mut self) -> Vec<Output> {
+    /// What Load older reached in `folder` is dropped: "no older messages"
+    /// no longer holds for a list showing it (the unified inbox shows the
+    /// accounts' inboxes, `inbox` says it is one), so the row can be
+    /// pressed again.
+    pub(super) fn older_dropped(&mut self, folder: FolderId, inbox: bool) -> Vec<Output> {
+        let lists = [ListRef::Folder(folder), ListRef::Inboxes];
+        let lists = if inbox { &lists[..] } else { &lists[..1] };
+        self.older_auto_blocked.retain(|l| !lists.contains(l));
+        if !self
+            .current
+            .as_ref()
+            .is_some_and(|c| lists.contains(&c.list))
+        {
+            return Vec::new();
+        }
         self.older_done = false;
-        self.older_auto_blocked.clear();
+        self.older_reset_while_loading = self.older == OlderRow::Loading;
         if self.older == OlderRow::Done {
             return self.set_older(OlderRow::Ready);
         }
@@ -115,6 +128,7 @@ impl Ui {
         if self.older != OlderRow::Loading {
             return Vec::new();
         }
+        let exhausted = exhausted && !self.older_reset_while_loading;
         self.older_done = exhausted;
         // Nothing more to find (or nothing found): scrolling stops asking.
         if exhausted || fetched == 0 {

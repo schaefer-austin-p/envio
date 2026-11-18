@@ -4,6 +4,7 @@
 
 use std::fs::OpenOptions;
 use std::io;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use envio_mime::{Address, Message as Mime, RenderOptions};
@@ -202,7 +203,12 @@ pub(super) fn write_new(dir: &Path, name: &str, bytes: &[u8]) -> io::Result<Path
     use io::Write;
     for n in 1..=1000 {
         let path = dir.join(numbered(name, n));
-        match OpenOptions::new().write(true).create_new(true).open(&path) {
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&path)
+        {
             Ok(mut file) => {
                 if let Err(e) = file.write_all(bytes) {
                     drop(file);

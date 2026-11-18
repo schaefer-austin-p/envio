@@ -20,6 +20,7 @@ mod migrate;
 mod outbox;
 mod paths;
 mod prefetch;
+mod private;
 mod rebuild;
 mod search;
 mod userdata;
@@ -40,6 +41,7 @@ pub use messages::{
 pub use migrate::SCHEMA_VERSION;
 pub use outbox::{NewOutboxItem, Outbox, OutboxItem, OutboxMeta, SendState};
 pub use paths::StorePaths;
+pub use private::{create_private_dir, create_private_file, tighten_once, tighten_tree};
 pub use rebuild::{Opened, open_or_rebuild};
 pub use search::{BODY_INDEX_BYTES, Within};
 pub use userdata::{

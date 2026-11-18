@@ -3,6 +3,7 @@
 
 use std::fs::{self, OpenOptions};
 use std::io;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::atomic::{is_temp, write_atomic};
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
+use crate::private::create_private_dir;
 
 /// Missing fields load as empty, so older and newer drafts both open.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +40,7 @@ pub struct Drafts {
 impl Drafts {
     /// Opens the drafts folder and clears interrupted saves.
     pub fn open(dir: &Path) -> Result<Self> {
-        fs::create_dir_all(dir)?;
+        create_private_dir(dir)?;
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             if entry.file_name().to_str().is_some_and(is_temp) {
@@ -59,7 +61,10 @@ impl Drafts {
 
     /// Writes the draft, recreating it if it is missing. Core must cancel a
     /// pending debounced save before it calls `delete`, or a late autosave
-    /// brings a sent or discarded draft back.
+    /// brings a sent or discarded draft back. Copies in the draft's own
+    /// `files/<id>/` folder that the last save named and this one does not
+    /// (a removed chip) are deleted; a copy never named yet is left alone,
+    /// since an autosave can race the attach that made it.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
         // An attachment path that is not UTF-8 cannot be written as JSON:
@@ -68,7 +73,27 @@ impl Drafts {
             file: self.path(id).display().to_string(),
             reason: error.to_string(),
         })?;
-        Ok(write_atomic(&self.path(id), &bytes)?)
+        let before = self.load(id).map(|old| old.attachments).unwrap_or_default();
+        write_atomic(&self.path(id), &bytes)?;
+        self.prune(id, &before, &draft.attachments);
+        Ok(())
+    }
+
+    /// Best effort: what stays is cleared by `delete`. Only files directly
+    /// inside this draft's own folder go, so an attachment the user picked
+    /// from elsewhere (named by its original path) is never touched.
+    fn prune(&self, id: &str, before: &[PathBuf], now: &[PathBuf]) {
+        let folder = self.files_dir(id);
+        let mut pruned = false;
+        for path in before {
+            if path.parent() == Some(folder.as_path()) && !now.contains(path) {
+                pruned |= fs::remove_file(path).is_ok();
+            }
+        }
+        if pruned {
+            // Fails when files remain; that is fine.
+            let _ = fs::remove_dir(&folder);
+        }
     }
 
     pub fn load(&self, id: &str) -> Result<Draft> {
@@ -150,13 +175,14 @@ impl Drafts {
         input: &mut impl io::Read,
     ) -> Result<PathBuf> {
         let folder = self.files_dir(draft_id);
-        fs::create_dir_all(&folder)?;
+        create_private_dir(&folder)?;
         for n in 1_u32.. {
             let target = folder.join(numbered(name, n));
             // `create_new` so two copies never share a name, even racing.
             let mut output = match OpenOptions::new()
                 .write(true)
                 .create_new(true)
+                .mode(0o600)
                 .open(&target)
             {
                 Ok(output) => output,
