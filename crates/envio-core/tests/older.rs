@@ -256,3 +256,41 @@ fn a_removed_account_gets_no_unavailable_notice() {
         "{notices:?}"
     );
 }
+
+#[test]
+fn a_uidvalidity_change_resets_load_older_for_that_folder_once() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_server, _, inbox) = seeded(&mut h, "me@example.org");
+    // The cache remembers UIDVALIDITY 2; the server says 1.
+    let db = envio_store::Db::open(&h.paths().db()).unwrap();
+    let state = envio_store::SyncState {
+        uidvalidity: 2,
+        uidnext: 11,
+        highestmodseq: None,
+    };
+    db.set_sync_state(inbox, &state).unwrap();
+    drop(db);
+    h.start_core();
+    let resets = std::cell::RefCell::new(Vec::new());
+    h.wait(|e| match e {
+        Event::OlderReset { folder, inbox } => {
+            resets.borrow_mut().push((*folder, *inbox));
+            Some(())
+        }
+        _ => None,
+    });
+    // The listing is answered after the sync, so a second reset from it
+    // would show up before the answer.
+    let list = ListRef::Folder(inbox);
+    h.send(Command::ListMessages { list, after: None });
+    h.wait(|e| match e {
+        Event::OlderReset { folder, inbox } => {
+            resets.borrow_mut().push((*folder, *inbox));
+            None
+        }
+        Event::Messages { list: l, .. } if *l == list => Some(()),
+        _ => None,
+    });
+    assert_eq!(resets.into_inner(), [(inbox, true)]);
+}
