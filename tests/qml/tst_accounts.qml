@@ -139,6 +139,26 @@ Item {
             compare(find("accountLabel", find("account-ann", page)).text, "Work")
         }
 
+        function test_rename_field_has_focus_and_a_length_limit() {
+            openActions()
+            mouseClick(find("renameRow", page))
+            const sheet = find("renameSheet", page)
+            tryVerify(function() { return sheet.opened })
+            const input = find("labelField", sheet).input
+            tryVerify(function() { return input.activeFocus })
+            compare(input.maximumLength, 40)
+            mouseClick(find("renameCancel", sheet))
+            tryVerify(function() { return !sheet.visible })
+        }
+
+        function test_rename_is_hidden_for_a_broken_account() {
+            core.accounts.setProperty(0, "state", "broken")
+            openActions()
+            verify(!find("renameRow", page).visible)
+            verify(find("removeRow", page).visible)
+            find("actionSheet", page).close()
+        }
+
         function test_rename_cancel_sends_nothing() {
             openActions()
             mouseClick(find("renameRow", page))

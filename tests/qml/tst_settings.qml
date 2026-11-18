@@ -159,6 +159,14 @@ Item {
             verify(find("whileOpen-ann", sync).selected)
         }
 
+        function test_sync_heading_shows_the_label_not_the_sender_name() {
+            core.accounts.append({ key: "ann", name: "Ann", display: "Work", label: "Work", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
+            sync.visible = true
+            tryVerify(function() { return all("syncAccount-ann", sync).length === 1 })
+            compare(find("syncAccount-ann", sync).text, "Work")
+        }
+
         function test_sync_window_choice_calls_set_sync_window() {
             sync.visible = true
             const days = { "window-30": 30, "window-90": 90, "window-365": 365, "window-all": 0 }

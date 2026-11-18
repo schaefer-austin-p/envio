@@ -469,6 +469,19 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        function test_from_sheet_keeps_the_sender_name_and_adds_the_label() {
+            mock.accounts.setProperty(1, "label", "Office")
+            mock.composeReady(1, reply, "")
+            mouseClick(find("fromRow"))
+            tryVerify(function() { return shown("account-work") })
+            const text = find("accountText-work")
+            compare(text.children[0].text, "Work")
+            compare(text.children[1].text, "Office \u00b7 ann@work.example")
+            mock.accounts.setProperty(1, "label", "")
+            mouseClick(find("account-work"))
+            tryVerify(function() { return !shown("account-work") })
+        }
+
         // Phone shot: the accounts in "Send from" sat at the sheet's left
         // edge and at the top of their rows.
         function test_from_sheet_rows_line_up_with_its_title() {

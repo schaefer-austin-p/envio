@@ -293,3 +293,40 @@ fn a_label_round_trips_and_clearing_it_drops_it() {
     assert_eq!(cleared.get(&key).unwrap().label, None);
     assert!(!fs::read_to_string(&path).unwrap().contains("label"));
 }
+
+#[test]
+fn a_blank_label_counts_as_unset() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let text = r#"{"version": 2, "accounts": [
+      {"key": "1000", "label": "   ", "settings": {"name": "Ada", "email": "a@x.org",
+        "username": "", "imap": {"host": "h", "port": 993}, "smtp": {"host": "h", "port": 465}}},
+      {"key": "1001", "label": " Work ", "settings": {"name": "Bo", "email": "b@x.org",
+        "username": "", "imap": {"host": "h", "port": 993}, "smtp": {"host": "h", "port": 465}}}]}"#;
+    fs::write(&path, text).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    assert_eq!(accounts.get("1000").unwrap().label(), None);
+    assert_eq!(accounts.get("1001").unwrap().label(), Some("Work"));
+}
+
+#[test]
+fn a_broken_entry_refuses_a_label_and_keeps_its_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut pinned = settings("ada@example.org");
+    pinned.imap.pin = Some(PIN.into());
+    let bad = accounts.add(pinned, 1_000).unwrap();
+    accounts.set_label(&bad, Some("Work")).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    fs::write(&path, text.replace(PIN, "not-a-pin")).unwrap();
+
+    let mut accounts = Accounts::open(&path).unwrap();
+    // The stand-in keeps the label the entry had.
+    assert_eq!(accounts.get(&bad).unwrap().label(), Some("Work"));
+    // A new one is refused, and memory still matches the file.
+    assert!(accounts.set_label(&bad, Some("Other")).is_err());
+    assert_eq!(accounts.get(&bad).unwrap().label(), Some("Work"));
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&bad).unwrap().label(), Some("Work"));
+}

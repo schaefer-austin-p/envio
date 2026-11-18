@@ -27,7 +27,7 @@ impl Worker<'_> {
             .store
             .accounts
             .get(account)
-            .and_then(|a| a.label.clone())
+            .and_then(|a| a.label().map(str::to_owned))
             .unwrap_or_default();
         self.emit(Event::AccountLabel {
             account: account.to_owned(),

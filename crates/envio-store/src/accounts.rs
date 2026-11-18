@@ -70,6 +70,17 @@ pub struct Account {
     pub broken: Option<String>,
 }
 
+impl Account {
+    /// The label if the user set a non-blank one. Read the label only through
+    /// this: a blank or whitespace-only string counts as unset.
+    pub fn label(&self) -> Option<&str> {
+        self.label
+            .as_deref()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+    }
+}
+
 #[derive(Deserialize)]
 struct FileIn {
     version: u32,
@@ -138,6 +149,12 @@ impl Accounts {
     /// dropped. A broken entry is written back as read, so it takes none.
     pub fn set_label(&mut self, key: &str, label: Option<&str>) -> Result<()> {
         let index = self.index(key)?;
+        if let Some(reason) = &self.accounts[index].broken {
+            return Err(bad(
+                &self.path,
+                format!("account {key} is broken: {reason}"),
+            ));
+        }
         let label = label
             .map(str::trim)
             .filter(|l| !l.is_empty())
@@ -249,8 +266,8 @@ fn unreadable(value: &serde_json::Value) -> String {
     }
 }
 
-/// A stand-in for an entry that did not parse: its key and whatever name and
-/// email it has, empty elsewhere.
+/// A stand-in for an entry that did not parse: its key and whatever name,
+/// email and label it has, empty elsewhere.
 fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
     let text = |field: &str| {
         value
@@ -275,7 +292,10 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             imap: server(),
             smtp: server(),
         },
-        label: None,
+        label: value
+            .get("label")
+            .and_then(|label| label.as_str())
+            .map(str::to_owned),
         broken: Some(reason),
     }
 }

@@ -15,6 +15,7 @@ Item {
     property string currentName: ""
     property string currentEmail: ""
     property string currentLabel: ""
+    property string currentState: ""
     signal backRequested()
     signal addRequested()
     signal updatePasswordRequested(string account, string name)
@@ -52,6 +53,7 @@ Item {
                 root.currentName = row.model.display
                 root.currentEmail = row.model.email
                 root.currentLabel = row.model.label
+                root.currentState = row.model.state
                 actions.open()
             }
             Column {
@@ -121,6 +123,8 @@ Item {
         title: root.currentName
         ListRow {
             objectName: "renameRow"
+            // A broken entry is kept as read; it cannot take a label.
+            visible: root.currentState !== "broken"
             theme: root.theme
             width: parent.width
             onClicked: {

@@ -10,6 +10,7 @@ Column {
     required property Theme theme
     property string label: ""
     property alias text: input.text
+    property alias maximumLength: input.maximumLength
     property alias placeholder: hint.text
     property bool password: false
     // False: no box, for a field that sits inside a row of its own.

@@ -23,6 +23,7 @@ Sheet {
         label = current
         field.text = current
         open()
+        field.input.forceActiveFocus()
     }
 
     Column {
@@ -44,6 +45,7 @@ Sheet {
             theme: root.theme
             width: parent.width
             label: qsTr("Label")
+            maximumLength: 40
             onAccepted: save.clicked()
         }
         Text {

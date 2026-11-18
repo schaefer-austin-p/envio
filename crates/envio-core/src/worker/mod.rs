@@ -283,7 +283,7 @@ impl<'s> Worker<'s> {
                 unread: self.seed_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
-                label: a.label.clone().unwrap_or_default(),
+                label: a.label().unwrap_or_default().to_owned(),
                 email: a.settings.email.clone(),
                 status: a
                     .broken

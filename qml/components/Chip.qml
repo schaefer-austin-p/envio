@@ -22,6 +22,7 @@ AbstractButton {
     contentItem: Text {
         textFormat: Text.PlainText
         id: label
+        elide: Text.ElideRight
         text: root.text
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

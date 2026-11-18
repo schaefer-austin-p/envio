@@ -85,6 +85,12 @@ Item {
         }
         function searches() { return core.called("search") }
 
+        function test_scope_chips_show_the_display_name() {
+            core.accounts.setProperty(1, "display", "Home")
+            compare(find("chip-account-bob").text, "Home")
+            compare(find("chip-account-ann").text, "Ann")
+        }
+
         function test_search_runs_local_first() {
             typeQuery("train")
             tryVerify(function() { return searches().length === 1 })
