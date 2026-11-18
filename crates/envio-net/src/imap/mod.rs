@@ -4,6 +4,7 @@
 //! opens a new one.
 
 mod append;
+mod checked;
 mod client;
 mod idle;
 pub mod names;
@@ -128,6 +129,9 @@ pub struct ImapSession {
     caps: Caps,
     /// EXISTS of the selected folder, as of SELECT.
     exists: u32,
+    /// Changes (EXPUNGE, EXISTS, VANISHED) seen while reading a reply
+    /// ourselves, which async-imap's unsolicited channel never got.
+    missed_changes: bool,
 }
 
 impl ImapSession {
@@ -150,6 +154,7 @@ impl ImapSession {
             session,
             caps,
             exists: 0,
+            missed_changes: false,
         })
     }
 

@@ -148,24 +148,8 @@ impl ImapSession {
     ) -> Result<Vec<FlagUpdate>> {
         let items = query::flag_items(changed_since);
         connect::within_for(fetch_timeout(count, FLAGS_BYTES), async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(set, &items)
+            self.checked_flag_fetch(&format!("UID FETCH {set} {items}"))
                 .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            Ok(fetches
-                .iter()
-                .filter_map(|fetch| {
-                    Some(FlagUpdate {
-                        uid: fetch.uid?,
-                        flags: flags_of(fetch),
-                        modseq: fetch.modseq,
-                    })
-                })
-                .collect())
         })
         .await
     }
@@ -313,19 +297,19 @@ impl ImapSession {
     }
 
     pub(super) async fn search(&mut self, key: &str) -> Result<Vec<u32>> {
-        connect::within(async {
-            let found = self.session.uid_search(key).await.map_err(map_error)?;
-            let mut uids: Vec<u32> = found.into_iter().collect();
-            uids.sort_unstable();
-            Ok(uids)
-        })
-        .await
+        connect::within(self.checked_search(key)).await
     }
 }
 
 fn flags_of(fetch: &async_imap::types::Fetch) -> MessageFlags {
+    message_flags(fetch.flags())
+}
+
+pub(super) fn message_flags<'a>(
+    flags: impl Iterator<Item = async_imap::types::Flag<'a>>,
+) -> MessageFlags {
     use async_imap::types::Flag as F;
-    MessageFlags::from_flags(fetch.flags().filter_map(|flag| match flag {
+    MessageFlags::from_flags(flags.filter_map(|flag| match flag {
         F::Seen => Some(Flag::Seen),
         F::Answered => Some(Flag::Answered),
         F::Flagged => Some(Flag::Flagged),
