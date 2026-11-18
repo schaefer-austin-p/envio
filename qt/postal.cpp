@@ -4,15 +4,20 @@
 // phone, Plan 9a Task 8); ClearPersistent(app, tag) does remove it. So a
 // post first clears its tag and sends the Post from the clear's finished
 // handler, whether the clear worked or not: the clear can't land after the
-// new card, and a failed clear still shows the card. The core
+// new card, and a failed clear still shows the card. Per tag only one
+// clear+post is in flight on the main thread; a post that arrives meanwhile
+// replaces any earlier waiting one and is sent (clear, then post) when the
+// in-flight post finishes, so two quick posts never leave two cards. The core
 // calls from its worker thread, which has no event loop, so the call is
 // queued to the main thread and made there, asynchronously: the worker
 // never waits on the bus, and a failed call is logged, never raised.
 
 #include <functional>
+#include <optional>
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
+#include <QtCore/QHash>
 #include <QtCore/QMetaObject>
 #include <QtCore/QString>
 #include <QtCore/QVariantList>
@@ -75,6 +80,39 @@ void call(const QString& method, const QVariantList& args,
         Qt::QueuedConnection);
 }
 
+// Main thread only. A tag is in the map while its clear+post is in flight;
+// the value is the latest card that arrived meanwhile, if any.
+QHash<QString, std::optional<QString>>& inFlight()
+{
+    static QHash<QString, std::optional<QString>> map;
+    return map;
+}
+
+void sendCard(const QString& tag, const QString& card)
+{
+    const QString app = QString::fromLatin1(kApp);
+    inFlight().insert(tag, std::nullopt);
+    call(QStringLiteral("ClearPersistent"), {app, tag}, [app, tag, card]() {
+        call(QStringLiteral("Post"), {app, card}, [tag]() {
+            const std::optional<QString> next = inFlight().take(tag);
+            if (next) {
+                sendCard(tag, *next);
+            }
+        });
+    });
+}
+
+// Main thread.
+void postCard(const QString& tag, const QString& card)
+{
+    auto it = inFlight().find(tag);
+    if (it != inFlight().end()) {
+        *it = card;
+        return;
+    }
+    sendCard(tag, card);
+}
+
 } // namespace
 
 extern "C" {
@@ -84,11 +122,14 @@ extern "C" {
 // separate string arguments (checked on the phone).
 void envio_postal_post(const char* json, int len, const char* tag, int tag_len)
 {
-    const QString app = QString::fromLatin1(kApp);
     const QString card = QString::fromUtf8(json, len);
     const QString tagText = QString::fromUtf8(tag, tag_len);
-    call(QStringLiteral("ClearPersistent"), {app, tagText},
-         [app, card]() { call(QStringLiteral("Post"), {app, card}); });
+    QCoreApplication* app = QCoreApplication::instance();
+    if (app == nullptr) {
+        return;
+    }
+    QMetaObject::invokeMethod(
+        app, [tagText, card]() { postCard(tagText, card); }, Qt::QueuedConnection);
 }
 
 void envio_postal_set_counter(int count)
