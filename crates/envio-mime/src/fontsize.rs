@@ -84,8 +84,9 @@ pub(crate) fn fit(html: &str) -> String {
             out.push_str(raw);
             continue;
         };
-        // Qt paints whole px, so a `%` or `em` inside applies to the rounded
-        // size: 1.5px counts as 2px (#259).
+        // Worst case, as in the tests' model: a parent is painted at whole
+        // px and a relative child applies to that, so 1.5px counts as 2px
+        // (#259). Qt 5.15 itself ignores `%` and `em`.
         let inherited = open.last().map_or(DEFAULT_PX, |o| o.px.round());
         let scripted =
             matches!(tag.name.as_str(), "sub" | "sup") || open.last().is_some_and(|o| o.scripted);
