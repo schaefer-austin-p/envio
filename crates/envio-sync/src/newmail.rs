@@ -40,14 +40,16 @@ pub fn count(
         .iter()
         .filter(|row| row.uid >= prev && !row.seen && !is_own(&row.from, own))
         .collect();
+    // No sender to show (no name, no address): no `first`, so the card
+    // falls back to the account name and the count.
     let first = match fresh[..] {
-        [row] => Some((
-            row.from
-                .name
-                .clone()
-                .unwrap_or_else(|| row.from.email.clone()),
-            row.subject.clone(),
-        )),
+        [row] => row
+            .from
+            .name
+            .clone()
+            .filter(|name| !name.trim().is_empty())
+            .or_else(|| Some(row.from.email.clone()).filter(|email| !email.trim().is_empty()))
+            .map(|who| (who, row.subject.clone())),
         _ => None,
     };
     NewMail {
@@ -118,6 +120,23 @@ mod tests {
         let got = count(Some(1), false, &[row(5, false, "a@x.org")], &[]);
         assert_eq!(got.count, 1);
         assert_eq!(got.first, Some(("Ada".into(), "subject 5".into())));
+    }
+
+    #[test]
+    fn an_empty_name_falls_back_to_the_address() {
+        let mut one = row(5, false, "a@x.org");
+        one.from = addr(Some(""), "a@x.org");
+        let got = count(Some(1), false, &[one], &[]);
+        assert_eq!(got.first, Some(("a@x.org".into(), "subject 5".into())));
+    }
+
+    #[test]
+    fn a_sender_without_name_or_address_gives_no_first() {
+        let mut one = row(5, false, "");
+        one.from = Address::default();
+        let got = count(Some(1), false, &[one], &[]);
+        assert_eq!(got.count, 1);
+        assert_eq!(got.first, None);
     }
 
     #[test]
