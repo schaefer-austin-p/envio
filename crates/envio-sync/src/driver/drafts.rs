@@ -14,7 +14,7 @@ use envio_store::{Db, Draft, Drafts, FolderRole};
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
 use crate::error::{ErrorKind, Result};
-use crate::plan::drafts::{GIVE_UP, cut_copy, needs_upload, replaced};
+use crate::plan::drafts::{cut_copy, needs_upload, replaced};
 use crate::plan::message_id::search_id;
 use crate::server::MailServer;
 
@@ -34,8 +34,9 @@ pub struct DraftsSynced {
     pub uploaded: Vec<String>,
     /// Server copies of sent or discarded drafts that are gone now.
     pub deleted: Vec<String>,
-    /// The server refused this one (quota, a read-only folder): it is left
-    /// alone until the draft changes again.
+    /// The server refused this one (a NO: quota, a busy mailbox): it is
+    /// tried again on later runs, and left alone after `GIVE_UP` refusals
+    /// of the same save.
     pub refused: Vec<String>,
     /// The server answered this one with nonsense (a BAD): the run went on
     /// with the others; the draft is tried again, a few times, then left
@@ -101,19 +102,15 @@ pub async fn sync_drafts(
             Ok(false) => {}
             Err(error) => match error.kind() {
                 ErrorKind::Refused => {
-                    drafts.mark_failed(&id, draft.updated_at_ms, GIVE_UP)?;
+                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
                     done.refused.push(id);
                 }
                 ErrorKind::Protocol => {
                     drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
                     done.failed.push(id);
                 }
-                ErrorKind::Temporary => {
-                    // The connection may be gone: end the run, but count it
-                    // against this draft, in case it is what drops it.
-                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
-                    return Err(error);
-                }
+                // A lost connection ends the run and is not counted against
+                // the draft: the next run retries it.
                 _ => return Err(error),
             },
         }

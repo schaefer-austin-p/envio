@@ -11,6 +11,7 @@ use envio_net::NetError;
 use envio_net::imap::{Caps, Role};
 use envio_store::Draft;
 use envio_sync::driver::{DraftRun, DraftsSynced, sync_drafts, sync_folders};
+use envio_sync::plan::drafts::GIVE_UP;
 use support::fake::{FakeServer, NOW_MS};
 use support::local::{ACCOUNT, Store};
 
@@ -180,15 +181,43 @@ async fn a_draft_the_server_answers_badly_does_not_stop_the_others() {
 }
 
 #[tokio::test]
-async fn a_refused_draft_is_left_alone_until_it_changes() {
+async fn a_refused_draft_is_retried_then_left_alone_until_it_changes() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
-    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
-    let done = run(&mut server, &store).await;
-    assert_eq!(done.refused, std::slice::from_ref(&id));
+    for _ in 0..GIVE_UP {
+        server.fail_on("append", NetError::Refused("NO [UNAVAILABLE]".into()));
+        let done = run(&mut server, &store).await;
+        assert_eq!(done.refused, std::slice::from_ref(&id));
+    }
+    // Given up: no further attempt, even though the server would accept now.
     assert_eq!(run(&mut server, &store).await, DraftsSynced::default());
     assert!(copies(&server).is_empty());
     store.drafts.save(&id, &draft("changed", 2)).unwrap();
+    assert_eq!(run(&mut server, &store).await.uploaded, [id]);
+}
+
+#[tokio::test]
+async fn a_refusal_that_clears_is_uploaded_on_a_later_run() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
+    assert_eq!(run(&mut server, &store).await.refused, [id.clone()]);
+    assert_eq!(run(&mut server, &store).await.uploaded, [id]);
+}
+
+#[tokio::test]
+async fn a_lost_connection_is_not_counted_against_the_draft() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    for _ in 0..GIVE_UP + 1 {
+        server.fail_on("append", NetError::Timeout);
+        assert!(
+            run_with(&mut server, &store, &BTreeSet::new())
+                .await
+                .is_err()
+        );
+    }
+    assert_eq!(store.drafts.load(&id).unwrap().server.failures, 0);
     assert_eq!(run(&mut server, &store).await.uploaded, [id]);
 }
 
