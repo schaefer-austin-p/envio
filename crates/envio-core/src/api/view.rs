@@ -192,6 +192,8 @@ pub struct InviteCard {
     pub organizer_email: String,
     /// A request with a `mailto:` organizer.
     pub can_answer: bool,
+    /// A live request: a cancellation or a reply is not an event to add.
+    pub can_add_to_calendar: bool,
     /// Attachment index of the calendar part; -1 when it is inline only.
     pub ics_index: i64,
 }
