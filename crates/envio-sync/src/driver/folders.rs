@@ -1,5 +1,7 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use std::sync::Arc;
+
 use envio_mime::Address;
 use envio_net::imap::{FlagUpdate, Summary};
 use envio_store::{Flags, Folder, FolderId, FolderRole, MessageRowId};
@@ -53,6 +55,23 @@ pub struct Synced {
     /// finishes the sync (`more` false), for everything cached from the
     /// old UIDNEXT up, even when earlier calls stored it.
     pub new_mail: NewMail,
+    /// The window search of an unfinished sync (`more` true), for the next
+    /// call's [`Options::window`]. `None` once the sync is finished.
+    pub window: Option<WindowMemo>,
+}
+
+/// The server's UIDs inside the window, kept between the calls of one
+/// sync so a big first sync searches once, not once per call (#98). It
+/// only answers for the same folder state: a new UIDVALIDITY, mail that
+/// arrived (UIDNEXT moved) or another window search again. A restart
+/// loses it, which only costs one more search.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WindowMemo {
+    pub folder: FolderId,
+    pub uidvalidity: u32,
+    pub uidnext: u32,
+    pub days: Option<u32>,
+    pub uids: Arc<Vec<u32>>,
 }
 
 /// Batches (of [`crate::plan::sync::BATCH`] messages) fetched per call, so
@@ -82,6 +101,7 @@ pub async fn sync_folder(
         window_days,
         kept,
         own: &[],
+        window: None,
     };
     sync_folder_as(server, local, id, how).await
 }
@@ -94,6 +114,8 @@ pub struct Options<'a> {
     pub window_days: Option<u32>,
     pub kept: Option<Kept>,
     pub own: &'a [Address],
+    /// The previous call's [`Synced::window`], if this call continues it.
+    pub window: Option<WindowMemo>,
 }
 
 /// [`sync_folder`] that also knows the account's own addresses, so Inbox
@@ -109,14 +131,19 @@ pub async fn sync_folder_as(
         window_days,
         kept,
         own,
+        window: memo,
     }: Options<'_>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
-    let window = match window_start(now_ms, window_days) {
-        Some(since) => server.search_since(since).await?,
-        None => server.search_all().await?,
-    };
+    let mut reused = memo
+        .filter(|m| {
+            m.folder == id
+                && m.uidvalidity == state.uid_validity
+                && m.uidnext == state.uid_next
+                && m.days == window_days
+        })
+        .map(|m| m.uids);
     let pending = Pending::of(
         local.journal.pending(),
         &folder.account,
@@ -124,28 +151,54 @@ pub async fn sync_folder_as(
         state.uid_validity,
     );
     let cached_uids = local.db.uids(id)?;
-    let plan = plan_folder(
-        &FolderView {
-            server: state,
-            window: &window,
-            cached: folder.sync,
-            cached_uids: &cached_uids,
-            kept: kept.as_ref(),
-            condstore: server.caps().condstore,
-        },
-        &pending,
-    );
+    let (window, plan) = loop {
+        let remembered = reused.is_some();
+        let window = match reused.take() {
+            Some(uids) => uids,
+            None => Arc::new(match window_start(now_ms, window_days) {
+                Some(since) => server.search_since(since).await?,
+                None => server.search_all().await?,
+            }),
+        };
+        let plan = plan_folder(
+            &FolderView {
+                server: state,
+                window: &window,
+                cached: folder.sync,
+                cached_uids: &cached_uids,
+                kept: kept.as_ref(),
+                condstore: server.caps().condstore,
+            },
+            &pending,
+        );
+        // The last part searches afresh: mail expunged since the remembered
+        // search would otherwise stay cached until the next sync.
+        if remembered && plan.fetch.len() <= BATCHES_PER_STEP {
+            continue;
+        }
+        break (window, plan);
+    };
     begin(local, id, &plan)?;
     let mut synced = Synced {
         removed: local.db.step(|db| db.delete_messages(id, &plan.remove))?,
         ..Synced::default()
     };
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
+    let mut missing = false;
     for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
+        // Expunged since the search: the remembered list is stale.
+        missing |= summaries.len() < batch.len();
         synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
+    synced.window = (synced.more && !missing).then(|| WindowMemo {
+        folder: id,
+        uidvalidity: state.uid_validity,
+        uidnext: state.uid_next,
+        days: window_days,
+        uids: window.clone(),
+    });
     if !synced.more {
         // Before the state is stored: if this fails the old UIDNEXT stays
         // and the retry reports the same messages.
