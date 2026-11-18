@@ -54,6 +54,13 @@ fn a_relative_size_in_a_heading_compounds_from_the_heading() {
         clean(r#"<h1 style="font-size:10%"><span style="font-size:150%">t</span></h1>"#),
         r#"<h1 style="font-size:x-large"><span style="font-size:26px">t</span></h1>"#
     );
+    // The children of the fixed h1 start from 24px, not from Qt's 32px.
+    let html = r#"<h1 style="font-size:x-large"><span style="font-size:100%">t</span></h1>"#;
+    assert_eq!(clean(html), html);
+    assert_eq!(
+        clean(r#"<h1><span style="font-size:100%">t</span></h1>"#),
+        html
+    );
     // h2 is 24px: 150% of it is 36px, where 150% of 16px would have fitted.
     assert_eq!(
         clean(r#"<h2><em style="font-size:150%">t</em></h2>"#),

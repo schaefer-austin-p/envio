@@ -153,3 +153,37 @@ fn a_font_tag_with_a_relative_style_compounds_too() {
         r#"<font style="font-size:26px"><font style="font-size:26px">t</font></font>"#
     );
 }
+
+#[test]
+fn points_are_four_thirds_of_a_pixel() {
+    // 15pt is 20px: 150% of it is 30px, where 150% of "15px" would fit.
+    assert_eq!(
+        clean(r#"<div style="font-size:15pt"><span style="font-size:150%">t</span></div>"#),
+        r#"<div style="font-size:15pt"><span style="font-size:26px">t</span></div>"#
+    );
+    let html = r#"<div style="font-size:15pt"><span style="font-size:120%">t</span></div>"#;
+    assert_eq!(clean(html), html);
+}
+
+#[test]
+fn a_font_tag_gives_the_size_its_level_has() {
+    // Level 3 is 16px, level 5 is 24px (1.5 times the default).
+    let html = r#"<font size="3"><span style="font-size:150%">t</span></font>"#;
+    assert_eq!(clean(html), html);
+    assert_eq!(
+        clean(r#"<font size="5"><span style="font-size:110%">t</span></font>"#),
+        r#"<font size="5"><span style="font-size:26px">t</span></font>"#
+    );
+}
+
+#[test]
+fn a_clamped_size_keeps_its_place_in_the_style() {
+    assert_eq!(
+        sized("0%;color:red"),
+        r#"<div style="font-size:1px;color:red">t</div>"#
+    );
+    assert_eq!(
+        sized("500%;color:red"),
+        r#"<div style="font-size:26px;color:red">t</div>"#
+    );
+}

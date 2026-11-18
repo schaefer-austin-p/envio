@@ -45,6 +45,14 @@ fn a_void_element_does_not_swallow_the_stack() {
 }
 
 #[test]
+fn a_br_does_not_swallow_the_stack_either() {
+    assert_eq!(
+        clean(r#"<p><br style="font-size:1px"><span style="font-size:1500%">t</span></p>"#),
+        r#"<p><br style="font-size:1px"><span style="font-size:26px">t</span></p>"#
+    );
+}
+
+#[test]
 fn an_unwrapped_tag_does_not_count() {
     // `section` is not a Qt tag: it is removed, so its size never applies.
     assert_eq!(
