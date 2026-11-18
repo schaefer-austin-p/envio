@@ -38,6 +38,8 @@ pub mod qobject {
         #[qproperty(i32, older_row, cxx_name = "olderRow")]
         #[qproperty(i32, sync_days, cxx_name = "syncDays")]
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
+        // Read-only: `setOpenMessage` below is the (invokable) way to set it.
+        #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -221,6 +223,9 @@ pub mod qobject {
         #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]
+        #[cxx_name = "setOpenMessage"]
+        fn set_open_message(self: Pin<&mut EnvioCore>, id: i64);
+        #[qinvokable]
         #[cxx_name = "clearSelection"]
         fn clear_selection(self: Pin<&mut EnvioCore>);
         #[qinvokable]
@@ -335,6 +340,8 @@ pub struct EnvioCoreRust {
     pub(crate) sync_days: i32,
     /// "Show sender and subject" in new-mail notifications.
     pub(crate) notify_show_text: bool,
+    /// The message the reader shows; 0 for none (`Ui::open_message`).
+    pub(crate) open_message: i64,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,

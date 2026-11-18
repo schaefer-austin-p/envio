@@ -55,6 +55,17 @@ impl qobject::EnvioCore {
                 Output::Send(command) => self.as_ref().send_command_ref(command),
             }
         }
+        self.sync_open_message();
+    }
+
+    /// The open message can clear by itself (its row left, the list
+    /// changed): the property follows `Ui`.
+    fn sync_open_message(mut self: Pin<&mut Self>) {
+        let open = self.rust().ui.open_message().unwrap_or(0);
+        if self.rust().open_message != open {
+            self.as_mut().rust_mut().open_message = open;
+            self.as_mut().open_message_changed();
+        }
     }
 
     pub(crate) fn send_command(self: Pin<&mut Self>, command: Command) {

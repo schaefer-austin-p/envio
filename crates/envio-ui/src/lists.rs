@@ -160,6 +160,21 @@ impl ShownList {
         })
     }
 
+    /// Set the open mark of a shown row; the update to apply, if the row
+    /// is shown and changes.
+    pub fn set_open(&mut self, id: i64, on: bool) -> Option<Op> {
+        let at = self.rows.iter().position(|s| s.row.id == id)?;
+        let shown = &mut self.rows[at];
+        if shown.row.open == on {
+            return None;
+        }
+        shown.row.open = on;
+        Some(Op::Update {
+            at,
+            row: Row::Message(shown.row.clone()),
+        })
+    }
+
     /// Show a new name on the rows of an account: one update per row.
     pub fn rename_account(&mut self, account: &str, name: &str) -> Vec<Op> {
         let mut ops = Vec::new();

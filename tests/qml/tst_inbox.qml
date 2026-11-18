@@ -70,10 +70,10 @@ Item {
             verify(hit.length > 0, "no item with text " + text)
             return hit[0]
         }
-        function message(id, selected) {
+        function message(id, selected, open) {
             return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train…", date: 0, dateBucket: "time", unread: true,
-                     flagged: false, hasAttachments: false, selected: selected === true }
+                     flagged: false, hasAttachments: false, selected: selected === true, open: open === true }
         }
         function init() {
             core.reset()
@@ -433,6 +433,44 @@ Item {
             mouseRelease(row, 20 + 4, y0 - d * 2)
             verify(list.contentY > 0, "contentY " + list.contentY)
             compare(opened.count, 0)
+        }
+
+        // The open row (the one the reader shows) has the selected fill and a
+        // 3 px accent bar; a plain row has neither.
+        function test_open_row_has_accent_bar() {
+            core.messages.append(message(41, false, true))
+            core.messages.append(message(42))
+            waitForRendering(page)
+            const row = find("row-41", page)
+            const bar = find("openBar", row)
+            verify(bar.visible)
+            compare(bar.width, 3)
+            compare(bar.color, thm.accent)
+            compare(row.selected, true)
+            compare(row.background.color, thm.selected)
+            const plain = find("row-42", page)
+            verify(!find("openBar", plain).visible)
+            compare(plain.selected, false)
+            core.messages.setProperty(0, "open", false)
+            tryVerify(function() { return !bar.visible })
+            compare(row.selected, false)
+        }
+
+        function test_open_and_checked_row_show_both() {
+            core.messages.append(message(43, true, true))
+            core.messages.append(message(44, true))
+            waitForRendering(page)
+            const both = find("row-43", page)
+            verify(find("openBar", both).visible)
+            compare(both.selected, true)
+            // The check is drawn in the unread slot, as for any selected row.
+            verify(find("unreadDot", both).visible)
+            compare(find("unreadDot", both).color, thm.primary)
+            // A checked row that is not open has the check but no bar.
+            const checked = find("row-44", page)
+            verify(!find("openBar", checked).visible)
+            verify(find("unreadDot", checked).visible)
+            compare(find("unreadDot", checked).color, thm.primary)
         }
 
         function test_real_press_and_hold_selects_the_row() {

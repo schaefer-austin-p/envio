@@ -166,6 +166,16 @@ impl qobject::EnvioCore {
         self.run(outs);
     }
 
+    /// Mark `id` as the open message (0 clears).
+    pub fn set_open_message(mut self: Pin<&mut Self>, id: i64) {
+        let outs = self
+            .as_mut()
+            .rust_mut()
+            .ui
+            .set_open((id != 0).then_some(id));
+        self.run(outs);
+    }
+
     pub fn clear_selection(mut self: Pin<&mut Self>) {
         let outs = self.as_mut().rust_mut().ui.clear_selection();
         self.run(outs);

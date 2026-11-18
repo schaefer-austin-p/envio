@@ -129,6 +129,7 @@ impl Ui {
                 flagged: r.flags.contains(Flags::FLAGGED),
                 has_attachments: r.has_attachments,
                 selected: self.selection.contains(&r.id.0),
+                open: self.open == Some(r.id.0),
             },
         }
     }

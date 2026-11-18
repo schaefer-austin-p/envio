@@ -88,6 +88,8 @@ pub struct MessageRowUi {
     pub flagged: bool,
     pub has_attachments: bool,
     pub selected: bool,
+    /// The message the reader shows: not the same as selected.
+    pub open: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -170,6 +172,7 @@ const MESSAGE: &[&str] = &[
     "flagged",
     "hasAttachments",
     "selected",
+    "open",
 ];
 const OUTBOX: &[&str] = &[
     "id",
@@ -240,6 +243,7 @@ impl Row {
             (Self::Message(r), "flagged") => Bool(r.flagged),
             (Self::Message(r), "hasAttachments") => Bool(r.has_attachments),
             (Self::Message(r), "selected") => Bool(r.selected),
+            (Self::Message(r), "open") => Bool(r.open),
             (Self::Outbox(r), "id") => s(&r.id),
             (Self::Outbox(r), "account") => s(&r.account),
             (Self::Outbox(r), "subject") => s(&r.subject),
