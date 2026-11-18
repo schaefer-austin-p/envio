@@ -20,7 +20,9 @@ In:
   (also a `.ics` attachment with a `METHOD` line).
 - The first `VEVENT` of the part: `UID`, `SEQUENCE`, `SUMMARY`, `LOCATION`,
   `DTSTART`, `DTEND` or `DURATION`, `ORGANIZER`, `ATTENDEE` (address, `CN`,
-  `PARTSTAT`), `STATUS`, and whether `RRULE` is present.
+  `PARTSTAT`), `STATUS`, `DESCRIPTION` (capped at 4000 characters, cut text
+  ends in "…"; written into an exported file, never shown or logged), and
+  whether `RRULE` is present.
 - Answering a `REQUEST` with Accept, Maybe or Decline; an optional note.
 - "Add to calendar": hands the `.ics` to the Calendar app through Content Hub
   (`ContentType.Events`, destination). Kept only if the phone check in the
@@ -37,7 +39,7 @@ or writing the system calendar directly (needs a reserved policy group).
 
 1. **Parser in envio-mime, written for this.** A module `invite/` reads the
    lines (unfolding, `;PARAM=` values, quoted values, text escapes) and keeps
-   only the fields above. A general iCalendar crate brings far more than the
+   only the fields above (`DESCRIPTION` only for export). A general iCalendar crate brings far more than the
    card needs. Input is untrusted: a size cap (256 KiB), a line count cap, no
    panics; a broken part gives no card, never an error.
 2. **Times are instants in Rust, words in QML.** Rust turns `DTSTART`/`DTEND`

@@ -12,6 +12,7 @@ pub(super) const MAX_LINES: usize = 10_000;
 /// Stack marker for a VEVENT after the first.
 const SKIPPED: &str = "VEVENT (skipped)";
 const MAX_TEXT: usize = 500;
+const MAX_DESCRIPTION: usize = 4000;
 const MAX_ATTENDEES: usize = 500;
 
 /// Reads one calendar part. `None` for an oversized part, a METHOD other
@@ -57,6 +58,7 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
             .unwrap_or(0),
         summary: text("SUMMARY"),
         location: text("LOCATION"),
+        description: get("DESCRIPTION").map_or_else(String::new, |p| description(&p.value)),
         when,
         dtstart_line: dtstart.line.clone(),
         recurrence_id: get("RECURRENCE-ID").map_or_else(String::new, |p| p.value.trim().to_owned()),
@@ -77,6 +79,21 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
         cancelled: method == InviteMethod::Cancel || status_cancelled,
         raw: raw.into_owned(),
     })
+}
+
+/// The DESCRIPTION text, at most `MAX_DESCRIPTION` characters; one that was
+/// longer ends in "…" so a rebuilt export does not pass for whole.
+fn description(value: &str) -> String {
+    let mut text = unescape(value, MAX_DESCRIPTION + 1);
+    if text.chars().count() > MAX_DESCRIPTION {
+        let cut = text
+            .char_indices()
+            .nth(MAX_DESCRIPTION - 1)
+            .map_or(text.len(), |(i, _)| i);
+        text.truncate(cut);
+        text.push('…');
+    }
+    text
 }
 
 /// The calendar's first event and what the reader needs from outside it,
