@@ -8,6 +8,10 @@
             "apparmor": "envio.apparmor",
             "desktop":  "envio.desktop",
             "urls":     "envio.url-dispatcher"
+        },
+        "push": {
+            "apparmor":    "push/push-apparmor.json",
+            "push-helper": "push/push-helper.json"
         }
     },
     "version": "0.2.0",

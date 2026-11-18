@@ -21,6 +21,12 @@ cxx_qt_import_crate(MANIFEST_PATH qt/Cargo.toml CRATES envio_qt LOCKED
   QT_MODULES Qt5::Core Qt5::Gui Qt5::Qml)
 cxx_qt_import_qml_module(envio_qml URI "Envio" SOURCE_CRATE envio_qt)
 
+# The push helper (crates/envio-push-helper): the push service runs it from
+# push/ (the helper json's `exec` is relative to the json). Its own crate in
+# the root workspace, so it builds apart from the app.
+corrosion_import_crate(MANIFEST_PATH crates/envio-push-helper/Cargo.toml
+  CRATES envio-push-helper LOCKED)
+
 add_executable(envio qt/main.cpp qml/qml.qrc qml/bindle/bindle.qrc)
 target_link_libraries(envio PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
 target_compile_options(envio PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
@@ -58,6 +64,7 @@ add_custom_target(translations ALL DEPENDS ${ENVIO_MO})
 add_dependencies(envio translations)
 
 install(TARGETS envio DESTINATION .)
+install(IMPORTED_RUNTIME_ARTIFACTS envio-push-helper RUNTIME DESTINATION push)
 install(DIRECTORY ${ENVIO_LOCALE_DIR} DESTINATION share)
 install(FILES LICENSE NOTICES.md DESTINATION .)
 # bindle (LGPL-3.0-only) is compiled in: ship its licence texts too.

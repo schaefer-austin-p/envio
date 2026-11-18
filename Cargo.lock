@@ -606,6 +606,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "envio-push-helper"
+version = "0.2.0"
+dependencies = [
+ "gettext-rs",
+ "serde_json",
+]
+
+[[package]]
 name = "envio-store"
 version = "0.2.0"
 dependencies = [
