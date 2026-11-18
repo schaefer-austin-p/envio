@@ -20,7 +20,9 @@ pub enum Kind {
     /// SEARCH answer for it, and every command line is kept in `log`.
     Mailbox,
     /// Like `Mailbox`, with one message in the INBOX (UID 1, no flags)
-    /// whose whole text is [`MESSAGE`].
+    /// whose whole text is [`MESSAGE`]. UID SEARCH answers `1` for any
+    /// criteria (it ignores SINCE and UID ranges), so a test of a different
+    /// window must not use this kind.
     Message,
     /// Like `Mailbox`, with an INBOX of UIDs 1 to 10 (UIDNEXT 11): UID 10
     /// is new, 1 to 9 are dated 2020. SEARCH, FETCH of summaries and flags
@@ -202,6 +204,9 @@ fn message_reply(line: &str) -> (String, bool) {
         format!(
             "* 1 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 2] ok\r\n{tag} OK [READ-WRITE] done\r\n"
         )
+    } else if upper.starts_with("UID SEARCH") {
+        // The one message is on the server: a sync must not expunge it.
+        format!("* SEARCH 1\r\n{tag} OK done\r\n")
     } else if upper.starts_with("UID FETCH") && upper.contains("BODY.PEEK[]") {
         format!(
             "* 1 FETCH (UID 1 BODY[] {{{}}}\r\n{MESSAGE})\r\n{tag} OK done\r\n",

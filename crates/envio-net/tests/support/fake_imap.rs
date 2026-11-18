@@ -56,6 +56,17 @@ pub struct Script {
     /// with the nth of these (untagged lines, each ending in CRLF) instead
     /// of the flags; the commands after the last get no untagged line.
     pub fetch_canned: &'static [&'static str],
+    /// When not zero, SELECT is answered with this many messages (and
+    /// UIDVALIDITY 1), so the session knows the folder's size.
+    pub select_exists: u32,
+    /// When not empty, a UID EXPUNGE is answered with this tagged status
+    /// (such as `NO nope`) instead of OK.
+    pub expunge_refusal: &'static str,
+    /// Untagged lines (each ending in CRLF) sent before a UID EXPUNGE's
+    /// tagged reply.
+    pub expunge_untagged: &'static str,
+    /// When not empty, a UID STORE is answered with this tagged status.
+    pub store_refusal: &'static str,
 }
 
 impl Default for Script {
@@ -79,6 +90,10 @@ impl Default for Script {
             search_refusal: "",
             search_untagged: "",
             fetch_canned: &[],
+            select_exists: 0,
+            expunge_refusal: "",
+            expunge_untagged: "",
+            store_refusal: "",
         }
     }
 }
@@ -205,8 +220,8 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
-            "UID" if answers_uid(&script, &sub_verb) => {
-                let Some(reply) = uid_reply(&command, &tag, &script, &mut fetches) else {
+            "UID" | "FETCH" | "SELECT" if answers(&script, &verb, &sub_verb) => {
+                let Some(reply) = scripted_reply(&command, &tag, &script, &mut fetches) else {
                     return;
                 };
                 reply
@@ -234,27 +249,53 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
-fn answers_uid(script: &Script, sub_verb: &str) -> bool {
-    (script.fetch_flags && sub_verb == "FETCH")
-        || (sub_verb == "SEARCH"
-            && !(script.search_refusal.is_empty() && script.search_untagged.is_empty()))
+/// Whether the script has its own answer to this command.
+fn answers(script: &Script, verb: &str, sub_verb: &str) -> bool {
+    match verb {
+        "FETCH" => script.fetch_flags,
+        "SELECT" => script.select_exists != 0,
+        _ => match sub_verb {
+            "FETCH" => script.fetch_flags,
+            "SEARCH" => !(script.search_refusal.is_empty() && script.search_untagged.is_empty()),
+            "EXPUNGE" => !(script.expunge_refusal.is_empty() && script.expunge_untagged.is_empty()),
+            "STORE" => !script.store_refusal.is_empty(),
+            _ => false,
+        },
+    }
 }
 
-/// The reply to a UID FETCH or a refused UID SEARCH.
-fn uid_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -> Option<String> {
-    if command
-        .split(' ')
-        .nth(2)
-        .is_some_and(|word| word.eq_ignore_ascii_case("SEARCH"))
-    {
-        let status = if script.search_refusal.is_empty() {
-            "OK done"
-        } else {
-            script.search_refusal
-        };
-        return Some(format!("{}{tag} {status}\r\n", script.search_untagged));
+/// The reply to a SELECT, a FETCH (by number or UID), a UID SEARCH or a
+/// refused UID EXPUNGE; None from the fetch that is to drop the connection.
+fn scripted_reply(
+    command: &str,
+    tag: &str,
+    script: &Script,
+    fetches: &mut usize,
+) -> Option<String> {
+    let word = |n| command.split(' ').nth(n).unwrap_or("").to_ascii_uppercase();
+    match (word(1).as_str(), word(2).as_str()) {
+        ("SELECT", _) => Some(format!(
+            "* {} EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n{tag} OK [READ-WRITE] done\r\n",
+            script.select_exists
+        )),
+        ("UID", "SEARCH") => {
+            let status = if script.search_refusal.is_empty() {
+                "OK done"
+            } else {
+                script.search_refusal
+            };
+            Some(format!("{}{tag} {status}\r\n", script.search_untagged))
+        }
+        ("UID", "EXPUNGE") => {
+            let status = match script.expunge_refusal {
+                "" => "OK done",
+                refusal => refusal,
+            };
+            Some(format!("{}{tag} {status}\r\n", script.expunge_untagged))
+        }
+        ("UID", "STORE") => Some(format!("{tag} {}\r\n", script.store_refusal)),
+        _ => fetch_reply(command, tag, script, fetches),
     }
-    fetch_reply(command, tag, script, fetches)
 }
 
 /// The flags of every UID in the command's set; None from the fetch
