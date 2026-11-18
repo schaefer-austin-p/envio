@@ -20,6 +20,8 @@ admin="admin:envio-admin-$$"
 
 log() { echo "up.sh: $*" >&2; }
 
+# Containers of killed local runs (named for a PID that is gone) go first.
+"$(dirname "$0")/clean.sh"
 docker rm -f "$name" >/dev/null 2>&1 || true
 docker run -d --rm --name "$name" \
   -e STALWART_RECOVERY_ADMIN="$admin" \

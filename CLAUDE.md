@@ -48,6 +48,9 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
 - `cargo make qml-test`: QML tests in the CI image.
 - `cargo xtask affected --base origin/master`: what CI would test.
 - `cargo make click` / `cargo make click-install`: phone build.
+- `cargo make net-it` / `e2e-it`: tests against a throwaway Stalwart named
+  `envio-stalwart-<pid>`; `STALWART_NAME=envio-stalwart` gives the fixed name.
+  `up.sh` removes leftovers of killed runs (dead PID) at the next start.
 
 ## Blast radius
 
