@@ -163,7 +163,7 @@ async fn a_sync_with_the_floor_keeps_older_rows_and_without_it_drops_them() {
 }
 
 #[tokio::test]
-async fn a_whole_batch_of_deleted_mail_does_not_stall_load_older() {
+async fn without_a_tail_a_whole_batch_of_deleted_mail_ends_the_call_and_the_next_goes_on() {
     let mut server = server_with_history();
     for uid in 51..=100 {
         server.set_flags("INBOX", uid, MessageFlags::from_flags([Flag::Deleted]));
@@ -537,4 +537,20 @@ async fn a_call_with_a_tail_ends_when_the_server_is_exhausted() {
     assert_eq!(first.fetched.len(), 5);
     assert!(first.exhausted);
     assert_eq!(fetches(&server) - before, 1);
+}
+
+#[tokio::test]
+async fn with_a_tail_a_batch_of_deleted_mail_does_not_end_the_call() {
+    // UIDs 71..=120 (the first batch) are \Deleted; 21..=70 are dated
+    // below the tail.
+    let (mut server, mut store, inbox) = windowed_with(&[(50, 60 * DAY), (50, 35 * DAY)]).await;
+    for uid in 71..=120 {
+        server.set_flags("INBOX", uid, MessageFlags::from_flags([Flag::Deleted]));
+    }
+    let before = fetches(&server);
+    let tail = Some(NOW_SECS - 40 * DAY);
+    let first = older((&mut server, &mut store, inbox), None, tail).await;
+    assert_eq!(first.fetched.len(), 50);
+    assert!(first.exhausted);
+    assert_eq!(fetches(&server) - before, 2);
 }

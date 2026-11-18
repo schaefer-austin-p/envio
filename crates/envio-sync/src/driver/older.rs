@@ -52,7 +52,8 @@ impl Older {
 /// of the list's last shown row) puts its rows above what the user sees. So
 /// with a `tail` the call goes on to the next batch, up to [`MAX_BATCHES`],
 /// until [`MIN_BELOW`] rows are dated strictly before it (the unified Inbox
-/// passes its global tail to each folder). Without one it fetches one batch.
+/// passes its global tail to each folder); a batch that stores nothing counts
+/// for none. Without a tail it fetches one batch, stored or not.
 /// A failure after the first batch returns what was stored.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
@@ -117,11 +118,14 @@ pub async fn load_older(
         planned = planned.with(&step.fetch);
         let empty = step.stored.is_empty();
         fetched.extend(step.stored);
+        // A batch that stored nothing (all \Deleted or hidden) shows
+        // nothing below the tail either: the call goes on.
         let shown = match tail {
-            Some(tail) if !empty => below(local, folder, tail, base),
-            _ => MIN_BELOW,
+            Some(_) if empty => 0,
+            Some(tail) => below(local, folder, tail, base),
+            None => MIN_BELOW,
         };
-        if exhausted || empty || shown >= MIN_BELOW {
+        if exhausted || shown >= MIN_BELOW {
             break;
         }
     }
