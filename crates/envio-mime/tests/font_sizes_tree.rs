@@ -1,6 +1,9 @@
 //! The font-size pass sees the tree Qt finally sees (#191, review 995),
 //! survives huge `<font size>` values, and never lets a size through that is
-//! above the limit.
+//! above the limit (headings and size tags included, see `font_sizes_tags`
+//! and `font_sizes_hostile` for what Qt makes of them).
+
+mod common;
 
 use envio_mime::{RenderOptions, sanitize_html};
 use proptest::prelude::*;
@@ -69,27 +72,6 @@ fn several_declarations_use_the_last_valid_one() {
     );
 }
 
-/// Only absolute sizes are checked here. Qt gives `h1`..`h6`, `big`, `small`,
-/// `sub` and `sup` their own size that the pass does not model, so a relative
-/// size under them is not verified (see #243).
-#[test]
-fn absolute_sizes_under_headings_keep_their_clamp() {
-    for tag in [
-        "h1", "h2", "h3", "h4", "h5", "h6", "big", "small", "sub", "sup",
-    ] {
-        let out = clean(&format!(
-            r#"<{tag} style="font-size:40px"><span style="font-size:1500%">t</span></{tag}>"#
-        ));
-        assert_eq!(
-            out,
-            format!(
-                r#"<{tag} style="font-size:26px"><span style="font-size:26px">t</span></{tag}>"#
-            ),
-            "{tag}"
-        );
-    }
-}
-
 /// Every absolute `font-size:` value (px, or `xx-large` and up as infinity)
 /// and `size=` level in `html`. Relative values (`%`, `em`, other keywords)
 /// are skipped on purpose: only the proptest's second pass covers them.
@@ -120,9 +102,9 @@ fn sizes_of(html: &str) -> Vec<f64> {
 
 fn element() -> impl Strategy<Value = (&'static str, &'static str, &'static str)> {
     let tag = prop::sample::select(vec![
-        // Tags a second parse leaves where they are (no `p` in `p`, no
-        // block in `h1`), so the output can be cleaned again.
-        "div", "span", "font", "big", "small", "section", "center", "b", "i",
+        // Tags a second parse leaves where they are (no `p` in `p`), so the
+        // output can be cleaned again. Headings are added by `nested`.
+        "div", "span", "font", "big", "small", "section", "center", "b", "i", "sub", "sup",
     ]);
     let size = prop::sample::select(vec![
         "",
@@ -143,26 +125,50 @@ fn element() -> impl Strategy<Value = (&'static str, &'static str, &'static str)
     (tag, size, attr)
 }
 
+/// Inline elements, optionally inside one heading (a block inside `h1`
+/// would not survive a second parse, so only inline tags follow it).
 fn nested() -> impl Strategy<Value = String> {
-    prop::collection::vec(element(), 1..8).prop_map(|els| {
-        let mut open = String::new();
-        let mut close = String::new();
-        for (tag, size, attr) in els {
-            let style = if size.is_empty() {
-                String::new()
-            } else {
-                format!(r#" style="{size}""#)
-            };
-            let size_attr = if tag == "font" && !attr.is_empty() {
-                format!(r#" size="{attr}""#)
-            } else {
-                String::new()
-            };
-            open.push_str(&format!("<{tag}{style}{size_attr}>"));
-            close = format!("</{tag}>{close}");
-        }
-        format!("{open}t{close}")
-    })
+    let heading = prop::option::of(prop::sample::select(vec![
+        "h1", "h2", "h3", "h4", "h5", "h6",
+    ]));
+    let heading_size = prop::sample::select(vec!["", "font-size:150%", "font-size:5%"]);
+    (
+        heading,
+        heading_size,
+        prop::collection::vec(element(), 1..8),
+    )
+        .prop_map(|(heading, heading_size, els)| {
+            let mut open = String::new();
+            let mut close = String::new();
+            if let Some(h) = heading {
+                let style = if heading_size.is_empty() {
+                    String::new()
+                } else {
+                    format!(r#" style="{heading_size}""#)
+                };
+                open.push_str(&format!("<{h}{style}>"));
+                close = format!("</{h}>");
+            }
+            for (tag, size, attr) in els {
+                let tag = match tag {
+                    "div" | "section" | "center" if heading.is_some() => "span",
+                    t => t,
+                };
+                let style = if size.is_empty() {
+                    String::new()
+                } else {
+                    format!(r#" style="{size}""#)
+                };
+                let size_attr = if tag == "font" && !attr.is_empty() {
+                    format!(r#" size="{attr}""#)
+                } else {
+                    String::new()
+                };
+                open.push_str(&format!("<{tag}{style}{size_attr}>"));
+                close = format!("</{tag}>{close}");
+            }
+            format!("{open}t{close}")
+        })
 }
 
 proptest! {
@@ -172,6 +178,8 @@ proptest! {
         for size in sizes_of(&out) {
             prop_assert!(size <= 26.0, "{out}");
         }
+        let over = common::out_of_range(&out);
+        prop_assert!(over.is_empty(), "{out}: {over:?}");
         prop_assert_eq!(clean(&out), out);
     }
 }
