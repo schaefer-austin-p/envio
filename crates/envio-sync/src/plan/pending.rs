@@ -12,6 +12,9 @@ pub struct Pending {
     /// (add, remove) per UID, oldest first.
     flags: BTreeMap<u32, Vec<(Flags, Flags)>>,
     hidden: BTreeSet<u32>,
+    /// Every row with such an id is hidden, though replay acts on the first
+    /// match only: which of two copies the user meant is not known. A
+    /// second copy shows again once replay has settled the action.
     /// Message-IDs of Moves and Deletes journalled under an earlier
     /// UIDVALIDITY: their UIDs mean nothing now, the messages are still
     /// on their way out.
@@ -124,9 +127,19 @@ mod tests {
         old.target.message_id = Some("<a@b>".into());
         let mut flag = action("INBOX", 6, 4, set(Flags::SEEN, Flags::empty()));
         flag.target.message_id = Some("<c@d>".into());
-        let actions = [old, flag];
+        let mut moved = action(
+            "INBOX",
+            5,
+            8,
+            ActionKind::Move {
+                to: "Archive".into(),
+            },
+        );
+        moved.target.message_id = Some("<m@v>".into());
+        let actions = [old, flag, moved];
         let pending = Pending::of(&actions, "1700", "INBOX", 7);
         assert!(pending.hides(9, Some("<a@b>")));
+        assert!(pending.hides(9, Some("<m@v>")));
         assert!(!pending.hides(9, Some("<c@d>")));
         assert!(!pending.hides(9, None));
         assert!(!pending.is_hidden(3));

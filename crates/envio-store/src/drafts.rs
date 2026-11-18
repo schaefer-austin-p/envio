@@ -59,6 +59,15 @@ impl Drafts {
             dir: dir.to_owned(),
             lock: Mutex::new(()),
         };
+        // For `delete`'s markers, made now so a folder that turns read-only
+        // later still takes them. Interrupted marker writes go too.
+        create_private_dir(&dir.join(GONE))?;
+        for entry in fs::read_dir(dir.join(GONE))? {
+            let entry = entry?;
+            if entry.file_name().to_str().is_some_and(is_temp) {
+                fs::remove_file(entry.path())?;
+            }
+        }
         drafts.finish_deletes();
         Ok(drafts)
     }
@@ -232,14 +241,18 @@ impl Drafts {
         // permission error), the draft stays hidden and the next start
         // removes it, so a sent draft never comes back. Best effort.
         let marker = self.dir.join(GONE).join(id);
-        let _ = create_private_dir(&self.dir.join(GONE));
         if write_atomic(&marker, b"").is_err() {
             log::warn!("draft {id}: could not mark it deleted");
         }
         let removed = fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io);
         // Also when the draft file is already gone: a retry after a partial
         // failure still clears the folder.
-        remove_dir_if_there(&self.files_dir(id))?;
+        let files = remove_dir_if_there(&self.files_dir(id));
+        if matches!(removed, Err(StoreError::NotFound)) && files.is_ok() {
+            // Nothing left to bring back.
+            let _ = fs::remove_file(&marker);
+        }
+        files?;
         removed?;
         // Without this a power loss can bring a sent draft back.
         fs::File::open(&self.dir)?.sync_all()?;

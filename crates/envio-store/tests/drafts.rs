@@ -78,7 +78,7 @@ fn an_interrupted_save_keeps_the_last_complete_draft() {
     assert_eq!(drafts.list().unwrap().len(), 1);
     let reopened = Drafts::open(dir.path()).unwrap();
     assert_eq!(reopened.load(&id).unwrap().subject, "Saved");
-    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
 }
 
 #[test]
@@ -346,9 +346,7 @@ fn a_draft_whose_file_cannot_be_deleted_stays_hidden_and_goes_at_the_next_start(
     let drafts = Drafts::open(dir.path()).unwrap();
     let id = drafts.create(&draft("Sent", 1)).unwrap();
     let kept = drafts.create(&draft("Kept", 2)).unwrap();
-    // The drafts folder cannot be changed: removing a file fails. (A
-    // folder for the markers is there already.)
-    fs::create_dir(dir.path().join("gone")).unwrap();
+    // The drafts folder cannot be changed: removing a file fails.
     fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
     let blocked = fs::write(dir.path().join("probe"), b"x").is_err();
     let result = drafts.delete(&id);
@@ -363,4 +361,19 @@ fn a_draft_whose_file_cannot_be_deleted_stays_hidden_and_goes_at_the_next_start(
     assert!(!dir.path().join(format!("{id}.json")).exists());
     assert!(!dir.path().join("gone").join(&id).exists());
     assert_eq!(reopened.list().unwrap().len(), 1);
+}
+
+#[test]
+fn a_finished_delete_leaves_no_marker_and_open_sweeps_marker_temps() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("Gone", 1)).unwrap();
+    drafts.delete(&id).unwrap();
+    assert_eq!(fs::read_dir(dir.path().join("gone")).unwrap().count(), 0);
+    // An id with no file: the delete fails, and leaves no marker either.
+    assert!(matches!(drafts.delete(&id), Err(StoreError::NotFound)));
+    assert_eq!(fs::read_dir(dir.path().join("gone")).unwrap().count(), 0);
+    fs::write(dir.path().join("gone").join(format!(".{id}.tmp")), b"").unwrap();
+    Drafts::open(dir.path()).unwrap();
+    assert_eq!(fs::read_dir(dir.path().join("gone")).unwrap().count(), 0);
 }
