@@ -50,9 +50,13 @@ fn reply_has_method_in_body_and_header() {
     let l = lines(&ics);
     assert_eq!(l.first().unwrap(), "BEGIN:VCALENDAR");
     assert_eq!(l.last().unwrap(), "END:VCALENDAR");
+    assert!(l.contains(&format!(
+        "PRODID:-//Envio//Envio {}.{}//EN",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )));
     for want in [
         "METHOD:REPLY",
-        "PRODID:-//Envio//Envio 0.2//EN",
         "VERSION:2.0",
         "UID:evt-1@example.org",
         "SEQUENCE:2",

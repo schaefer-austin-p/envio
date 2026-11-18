@@ -185,6 +185,7 @@ mod card_unit_tests {
             sequence: 0,
             summary: "Planning".into(),
             location: "Room 4".into(),
+            description: String::new(),
             when: When::Timed {
                 start: 1_800_000_000,
                 end: 1_800_003_600,

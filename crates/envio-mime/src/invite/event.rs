@@ -12,6 +12,7 @@ pub(super) const MAX_LINES: usize = 10_000;
 /// Stack marker for a VEVENT after the first.
 const SKIPPED: &str = "VEVENT (skipped)";
 const MAX_TEXT: usize = 500;
+const MAX_DESCRIPTION: usize = 4000;
 const MAX_ATTENDEES: usize = 500;
 
 /// Reads one calendar part. `None` for an oversized part, a METHOD other
@@ -57,6 +58,8 @@ pub fn parse_invite(ics: &[u8]) -> Option<Invite> {
             .unwrap_or(0),
         summary: text("SUMMARY"),
         location: text("LOCATION"),
+        description: get("DESCRIPTION")
+            .map_or_else(String::new, |p| unescape(&p.value, MAX_DESCRIPTION)),
         when,
         dtstart_line: dtstart.line.clone(),
         recurrence_id: get("RECURRENCE-ID").map_or_else(String::new, |p| p.value.trim().to_owned()),
