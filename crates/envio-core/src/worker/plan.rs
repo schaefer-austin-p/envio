@@ -7,6 +7,8 @@ use envio_net::imap::IDLE_MAX;
 use envio_store::{Folder, FolderId, FolderRole, MessageRowId};
 use envio_sync::plan::folders::sync_order;
 
+use crate::problem::Problem;
+
 mod prefetch;
 
 pub use prefetch::step as prefetch_step;
@@ -225,6 +227,21 @@ pub fn next(timing: &Timing, now_ms: i64) -> Next {
     }
     Next::Sleep {
         until_ms: timing.foreground.then_some(timing.next_full_ms),
+    }
+}
+
+/// Whether the account may be taken into IDLE: its server is not known to
+/// lack it, and there is an Inbox. Unknown (never connected) is tried.
+pub fn may_idle(capable: Option<bool>, has_inbox: bool) -> bool {
+    capable != Some(false) && has_inbox
+}
+
+/// A refused Inbox SELECT before IDLE in the background is retried later
+/// with backoff, like any other failure: nobody is looking to be told.
+pub fn idle_problem(problem: Problem, foreground: bool) -> Problem {
+    match problem {
+        Problem::Refused(_) if !foreground => Problem::Temporary,
+        other => other,
     }
 }
 
@@ -506,6 +523,18 @@ mod tests {
             ..Wants::default()
         };
         assert!(background_steps(&other, &folders()).is_empty());
+    }
+
+    #[test]
+    fn a_refused_idle_select_is_retried_in_the_background_only() {
+        use crate::problem::Problem;
+        let refused = || Problem::Refused("NO".into());
+        assert!(matches!(idle_problem(refused(), false), Problem::Temporary));
+        assert!(matches!(idle_problem(refused(), true), Problem::Refused(_)));
+        assert!(matches!(
+            idle_problem(Problem::SignIn, false),
+            Problem::SignIn
+        ));
     }
 
     #[test]

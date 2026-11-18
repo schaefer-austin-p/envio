@@ -133,6 +133,15 @@ pub(super) fn add_account(worker: &mut Worker<'_>, name: &str, unread: u32) -> S
 }
 
 pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
+    open_with(config, sink, &Arc::default())
+}
+
+/// Like `open`, with the platform slot a restarted worker would share.
+pub(super) fn open_with<'s>(
+    config: &Config,
+    sink: &'s Sink,
+    poster: &Arc<crate::alert::PosterSlot>,
+) -> Worker<'s> {
     let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
     let book = Arc::new(DraftBook::new(&paths.drafts()));
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -140,12 +149,17 @@ pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
         .unwrap();
     let (keep, mut commands) = unbounded_channel();
     let setup = Arc::new(SetupThread::start(config.roots.clone(), keep).unwrap());
-    runtime
+    let mut worker = runtime
         .block_on(Worker::open(
             config,
             &mut commands,
             sink,
-            (&book, &setup, &Arc::default()),
+            (&book, &setup, poster),
         ))
-        .unwrap()
+        .unwrap();
+    // No server to ask: tests plan without trying IDLE.
+    for live in worker.live.values_mut() {
+        live.idle_capable = Some(false);
+    }
+    worker
 }

@@ -225,4 +225,19 @@ mod tests {
         assert_eq!(own.len(), 1);
         assert_eq!(own[0].email, "me@example.org");
     }
+
+    #[test]
+    fn a_restarted_worker_keeps_the_last_known_app_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, _) = seed(dir.path());
+        config.foreground = true;
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.app_active(false);
+        let slot = Arc::clone(&worker.poster);
+        drop(worker);
+        // The supervisor opens the next worker with the same slot.
+        let again = crate::worker::testing::open_with(&config, &sink, &slot);
+        assert!(!again.foreground);
+    }
 }

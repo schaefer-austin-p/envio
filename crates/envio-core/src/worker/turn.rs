@@ -11,7 +11,8 @@ use envio_sync::plan::outbox::next_release;
 
 use super::conn::Conn;
 use super::plan::{
-    Env, Next, POLL_MS, Step, Timing, Wants, background_steps, next, prefetch_step, steps,
+    Env, Next, POLL_MS, Step, Timing, Wants, background_steps, idle_problem, may_idle, next,
+    prefetch_step, steps,
 };
 
 impl Worker<'_> {
@@ -109,8 +110,10 @@ impl Worker<'_> {
                     } else {
                         inbox_wanted
                     },
-                idle_capable: live.idle_capable
-                    && folders.iter().any(|f| f.role == FolderRole::Inbox),
+                idle_capable: may_idle(
+                    live.idle_capable,
+                    folders.iter().any(|f| f.role == FolderRole::Inbox),
+                ),
                 notifies: !self.store.settings.notify_off.contains(account),
             };
             match next(&timing, now) {
@@ -118,6 +121,7 @@ impl Worker<'_> {
                 Next::Idle { until_ms } => {
                     if !matches!(live.conn, Conn::Idling(_)) {
                         if let Err(problem) = self.begin_idle(account, until_ms).await {
+                            let problem = idle_problem(problem, self.foreground);
                             super::run::failed(self, account, "connect", &problem);
                             self.open_failed(Some(account));
                             return None;
@@ -193,7 +197,15 @@ impl Worker<'_> {
     /// When to look again with nothing to do: the earliest timer.
     pub(super) fn wake_at(&self, now: i64) -> Option<i64> {
         let retry = self.store.schedule.next_due_after(self.handled_due_ms);
-        let mut wake = [retry, self.next_release(), self.undo.next_expiry()]
+        // An Inbox that waits for the disk in the background.
+        let disk = self.disk_full_until.filter(|_| {
+            !self.foreground
+                && self
+                    .live
+                    .values()
+                    .any(|live| !live.wants.folders.is_empty())
+        });
+        let mut wake = [disk, retry, self.next_release(), self.undo.next_expiry()]
             .into_iter()
             .flatten()
             .min();
@@ -610,5 +622,25 @@ mod tests {
         assert_eq!(schedule.next_due_after(handled), Some(later));
         handled = later;
         assert_eq!(schedule.next_due_after(handled), None);
+    }
+
+    #[test]
+    fn a_queued_inbox_waits_for_the_disk_in_the_background() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let inbox = seeded.folder;
+        worker
+            .live
+            .get_mut(&seeded.account)
+            .unwrap()
+            .wants
+            .folders
+            .insert(inbox);
+        let now = now_ms();
+        assert_eq!(worker.wake_at(now), None);
+        worker.disk_full_until = Some(now + 60_000);
+        assert_eq!(worker.wake_at(now), Some(now + 60_000));
     }
 }

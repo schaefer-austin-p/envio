@@ -32,7 +32,13 @@ pub trait Poster: Send {
 /// The poster is called outside the slot's lock, so `set` never waits for a
 /// call, and one that panicked does not end alerts for good.
 #[derive(Default)]
-pub(crate) struct PosterSlot(Mutex<Option<Shared>>);
+pub(crate) struct PosterSlot {
+    poster: Mutex<Option<Shared>>,
+    /// The last `AppActive` the worker saw: a worker the supervisor restarts
+    /// starts from it, not from the `Config` (the app may have moved to the
+    /// background since).
+    foreground: Mutex<Option<bool>>,
+}
 
 type Shared = Arc<Mutex<Box<dyn Poster>>>;
 
@@ -42,11 +48,19 @@ fn unpoisoned<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl PosterSlot {
     pub(crate) fn set(&self, poster: Box<dyn Poster>) {
-        *unpoisoned(&self.0) = Some(Arc::new(Mutex::new(poster)));
+        *unpoisoned(&self.poster) = Some(Arc::new(Mutex::new(poster)));
+    }
+
+    pub(crate) fn set_foreground(&self, foreground: bool) {
+        *unpoisoned(&self.foreground) = Some(foreground);
+    }
+
+    pub(crate) fn foreground(&self) -> Option<bool> {
+        *unpoisoned(&self.foreground)
     }
 
     fn current(&self) -> Option<Shared> {
-        unpoisoned(&self.0).clone()
+        unpoisoned(&self.poster).clone()
     }
 
     pub(crate) fn post(&self, alert: &Alert) {

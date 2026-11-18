@@ -210,7 +210,7 @@ impl<'s> Worker<'s> {
             store,
             sink,
             roots: config.roots.clone(),
-            foreground: config.foreground,
+            foreground: poster.foreground().unwrap_or(config.foreground),
             live,
             idles: FuturesUnordered::new(),
             disk_full_until: None,

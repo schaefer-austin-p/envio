@@ -178,10 +178,10 @@ fn keep(
 /// the background only bodies the reader waits for are fetched: the session
 /// stays while another one is wanted (a burst shares one connection) and
 /// closes with the last. An account that notifies also keeps it after its
-/// Inbox sync, so IDLE goes on without a new connection.
+/// Inbox sync or a body, so IDLE goes on without a new connection.
 fn keep_open(foreground: bool, notifies: bool, step: &Step, wants: &super::plan::Wants) -> bool {
     foreground
-        || (notifies && matches!(step, Step::Folder(_)))
+        || (notifies && matches!(step, Step::Folder(_) | Step::Body(_)))
         || matches!(step, Step::Body(id) if wants.bodies.iter().any(|other| other != id))
 }
 
@@ -475,5 +475,13 @@ mod keep_tests {
         assert!(keep_open(false, true, &step, &none));
         assert!(!keep_open(false, false, &step, &none));
         assert!(!keep_open(false, true, &Step::Replay, &none));
+        // A body opened in the background does not cost a reconnect.
+        assert!(keep_open(false, true, &Step::Body(MessageRowId(1)), &none));
+        assert!(!keep_open(
+            false,
+            false,
+            &Step::Body(MessageRowId(1)),
+            &none
+        ));
     }
 }
