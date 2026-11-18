@@ -27,7 +27,7 @@ pub fn found_by(source: Source) -> String {
 pub fn confirm_servers(imap: &str, smtp: &str) -> String {
     fill(
         &tr(
-            "Your domain DNS records point to these servers:\nIncoming: {imap}\nOutgoing: {smtp}\nYour password is sent to them. Only continue if you trust them",
+            "These servers are not on your address's domain:\nIncoming: {imap}\nOutgoing: {smtp}\nYour password is sent to them. Only continue if you trust them",
         ),
         &[("imap", imap), ("smtp", smtp)],
     )
@@ -159,6 +159,16 @@ pub fn confirm_remove(unsent: &UnsentCounts) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_confirm_question_states_no_provenance() {
+        // Any source can ask (#158), so the text may not say where the
+        // servers came from.
+        let text = confirm_servers("imap.other.net", "smtp.other.net");
+        assert!(!text.contains("DNS"), "{text}");
+        assert!(text.contains("imap.other.net"), "{text}");
+        assert!(text.contains("smtp.other.net"), "{text}");
+    }
 
     #[test]
     fn the_remove_question_counts_each_kind_of_unsent_work() {

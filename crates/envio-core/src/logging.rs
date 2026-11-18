@@ -132,7 +132,7 @@ static WARNED: Once = Once::new();
 /// then the envio filter (the password-bearing targets capped at Warn) is
 /// not active: hosts must not install their own logger before `Core::start`.
 pub fn init(logs_dir: &Path, max: log::LevelFilter) -> io::Result<()> {
-    fs::create_dir_all(logs_dir)?;
+    envio_store::create_private_dir(logs_dir)?;
     let sink = Sink::File {
         path: logs_dir.join("envio.log"),
         file: None,

@@ -8,7 +8,7 @@
 //! `skipped`, and stays on disk so a newer build can still replay it.
 
 use std::collections::BTreeMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -18,6 +18,7 @@ use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
 use crate::journal_replay::{Replay, Skipped, replay};
 use crate::messages::Flags;
+use crate::private::{create_private_dir, open_private_append};
 
 /// Names a message without cache row ids, so it still resolves after a
 /// rebuild; after a UIDVALIDITY change, by Message-ID.
@@ -90,7 +91,7 @@ impl Journal {
     pub fn open(path: &Path) -> Result<Self> {
         let existed = path.exists();
         if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-            fs::create_dir_all(dir)?;
+            create_private_dir(dir)?;
         }
         let replay = match fs::read(path) {
             Ok(bytes) => replay(path, &bytes)?,
@@ -227,7 +228,7 @@ impl Journal {
 }
 
 fn open_append(path: &Path) -> io::Result<File> {
-    OpenOptions::new().create(true).append(true).open(path)
+    open_private_append(path)
 }
 
 #[derive(Serialize)]
