@@ -247,3 +247,41 @@ async fn changes_seen_during_a_uid_expunge_are_reported() {
     // The EXPUNGE lines are the command's own result.
     assert!(!changed_by_expunge("* 4 EXPUNGE\r\n").await);
 }
+
+const SUMMARY: &str = "* 1 FETCH (UID 3 FLAGS (\\Seen) RFC822.SIZE 9 BODY[HEADER] {2}\r\n\r\n)\r\n";
+const BODY: &str = "* 1 FETCH (UID 7 BODY[] {2}\r\nhi)\r\n";
+
+/// What `take_changes` says after a FETCH (summaries, or a body) whose
+/// reply had `unsolicited` lines ahead of the normal one.
+async fn changed_by_fetch(unsolicited: &str, summary: bool) -> bool {
+    let normal = if summary { SUMMARY } else { BODY };
+    let mut s = session(Script {
+        fetch_canned: leak_all(vec![leak(format!("{unsolicited}{normal}"))]),
+        ..Script::default()
+    })
+    .await;
+    assert!(!s.take_changes());
+    if summary {
+        assert_eq!(s.fetch_summaries(&[3]).await.unwrap().len(), 1);
+    } else {
+        assert!(s.fetch_body(7, 2).await.unwrap().is_some());
+    }
+    s.take_changes()
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_fetch_are_reported() {
+    for summary in [true, false] {
+        for line in [
+            "* 9 EXISTS\r\n",
+            "* 2 EXPUNGE\r\n",
+            "* VANISHED 5\r\n",
+            // No UID: an unsolicited flag change.
+            "* 5 FETCH (FLAGS (\\Seen))\r\n",
+        ] {
+            assert!(changed_by_fetch(line, summary).await, "{line:?} {summary}");
+        }
+        // Nothing unsolicited, nothing changed.
+        assert!(!changed_by_fetch("", summary).await, "{summary}");
+    }
+}
