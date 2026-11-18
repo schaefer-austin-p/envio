@@ -14,6 +14,28 @@ pub enum Point {
     BodyFetch,
     /// The server accepted IDLE: mail that arrives now is reported.
     IdleEntered,
+    /// The Inbox is selected and the IDLE command is about to be sent:
+    /// mail that arrives now is in the gap the server does not report.
+    IdleBegin,
+}
+
+static RENEWALS: Mutex<Vec<(String, i64)>> = Mutex::new(Vec::new());
+
+/// From now on, `account`'s IDLE ends after at most `ms`, so a test sees
+/// the quiet wake and re-SELECT without waiting for the poll interval.
+pub fn cap_idle_renewal(account: &str, ms: i64) {
+    if let Ok(mut caps) = RENEWALS.lock() {
+        caps.retain(|(key, _)| key != account);
+        caps.push((account.to_owned(), ms));
+    }
+}
+
+pub(crate) fn idle_renewal_cap(account: &str) -> Option<i64> {
+    RENEWALS.lock().ok().and_then(|caps| {
+        caps.iter()
+            .find(|(key, _)| key == account)
+            .map(|(_, ms)| *ms)
+    })
 }
 
 static HOOKS: Mutex<Vec<(Point, String, Hook)>> = Mutex::new(Vec::new());

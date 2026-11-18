@@ -16,6 +16,10 @@ pub use prefetch::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
 
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
 
+// The renewal is `min(IDLE_MAX, POLL_MS)`: the poll interval must stay the
+// shorter, or the 29 minute bound would be the one that applies.
+const _: () = assert!(POLL_MS <= IDLE_MAX.as_millis() as i64);
+
 /// What an account has been asked for since it last ran.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Wants {
@@ -200,8 +204,10 @@ pub enum Next {
 
 /// What an account does now. When a full run is due (`Run` with nothing
 /// wanted) the caller sets `wants.full`. In the background only an account
-/// that notifies works, and only on its Inbox: it never polls, it waits in
-/// IDLE and `has_wants` then means the Inbox changed.
+/// that notifies works, and only on its Inbox: it does not run full polls,
+/// it waits in IDLE, and `has_wants` then means the Inbox changed. Each
+/// IDLE ends after at most `POLL_MS` so the next SELECT can find mail from
+/// the gap before IDLE (#48).
 pub fn next(timing: &Timing, now_ms: i64) -> Next {
     if timing.paused || !(timing.foreground || timing.notifies) {
         return Next::Sleep { until_ms: None };

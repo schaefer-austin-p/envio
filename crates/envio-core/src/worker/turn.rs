@@ -119,6 +119,9 @@ impl Worker<'_> {
             match next(&timing, now) {
                 Next::Sleep { .. } => return None,
                 Next::Idle { until_ms } => {
+                    #[cfg(feature = "test-hooks")]
+                    let until_ms = crate::hooks::idle_renewal_cap(account)
+                        .map_or(until_ms, |cap| until_ms.min(now + cap));
                     if !matches!(live.conn, Conn::Idling(_) | Conn::Opening(_))
                         && let Err(problem) = self.begin_open(account, until_ms)
                     {

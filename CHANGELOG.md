@@ -19,6 +19,9 @@ All notable changes to Envio are listed here. The format follows
 
 ### Fixed
 
+- New mail on an account that is not in the foreground could wait up to
+  29 minutes to show up when it arrived at the moment Envio began
+  listening for mail; it now shows within 5 minutes (#48).
 - Add to calendar is no longer offered on a cancellation or a reply, and
   an event Envio converts from a cancelled invite keeps
   `STATUS:CANCELLED`, so Calendar no longer imports it as a live meeting
