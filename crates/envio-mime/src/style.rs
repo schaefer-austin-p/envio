@@ -81,12 +81,16 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             }
             let allowed = STYLE_PROPS.contains(&prop.as_str())
                 || (element == "img" && IMG_SIZE_PROPS.contains(&prop.as_str()))
-                || (matches!(element, "table" | "td" | "th" | "col") && prop == "width");
+                || (matches!(element, "table" | "td" | "th" | "col") && prop == "width")
+                || prop == "background";
             if !(allowed && safe_css_value(value) && sane_lengths(&prop, value)) {
                 return None;
             }
             if prop.starts_with("margin") {
                 return vertical_margins(&prop, value);
+            }
+            if prop == "background" {
+                return shorthand_colour(value);
             }
             Some(format!("{prop}:{value}"))
         })
@@ -121,6 +125,99 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
         .filter_map(|(side, v)| v.filter(|v| *v != "auto").map(|v| format!("{side}:{v}")))
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
+}
+
+/// The `background` shorthand reduced to `background-color` (Qt 5 rich
+/// text has no shorthand), so a call-to-action link or cell keeps its
+/// fill (#178). The first colour token wins and is written normalised
+/// (`#rrggbb`, `transparent`, or as written lower-cased when it is half
+/// transparent). A shorthand with no colour (`none`, a gradient, a
+/// keyword-only value) gives `background-color:transparent`, so it resets
+/// an earlier colour.
+///
+/// `None` when any token is not a plain keyword, length, colour or
+/// gradient (`var(`, `env(`, escapes, comments and so on): nothing of that
+/// value is kept. A value with `url(` never gets this far; the gate in
+/// [`filter_style`] drops the whole value, colour included, so a value
+/// with a URL is never partially trusted.
+fn shorthand_colour(value: &str) -> Option<String> {
+    let value = strip_important(value);
+    let lower = value.to_ascii_lowercase();
+    if lower.contains("var(") || lower.contains("env(") {
+        return None;
+    }
+    let mut colour = None;
+    for token in tokens(value) {
+        let lower = token.to_ascii_lowercase();
+        if lower == "!important" {
+            continue;
+        }
+        if lower.trim_end_matches("!important") == "transparent" {
+            colour.get_or_insert_with(|| "transparent".to_owned());
+        } else if crate::colours::parse_colour(&lower).is_some() {
+            colour.get_or_insert_with(|| match crate::colours::paint(&lower) {
+                crate::colours::Paint::Opaque(hex) => hex,
+                crate::colours::Paint::Clear => "transparent".to_owned(),
+                crate::colours::Paint::Unknown => {
+                    lower.trim_end_matches("!important").trim_end().to_owned()
+                }
+            });
+        } else if !plain(&lower) {
+            return None;
+        }
+    }
+    Some(format!(
+        "background-color:{}",
+        colour.as_deref().unwrap_or("transparent")
+    ))
+}
+
+/// `value` without a trailing `!important`, however it is spaced
+/// (`! important`).
+fn strip_important(value: &str) -> &str {
+    match value.rsplit_once('!') {
+        Some((head, tail)) if tail.trim().eq_ignore_ascii_case("important") => head.trim_end(),
+        _ => value,
+    }
+}
+
+/// `value` split at whitespace outside parentheses.
+fn tokens(value: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut start, mut depth) = (None, 0usize);
+    for (i, c) in value.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        match (c.is_whitespace() && depth == 0, start) {
+            (true, Some(s)) => {
+                out.push(&value[s..i]);
+                start = None;
+            }
+            (false, None) => start = Some(i),
+            _ => {}
+        }
+    }
+    out.extend(start.map(|s| &value[s..]));
+    out
+}
+
+/// A non-colour shorthand token that is harmless: a keyword, length or
+/// percentage (letters, digits and `-%.,/`), or a linear or radial
+/// gradient whose arguments are made of the same plus `#`, spaces and
+/// parentheses.
+fn plain(token: &str) -> bool {
+    let word = |c: char| c.is_ascii_alphanumeric() || "-%.,/".contains(c);
+    match token.split_once('(') {
+        None => token.chars().all(word),
+        Some((name, args)) => {
+            matches!(name, "linear-gradient" | "radial-gradient")
+                && args.ends_with(')')
+                && args.chars().all(|c| word(c) || "#() ".contains(c))
+        }
+    }
 }
 
 fn safe_css_value(value: &str) -> bool {
