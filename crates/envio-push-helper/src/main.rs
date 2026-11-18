@@ -7,7 +7,7 @@ mod text;
 
 use std::{env, fs, path::PathBuf, process::ExitCode};
 
-use gettextrs::{LocaleCategory, bindtextdomain, setlocale};
+use gettextrs::{LocaleCategory, bind_textdomain_codeset, bindtextdomain, setlocale};
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
@@ -39,4 +39,6 @@ fn translations() {
     if let Some(dir) = locale.filter(|dir| dir.is_dir()) {
         let _ = bindtextdomain("envio.aps", dir);
     }
+    // The card JSON is UTF-8, whatever the locale's charset (as qt/main.cpp).
+    let _ = bind_textdomain_codeset("envio.aps", "UTF-8");
 }

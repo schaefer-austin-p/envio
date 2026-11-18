@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 10:51+0100\n"
+"POT-Creation-Date: 2026-11-18 11:09+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -954,7 +954,7 @@ msgid "The server refused: {reason}"
 msgstr ""
 
 #: crates/envio-core/src/text/notice.rs:12
-#: crates/envio-push-helper/src/text.rs:15
+#: crates/envio-push-helper/src/text.rs:25
 msgid "New mail"
 msgstr ""
 
@@ -1371,3 +1371,11 @@ msgstr ""
 #: crates/envio-core/src/text/undo.rs:36
 msgid "Could not do that. Nothing was changed"
 msgstr ""
+
+#. TRANSLATORS: the body of a new-mail card; %d is the unread count.
+#: crates/envio-push-helper/src/text.rs:17
+#, c-format
+msgid "%d new message"
+msgid_plural "%d new messages"
+msgstr[0] ""
+msgstr[1] ""

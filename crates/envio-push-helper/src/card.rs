@@ -1,54 +1,97 @@
 //! The helper's one decision: which card the input becomes. Pure.
+//!
+//! Anyone holding Envio's push token can send the helper any JSON, so a
+//! remote message never reaches the card except as a count. The card is a
+//! fixed template; the one input with words of its own is a local `Post`,
+//! marked by Envio, and even that keeps only whitelisted fields.
 
 use serde_json::{Map, Value, json};
 
-/// What a tap on the card opens: Envio, in front.
+/// What a tap on the card opens: Envio, in front. Never taken from input.
 const OPEN_ENVIO: &str = "appid://envio.aps/envio/current-user-version";
+/// Replaces the last generic card instead of stacking another.
+const GENERIC_TAG: &str = "new-mail";
+/// The field Envio sets on its own notifications.
+const LOCAL_MARK: &str = "envio_local";
+const MAX_TEXT: usize = 200;
 
 /// The words of the generic card, translated by the caller.
 pub struct Text {
     pub summary: String,
-    pub body: String,
+    /// The body when the push carries no count.
+    pub new_mail: String,
+    /// The body for `n` unread messages.
+    pub counted: fn(u64) -> String,
 }
 
-/// The output for `input`: a local `Post` already carries its
-/// `notification`, which goes through unchanged; anything else gets the
-/// generic card, with the unread count from `message.u` as the launcher
-/// badge. Input that is not a JSON object gives `{}`.
+/// The output for `input`. `message` is always present (the push service
+/// may drop output without one) and empty: nothing remote is passed on.
+/// Input that is not a JSON object gives an empty message only.
 pub fn convert(input: &[u8], text: &Text) -> String {
     let Ok(Value::Object(input)) = serde_json::from_slice::<Value>(input) else {
-        return "{}".into();
+        return json!({ "message": {} }).to_string();
     };
-    let mut out = Map::new();
-    if let Some(message) = input.get("message") {
-        out.insert("message".into(), message.clone());
+    let marked = input.get(LOCAL_MARK) == Some(&Value::Bool(true));
+    let notification = marked
+        .then(|| local(&input))
+        .flatten()
+        .unwrap_or_else(|| generic(&input, text));
+    json!({ "message": {}, "notification": notification }).to_string()
+}
+
+fn card(summary: &str, body: &str) -> Value {
+    json!({
+        "summary": summary,
+        "body": body,
+        "popup": true,
+        "persist": true,
+        "actions": [OPEN_ENVIO],
+    })
+}
+
+fn badge(count: u64) -> Value {
+    let count = count.min(i32::MAX as u64);
+    json!({ "count": count, "visible": count > 0 })
+}
+
+fn short(value: Option<&Value>) -> Option<String> {
+    Some(value?.as_str()?.chars().take(MAX_TEXT).collect())
+}
+
+/// A marked local notification: summary, body, tag and count only.
+fn local(input: &Map<String, Value>) -> Option<Value> {
+    let notification = input.get("notification")?;
+    let card_in = notification.get("card")?;
+    let summary = short(card_in.get("summary"))?;
+    let body = short(card_in.get("body"))?;
+    let mut out = json!({ "card": card(&summary, &body) });
+    if let Some(tag) = short(notification.get("tag")) {
+        out["tag"] = tag.into();
     }
-    let notification = match input.get("notification") {
-        Some(notification) if notification.is_object() => notification.clone(),
-        _ => generic(&input, text),
-    };
-    out.insert("notification".into(), notification);
-    Value::Object(out).to_string()
+    let count = notification
+        .get("emblem-counter")
+        .and_then(|counter| counter.get("count"))
+        .and_then(Value::as_u64);
+    if let Some(count) = count {
+        out["emblem-counter"] = badge(count);
+    }
+    Some(out)
 }
 
 fn generic(input: &Map<String, Value>, text: &Text) -> Value {
-    let mut notification = json!({
-        "card": {
-            "summary": text.summary,
-            "body": text.body,
-            "popup": true,
-            "persist": true,
-            "actions": [OPEN_ENVIO],
-        }
-    });
     let unread = input
         .get("message")
         .and_then(|message| message.get("u"))
         .and_then(Value::as_u64);
-    if let Some(count) = unread {
-        notification["emblem-counter"] = json!({ "count": count, "visible": true });
+    let body = match unread {
+        Some(n) if n > 0 => (text.counted)(n),
+        _ => text.new_mail.clone(),
+    };
+    let mut out = json!({ "card": card(&text.summary, &body), "tag": GENERIC_TAG });
+    if let Some(n) = unread {
+        out["emblem-counter"] = badge(n);
     }
-    notification
+    out
 }
 
 #[cfg(test)]
@@ -58,52 +101,77 @@ mod tests {
     fn text() -> Text {
         Text {
             summary: "Envio".into(),
-            body: "New mail".into(),
+            new_mail: "New mail".into(),
+            counted: |n| format!("{n} new"),
         }
     }
 
-    fn parsed(output: &str) -> Value {
-        serde_json::from_str(output).unwrap()
+    fn run(input: &str) -> Value {
+        serde_json::from_str(&convert(input.as_bytes(), &text())).unwrap()
     }
 
     #[test]
-    fn passes_a_local_notification_through() {
-        let input = r#"{"notification":{"card":{"summary":"grace","body":"2 new messages"},"tag":"new-1"}}"#;
-        let out = parsed(&convert(input.as_bytes(), &text()));
-        assert_eq!(out["notification"], parsed(input)["notification"]);
-        assert_eq!(out.as_object().unwrap().len(), 1);
+    fn a_remote_message_gets_the_fixed_card_with_the_count() {
+        let out = run(r#"{"message":{"u":3,"x":"y"}}"#);
+        let n = &out["notification"];
+        assert_eq!(n["card"]["summary"], "Envio");
+        assert_eq!(n["card"]["body"], "3 new");
+        assert_eq!(n["card"]["popup"], true);
+        assert_eq!(n["card"]["actions"], json!([OPEN_ENVIO]));
+        assert_eq!(n["tag"], "new-mail");
+        assert_eq!(n["emblem-counter"], json!({"count": 3, "visible": true}));
+        assert_eq!(out["message"], json!({}));
     }
 
     #[test]
-    fn builds_the_generic_card_from_a_message() {
-        let input = r#"{"message":{"u":3,"x":"y"}}"#;
-        let out = parsed(&convert(input.as_bytes(), &text()));
-        let card = &out["notification"]["card"];
-        assert_eq!(card["summary"], "Envio");
-        assert_eq!(card["body"], "New mail");
-        assert_eq!(card["popup"], true);
-        assert_eq!(card["actions"][0], OPEN_ENVIO);
-        assert_eq!(out["notification"]["emblem-counter"]["count"], 3);
-        assert_eq!(out["notification"]["emblem-counter"]["visible"], true);
-        assert_eq!(out["message"]["u"], 3);
+    fn hostile_remote_input_never_reaches_the_card() {
+        let out = run(
+            r#"{"message":{"u":"x","summary":"Pay now"},"notification":{"card":{"summary":"Bank","body":"Pay now","actions":["https://evil.example"]},"tag":"t"}}"#,
+        );
+        let n = &out["notification"];
+        assert_eq!(n["card"]["summary"], "Envio");
+        assert_eq!(n["card"]["body"], "New mail");
+        assert_eq!(n["card"]["actions"], json!([OPEN_ENVIO]));
+        assert_eq!(n["tag"], "new-mail");
+        assert!(n.get("emblem-counter").is_none());
+        assert_eq!(out["message"], json!({}));
+        assert!(!out.to_string().contains("evil"));
     }
 
     #[test]
-    fn a_message_without_a_count_sets_no_badge() {
-        let out = parsed(&convert(br#"{"message":{}}"#, &text()));
-        assert!(out["notification"].get("emblem-counter").is_none());
+    fn the_count_is_clamped_and_zero_hides_the_badge() {
+        let big = run(r#"{"message":{"u":99999999999}}"#);
+        assert_eq!(big["notification"]["emblem-counter"]["count"], i32::MAX);
+        let zero = run(r#"{"message":{"u":0}}"#);
+        assert_eq!(zero["notification"]["emblem-counter"]["visible"], false);
+        assert_eq!(zero["notification"]["card"]["body"], "New mail");
     }
 
     #[test]
-    fn bad_input_writes_an_empty_object() {
+    fn a_marked_local_notification_keeps_its_text_but_not_its_action() {
+        let out = run(
+            r#"{"envio_local":true,"notification":{"tag":"new-1","card":{"summary":"grace","body":"2 new messages","actions":["https://evil.example"],"icon":"x"},"emblem-counter":{"count":2,"visible":true}}}"#,
+        );
+        let n = &out["notification"];
+        assert_eq!(n["card"]["summary"], "grace");
+        assert_eq!(n["card"]["body"], "2 new messages");
+        assert_eq!(n["card"]["actions"], json!([OPEN_ENVIO]));
+        assert!(n["card"].get("icon").is_none());
+        assert_eq!(n["tag"], "new-1");
+        assert_eq!(n["emblem-counter"]["count"], 2);
+        assert_eq!(out["message"], json!({}));
+    }
+
+    #[test]
+    fn an_unmarked_notification_is_ignored() {
+        let out = run(r#"{"notification":{"card":{"summary":"x","body":"y"}}}"#);
+        assert_eq!(out["notification"]["card"]["summary"], "Envio");
+    }
+
+    #[test]
+    fn bad_input_writes_an_empty_message() {
         for input in [&b""[..], b"not json", b"[1,2]", b"\"text\"", b"null"] {
-            assert_eq!(convert(input, &text()), "{}");
+            assert_eq!(convert(input, &text()), r#"{"message":{}}"#);
         }
-    }
-
-    #[test]
-    fn a_notification_that_is_not_an_object_gets_the_generic_card() {
-        let out = parsed(&convert(br#"{"notification":"x"}"#, &text()));
-        assert_eq!(out["notification"]["card"]["body"], "New mail");
     }
 }
