@@ -1,5 +1,6 @@
 //! The steps that send mail and file it in Sent.
 
+use envio_mime::Address;
 use envio_net::imap::ImapSession;
 use envio_sync::driver;
 use envio_sync::plan::outbox::files_itself;
@@ -67,6 +68,46 @@ pub(super) async fn file(
         worker.emit(Event::OutboxChanged);
         worker.emit_outbox();
         worker.reshow_open_invite();
+    }
+    Ok(())
+}
+
+/// Uploads changed drafts to the account's Drafts folder and deletes the
+/// server copies of sent or discarded ones.
+pub(super) async fn drafts(
+    worker: &mut Worker<'_>,
+    account: &str,
+    session: &mut ImapSession,
+) -> Result<(), Problem> {
+    let Some(settings) = worker.store.accounts.get(account) else {
+        return Err(Problem::Local);
+    };
+    let name = Some(&settings.settings.name).filter(|n| !n.is_empty());
+    let from = Address::new(name.map(String::as_str), &settings.settings.email);
+    let open = worker.book.open_drafts();
+    let run = driver::DraftRun {
+        account,
+        from: &from,
+        open: &open,
+        now_ms: now_ms(),
+    };
+    let done = driver::sync_drafts(session, &worker.store.db, &worker.store.drafts, &run)
+        .await
+        .map_err(|e| problem::from_sync(&e, Service::Imap))?;
+    if done.no_folder {
+        log::info!("account {account}: no Drafts folder, drafts are not uploaded");
+    }
+    if !(done.refused.is_empty() && done.failed.is_empty()) {
+        log::warn!(
+            "account {account}: the server refused {} draft(s) and failed {}",
+            done.refused.len(),
+            done.failed.len()
+        );
+    }
+    if let Some(live) = worker.live.get_mut(account)
+        && done.relist
+    {
+        live.relist = true;
     }
     Ok(())
 }

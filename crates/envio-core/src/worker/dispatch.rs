@@ -114,6 +114,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
         Command::CloseCompose { compose, .. } => {
             worker.forget_waiting(compose);
+            worker.want_drafts_after_close();
             Flow::Continue
         }
         Command::Send { compose, draft } => {

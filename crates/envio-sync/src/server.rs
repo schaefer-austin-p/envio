@@ -22,6 +22,9 @@ pub trait MailServer {
     /// Every UID in the selected folder (sync window "All", "Load older").
     async fn search_all(&mut self) -> Result<Vec<u32>>;
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>>;
+    /// Like `search_message_id`, but a server that cannot search headers is
+    /// scanned from end to end (for small folders such as Drafts).
+    async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>>;
     /// "Search on server" in the selected folder.
     async fn search_text(&mut self, text: &str) -> Result<Vec<u32>>;
     async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>>;
@@ -84,6 +87,10 @@ impl MailServer for ImapSession {
 
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         ImapSession::search_message_id(self, message_id).await
+    }
+
+    async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        ImapSession::search_message_id_deep(self, message_id).await
     }
 
     async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {

@@ -216,30 +216,79 @@ impl ImapSession {
     /// UIDs of live (not \\Deleted) messages in the selected folder with
     /// this Message-ID (the Outbox's "may have been sent" check). Some servers (Stalwart 1.0) never
     /// match HEADER Message-ID, so an empty answer is checked against the
-    /// Message-ID headers of the newest [`SCAN`] messages.
+    /// Message-ID headers of the newest [`SCAN`] messages (only those are
+    /// listed, so a miss on a large folder stays cheap).
     pub async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        self.find_message_id(message_id, false).await
+    }
+
+    /// Like [`Self::search_message_id`], but an empty answer is checked
+    /// against the whole folder, [`SCAN`] messages at a time, newest first
+    /// (for the small Drafts folder: a miss there is taken as "gone").
+    pub async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        self.find_message_id(message_id, true).await
+    }
+
+    async fn find_message_id(&mut self, message_id: &str, deep: bool) -> Result<Vec<u32>> {
         let key = query::search_message_id(message_id)?;
         let found = self.search(&key).await?;
-        if !found.is_empty() || self.exists == 0 {
+        if !found.is_empty() {
+            self.header_search = Some(true);
             return Ok(found);
         }
-        let first = self.exists.saturating_sub(SCAN - 1).max(1);
+        if self.header_search == Some(true) {
+            // This server's header search has found messages before: a miss
+            // is a miss.
+            return Ok(found);
+        }
+        // The folder's own list of UIDs, not sequence numbers counted from
+        // the EXISTS of SELECT, which an expunge or an append since has
+        // made wrong. Not deep: only the newest SCAN messages are listed,
+        // by a sequence range (`*` is the current last message and the
+        // answer is UIDs, so a stale EXISTS only shifts the window).
+        let all = if deep {
+            self.search("UNDELETED").await?
+        } else if self.exists == 0 {
+            Vec::new()
+        } else {
+            let first = self.exists.saturating_sub(SCAN - 1).max(1);
+            self.search(&format!("{first}:* UNDELETED")).await?
+        };
+        let mut uids = Vec::new();
+        let mut end = all.len();
+        while end > 0 {
+            let start = end.saturating_sub(SCAN as usize);
+            uids.extend(self.scan_message_id(&all[start..end], message_id).await?);
+            if !deep || !uids.is_empty() {
+                break;
+            }
+            end = start;
+        }
+        if !uids.is_empty() {
+            self.header_search = Some(false);
+        }
+        uids.sort_unstable();
+        Ok(uids)
+    }
+
+    /// Live messages among `uids` with this Message-ID.
+    async fn scan_message_id(&mut self, uids: &[u32], message_id: &str) -> Result<Vec<u32>> {
+        let Some(set) = query::uid_set(uids) else {
+            return Ok(Vec::new());
+        };
         connect::within(async {
             // A refused scan is an error: "not found" would send again.
-            let mut uids: Vec<u32> = self
-                .checked_fetch(
-                    &format!("FETCH {first}:* (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
-                    |attributes| {
-                        let live = !fetched::flags(attributes).deleted;
-                        let same =
-                            query::message_id_of(fetched::header(attributes).unwrap_or_default())
-                                .is_some_and(|found| query::same_message_id(&found, message_id));
-                        (live && same).then(|| fetched::uid(attributes)).flatten()
-                    },
-                )
-                .await?;
-            uids.sort_unstable();
-            Ok(uids)
+            self.checked_fetch(
+                &format!("UID FETCH {set} (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
+                |attributes| {
+                    let live = !fetched::flags(attributes).deleted;
+                    let same =
+                        query::message_id_of(fetched::header(attributes).unwrap_or_default())
+                            .is_some_and(|found| query::same_message_id(&found, message_id));
+                    (live && same).then(|| fetched::uid(attributes)).flatten()
+                },
+            )
+            .await
         })
         .await
     }

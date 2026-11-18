@@ -38,6 +38,8 @@ pub struct FakeServer {
     pub folders: BTreeMap<String, FakeFolder>,
     selected: Option<String>,
     failures: Vec<Failure>,
+    /// Every APPEND whose message contains this times out.
+    poison: Option<Vec<u8>>,
     /// Every operation, in order, e.g. `select INBOX`.
     pub calls: Vec<String>,
     /// Ids delivered to the selected folder right after the next search
@@ -61,6 +63,7 @@ impl FakeServer {
             folders: BTreeMap::new(),
             selected: None,
             failures: Vec::new(),
+            poison: None,
             calls: Vec::new(),
             late: Vec::new(),
         };
@@ -142,6 +145,11 @@ impl FakeServer {
             skip: 0,
             error,
         });
+    }
+
+    /// Every APPEND of a message containing `text` times out, for good.
+    pub fn poison_appends_with(&mut self, text: &str) {
+        self.poison = Some(text.as_bytes().to_vec());
     }
 
     /// Drops the failures that haven't fired yet.
@@ -370,6 +378,10 @@ impl MailServer for FakeServer {
         Ok(found)
     }
 
+    async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        self.search_message_id(message_id).await
+    }
+
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         self.call("search_message_id", message_id)?;
         let wanted = bare(message_id).to_owned();
@@ -514,6 +526,13 @@ impl MailServer for FakeServer {
 
     async fn append(&mut self, path: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {
         self.call("append", path)?;
+        if let Some(poison) = &self.poison
+            && eml
+                .windows(poison.len())
+                .any(|window| window == poison.as_slice())
+        {
+            return Err(NetError::Timeout);
+        }
         if !self.folders.contains_key(path) {
             return Err(NetError::Refused("[TRYCREATE] no such folder".into()));
         }

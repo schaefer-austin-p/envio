@@ -83,9 +83,18 @@ impl Core {
         if let Err(error) = book.drafts() {
             log::warn!("opening the drafts folder: {error}");
         }
-        let keeper = DraftKeeper::start(Arc::clone(&book), Arc::clone(&sink))?;
         let poster = Arc::new(PosterSlot::default());
         let (commands, receiver) = unbounded_channel();
+        // A close whose save finished after `send` stopped waiting for it
+        // still reaches the worker, which then uploads the text.
+        let saved = commands.clone();
+        let keeper = DraftKeeper::start(
+            Arc::clone(&book),
+            Arc::clone(&sink),
+            Box::new(move || {
+                let _ = saved.send(Input::DraftsSaved);
+            }),
+        )?;
         // Outlives the worker's restarts: a probe that was running when the
         // worker panicked ends in the same channel, and is dropped as stale.
         let setup = Arc::new(SetupThread::start(config.roots.clone(), commands.clone())?);
@@ -118,6 +127,9 @@ impl Core {
             Command::Attach { compose, path } => return self.keeper.attach(compose, path),
             Command::CloseCompose { compose, discard } => {
                 self.keeper.close(compose, discard);
+                // The worker uploads the draft the close saved: wait for
+                // the save (a file write, at most 500 ms).
+                self.keeper.flush();
                 // The worker still forgets a reply waiting for its body.
                 Command::CloseCompose { compose, discard }
             }
