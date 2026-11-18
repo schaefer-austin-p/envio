@@ -343,15 +343,30 @@ fn caps_the_images_that_wait_for_a_size() {
 }
 
 /// Hostile corpus: 100k distinct URLs (about 4 MB of HTML) must come out
-/// capped, and fast: the linear de-dup took billions of compares.
+/// capped, and the de-dup must scale linearly: a linear scan per URL takes
+/// billions of compares. A wall-clock limit flakes on a busy CI runner
+/// (llvm-cov), so compare two sizes in the same process instead: 4x the
+/// input should cost about 4x the time (linear), not 16x (quadratic).
 #[test]
-fn a_hundred_thousand_distinct_urls_stay_capped_and_quick() {
-    let html = many(100_000);
-    let start = std::time::Instant::now();
-    let r = sanitize_html(&html, &allowed());
-    assert_eq!(r.remote_images.len(), CAP);
-    assert!(r.unsized_images.len() <= CAP * PER_URL);
-    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+fn a_hundred_thousand_distinct_urls_stay_capped_and_scale_linearly() {
+    let time = |n: usize| {
+        let html = many(n);
+        let start = std::time::Instant::now();
+        let r = sanitize_html(&html, &allowed());
+        let took = start.elapsed();
+        assert_eq!(r.remote_images.len(), CAP);
+        assert!(r.unsized_images.len() <= CAP * PER_URL);
+        took
+    };
+    let small = time(25_000);
+    let large = time(100_000);
+    // 8x leaves room for noise between linear (4x) and quadratic (16x); the
+    // floor keeps a very fast small run from making the ratio meaningless.
+    let limit = small * 8 + std::time::Duration::from_millis(200);
+    assert!(
+        large < limit,
+        "100k URLs took {large:?}, 25k took {small:?}: not linear"
+    );
 }
 
 /// Entries one URL may have waiting for a size (its widths and heights).
