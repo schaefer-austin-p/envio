@@ -49,7 +49,7 @@ pub(super) async fn folder(
     // One time for the whole step.
     let now = now_ms();
     let window = worker.store.settings.sync_window();
-    let floor = worker.floors.get(&id).copied();
+    let floor = worker.floors.get(&id).cloned();
     let validity = |worker: &Worker<'_>| {
         let folder = worker.store.db.folder(id).ok()?;
         folder.sync.map(|sync| sync.uidvalidity)

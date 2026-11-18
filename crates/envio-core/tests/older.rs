@@ -71,7 +71,7 @@ fn load_older_fetches_a_batch_and_reports_it() {
     let list = ListRef::Folder(inbox);
     h.send(Command::LoadOlder { list });
     assert_eq!(older_loaded(&h, list), (9, true));
-    assert!(lines(&server, "UID SEARCH UID 1:9") >= 1);
+    assert!(lines(&server, "UID SEARCH ALL") >= 1);
     h.wait(|e| match e {
         Event::MessagesChanged { folders } if folders.contains(&inbox) => Some(()),
         _ => None,
@@ -92,7 +92,7 @@ fn load_older_on_inboxes_asks_every_account() {
     // One event for both accounts: 9 each.
     assert_eq!(older_loaded(&h, ListRef::Inboxes), (18, true));
     for server in [&a, &b] {
-        assert!(lines(server, "UID SEARCH UID 1:9") >= 1);
+        assert!(lines(server, "UID SEARCH ALL") >= 1);
     }
     assert_eq!(rows_of(&h, ListRef::Inboxes), 20);
 }

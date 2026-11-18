@@ -58,10 +58,17 @@ async fn sync(
     inbox: envio_store::FolderId,
     (window, floor): (Option<u32>, Option<Kept>),
 ) {
-    while sync_folder(session, &mut store.local(), inbox, now_ms(), window, floor)
-        .await
-        .unwrap()
-        .more
+    while sync_folder(
+        session,
+        &mut store.local(),
+        inbox,
+        now_ms(),
+        window,
+        floor.clone(),
+    )
+    .await
+    .unwrap()
+    .more
     {}
 }
 
@@ -90,18 +97,29 @@ async fn load_older_fetches_50_then_the_rest_then_is_exhausted() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("karl")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    let first = load_older(&mut session, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let first = load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(first.fetched.len(), 50);
     assert!(!first.exhausted);
     assert_eq!(cached(&store, inbox), INSIDE + 50);
-    let second = load_older(&mut session, &mut store.local(), inbox, Some(first.kept()))
-        .await
-        .unwrap();
+    let second = load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
     assert_eq!(second.fetched.len(), OUTSIDE - 50);
     assert!(second.exhausted);
-    assert_eq!(second.floor, 1);
     assert_eq!(cached(&store, inbox), INSIDE + OUTSIDE);
     session.logout().await.unwrap();
 }
@@ -113,9 +131,15 @@ async fn a_sync_with_the_floor_keeps_everything() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("liam")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    let first = load_older(&mut session, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let first = load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     sync(
         &mut session,
         &mut store,
@@ -134,9 +158,15 @@ async fn a_sync_without_the_floor_goes_back_to_the_window() {
     };
     let (mut session, mut store, inbox) = seeded(&server, &User::new("mona")).await;
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
-    load_older(&mut session, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(cached(&store, inbox), INSIDE + 50);
     sync(&mut session, &mut store, inbox, (Some(30), None)).await;
     assert_eq!(cached(&store, inbox), INSIDE);
@@ -154,5 +184,60 @@ async fn a_90_day_window_caches_everything() {
     // Window All reaches the same mail by UID SEARCH ALL.
     sync(&mut session, &mut store, inbox, (None, None)).await;
     assert_eq!(cached(&store, inbox), INSIDE + OUTSIDE);
+    session.logout().await.unwrap();
+}
+
+#[tokio::test]
+async fn load_older_reaches_old_mail_appended_after_recent_mail() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let user = User::new("olga");
+    let mut session = server.imap(&user.credentials()).await;
+    let now = now_ms() / 1_000;
+    // Recent mail first, old mail appended after it: the old mail has the
+    // higher UIDs (#94).
+    for (days, count) in [(1, 10), (60, 60)] {
+        for i in 0..count {
+            session
+                .append_at(
+                    "INBOX",
+                    now - days * DAY,
+                    &message(&message_id(), &format!("Mail {days} {i}"), 200),
+                )
+                .await
+                .unwrap();
+        }
+    }
+    let mut store = Store::new(user.name);
+    sync_folders(&mut session, &mut store.local(), user.name)
+        .await
+        .unwrap();
+    let inbox = store.folder(FolderRole::Inbox).id;
+    sync(&mut session, &mut store, inbox, (Some(30), None)).await;
+    assert_eq!(cached(&store, inbox), 10);
+    let first = load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(first.fetched.len(), 50);
+    assert!(!first.exhausted);
+    let second = load_older(
+        &mut session,
+        &mut store.local(),
+        inbox,
+        (now_ms(), Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(second.fetched.len(), 10);
+    assert!(second.exhausted);
+    assert_eq!(cached(&store, inbox), 70);
     session.logout().await.unwrap();
 }

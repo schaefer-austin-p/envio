@@ -19,10 +19,8 @@ pub trait MailServer {
     async fn list_folders(&mut self) -> Result<Vec<Folder>>;
     async fn select(&mut self, path: &str) -> Result<FolderState>;
     async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>>;
-    /// Every UID in the selected folder (sync window "All").
+    /// Every UID in the selected folder (sync window "All", "Load older").
     async fn search_all(&mut self) -> Result<Vec<u32>>;
-    /// The UIDs below `uid` in the selected folder ("Load older").
-    async fn search_uids_below(&mut self, uid: u32) -> Result<Vec<u32>>;
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>>;
     /// "Search on server" in the selected folder.
     async fn search_text(&mut self, text: &str) -> Result<Vec<u32>>;
@@ -82,10 +80,6 @@ impl MailServer for ImapSession {
 
     async fn search_all(&mut self) -> Result<Vec<u32>> {
         ImapSession::search_all(self).await
-    }
-
-    async fn search_uids_below(&mut self, uid: u32) -> Result<Vec<u32>> {
-        ImapSession::search_uids_below(self, uid).await
     }
 
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {

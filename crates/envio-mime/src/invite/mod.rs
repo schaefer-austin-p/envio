@@ -53,6 +53,9 @@ pub struct Invite {
     /// Unescaped, control characters stripped, at most 500 characters.
     pub summary: String,
     pub location: String,
+    /// Unescaped, control characters stripped (newlines kept), at most 4000
+    /// characters (a longer one is cut and ends in "…").
+    pub description: String,
     pub when: When,
     /// The DTSTART line as received (unfolded, with its TZID), copied into
     /// a reply.
