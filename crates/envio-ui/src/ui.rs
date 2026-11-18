@@ -215,7 +215,8 @@ impl Ui {
             _ => Vec::new(),
         };
         self.prune_selection();
-        self.prune_open();
+        let mut outs = outs;
+        outs.extend(self.prune_open());
         self.mirror.track(&outs);
         outs
     }

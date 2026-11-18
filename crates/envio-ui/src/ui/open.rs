@@ -63,18 +63,19 @@ impl Ui {
 
     /// The message cannot stay open once its row leaves the model it was
     /// opened from. Another model that still holds it (a search whose
-    /// results are never refreshed) does not keep it open.
-    pub(super) fn prune_open(&mut self) {
+    /// results are never refreshed) does not keep it open, and its mark
+    /// there goes with it. Returns those row updates.
+    pub(super) fn prune_open(&mut self) -> Vec<Output> {
         let (Some(id), Some(from)) = (self.open, self.open_from) else {
-            return;
+            return Vec::new();
         };
         let held = match from {
             Model::Messages => self.current.as_ref().is_some_and(|c| c.shown.contains(id)),
             _ => self.found.contains(id),
         };
-        if !held {
-            self.open = None;
-            self.open_from = None;
+        if held {
+            return Vec::new();
         }
+        self.unmark_open(|_| true)
     }
 }

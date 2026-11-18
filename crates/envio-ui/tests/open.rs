@@ -165,6 +165,48 @@ fn open_clears_when_it_leaves_messages_though_a_stale_search_holds_it() {
     );
     feed(&mut ui, page(F1, None, vec![msg(2, 20)], true));
     assert_eq!(ui.open_message(), None);
+    assert_eq!(open_ids(&ui, Model::Search), Vec::<i64>::new());
+    assert_eq!(open_ids(&ui, Model::Messages), Vec::<i64>::new());
+}
+
+#[test]
+fn open_clears_when_a_new_search_omits_it_though_messages_holds_it() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20)], true);
+    let _ = ui.search(SearchScope::All, "q".into(), false);
+    feed(
+        &mut ui,
+        Event::SearchResults {
+            scope: SearchScope::All,
+            query: "q".into(),
+            server: false,
+            rows: vec![msg(1, 10)],
+        },
+    );
+    // Opened from Search; a refresh then brings it into Messages too.
+    ui.set_open(Some(1));
+    feed(
+        &mut ui,
+        Event::MessagesChanged {
+            folders: vec![FolderId(1)],
+        },
+    );
+    feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], true));
+    assert_eq!(open_ids(&ui, Model::Messages), [1]);
+    assert_eq!(open_ids(&ui, Model::Search), [1]);
+    let _ = ui.search(SearchScope::All, "r".into(), false);
+    feed(
+        &mut ui,
+        Event::SearchResults {
+            scope: SearchScope::All,
+            query: "r".into(),
+            server: false,
+            rows: vec![msg(2, 20)],
+        },
+    );
+    assert_eq!(ui.open_message(), None);
+    assert_eq!(open_ids(&ui, Model::Messages), Vec::<i64>::new());
+    assert_eq!(open_ids(&ui, Model::Search), Vec::<i64>::new());
 }
 
 #[test]
