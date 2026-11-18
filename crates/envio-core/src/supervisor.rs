@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use envio_sync::schedule::backoff_ms;
 use tokio::sync::mpsc::UnboundedReceiver;
 
+use crate::alert::PosterSlot;
 use crate::api::event::Event;
 use crate::clock::now_ms;
 use crate::core::{Config, EventSink};
@@ -53,14 +54,14 @@ pub(crate) fn supervise(
     config: Config,
     mut commands: UnboundedReceiver<Input>,
     sink: Arc<dyn EventSink>,
-    (book, setup): (Arc<DraftBook>, Arc<SetupThread>),
+    (book, setup, poster): (Arc<DraftBook>, Arc<SetupThread>, Arc<PosterSlot>),
 ) {
     install_panic_hook();
     let mut panics: u32 = 0;
     let mut last_panic = Instant::now();
     loop {
         let run = panic::catch_unwind(AssertUnwindSafe(|| {
-            worker::run(&config, &mut commands, &*sink, (&book, &setup));
+            worker::run(&config, &mut commands, &*sink, (&book, &setup, &poster));
         }));
         if run.is_ok() {
             return; // Shutdown, or the handle was dropped

@@ -104,6 +104,11 @@ pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
     let (keep, mut commands) = unbounded_channel();
     let setup = Arc::new(SetupThread::start(config.roots.clone(), keep).unwrap());
     runtime
-        .block_on(Worker::open(config, &mut commands, sink, (&book, &setup)))
+        .block_on(Worker::open(
+            config,
+            &mut commands,
+            sink,
+            (&book, &setup, &Arc::default()),
+        ))
         .unwrap()
 }

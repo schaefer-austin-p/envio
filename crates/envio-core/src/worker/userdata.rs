@@ -76,6 +76,7 @@ impl Worker<'_> {
     /// Tells the app each account's Inbox count that changed since it was
     /// last told (an account the app has not heard of counts as 0).
     pub(super) fn refresh_unread(&self) {
+        let mut changed = false;
         for account in self.store.accounts.list() {
             let unread = self.inbox_unread(&account.key);
             let known = self
@@ -83,11 +84,15 @@ impl Worker<'_> {
                 .borrow_mut()
                 .insert(account.key.clone(), unread);
             if known.unwrap_or(0) != unread {
+                changed = true;
                 self.sink.emit(Event::AccountUnread {
                     account: account.key.clone(),
                     unread,
                 });
             }
+        }
+        if changed {
+            self.badge();
         }
     }
 

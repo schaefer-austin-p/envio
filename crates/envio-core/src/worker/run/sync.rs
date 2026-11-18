@@ -2,14 +2,15 @@
 
 use envio_net::imap::ImapSession;
 use envio_store::{Action, FolderId, MessageRowId};
-use envio_sync::driver::{self, Replayed};
+use envio_sync::driver::{self, Options, Replayed};
 
-use crate::api::event::Event;
+use crate::api::event::{Event, NewMail};
 use crate::clock::now_ms;
 use crate::problem::{self, Problem};
 use crate::servers::Service;
 use crate::text;
 use crate::worker::Worker;
+use crate::worker::alerts::own_addresses;
 
 pub(super) fn imap_error(error: &envio_sync::SyncError) -> Problem {
     problem::from_sync(error, Service::Imap)
@@ -55,7 +56,19 @@ pub(super) async fn folder(
         folder.sync.map(|sync| sync.uidvalidity)
     };
     let before = validity(worker);
-    let synced = driver::sync_folder(session, &mut worker.store.local(), id, now, window, floor)
+    let own = worker
+        .store
+        .accounts
+        .get(account)
+        .map(|a| own_addresses(&a.settings))
+        .unwrap_or_default();
+    let options = Options {
+        now_ms: now,
+        window_days: window,
+        kept: floor,
+        own: &own,
+    };
+    let synced = driver::sync_folder_as(session, &mut worker.store.local(), id, options)
         .await
         .map_err(|e| imap_error(&e))?;
     // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
@@ -66,6 +79,14 @@ pub(super) async fn folder(
     folder_synced(worker, account, (id, synced.more));
     if synced.fetched + synced.removed + synced.flags_changed > 0 {
         worker.emit(Event::MessagesChanged { folders: vec![id] });
+    }
+    // The sync's own count, reported once, on the call that finishes it.
+    if synced.new_mail.count > 0 {
+        worker.new_mail(NewMail {
+            account: account.to_owned(),
+            count: synced.new_mail.count,
+            first: synced.new_mail.first,
+        });
     }
     Ok(())
 }

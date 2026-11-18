@@ -38,6 +38,19 @@ pub(crate) fn reached(point: Point, account: &str) {
     }
 }
 
+static UNFOCUSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// While `on`, the worker treats the app as not focused even in the
+/// foreground, so a test can get alerts without the background (where IDLE
+/// stops until Plan 9a Task 4). Process-wide: reset it when done.
+pub fn set_unfocused(on: bool) {
+    UNFOCUSED.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub(crate) fn unfocused() -> bool {
+    UNFOCUSED.load(std::sync::atomic::Ordering::SeqCst)
+}
+
 /// What the setup thread does for one address instead of (or before) its
 /// network work: a slow Internet, and a ready answer for `Detect`.
 #[derive(Clone)]
