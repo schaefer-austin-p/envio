@@ -481,3 +481,24 @@ async fn a_text_part_in_the_reply_is_kept() {
     let eml = session.fetch_partial(7).await.unwrap().unwrap();
     assert!(String::from_utf8(eml).unwrap().ends_with("hello"));
 }
+
+#[tokio::test]
+async fn a_small_messages_own_stub_marks_are_renamed_in_the_full_fetch() {
+    // #214: a plain mark, and ones behind a leading CR and FF.
+    let eml = "Subject: Hi\r\nX-Envio-Section: 7\r\n\rX-Envio-Size: 9\r\n\x0cx-envio-truncated: 1\r\n\r\nbody\r\n";
+    let reply: &'static str = Box::leak(
+        format!("* 1 FETCH (UID 7 BODY[] {{{}}}\r\n{eml})\r\n", eml.len()).into_boxed_str(),
+    );
+    let canned: &'static [&'static str] = Box::leak(vec![reply].into_boxed_slice());
+    let (mut session, _) = fetching(Script {
+        fetch_canned: canned,
+        ..Script::default()
+    })
+    .await;
+    let body = session.fetch_body(7, eml.len()).await.unwrap().unwrap();
+    assert_eq!(
+        String::from_utf8(body).unwrap(),
+        "Subject: Hi\r\nX-Untrusted-Envio-Section: 7\r\n\rX-Untrusted-Envio-Size: 9\r\n\
+         \x0cX-Untrusted-envio-truncated: 1\r\n\r\nbody\r\n"
+    );
+}
