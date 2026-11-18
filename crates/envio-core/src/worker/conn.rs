@@ -474,6 +474,28 @@ mod tests {
     }
 
     #[test]
+    fn going_to_the_background_cancels_the_connect_of_an_account_that_does_not_notify() {
+        use crate::worker::testing::{Sink, open, seed};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        let (_future, handle) = futures::future::abortable(std::future::pending::<()>());
+        let seen = handle.clone();
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(handle);
+        // One that notifies keeps its connect (it is about to start IDLE).
+        worker.app_active(false);
+        assert!(!seen.is_aborted());
+        assert!(matches!(worker.live[&account].conn, Conn::Opening(_)));
+        worker.store.settings.notify_off.insert(account.clone());
+        worker.app_active(false);
+        assert!(seen.is_aborted());
+        assert!(matches!(worker.live[&account].conn, Conn::Closed));
+    }
+
+    #[test]
     fn an_idle_that_fails_right_after_starting_keeps_backing_off() {
         use crate::worker::testing::{Sink, open, seed};
 

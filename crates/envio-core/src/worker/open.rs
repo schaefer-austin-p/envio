@@ -367,4 +367,42 @@ mod tests {
         assert!(matches!(ended[0].1, Ok(Err(Problem::Temporary))));
         assert!(opens.is_empty());
     }
+
+    #[test]
+    fn a_connect_timeout_is_seen_while_a_long_step_runs() {
+        use std::cell::Cell;
+        use std::rc::Rc;
+        use std::time::Duration;
+
+        use tokio::time::{Instant, timeout};
+
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let began = Instant::now();
+            let timed_out_at = Rc::new(Cell::new(None));
+            let record = Rc::clone(&timed_out_at);
+            // A connect that stalls: the 20 s of `CONNECT_TIMEOUT`.
+            let (connect, _handle) = abortable(async move {
+                let stalled = timeout(Duration::from_secs(20), std::future::pending::<()>());
+                let result = stalled.await;
+                record.set(Some(began.elapsed()));
+                let _ = result;
+                Err::<Opened, _>(Problem::Temporary)
+            });
+            let mut opens = FuturesUnordered::new();
+            opens.push(Box::pin(async move { ("b".to_owned(), connect.await) }) as OpenFuture);
+            // Another account's step runs for 90 s.
+            let step = tokio::time::sleep(Duration::from_secs(90));
+            let ((), ended) = polling(&mut opens, step).await;
+            // The timeout fired at 20 s, not when the step ended, and the
+            // failure is handed back to be applied.
+            assert_eq!(timed_out_at.get(), Some(Duration::from_secs(20)));
+            assert_eq!(ended.len(), 1);
+            assert!(matches!(ended[0].1, Ok(Err(Problem::Temporary))));
+        });
+    }
 }

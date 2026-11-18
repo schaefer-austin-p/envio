@@ -579,6 +579,15 @@ mod tests {
     }
 
     #[test]
+    fn a_connect_in_flight_needs_no_timer() {
+        // Its own future wakes the loop (its timeout), like IDLE's.
+        let (_future, handle) = futures::future::abortable(std::future::pending::<()>());
+        let opening = Conn::Opening(handle);
+        assert!(!needs_timer(true, true, &opening));
+        assert!(!needs_timer(false, true, &opening));
+    }
+
+    #[test]
     fn a_retry_is_handled_once_and_only_when_due() {
         let mut schedule = Schedule::default();
         let first = schedule.failed(Key::Action(1), 0);
