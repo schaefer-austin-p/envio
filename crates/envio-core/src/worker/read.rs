@@ -90,8 +90,9 @@ pub(crate) fn render_view(
             ..header
         };
     }
-    header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address);
-    let load = loads_images(ctx.settings, images, &header.from_address);
+    let verified = envio_mime::sender_verified(raw, &header.from_address);
+    header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address, verified);
+    let load = loads_images(ctx.settings, images, &header.from_address, verified);
     let inlined = match (&message, ctx.inline_dir) {
         (Mime::Parsed { attachments, .. }, Some(dir)) => {
             super::inline::write(dir, raw, attachments)

@@ -19,6 +19,11 @@ All notable changes to Envio are listed here. The format follows
 
 ### Fixed
 
+- "Always load images from this sender" and the known-sender cue now apply
+  only when your mail server's `Authentication-Results` header says the
+  From domain passed DKIM, SPF or DMARC. A forged From address no longer
+  loads images or shows as known; mail without that header is treated as
+  unverified (#156).
 - Mail styles containing `var(` or `env(` are now dropped on every
   property, not only in the `background` shorthand (#276).
 - Call-to-action buttons in mail keep their fill: a link or cell styled
