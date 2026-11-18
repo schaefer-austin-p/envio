@@ -77,7 +77,7 @@ async fn a_saved_draft_is_appended_as_a_seen_draft_and_named_in_its_file() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("first text", 1)).unwrap();
     let done = run(&mut server, &store).await;
-    assert_eq!(done.uploaded, [id.clone()]);
+    assert_eq!(done.uploaded, std::slice::from_ref(&id));
     let found = copies(&server);
     assert_eq!(found.len(), 1);
     assert!(found[0].0.contains("first text"));
