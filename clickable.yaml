@@ -14,3 +14,4 @@ install_root_data:
 - envio.desktop
 - envio.url-dispatcher
 - assets
+- push

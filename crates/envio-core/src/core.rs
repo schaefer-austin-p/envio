@@ -8,6 +8,7 @@ use std::thread::{self, JoinHandle};
 use envio_store::StorePaths;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
+use crate::alert::{Poster, PosterSlot};
 use crate::api::command::Command;
 use crate::api::event::Event;
 use crate::clock::now_ms;
@@ -43,6 +44,7 @@ pub struct Core {
     /// Saves drafts on its own thread, whatever the worker is doing. Dropped
     /// after the worker has stopped (field order), which flushes it again.
     keeper: DraftKeeper,
+    poster: Arc<PosterSlot>,
 }
 
 // The handle is shared across the app's threads (#39); nothing else is.
@@ -81,6 +83,7 @@ impl Core {
         if let Err(error) = book.drafts() {
             log::warn!("opening the drafts folder: {error}");
         }
+        let poster = Arc::new(PosterSlot::default());
         let (commands, receiver) = unbounded_channel();
         // A close whose save finished after `send` stopped waiting for it
         // still reaches the worker, which then uploads the text.
@@ -95,13 +98,15 @@ impl Core {
         // Outlives the worker's restarts: a probe that was running when the
         // worker panicked ends in the same channel, and is dropped as stale.
         let setup = Arc::new(SetupThread::start(config.roots.clone(), commands.clone())?);
+        let shown = Arc::clone(&poster);
         let thread = thread::Builder::new()
             .name("envio-worker".into())
-            .spawn(move || supervise(config, receiver, sink, (book, setup)))?;
+            .spawn(move || supervise(config, receiver, sink, (book, setup, shown)))?;
         Ok(Core {
             commands,
             thread: Some(thread),
             keeper,
+            poster,
         })
     }
 
@@ -139,6 +144,14 @@ impl Core {
         {
             log::warn!("worker has stopped; dropped {}", command.name());
         }
+    }
+
+    /// Where new-mail alerts and the launcher badge go (the platform's
+    /// part). Until one is set they go nowhere; a later call replaces it.
+    /// The worker tells the new poster the current badge, then each change.
+    pub fn set_poster(&self, poster: Box<dyn Poster>) {
+        self.poster.set(poster);
+        let _ = self.commands.send(Input::PosterSet);
     }
 
     /// Stops the worker and waits for it (what `Drop` does).

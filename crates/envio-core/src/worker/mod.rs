@@ -1,6 +1,7 @@
 //! The worker: one thread, one current-thread runtime, one command loop.
 
 mod act;
+mod alerts;
 mod attachment;
 mod compose;
 mod conn;
@@ -36,6 +37,7 @@ use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use tokio::sync::mpsc::UnboundedReceiver;
 
+use crate::alert::PosterSlot;
 use crate::api::command::{Command, ComposeId, ImagesChoice, StartFrom};
 use crate::api::event::Event;
 use crate::api::view::{AccountInfo, CacheState};
@@ -108,6 +110,8 @@ pub(crate) struct Worker<'s> {
     floors: BTreeMap<FolderId, Kept>,
     /// The `LoadOlder` commands waiting for their folders.
     loads: HashMap<ListRef, older::Load>,
+    /// Where alerts and the badge go (shared with `Core::set_poster`).
+    poster: Arc<PosterSlot>,
     /// Folders whose Load older rows a window change drops with their next
     /// sync; `OlderReset` follows that sync.
     reset_pending: BTreeSet<FolderId>,
@@ -126,6 +130,9 @@ pub(crate) enum Input {
     /// The draft thread saved the draft of a window that closed: its
     /// account may have something to upload.
     DraftsSaved,
+    /// `Core::set_poster` ran: the poster is told the current badge, on the
+    /// worker's thread, in order with later unread changes.
+    PosterSet,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -133,14 +140,15 @@ pub(crate) fn run(
     config: &Config,
     commands: &mut UnboundedReceiver<Input>,
     sink: &dyn EventSink,
-    (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
+    (book, setup, poster): (&Arc<DraftBook>, &Arc<SetupThread>, &Arc<PosterSlot>),
 ) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
     runtime.block_on(async {
-        let Some(mut worker) = Worker::open(config, commands, sink, (book, setup)).await else {
+        let Some(mut worker) = Worker::open(config, commands, sink, (book, setup, poster)).await
+        else {
             return;
         };
         while worker.turn(commands).await == Flow::Continue {}
@@ -154,7 +162,7 @@ impl<'s> Worker<'s> {
         config: &Config,
         commands: &mut UnboundedReceiver<Input>,
         sink: &'s dyn EventSink,
-        (book, setup): (&Arc<DraftBook>, &Arc<SetupThread>),
+        (book, setup, poster): (&Arc<DraftBook>, &Arc<SetupThread>, &Arc<PosterSlot>),
     ) -> Option<Worker<'s>> {
         let mut failures: u32 = 0;
         let mut queued: VecDeque<Input> = VecDeque::new();
@@ -187,6 +195,7 @@ impl<'s> Worker<'s> {
                                         Input::Command((c, _)) => c.name(),
                                         Input::Setup(_) => "setup result",
                                         Input::DraftsSaved => "drafts saved",
+                                        Input::PosterSet => "poster set",
                                     })
                                     .collect();
                                 log::warn!(
@@ -212,7 +221,7 @@ impl<'s> Worker<'s> {
             store,
             sink,
             roots: config.roots.clone(),
-            foreground: config.foreground,
+            foreground: poster.foreground().unwrap_or(config.foreground),
             live,
             idles: FuturesUnordered::new(),
             disk_full_until: None,
@@ -235,6 +244,7 @@ impl<'s> Worker<'s> {
             unread_sent: RefCell::new(BTreeMap::new()),
             floors: BTreeMap::new(),
             loads: HashMap::new(),
+            poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
         };
         worker.announce(cache);
@@ -278,6 +288,9 @@ impl<'s> Worker<'s> {
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
         self.sink.emit(Event::Settings(self.store.settings.clone()));
+        // A restarted worker re-seeds the counts, so nothing looks changed:
+        // the poster (if one is set) hears the total now.
+        self.poster_set();
     }
 
     /// One loop iteration: run a step if an account has one, else wait for
@@ -381,6 +394,10 @@ impl<'s> Worker<'s> {
             }
             Input::DraftsSaved => {
                 self.want_drafts_after_close();
+                Flow::Continue
+            }
+            Input::PosterSet => {
+                self.poster_set();
                 Flow::Continue
             }
         }

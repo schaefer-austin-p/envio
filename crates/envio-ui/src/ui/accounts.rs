@@ -5,7 +5,7 @@ use envio_core::{AccountInfo, AccountStatus, FolderRow};
 use super::{Output, Ui, change};
 use crate::convert;
 use crate::models::{Model, Op};
-use crate::rows::Row;
+use crate::rows::{AccountRow, Row};
 use crate::signals::Signal;
 
 fn status_text(info: &AccountInfo) -> String {
@@ -16,11 +16,14 @@ fn status_text(info: &AccountInfo) -> String {
 }
 
 impl Ui {
+    fn row_of(&self, info: &AccountInfo) -> AccountRow {
+        let mut row = convert::account_row(info, &status_text(info));
+        row.notify = !self.notify_off.contains(&info.key);
+        row
+    }
+
     pub(super) fn started(&mut self, infos: &[AccountInfo]) -> Vec<Output> {
-        self.accounts = infos
-            .iter()
-            .map(|i| convert::account_row(i, &status_text(i)))
-            .collect();
+        self.accounts = infos.iter().map(|i| self.row_of(i)).collect();
         self.names = infos
             .iter()
             .map(|i| (i.key.clone(), i.name.clone()))
@@ -32,7 +35,7 @@ impl Ui {
     /// A row for the account, new or (if `Started` listed it already)
     /// replaced in place, so it never shows twice.
     pub(super) fn account_added(&mut self, info: &AccountInfo) -> Vec<Output> {
-        let row = convert::account_row(info, &status_text(info));
+        let row = self.row_of(info);
         self.names.insert(info.key.clone(), info.name.clone());
         let op = match self.accounts.iter().position(|a| a.key == info.key) {
             Some(at) => {

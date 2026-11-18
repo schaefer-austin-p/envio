@@ -1,0 +1,190 @@
+//! New-mail alerts against Stalwart from crates/envio-net/tests/stalwart/up.sh,
+//! through a recording `Poster`. Skips without it, unless
+//! ENVIO_REQUIRE_STALWART=1.
+//!
+//! The app goes to the background with `AppActive(false)`; the Inbox keeps
+//! IDLE there for an account that notifies.
+
+mod support;
+
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use envio_core::hooks::{self, Point};
+use envio_core::{Alert, Command, Event, FolderRole, Poster};
+use log::LevelFilter;
+use support::core_run::{CoreRun, NET, password};
+use support::stalwart::{Stalwart, message, message_id};
+
+#[derive(Default, Clone)]
+struct Recorder(Arc<Mutex<Recorded>>);
+
+#[derive(Default)]
+struct Recorded {
+    alerts: Vec<Alert>,
+    badges: Vec<u32>,
+}
+
+impl Poster for Recorder {
+    fn post(&self, alert: &Alert) {
+        self.0.lock().unwrap().alerts.push(alert.clone());
+    }
+    fn badge(&self, total_unread: u32) {
+        self.0.lock().unwrap().badges.push(total_unread);
+    }
+}
+
+impl Recorder {
+    fn alerts(&self) -> Vec<Alert> {
+        self.0.lock().unwrap().alerts.clone()
+    }
+}
+
+/// The app leaves the foreground; the account stays in IDLE.
+fn background(run: &CoreRun) {
+    run.core().send(Command::AppActive(false));
+}
+
+/// Waits until the account has entered IDLE more than `before` times
+/// (`idles(account)` taken earlier; 0 for a new account). It counts rather
+/// than registers a hook, because the first IDLE after `Connect` can come
+/// before the test gets to register one (#167).
+fn idle_entered(account: &str, before: usize) {
+    let end = std::time::Instant::now() + NET;
+    while idles(account) <= before {
+        assert!(
+            std::time::Instant::now() < end,
+            "IDLE was never entered (entered {} times, wanted more than {before})",
+            idles(account)
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn idles(account: &str) -> usize {
+    hooks::reached_count(Point::IdleEntered, account)
+}
+
+fn creds(user: &str) -> envio_net::Credentials {
+    envio_net::Credentials::new(user, &password(user))
+}
+
+/// Appends the messages to the user's INBOX, one after the other.
+async fn deliver(server: &Stalwart, user: &str, raw: &[Vec<u8>]) {
+    let mut session = server.imap(&creds(user)).await;
+    for eml in raw {
+        session.append("INBOX", &[], eml).await.unwrap();
+    }
+    session.logout().await.unwrap();
+}
+
+fn from_alice(subject: &str) -> Vec<u8> {
+    message(&message_id(), subject, 500)
+}
+
+/// A message the user sent to themselves.
+fn from_self(user: &str, subject: &str) -> Vec<u8> {
+    format!(
+        "From: {user}@envio.test\r\nTo: {user}@envio.test\r\nSubject: {subject}\r\n\
+         Message-ID: {}\r\nDate: Sun, 08 Nov 2026 10:00:00 +0000\r\n\
+         MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nnote\r\n",
+        message_id()
+    )
+    .into_bytes()
+}
+
+#[tokio::test]
+async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let run = CoreRun::start(LevelFilter::Info);
+    let recorder = Recorder::default();
+    run.core().set_poster(Box::new(recorder.clone()));
+    let account = run.add_account(&server, "grace");
+    let (inbox, _) = run.folder(&account, FolderRole::Inbox);
+    idle_entered(&account, 0);
+    // The first sync of an account never notifies.
+    assert!(recorder.alerts().is_empty());
+
+    background(&run);
+    let subjects = ["Alpha 1", "Alpha 2", "Alpha 3"];
+    let raw: Vec<_> = subjects.iter().map(|s| from_alice(s)).collect();
+    deliver(&server, "grace", &raw).await;
+
+    // One NewMail per wake; their counts add up to the three messages.
+    let mut counted = 0;
+    let mut wakes = 0;
+    while counted < 3 {
+        counted += run.wait(NET, |event| match event {
+            Event::NewMail(mail) if mail.account == account => {
+                assert_eq!(mail.first.is_some(), mail.count == 1);
+                Some(mail.count)
+            }
+            _ => None,
+        });
+        wakes += 1;
+    }
+    assert_eq!(counted, 3, "more than the three that were delivered");
+    for subject in subjects {
+        run.row_with(inbox, subject);
+    }
+
+    let alerts = recorder.alerts();
+    assert_eq!(alerts.len(), wakes, "one alert per wake");
+    for alert in &alerts {
+        assert_eq!(alert.tag, format!("new-{account}"));
+        assert_eq!(alert.account, account);
+        assert_eq!(alert.summary, "grace");
+        // Text is off: the count, never a sender or subject.
+        assert!(alert.body.ends_with("new message") || alert.body.ends_with("new messages"));
+        assert!(!alert.body.contains("Alpha") && !alert.body.contains("Alice"));
+    }
+    // Each card counts all new mail since Envio was last on screen, so the
+    // counts rise wake by wake and the last card says 3.
+    let shown: Vec<u32> = alerts
+        .iter()
+        .map(|a| a.body.split(' ').next().unwrap().parse::<u32>().unwrap())
+        .collect();
+    assert!(shown.windows(2).all(|w| w[0] < w[1]), "{shown:?}");
+    assert_eq!(shown.last(), Some(&3), "{shown:?}");
+    // The badge followed the Inbox unread count up.
+    let badges = recorder.0.lock().unwrap().badges.clone();
+    assert!(badges.last().is_some_and(|total| *total >= 3), "{badges:?}");
+}
+
+#[tokio::test]
+async fn mail_the_account_sent_to_itself_does_not_notify() {
+    let Some(server) = Stalwart::find().await else {
+        return;
+    };
+    let run = CoreRun::start(LevelFilter::Info);
+    let recorder = Recorder::default();
+    run.core().set_poster(Box::new(recorder.clone()));
+    let account = run.add_account(&server, "heidi");
+    let (inbox, _) = run.folder(&account, FolderRole::Inbox);
+    idle_entered(&account, 0);
+
+    background(&run);
+    // The next IDLE after the wake the note causes.
+    let before = idles(&account);
+    deliver(&server, "heidi", &[from_self("heidi", "Note to self")]).await;
+    run.row_with(inbox, "Note to self");
+    // A mail from someone else right after is the control: it notifies.
+    idle_entered(&account, before);
+    deliver(&server, "heidi", &[from_alice("Control")]).await;
+    // Waiting for the rows would swallow the events, so wait for the alert.
+    let end = std::time::Instant::now() + NET;
+    while recorder.alerts().is_empty() {
+        assert!(
+            std::time::Instant::now() < end,
+            "the control never notified"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    run.row_with(inbox, "Control");
+    // Only the control notified: the note to self did not.
+    let alerts = recorder.alerts();
+    assert_eq!(alerts.len(), 1, "{alerts:?}");
+    assert_eq!(alerts[0].body, "1 new message");
+}

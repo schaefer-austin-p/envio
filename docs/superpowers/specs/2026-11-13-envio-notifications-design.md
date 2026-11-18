@@ -56,6 +56,10 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   name is in `com.canonical.qtmir lifecycle-exempt-appids`. The user sets
   this, either with UT Tweak Tool ("Prevent app suspension") or with
   `gsettings` in the Terminal. A confined app cannot set it itself.
+  Confirmed on the phone 2026-11-18: the entry is `'envio.aps'` (package
+  name, like `'music.ubports'`), and the exemption takes effect at once.
+  UT Tweak Tool path: Apps + Scopes, Envio, Details, General, "Prevent app
+  suspension" (read from the tool's QML; it asks for the passcode).
 - Remote push: `POST https://push.ubports.com/notify` with `appid`
   (`envio.aps_envio`), `token`, `expire_on`, and the optional
   `replace_tag`, `clear_pending` and `data`. `data` may be at most 4 KiB
@@ -71,8 +75,14 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   screen, a card appears: summary "‹account name›", body "3 new messages"
   (gettext plural, `text::count::new_mail`). Bursts collapse: the card
   uses tag `new-‹account key›`, so a later card replaces the earlier one.
-  Tapping the card brings Envio to the front on its Inbox (an
-  `appid://` card action).
+  The card counts all new mail since Envio was last on screen, not just
+  the latest sync: three messages in three syncs read "3 new messages"
+  (a tally in the worker; it restarts when Envio is focused or the
+  account's switch goes off).
+  Postal does not replace by tag on a local `Post` (phone run, 2026-11-18),
+  so the poster calls `ClearPersistent(app, tag)` first and posts when that
+  call has finished. Tapping the card brings Envio to the front (an
+  `appid://` card action); it opens where the user left it.
 - The launcher badge shows the total Inbox unread count across accounts.
   It is cleared when the count is 0.
 - Settings → Notifications:
@@ -200,6 +210,13 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   when. It learns no content.
 - A stolen device secret lets someone change that device's push token. It
   does not reveal passwords, because the relay never returns them.
+- Whoever holds Envio's push token can show up to 200 characters of
+  summary and body on an Envio card, if they can shape the helper's input
+  beyond the `message` wrapper: the helper tells a local `Post` (marked
+  `envio_local`, no `message`) from a remote push only by that shape, and
+  no unforgeable signal is known. The action is always fixed to open Envio.
+  9b.T1 checks whether the push service gives the helper a trustworthy
+  origin signal; if not, 9b decides whether to drop the local-text path.
 
 ## Testing
 

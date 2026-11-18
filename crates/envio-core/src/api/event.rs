@@ -20,6 +20,15 @@ pub enum UndoScope {
     Reader,
 }
 
+/// What an Inbox sync found that is new to the user (see `Event::NewMail`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewMail {
+    pub account: String,
+    pub count: u32,
+    /// (sender, subject) of the one message; set only when `count == 1`.
+    pub first: Option<(String, String)>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     /// The store is open; sent at every (re)start of the worker.
@@ -51,6 +60,9 @@ pub enum Event {
         account: String,
         unread: u32,
     },
+    /// An Inbox sync found mail that is new to the user (not the first sync,
+    /// not seen, not their own). Sent once per sync, after the count.
+    NewMail(NewMail),
     /// The account's folder list changed.
     FoldersChanged {
         account: String,

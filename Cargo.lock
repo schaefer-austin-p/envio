@@ -566,6 +566,7 @@ dependencies = [
  "envio-sync",
  "log",
  "secrecy",
+ "serde_json",
  "tempfile",
  "tokio",
 ]
@@ -603,6 +604,14 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "webpki-roots",
+]
+
+[[package]]
+name = "envio-push-helper"
+version = "0.2.0"
+dependencies = [
+ "gettext-rs",
+ "serde_json",
 ]
 
 [[package]]

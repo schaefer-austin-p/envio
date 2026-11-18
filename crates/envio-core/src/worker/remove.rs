@@ -134,6 +134,7 @@ impl Worker<'_> {
             Ok(()) => {
                 self.live.remove(account);
                 self.unread_sent.borrow_mut().remove(account);
+                self.badge();
                 self.emit(Event::AccountRemoved {
                     account: account.to_owned(),
                 });

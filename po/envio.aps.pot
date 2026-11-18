@@ -97,7 +97,7 @@ msgid "Try again"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:25 qml/pages/inbox/FoldersDrawer.qml:283
-#: qml/pages/settings/SettingsPage.qml:34
+#: qml/pages/settings/SettingsPage.qml:36
 msgid "Accounts"
 msgstr ""
 
@@ -190,7 +190,7 @@ msgstr ""
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:33
 #: qml/pages/settings/SyncPage.qml:21
 msgid "Sync"
 msgstr ""
@@ -443,7 +443,7 @@ msgstr ""
 msgid "Open accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:23
+#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:24
 msgid "Settings"
 msgstr ""
 
@@ -695,7 +695,7 @@ msgstr ""
 msgid "unknown"
 msgstr ""
 
-#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:35
+#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:37
 msgid "About"
 msgstr ""
 
@@ -716,7 +716,7 @@ msgid "not as a click"
 msgstr ""
 
 #: qml/pages/settings/AppearancePage.qml:25
-#: qml/pages/settings/SettingsPage.qml:31
+#: qml/pages/settings/SettingsPage.qml:32
 msgid "Appearance"
 msgstr ""
 
@@ -744,7 +744,7 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:33
+#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:35
 msgid "Load remote images"
 msgstr ""
 
@@ -771,6 +771,55 @@ msgstr ""
 
 #: qml/pages/settings/ImagesPage.qml:73
 msgid "No senders yet. Choose \"Always load from this sender\" in a message."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:42
+#: qml/pages/settings/SettingsPage.qml:34
+msgid "Notifications"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:78
+msgid "Notify me about new mail"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:126
+msgid "No notifications. New mail still arrives while Envio is open."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:154
+#: qml/pages/settings/NotificationsPage.qml:177
+msgid "Show sender and subject"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:165
+msgid "Turn on an account first."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:191
+msgid ""
+"Off: a notification says only the account and how many new messages. On: it "
+"also shows who wrote and the subject, even on the lock screen."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:207
+msgid "Keep checking in the background"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:209
+msgid ""
+"Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. "
+"To keep it running, either:"
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:213
+msgid ""
+"<b>UT Tweak Tool:</b> Apps + Scopes, Envio, then turn on Prevent app "
+"suspension."
+msgstr ""
+
+#: qml/pages/settings/NotificationsPage.qml:217
+msgid ""
+"<b>Terminal:</b> run these. The second keeps the apps already in the list."
 msgstr ""
 
 #: qml/pages/settings/SyncPage.qml:37
@@ -953,76 +1002,81 @@ msgstr ""
 msgid "The server refused: {reason}"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:11
+#: crates/envio-core/src/text/notice.rs:12
+#: crates/envio-push-helper/src/text.rs:25
+msgid "New mail"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:16
 msgid "The mail cache was damaged and is being rebuilt from the server"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:15
+#: crates/envio-core/src/text/notice.rs:20
 msgid ""
 "Envio cannot open its mail storage. Your unsent mail is safe; trying again"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:19
+#: crates/envio-core/src/text/notice.rs:24
 msgid ""
 "The mail cache is damaged and could not be rebuilt. Free some space or "
 "restart Envio"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:23
+#: crates/envio-core/src/text/notice.rs:28
 msgid "Storage is full. Free some space to keep mail up to date"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:28
+#: crates/envio-core/src/text/notice.rs:33
 msgid ""
 "Envio could not start. Restart it, or free some space if that does not help"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:32
+#: crates/envio-core/src/text/notice.rs:37
 msgid ""
 "Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:38
+#: crates/envio-core/src/text/notice.rs:43
 msgid "Couldn't update the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:39
+#: crates/envio-core/src/text/notice.rs:44
 msgid "Couldn't move the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:40
+#: crates/envio-core/src/text/notice.rs:45
 msgid "Couldn't delete the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:47
+#: crates/envio-core/src/text/notice.rs:52
 msgid "Gave up updating the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:48
+#: crates/envio-core/src/text/notice.rs:53
 msgid "Gave up moving the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:49
+#: crates/envio-core/src/text/notice.rs:54
 msgid "Gave up deleting the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:54
+#: crates/envio-core/src/text/notice.rs:59
 msgid "Could not save your settings"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:58
+#: crates/envio-core/src/text/notice.rs:63
 msgid "Could not save the contact"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:63
+#: crates/envio-core/src/text/notice.rs:68
 msgid "This change couldn't be saved on the phone. It may still be applied."
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:68
+#: crates/envio-core/src/text/notice.rs:73
 msgid "Undo couldn't be saved on the phone. The change may still be undone."
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:75
+#: crates/envio-core/src/text/notice.rs:80
 msgid "{n} pending change could not be read and was skipped"
 msgid_plural "{n} pending changes could not be read and were skipped"
 msgstr[0] ""
@@ -1365,3 +1419,11 @@ msgstr ""
 #: crates/envio-core/src/text/undo.rs:36
 msgid "Could not do that. Nothing was changed"
 msgstr ""
+
+#. TRANSLATORS: the body of a new-mail card; %d is the unread count.
+#: crates/envio-push-helper/src/text.rs:17
+#, c-format
+msgid "%d new message"
+msgid_plural "%d new messages"
+msgstr[0] ""
+msgstr[1] ""

@@ -273,10 +273,18 @@ pub enum Command {
     Autocomplete { query: String },
     /// Keep a sender in the contacts ("Add sender to Contacts").
     AddContact { name: String, address: String },
-    /// Save the settings except the allowed image senders, which the worker
-    /// keeps as they are (they change only by `AllowImagesFrom` and
-    /// `DisallowImagesFrom`); the answer is `Settings`.
+    /// Save the settings except the allowed image senders and the
+    /// notification switches, which the worker keeps as they are (they
+    /// change only by `AllowImagesFrom`, `DisallowImagesFrom`, `SetNotify`
+    /// and `SetNotifyText`); the answer is `Settings`.
     SaveSettings(Settings),
+    /// Turn one account's new-mail notifications on or off. Applied to the
+    /// worker's own settings, so toggles never overwrite one another; the
+    /// answer is `Settings`.
+    SetNotify { account: String, on: bool },
+    /// Show the sender and subject in new-mail notifications, or not; the
+    /// answer is `Settings`.
+    SetNotifyText { on: bool },
     /// Always load remote images from this sender. Open the message again
     /// to see them.
     AllowImagesFrom { address: String },
@@ -325,6 +333,8 @@ impl Command {
             Self::Autocomplete { .. } => "Autocomplete",
             Self::AddContact { .. } => "AddContact",
             Self::SaveSettings(_) => "SaveSettings",
+            Self::SetNotify { .. } => "SetNotify",
+            Self::SetNotifyText { .. } => "SetNotifyText",
             Self::AllowImagesFrom { .. } => "AllowImagesFrom",
             Self::DisallowImagesFrom { .. } => "DisallowImagesFrom",
             #[cfg(feature = "test-hooks")]

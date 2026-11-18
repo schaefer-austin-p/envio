@@ -85,6 +85,23 @@ impl Health {
         }
     }
 
+    /// A connection (and the Inbox SELECT) worked: a failure to connect is
+    /// over (and a full disk shows again). A failure of any other kind
+    /// stays, with its status.
+    pub fn connected(&mut self, disk_full: bool) {
+        if matches!(self.failing, None | Some("connect")) {
+            self.ok_step("connect", disk_full);
+        }
+    }
+
+    /// An IDLE ran without failing: only an IDLE failure is cleared, so
+    /// the status of a sync under way is not overwritten.
+    pub fn idle_ran(&mut self, disk_full: bool) {
+        if self.failing == Some("idle") {
+            self.ok_step("idle", disk_full);
+        }
+    }
+
     /// `failed`, for a step of `kind`.
     pub fn failed_step(
         &mut self,
@@ -335,5 +352,48 @@ mod tests {
         health.ok(false);
         health.failed(&Problem::Temporary, "a", 0);
         assert!(matches!(health.status, AccountStatus::Offline { .. }));
+    }
+
+    #[test]
+    fn a_connect_clears_a_connect_failure_but_not_an_idle_one() {
+        let problem = Problem::Temporary;
+        let mut health = Health::default();
+        health.failed_step("connect", &problem, ("a", 0));
+        health.connected(true);
+        assert_eq!(health.status, AccountStatus::DiskFull);
+        assert_eq!(health.failures, 0);
+
+        let mut health = Health::default();
+        health.failed_step("idle", &problem, ("a", 0));
+        health.failed_step("idle", &problem, ("a", 0));
+        health.connected(false);
+        assert_eq!(health.failures, 2);
+        assert_eq!(health.failing, Some("idle"));
+    }
+
+    #[test]
+    fn a_connect_keeps_the_status_of_another_kinds_failure() {
+        let mut health = Health::default();
+        health.failed_step("folder", &Problem::Local, ("a", 0));
+        let before = health.clone();
+        health.connected(false);
+        assert_eq!(health, before);
+        assert!(matches!(health.status, AccountStatus::LocalError { .. }));
+    }
+
+    #[test]
+    fn an_idle_that_ran_clears_only_an_idle_failure() {
+        let mut health = Health {
+            status: AccountStatus::Syncing,
+            ..Health::default()
+        };
+        health.idle_ran(false);
+        assert_eq!(health.status, AccountStatus::Syncing);
+
+        let mut health = Health::default();
+        health.failed_step("idle", &Problem::Temporary, ("a", 0));
+        health.idle_ran(false);
+        assert_eq!(health.status, AccountStatus::Ready);
+        assert_eq!(health.failures, 0);
     }
 }

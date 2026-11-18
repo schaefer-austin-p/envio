@@ -134,10 +134,14 @@ fn keep_after(
 ) {
     if !matches!(result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
         let changed = changed_folder(step, &mut session);
-        let open = worker
-            .live
-            .get(account)
-            .is_some_and(|live| keep_open(worker.foreground, step, &live.wants));
+        let open = worker.live.get(account).is_some_and(|live| {
+            keep_open(
+                worker.foreground,
+                worker.notifies(account),
+                step,
+                &live.wants,
+            )
+        });
         keep(worker, account, session, (changed, open));
     }
 }
@@ -174,9 +178,12 @@ fn keep(
 /// Whether the session stays open after `step`. In the foreground always. In
 /// the background only bodies the reader waits for are fetched: the session
 /// stays while another one is wanted (a burst shares one connection) and
-/// closes with the last.
-fn keep_open(foreground: bool, step: &Step, wants: &super::plan::Wants) -> bool {
-    foreground || matches!(step, Step::Body(id) if wants.bodies.iter().any(|other| other != id))
+/// closes with the last. An account that notifies also keeps it after its
+/// Inbox sync or a body, so IDLE goes on without a new connection.
+fn keep_open(foreground: bool, notifies: bool, step: &Step, wants: &super::plan::Wants) -> bool {
+    foreground
+        || (notifies && matches!(step, Step::Folder(_) | Step::Body(_)))
+        || matches!(step, Step::Body(id) if wants.bodies.iter().any(|other| other != id))
 }
 
 fn succeeded(worker: &mut Worker<'_>, account: &str, step: &Step) {
@@ -447,18 +454,36 @@ mod keep_tests {
 
     #[test]
     fn the_foreground_always_keeps_the_session() {
-        assert!(keep_open(true, &Step::Replay, &Wants::default()));
+        assert!(keep_open(true, false, &Step::Replay, &Wants::default()));
     }
 
     #[test]
     fn a_background_burst_of_bodies_shares_a_session_and_closes_with_the_last() {
         let two = wanting(&[1, 2]);
-        assert!(keep_open(false, &Step::Body(MessageRowId(1)), &two));
+        assert!(keep_open(false, false, &Step::Body(MessageRowId(1)), &two));
         assert!(!keep_open(
+            false,
             false,
             &Step::Body(MessageRowId(2)),
             &wanting(&[2])
         ));
-        assert!(!keep_open(false, &Step::Replay, &two));
+        assert!(!keep_open(false, false, &Step::Replay, &two));
+    }
+
+    #[test]
+    fn a_notifying_account_keeps_its_session_after_a_background_folder_sync() {
+        let none = Wants::default();
+        let step = Step::Folder(envio_store::FolderId(2));
+        assert!(keep_open(false, true, &step, &none));
+        assert!(!keep_open(false, false, &step, &none));
+        assert!(!keep_open(false, true, &Step::Replay, &none));
+        // A body opened in the background does not cost a reconnect.
+        assert!(keep_open(false, true, &Step::Body(MessageRowId(1)), &none));
+        assert!(!keep_open(
+            false,
+            false,
+            &Step::Body(MessageRowId(1)),
+            &none
+        ));
     }
 }
