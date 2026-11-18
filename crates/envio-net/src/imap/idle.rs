@@ -41,7 +41,7 @@ impl ImapSession {
     /// drops the rest, so a full channel counts as changed.
     #[must_use]
     pub fn take_changes(&mut self) -> bool {
-        let mut changed = false;
+        let mut changed = std::mem::take(&mut self.missed_changes);
         let mut drained = 0;
         while let Ok(response) = self.session.unsolicited_responses.try_recv() {
             drained += 1;
@@ -82,6 +82,7 @@ impl ImapSession {
             session,
             caps,
             exists,
+            missed_changes,
         } = self;
         let mut handle = session.idle();
         connect::within(async { handle.init().await.map_err(map_error) }).await?;
@@ -111,6 +112,7 @@ impl ImapSession {
             session,
             caps,
             exists,
+            missed_changes,
         };
         // DONE's reply may carry what changed while it was sent.
         let woke = if woke != Woke::Changed && this.take_changes() {

@@ -42,6 +42,16 @@ pub struct Script {
     /// With `fetch_flags`: the 1-based UID FETCH from which the
     /// connection is dropped mid-command; 0 for never.
     pub fetch_fails_from: usize,
+    /// With `fetch_flags`: the 1-based UID FETCH that is answered with
+    /// `fetch_refusal` (a tagged status, such as `NO nope`) instead of OK.
+    pub fetch_refused_at: usize,
+    pub fetch_refusal: &'static str,
+    /// When not empty, a UID SEARCH is answered with this tagged status
+    /// (such as `NO nope`); empty leaves it to the default reply.
+    pub search_refusal: &'static str,
+    /// Untagged lines (each ending in CRLF) sent before a UID SEARCH's
+    /// tagged reply, which is OK unless `search_refusal` says otherwise.
+    pub search_untagged: &'static str,
     /// With `fetch_flags`: when not empty, the nth UID FETCH is answered
     /// with the nth of these (untagged lines, each ending in CRLF) instead
     /// of the flags; the commands after the last get no untagged line.
@@ -64,6 +74,10 @@ impl Default for Script {
             before_idle_ok: "",
             fetch_flags: false,
             fetch_fails_from: 0,
+            fetch_refused_at: 0,
+            fetch_refusal: "NO refused",
+            search_refusal: "",
+            search_untagged: "",
             fetch_canned: &[],
         }
     }
@@ -191,8 +205,8 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
-            "UID" if answers_fetch(&script, &sub_verb) => {
-                let Some(reply) = fetch_reply(&command, &tag, &script, &mut fetches) else {
+            "UID" if answers_uid(&script, &sub_verb) => {
+                let Some(reply) = uid_reply(&command, &tag, &script, &mut fetches) else {
                     return;
                 };
                 reply
@@ -220,8 +234,27 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
-fn answers_fetch(script: &Script, sub_verb: &str) -> bool {
-    script.fetch_flags && sub_verb == "FETCH"
+fn answers_uid(script: &Script, sub_verb: &str) -> bool {
+    (script.fetch_flags && sub_verb == "FETCH")
+        || (sub_verb == "SEARCH"
+            && !(script.search_refusal.is_empty() && script.search_untagged.is_empty()))
+}
+
+/// The reply to a UID FETCH or a refused UID SEARCH.
+fn uid_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -> Option<String> {
+    if command
+        .split(' ')
+        .nth(2)
+        .is_some_and(|word| word.eq_ignore_ascii_case("SEARCH"))
+    {
+        let status = if script.search_refusal.is_empty() {
+            "OK done"
+        } else {
+            script.search_refusal
+        };
+        return Some(format!("{}{tag} {status}\r\n", script.search_untagged));
+    }
+    fetch_reply(command, tag, script, fetches)
 }
 
 /// The flags of every UID in the command's set; None from the fetch
@@ -231,6 +264,9 @@ fn fetch_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -
     let nth = *fetches;
     if script.fetch_fails_from != 0 && nth >= script.fetch_fails_from {
         return None;
+    }
+    if nth == script.fetch_refused_at {
+        return Some(format!("{tag} {}\r\n", script.fetch_refusal));
     }
     if !script.fetch_canned.is_empty() {
         let canned = script.fetch_canned.get(nth - 1).copied().unwrap_or("");
