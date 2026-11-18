@@ -48,6 +48,9 @@ struct BookState {
     /// Accounts with a window that closed since the worker last asked: their
     /// drafts may be ready to upload, or have a server copy to delete.
     closed_accounts: BTreeSet<String>,
+    /// Composes whose close was asked for but not done yet (the draft thread
+    /// may still be saving): their drafts count as closed.
+    closing: BTreeSet<ComposeId>,
 }
 
 impl BookState {
@@ -109,7 +112,24 @@ impl DraftBook {
 
     /// Drafts of windows that are open: kept off the server until closed.
     pub fn open_drafts(&self) -> BTreeSet<String> {
-        self.lock().ids.values().cloned().collect()
+        let st = self.lock();
+        st.ids
+            .iter()
+            .filter(|(compose, _)| !st.closing.contains(compose))
+            .map(|(_, id)| id.clone())
+            .collect()
+    }
+
+    /// A close was asked for: the account is reported to the worker and the
+    /// draft stops counting as open at once, without waiting for the draft
+    /// thread. A save still queued behind the close is uploaded by the next
+    /// run (its text is newer than the copy).
+    pub fn closing(&self, compose: ComposeId) {
+        let mut st = self.lock();
+        if let Some(account) = st.accounts.get(&compose).cloned() {
+            st.closed_accounts.insert(account);
+        }
+        st.closing.insert(compose);
     }
 
     /// The accounts whose windows closed since the last call.
@@ -182,6 +202,7 @@ impl DraftBook {
         let mut events = Vec::new();
         let pending = st.throttle.take(compose);
         let was_sent = st.sent.contains(&compose);
+        st.closing.remove(&compose);
         st.save_failed.remove(&compose);
         if let Some(account) = st.accounts.remove(&compose) {
             st.closed_accounts.insert(account);
@@ -529,6 +550,18 @@ mod tests {
             [input("x").account]
         );
         assert!(book.take_closed_accounts().is_empty(), "taken once");
+    }
+
+    #[test]
+    fn a_close_asked_for_is_known_before_the_draft_thread_has_done_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        book.opened(A, &input("x").account);
+        book.changed(A, input("x"), 0);
+        book.save_due(DRAFT_SAVE_MS);
+        book.closing(A);
+        assert!(book.open_drafts().is_empty());
+        assert_eq!(book.take_closed_accounts().len(), 1);
     }
 
     #[test]

@@ -35,6 +35,7 @@ enum KeeperMsg {
 }
 
 pub(crate) struct DraftKeeper {
+    book: Arc<DraftBook>,
     tx: Sender<KeeperMsg>,
     thread: Option<JoinHandle<()>>,
     /// Attachment copies, one at a time on their own thread (`envio-attach`)
@@ -52,6 +53,7 @@ impl DraftKeeper {
         });
         let (attach_tx, attach_rx) = channel();
         let attach_book = Arc::clone(&book);
+        let kept = Arc::clone(&book);
         let attach_sink = Arc::clone(&sink);
         thread::Builder::new()
             .name("envio-attach".into())
@@ -60,6 +62,7 @@ impl DraftKeeper {
             .name("envio-drafts".into())
             .spawn(move || run(&book, &rx, &*sink))?;
         Ok(Self {
+            book: kept,
             tx,
             thread: Some(thread),
             attach_tx,
@@ -75,6 +78,9 @@ impl DraftKeeper {
     }
 
     pub fn close(&self, compose: ComposeId, discard: bool) {
+        // Here and now, on the caller's thread: the worker is told next and
+        // must not depend on the draft thread (or a flush) being done.
+        self.book.closing(compose);
         self.post(KeeperMsg::Close { compose, discard });
     }
 
