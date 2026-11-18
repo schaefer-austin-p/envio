@@ -11,7 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(ENVIO_WERROR "Treat compiler warnings as errors (on in CI)" OFF)
 option(ENVIO_QMLTEST "Build envio-qmltest, the QML test runner that links the Envio module" OFF)
 
-find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 DBus)
 
 include(FetchContent)
 FetchContent_Declare(CxxQt GIT_REPOSITORY https://github.com/kdab/cxx-qt-cmake.git GIT_TAG 0.10.0)
@@ -27,8 +27,20 @@ cxx_qt_import_qml_module(envio_qml URI "Envio" SOURCE_CRATE envio_qt)
 corrosion_import_crate(MANIFEST_PATH crates/envio-push-helper/Cargo.toml
   CRATES envio-push-helper LOCKED)
 
+# Postal over QtDBus (qt/postal.cpp), called from the Rust glue. An object
+# library: its objects go into each link, whatever the order of the Rust
+# archive that calls them (the app and the QML test runner both link it).
+add_library(envio_postal OBJECT qt/postal.cpp)
+target_link_libraries(envio_postal PUBLIC Qt5::Core Qt5::DBus)
+target_compile_definitions(envio_postal PRIVATE QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASCII QT_NO_KEYWORDS)
+target_compile_options(envio_postal PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
+  -Wold-style-cast -Wnon-virtual-dtor -Woverloaded-virtual -Wformat=2)
+if(ENVIO_WERROR)
+  target_compile_options(envio_postal PRIVATE -Werror)
+endif()
+
 add_executable(envio qt/main.cpp qml/qml.qrc qml/bindle/bindle.qrc)
-target_link_libraries(envio PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
+target_link_libraries(envio PRIVATE envio_qml envio_postal Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
 target_compile_options(envio PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
   -Wold-style-cast -Wnon-virtual-dtor -Woverloaded-virtual -Wformat=2)
 target_compile_definitions(envio PRIVATE QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASCII
@@ -42,7 +54,7 @@ endif()
 if(ENVIO_QMLTEST)
   find_package(Qt5 5.15 REQUIRED COMPONENTS QuickTest Network)
   add_executable(envio-qmltest tests/qml/main.cpp)
-  target_link_libraries(envio-qmltest PRIVATE envio_qml Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
+  target_link_libraries(envio-qmltest PRIVATE envio_qml envio_postal Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
     Qt5::QuickTest Qt5::Network)
 endif()
 

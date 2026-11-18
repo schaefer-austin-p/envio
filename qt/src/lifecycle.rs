@@ -10,6 +10,7 @@ use envio_ui::Op;
 
 use crate::core_object::qobject;
 use crate::models::qobject::RowsModel;
+use crate::postal::PostalPoster;
 use crate::sink::QtSink;
 
 /// The wall clock and the local UTC offset, for `Ui` (which has no clock).
@@ -54,6 +55,7 @@ impl qobject::EnvioCore {
         let sink = Arc::new(QtSink::new(self.qt_thread()));
         match Core::start(config, sink) {
             Ok(core) => {
+                core.set_poster(Box::new(PostalPoster));
                 // After the start: the file logger is up only now (#37).
                 log_roots(&roots);
                 self.as_mut().rust_mut().core = Some(core);
