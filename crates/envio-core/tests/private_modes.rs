@@ -69,6 +69,9 @@ fn an_older_install_is_tightened_at_start() {
     h.wait(started);
     drop(h.core.take());
     for root in [h.cache_dir(), h.data_dir()] {
+        // An older install has no marker: the first start migrates it.
+        assert!(root.join(".private-v1").exists(), "{root:?}");
+        fs::remove_file(root.join(".private-v1")).unwrap();
         set_mode(&root, 0o755);
         for path in walk(&root) {
             set_mode(&path, if path.is_dir() { 0o755 } else { 0o644 });
@@ -78,4 +81,20 @@ fn an_older_install_is_tightened_at_start() {
     h.wait(started);
     assert_private_tree(&h.cache_dir());
     assert_private_tree(&h.data_dir());
+}
+
+#[test]
+fn the_migration_runs_once() {
+    let mut h = Harness::unstarted();
+    h.seed_account("me@example.org", Some("pw"));
+    h.start_core();
+    h.wait(started);
+    drop(h.core.take());
+    // New files are created private, so a later start does not walk the
+    // tree again: a file loosened after the marker was written stays loose.
+    let file = h.data_dir().join("accounts.json");
+    set_mode(&file, 0o644);
+    h.start_core();
+    h.wait(started);
+    assert_eq!(mode(&file), 0o644);
 }
