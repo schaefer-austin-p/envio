@@ -23,6 +23,11 @@ All notable changes to Envio are listed here. The format follows
   position when a batch held only mail dated newer than the last row
   shown (mail imported out of date order): it fetches on to the next
   batch, up to 500 messages at a time (#254).
+- Mail styles containing `var(` or `env(` are now dropped on every
+  property, not only in the `background` shorthand (#276).
+- Call-to-action buttons in mail keep their fill: a link or cell styled
+  with the `background` shorthand now shows its background colour (#178).
+  Qt rich text cannot draw borders or rounded corners, so those stay plain.
 - New mail on an account that is not in the foreground could wait up to
   29 minutes to show up when it arrived at the moment Envio began
   listening for mail; it now shows within 5 minutes (#48).
