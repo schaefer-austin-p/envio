@@ -45,7 +45,9 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   badge. Both method signatures come from source.
 - The push helper is a click hook (`"push": {"apparmor": …, "push-helper":
   …}`, helper json `{"exec": "<path>"}`, AppArmor template
-  `ubuntu-push-helper`). It runs with argv `infile outfile` and must finish
+  `ubuntu-push-helper`; `exec` is relative to the helper json's own
+  directory, and the profile can't run other programs such as `cp`). It
+  runs with argv `infile outfile` and must finish
   within 5 s (from source), under its own AppArmor profile, so it cannot
   read Envio's data. TELEports ships a native helper on this phone.
 - The service drops a card while the app is focused. It honours the
@@ -69,7 +71,8 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   screen, a card appears: summary "‹account name›", body "3 new messages"
   (gettext plural, `text::count::new_mail`). Bursts collapse: the card
   uses tag `new-‹account key›`, so a later card replaces the earlier one.
-  Tapping the card opens Envio on that account's Inbox.
+  Tapping the card brings Envio to the front on its Inbox (an
+  `appid://` card action).
 - The launcher badge shows the total Inbox unread count across accounts.
   It is cleared when the count is 0.
 - Settings → Notifications:
@@ -82,8 +85,8 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
     paused when not on screen unless it is exempted, with the two ways to
     exempt it (UT Tweak Tool, or the Terminal command with the existing
     list kept). Envio can't read the exemption list under confinement, so
-    this is instructions only. 9a.T1 checks whether reading the list is
-    possible; if it is, the page shows the current state.
+    this is instructions only (9a.T1 confirmed: under confinement the read
+    returns a wrong value).
 
 ### How it works
 
@@ -99,9 +102,9 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
 - **The first sync after adding an account never notifies** (no previous
   `UIDNEXT`), and neither does a UIDVALIDITY reset.
 - **A `Notifier` in core decides, and a platform poster shows.**
-  `envio-core` gets `notice::plan(event, settings, focused) ->
-  Option<Notice>` (pure: account switch, text choice, tag) and a trait
-  `Poster { fn post(&self, n: &Notice); fn badge(&self, count: u32); }`.
+  `envio-core` gets `alert::plan(event, settings, focused) ->
+  Option<Alert>` (pure: account switch, text choice, tag) and a trait
+  `Poster { fn post(&self, a: &Alert); fn badge(&self, count: u32); }`.
   The Ubuntu Touch poster lives in `qt/` and calls `com.lomiri.Postal`
   through QtDBus. It is platform glue only, with no decisions in it. The
   core stays Qt-free; tests use a recording poster.
@@ -202,10 +205,10 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
 
 - 9a:
   - pure-rule unit tests for new-mail detection (UID ≥ old UIDNEXT, seen,
-    own address, first sync, UIDVALIDITY reset) and for `notice::plan`
+    own address, first sync, UIDVALIDITY reset) and for `alert::plan`
     (switch off, focused, one versus many, privacy switch);
   - an e2e test with Stalwart: deliver mail during background IDLE, and
-    check a recording poster gets one notice per burst;
+    check a recording poster gets one alert per burst;
   - QML tests for the settings page;
   - a phone check: a card shows while Envio is in the background and
     exempted, and the badge count is right.
@@ -223,8 +226,9 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
 
 ## Open questions (each is the first task of its plan)
 
-- 9a.T1: does a local `Post` show a card with our helper installed
-  (end-to-end), and can a confined app read `lifecycle-exempt-appids`?
+- 9a.T1 (answered 2026-11-18, see the 9a plan): a local `Post` shows a
+  card and `SetCounter` a badge from inside confinement; the exemption
+  list can't be read.
 - 9b.T1: can the push helper read a file in Envio's data directory? Does
   `PushClient` from `Lomiri.PushNotifications 0.1` give a token without a
   login on this image?
