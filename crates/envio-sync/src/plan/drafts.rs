@@ -17,14 +17,15 @@ pub const GIVE_UP: u32 = 5;
 
 /// The server's copy is not the saved text: compared by the save's stamp
 /// being different, not older, so a clock that stepped back does not hide
-/// later saves. A blank draft that was never uploaded stays local; one that
-/// was is replaced, so the server never keeps text the user has since
-/// removed. A save that failed `GIVE_UP` times waits for the next change.
+/// later saves. A blank draft that has no server copy stays local; one that
+/// has one (or a cut upload's copy, which may hold the removed text) is
+/// replaced, so the server never keeps text the user has since removed. A save that failed `GIVE_UP` times waits for the next change.
 pub fn needs_upload(draft: &Draft) -> bool {
     let server = &draft.server;
     let current = server.message_id.is_some() && server.uploaded_ms == draft.updated_at_ms;
     let given_up = server.failed_ms == draft.updated_at_ms && server.failures >= GIVE_UP;
-    !current && !given_up && !(is_blank(draft) && server.message_id.is_none())
+    let has_copy = server.message_id.is_some() || server.pending_id.is_some();
+    !current && !given_up && !(is_blank(draft) && !has_copy)
 }
 
 /// A copy from an upload that was cut: it may hold older text, so it goes
@@ -91,6 +92,14 @@ mod tests {
         blank.body.clear();
         assert!(!needs_upload(&blank));
         blank.server.message_id = Some("<a@b>".into());
+        assert!(needs_upload(&blank));
+    }
+
+    #[test]
+    fn a_blank_draft_with_a_cut_copy_is_uploaded_to_replace_it() {
+        let mut blank = draft(5, None, 0);
+        blank.body.clear();
+        blank.server.pending_id = Some("<cut@x>".into());
         assert!(needs_upload(&blank));
     }
 

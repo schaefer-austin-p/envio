@@ -286,6 +286,40 @@ async fn a_cut_after_the_append_never_leaves_two_copies() {
 }
 
 #[tokio::test]
+async fn a_blank_draft_does_not_keep_a_cut_uploads_copy_of_the_old_text() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    // The APPEND reaches the server, the connection drops before the OK:
+    // `pending_id` is set and the copy (holding the text) is there.
+    store
+        .drafts
+        .mark_uploading(&id, "<secret@example.org>")
+        .unwrap();
+    server.deliver_id("Drafts", "secret");
+    assert_eq!(copies(&server).len(), 1);
+    // The user clears everything and closes the draft, keeping it.
+    store
+        .drafts
+        .save(
+            &id,
+            &Draft {
+                account: ACCOUNT.into(),
+                updated_at_ms: 2,
+                ..Draft::default()
+            },
+        )
+        .unwrap();
+    run(&mut server, &store).await;
+    assert!(
+        copies(&server)
+            .iter()
+            .all(|(eml, _, _)| !eml.contains("about secret")),
+        "no copy of the removed text is left"
+    );
+    assert_eq!(store.drafts.load(&id).unwrap().server.pending_id, None);
+}
+
+#[tokio::test]
 async fn a_deleted_draft_takes_its_server_copy_with_it_and_a_cut_waits() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
