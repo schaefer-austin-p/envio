@@ -6,10 +6,10 @@ use std::time::Duration;
 use futures::TryStreamExt;
 
 use super::client::map_error;
-use super::{fetched, names};
 use super::query::{self, Flag, MessageFlags};
 use super::untrusted::neutralize;
 use super::{FlagUpdate, Folder, FolderState, ImapSession, Summary};
+use super::{fetched, names};
 use crate::connect;
 use crate::error::{NetError, Result};
 
@@ -152,12 +152,15 @@ impl ImapSession {
             // The reply that carries the body (an unsolicited update for the
             // same UID may come first).
             let bodies = self
-                .checked_fetch(&format!("UID FETCH {uid} (UID BODY.PEEK[])"), |attributes| {
-                    (fetched::uid(attributes) == Some(uid))
-                        .then(|| fetched::body(attributes))
-                        .flatten()
-                        .map(|body| neutralize(body).into_owned())
-                })
+                .checked_fetch(
+                    &format!("UID FETCH {uid} (UID BODY.PEEK[])"),
+                    |attributes| {
+                        (fetched::uid(attributes) == Some(uid))
+                            .then(|| fetched::body(attributes))
+                            .flatten()
+                            .map(|body| neutralize(body).into_owned())
+                    },
+                )
                 .await?;
             Ok(bodies.into_iter().next())
         })
@@ -239,10 +242,9 @@ impl ImapSession {
                     &format!("FETCH {first}:* (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
                     |attributes| {
                         let live = !fetched::flags(attributes).deleted;
-                        let same = query::message_id_of(
-                            fetched::header(attributes).unwrap_or_default(),
-                        )
-                        .is_some_and(|found| query::same_message_id(&found, message_id));
+                        let same =
+                            query::message_id_of(fetched::header(attributes).unwrap_or_default())
+                                .is_some_and(|found| query::same_message_id(&found, message_id));
                         (live && same).then(|| fetched::uid(attributes)).flatten()
                     },
                 )

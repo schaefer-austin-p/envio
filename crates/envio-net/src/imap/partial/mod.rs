@@ -10,13 +10,11 @@ mod structure;
 
 use std::collections::HashMap;
 
-use async_imap::imap_proto::{MessageSection, SectionPath};
-use futures::TryStreamExt;
-
 use super::ImapSession;
-use super::client::map_error;
+use super::fetched;
 use crate::connect;
 use crate::error::{NetError, Result};
+use async_imap::imap_proto::{MessageSection, SectionPath};
 
 use assemble::{Fetched, assemble};
 use plan::plan;
@@ -89,49 +87,44 @@ impl ImapSession {
         };
         let items = format!("(UID BODY.PEEK[{section}.MIME] BODY.PEEK[{section}])");
         connect::within_for(connect::transfer_timeout(size), async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(uid.to_string(), &items)
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
             // The reply that carries the part (an unsolicited update for the
             // same UID may come first).
-            let found = fetches
-                .iter()
-                .filter(|f| f.uid == Some(uid))
-                .find_map(|f| Some((f.section(&mime)?, f.section(&body)?)));
-            let Some((mime, body)) = found else {
-                return Ok(None);
-            };
-            let mut out = Vec::with_capacity(mime.len() + body.len());
-            out.extend_from_slice(mime);
-            out.extend_from_slice(body);
-            Ok(Some(out))
+            let found = self
+                .checked_fetch(&format!("UID FETCH {uid} {items}"), |attributes| {
+                    if fetched::uid(attributes) != Some(uid) {
+                        return None;
+                    }
+                    let (mime, body) = (
+                        fetched::section(attributes, &mime)?,
+                        fetched::section(attributes, &body)?,
+                    );
+                    let mut out = Vec::with_capacity(mime.len() + body.len());
+                    out.extend_from_slice(mime);
+                    out.extend_from_slice(body);
+                    Some(out)
+                })
+                .await?;
+            Ok(found.into_iter().next())
         })
         .await
     }
 
     async fn fetch_structure(&mut self, uid: u32) -> Result<Option<Node>> {
         connect::within(async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(uid.to_string(), "(UID BODYSTRUCTURE)")
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
             // None only when the server has no such message; a reply for
             // it without a BODYSTRUCTURE is an error to retry.
-            let mut replied = false;
-            for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
-                replied = true;
-                if let Some(structure) = fetch.bodystructure() {
-                    return Ok(Some(from_proto(structure)));
-                }
+            let replies = self
+                .checked_fetch(
+                    &format!("UID FETCH {uid} (UID BODYSTRUCTURE)"),
+                    |attributes| {
+                        (fetched::uid(attributes) == Some(uid))
+                            .then(|| fetched::bodystructure(attributes).map(from_proto))
+                    },
+                )
+                .await?;
+            let replied = !replies.is_empty();
+            if let Some(node) = replies.into_iter().flatten().next() {
+                return Ok(Some(node));
             }
             if replied {
                 return Err(NetError::Protocol(
@@ -145,20 +138,18 @@ impl ImapSession {
 
     async fn fetch_header(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
         connect::within_for(connect::transfer_timeout(FRAMING_BYTES), async {
-            let fetches: Vec<_> = self
-                .session
-                .uid_fetch(uid.to_string(), "(UID BODY.PEEK[HEADER])")
-                .await
-                .map_err(map_error)?
-                .try_collect()
-                .await
-                .map_err(map_error)?;
-            let mut replied = false;
-            for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
-                replied = true;
-                if let Some(header) = fetch.header() {
-                    return Ok(Some(header.to_vec()));
-                }
+            let replies = self
+                .checked_fetch(
+                    &format!("UID FETCH {uid} (UID BODY.PEEK[HEADER])"),
+                    |attributes| {
+                        (fetched::uid(attributes) == Some(uid))
+                            .then(|| fetched::header(attributes).map(<[u8]>::to_vec))
+                    },
+                )
+                .await?;
+            let replied = !replies.is_empty();
+            if let Some(header) = replies.into_iter().flatten().next() {
+                return Ok(Some(header));
             }
             if replied {
                 return Err(NetError::Protocol("FETCH reply without the header".into()));
@@ -220,37 +211,15 @@ impl ImapSession {
     ) -> Result<()> {
         let got: HashMap<String, Vec<u8>> =
             connect::within_for(connect::transfer_timeout(bytes), async {
-                let fetches: Vec<_> = self
-                    .session
-                    .uid_fetch(uid.to_string(), items)
-                    .await
-                    .map_err(map_error)?
-                    .try_collect()
-                    .await
-                    .map_err(map_error)?;
-                let mut got = HashMap::new();
-                let mut replied = false;
                 // Every reply for the UID counts: the parts may come split
                 // over several lines, with an unsolicited update among them.
-                for fetch in fetches.iter().filter(|f| f.uid == Some(uid)) {
-                    replied = true;
-                    for (section, limit, want) in parts {
-                        if *want && *limit == 0 {
-                            got.insert(section.clone(), Vec::new());
-                        }
-                        if let Some(path) = section_path(section, Some(MessageSection::Mime))
-                            && let Some(data) = fetch.section(&path)
-                        {
-                            got.insert(format!("{section}.MIME"), data.to_vec());
-                        }
-                        if *want
-                            && let Some(path) = section_path(section, None)
-                            && let Some(data) = fetch.section(&path)
-                        {
-                            got.insert(section.clone(), data.to_vec());
-                        }
-                    }
-                }
+                let replies = self
+                    .checked_fetch(&format!("UID FETCH {uid} {items}"), |attributes| {
+                        (fetched::uid(attributes) == Some(uid)).then(|| parts_of(attributes, parts))
+                    })
+                    .await?;
+                let replied = !replies.is_empty();
+                let got: HashMap<String, Vec<u8>> = replies.into_iter().flatten().collect();
                 if !replied {
                     return Err(NetError::Protocol("FETCH reply without the message".into()));
                 }
@@ -266,6 +235,31 @@ impl ImapSession {
         out.extend(got);
         Ok(())
     }
+}
+
+/// The parts one reply carries, by name (`1`, or `1.MIME` for its headers).
+fn parts_of(
+    attributes: fetched::Attributes<'_>,
+    parts: &[(String, u32, bool)],
+) -> Vec<(String, Vec<u8>)> {
+    let mut got = Vec::new();
+    for (section, limit, want) in parts {
+        if *want && *limit == 0 {
+            got.push((section.clone(), Vec::new()));
+        }
+        if let Some(path) = section_path(section, Some(MessageSection::Mime))
+            && let Some(data) = fetched::section(attributes, &path)
+        {
+            got.push((format!("{section}.MIME"), data.to_vec()));
+        }
+        if *want
+            && let Some(path) = section_path(section, None)
+            && let Some(data) = fetched::section(attributes, &path)
+        {
+            got.push((section.clone(), data.to_vec()));
+        }
+    }
+    got
 }
 
 /// The first thing asked for that the reply lacks: the body of a wanted part,

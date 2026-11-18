@@ -8,7 +8,7 @@ use async_imap::types::Flag;
 use super::ops::message_flags;
 use super::query::MessageFlags;
 
-pub(super) type Attributes<'a> = &'a [AttributeValue<'a>];
+pub(in crate::imap) type Attributes<'a> = &'a [AttributeValue<'a>];
 
 pub(super) fn uid(attributes: Attributes<'_>) -> Option<u32> {
     attributes.iter().find_map(|a| match a {
@@ -140,9 +140,15 @@ mod tests {
 
     #[test]
     fn internal_dates_are_read_with_their_zone() {
-        assert_eq!(parse_date("08-Nov-2026 10:00:00 +0000"), Some(1_794_132_000));
+        assert_eq!(
+            parse_date("08-Nov-2026 10:00:00 +0000"),
+            Some(1_794_132_000)
+        );
         assert_eq!(parse_date("8-Nov-2026 11:30:00 +0130"), Some(1_794_132_000));
-        assert_eq!(parse_date("08-Nov-2026 05:00:00 -0500"), Some(1_794_132_000));
+        assert_eq!(
+            parse_date("08-Nov-2026 05:00:00 -0500"),
+            Some(1_794_132_000)
+        );
         assert_eq!(parse_date("01-Jan-1970 00:00:00 +0000"), Some(0));
         assert_eq!(parse_date("nonsense"), None);
     }
