@@ -382,7 +382,7 @@ impl<'s> Worker<'s> {
                 Flow::Continue
             }
             Input::PosterSet => {
-                self.badge();
+                self.poster_set();
                 Flow::Continue
             }
         }

@@ -47,6 +47,14 @@ impl Worker<'_> {
         }
     }
 
+    /// A poster was just set: it hears the current total, unless none is
+    /// known yet (the store is not open); the next refresh badges then.
+    pub(super) fn poster_set(&self) {
+        if !self.unread_sent.borrow().is_empty() {
+            self.badge();
+        }
+    }
+
     /// The launcher badge: the Inbox unread count over all accounts.
     pub(super) fn badge(&self) {
         let total = self
@@ -193,6 +201,19 @@ mod tests {
             folders: vec![seeded.folder],
         });
         assert_eq!(badges(&recorder), [1, 0]);
+    }
+
+    #[test]
+    fn a_new_poster_gets_no_badge_while_no_total_is_known() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let worker = open(&config, &sink);
+        worker.unread_sent.borrow_mut().clear();
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        worker.poster_set();
+        assert!(badges(&recorder).is_empty());
     }
 
     #[derive(Clone)]
