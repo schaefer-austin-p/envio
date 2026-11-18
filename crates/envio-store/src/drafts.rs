@@ -59,7 +59,10 @@ impl Drafts {
 
     /// Writes the draft, recreating it if it is missing. Core must cancel a
     /// pending debounced save before it calls `delete`, or a late autosave
-    /// brings a sent or discarded draft back.
+    /// brings a sent or discarded draft back. Copies in the draft's own
+    /// `files/<id>/` folder that the last save named and this one does not
+    /// (a removed chip) are deleted; a copy never named yet is left alone,
+    /// since an autosave can race the attach that made it.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
         // An attachment path that is not UTF-8 cannot be written as JSON:
@@ -68,7 +71,27 @@ impl Drafts {
             file: self.path(id).display().to_string(),
             reason: error.to_string(),
         })?;
-        Ok(write_atomic(&self.path(id), &bytes)?)
+        let before = self.load(id).map(|old| old.attachments).unwrap_or_default();
+        write_atomic(&self.path(id), &bytes)?;
+        self.prune(id, &before, &draft.attachments);
+        Ok(())
+    }
+
+    /// Best effort: what stays is cleared by `delete`. Only files directly
+    /// inside this draft's own folder go, so an attachment the user picked
+    /// from elsewhere (named by its original path) is never touched.
+    fn prune(&self, id: &str, before: &[PathBuf], now: &[PathBuf]) {
+        let folder = self.files_dir(id);
+        let mut pruned = false;
+        for path in before {
+            if path.parent() == Some(folder.as_path()) && !now.contains(path) {
+                pruned |= fs::remove_file(path).is_ok();
+            }
+        }
+        if pruned {
+            // Fails when files remain; that is fine.
+            let _ = fs::remove_dir(&folder);
+        }
     }
 
     pub fn load(&self, id: &str) -> Result<Draft> {

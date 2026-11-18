@@ -286,3 +286,54 @@ fn keep_bytes_writes_a_safe_numbered_copy_that_delete_removes() {
     drafts.delete(&id).unwrap();
     assert!(!a.exists());
 }
+
+#[test]
+fn save_prunes_copies_the_draft_no_longer_names() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("x", 1)).unwrap();
+    let kept = drafts.keep_bytes(&id, "kept.txt", b"k").unwrap();
+    let dropped = drafts.keep_bytes(&id, "dropped.txt", b"d").unwrap();
+    let mut with_both = draft("x", 2);
+    with_both.attachments = vec![kept.clone(), dropped.clone()];
+    drafts.save(&id, &with_both).unwrap();
+    assert!(kept.exists() && dropped.exists());
+
+    let mut with_one = draft("x", 3);
+    with_one.attachments = vec![kept.clone()];
+    drafts.save(&id, &with_one).unwrap();
+    assert!(kept.exists());
+    assert!(!dropped.exists());
+
+    drafts.save(&id, &draft("x", 4)).unwrap();
+    assert!(!kept.exists());
+    assert!(!kept.parent().unwrap().exists());
+}
+
+#[test]
+fn save_never_touches_a_path_outside_the_drafts_own_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("x", 1)).unwrap();
+    let other = drafts.create(&draft("y", 1)).unwrap();
+    let picked = dir.path().join("picked.txt");
+    fs::write(&picked, "mine").unwrap();
+    let theirs = drafts.keep_bytes(&other, "theirs.txt", b"t").unwrap();
+    let mut named = draft("x", 2);
+    named.attachments = vec![picked.clone(), theirs.clone()];
+    drafts.save(&id, &named).unwrap();
+    drafts.save(&id, &draft("x", 3)).unwrap();
+    assert!(picked.exists());
+    assert!(theirs.exists());
+}
+
+#[test]
+fn save_keeps_a_fresh_copy_the_draft_has_not_named_yet() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("x", 1)).unwrap();
+    let fresh = drafts.keep_bytes(&id, "fresh.txt", b"f").unwrap();
+    // An autosave that raced the attach does not name it yet.
+    drafts.save(&id, &draft("x", 2)).unwrap();
+    assert!(fresh.exists());
+}
