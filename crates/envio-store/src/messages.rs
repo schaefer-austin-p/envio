@@ -324,6 +324,15 @@ impl Db {
         Ok(uids)
     }
 
+    /// How many of the folder's cached messages are dated before `date`.
+    pub fn count_dated_before(&self, folder: FolderId, date: i64) -> Result<u32> {
+        Ok(self.conn().query_row(
+            "SELECT COUNT(*) FROM messages WHERE folder_id = ?1 AND date < ?2",
+            params![folder.0, date],
+            |row| row.get(0),
+        )?)
+    }
+
     /// The cached messages of a folder with `from <= uid < below`, by UID.
     pub fn messages_in_uid_range(
         &self,

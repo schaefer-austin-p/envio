@@ -647,6 +647,7 @@ version = "0.2.0"
 name = "envio-store"
 version = "0.2.0"
 dependencies = [
+ "log",
  "rusqlite",
  "serde",
  "serde_json",
@@ -660,6 +661,7 @@ dependencies = [
  "envio-mime",
  "envio-net",
  "envio-store",
+ "log",
  "thiserror 2.0.21",
 ]
 

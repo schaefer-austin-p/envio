@@ -160,7 +160,7 @@ Item {
             Binding {
                 target: root
                 property: "accountName"
-                value: account.model.name
+                value: account.model.display
                 when: root.view !== null && account.model.key === root.view.account
             }
         }

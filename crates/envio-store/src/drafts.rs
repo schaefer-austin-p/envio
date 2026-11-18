@@ -5,10 +5,12 @@ use std::fs::{self, OpenOptions};
 use std::io;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
 use crate::atomic::{is_temp, write_atomic};
+use crate::drafts_server::ServerCopy;
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
 use crate::private::create_private_dir;
@@ -28,13 +30,19 @@ pub struct Draft {
     /// Paths of files to attach.
     pub attachments: Vec<PathBuf>,
     pub updated_at_ms: i64,
+    /// What identifies the draft's copy in the server's Drafts folder (see
+    /// `ServerCopy`). Saves never change it: only the upload does.
+    pub server: ServerCopy,
 }
 
 /// Readable drafts, then the ids of damaged ones.
 type Scan = (Vec<(String, Draft)>, Vec<String>);
 
 pub struct Drafts {
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
+    /// Held across every read-modify-write of a draft file: core's draft
+    /// thread saves while its worker records an upload.
+    lock: Mutex<()>,
 }
 
 impl Drafts {
@@ -47,9 +55,51 @@ impl Drafts {
                 fs::remove_file(entry.path())?;
             }
         }
-        Ok(Self {
+        let drafts = Self {
             dir: dir.to_owned(),
-        })
+            lock: Mutex::new(()),
+        };
+        // For `delete`'s markers, made now so a folder that turns read-only
+        // later still takes them. Interrupted marker writes go too.
+        create_private_dir(&dir.join(GONE))?;
+        for entry in fs::read_dir(dir.join(GONE))? {
+            let entry = entry?;
+            if entry.file_name().to_str().is_some_and(is_temp) {
+                fs::remove_file(entry.path())?;
+            }
+        }
+        drafts.finish_deletes();
+        Ok(drafts)
+    }
+
+    /// Finishes deletes that failed or were cut short (see `delete`). What
+    /// still fails stays marked, and hidden, for the next start.
+    fn finish_deletes(&self) {
+        let Ok(entries) = fs::read_dir(self.dir.join(GONE)) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(id) = name.to_str().filter(|id| is_key(id)) else {
+                continue;
+            };
+            let _held = self.held();
+            let removed = match fs::remove_file(self.path(id)) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => Err(StoreError::from(e)),
+                _ => Ok(()),
+            };
+            match removed.and_then(|()| remove_dir_if_there(&self.files_dir(id))) {
+                Ok(()) => {
+                    let _ = fs::remove_file(entry.path());
+                }
+                Err(error) => log::warn!("finishing the delete of draft {id}: {error}"),
+            }
+        }
+    }
+
+    /// Deleted drafts that are still on disk: never listed.
+    fn is_gone(&self, id: &str) -> bool {
+        self.dir.join(GONE).join(id).exists()
     }
 
     /// Saves a new draft and returns its id.
@@ -67,16 +117,32 @@ impl Drafts {
     /// since an autosave can race the attach that made it.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
+        let _held = self.held();
         // An attachment path that is not UTF-8 cannot be written as JSON:
         // the save fails and the draft stays pending, it never panics.
+        let old = self.load(id);
+        let mut draft = draft.clone();
+        draft.server = match &old {
+            Ok(old) => old.server.clone(),
+            Err(StoreError::BadRecord { .. }) => self.salvage_server(id),
+            Err(_) => ServerCopy::default(),
+        };
+        self.write(id, &draft)?;
+        let before = old.map(|old| old.attachments).unwrap_or_default();
+        self.prune(id, &before, &draft.attachments);
+        Ok(())
+    }
+
+    pub(crate) fn held(&self) -> MutexGuard<'_, ()> {
+        self.lock.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn write(&self, id: &str, draft: &Draft) -> Result<()> {
         let bytes = serde_json::to_vec_pretty(draft).map_err(|error| StoreError::BadRecord {
             file: self.path(id).display().to_string(),
             reason: error.to_string(),
         })?;
-        let before = self.load(id).map(|old| old.attachments).unwrap_or_default();
-        write_atomic(&self.path(id), &bytes)?;
-        self.prune(id, &before, &draft.attachments);
-        Ok(())
+        Ok(write_atomic(&self.path(id), &bytes)?)
     }
 
     /// Best effort: what stays is cleared by `delete`. Only files directly
@@ -94,6 +160,31 @@ impl Drafts {
             // Fails when files remain; that is fine.
             let _ = fs::remove_dir(&folder);
         }
+    }
+
+    /// The `server` field of a draft file that does not parse as a whole,
+    /// read on its own, so the next save keeps naming the server copy. A
+    /// file with nothing to salvage gives "never uploaded" (logged).
+    fn salvage_server(&self, id: &str) -> ServerCopy {
+        self.salvage_fields(id)
+            .map(|(_, server)| server)
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "draft {id}: the file is damaged and names no server copy; \
+                 a copy in Drafts, if any, stays there"
+                );
+                ServerCopy::default()
+            })
+    }
+
+    /// The `account` and `server` fields of a draft file that does not
+    /// parse as a whole, each read on its own.
+    pub(crate) fn salvage_fields(&self, id: &str) -> Option<(String, ServerCopy)> {
+        let bytes = fs::read(self.path(id)).ok()?;
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+        let account = value.get("account")?.as_str()?.to_owned();
+        let server = serde_json::from_value(value.get_mut("server")?.take()).ok()?;
+        Some((account, server))
     }
 
     pub fn load(&self, id: &str) -> Result<Draft> {
@@ -126,7 +217,7 @@ impl Drafts {
             let Some(id) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
                 continue;
             };
-            if is_key(id) {
+            if is_key(id) && !self.is_gone(id) {
                 match self.load(id) {
                     Ok(draft) => drafts.push((id.to_owned(), draft)),
                     Err(_) => damaged.push(id.to_owned()),
@@ -140,15 +231,33 @@ impl Drafts {
     }
 
     /// Deletes a draft (sent, or discarded by the user).
+    /// When the draft has a copy on the server, a note to delete it there
+    /// is written first (see `deletes`).
     pub fn delete(&self, id: &str) -> Result<()> {
         check(id)?;
+        let _held = self.held();
+        self.note_server_copy(id)?;
+        // A marker first: when the file can't be removed (a disk or
+        // permission error), the draft stays hidden and the next start
+        // removes it, so a sent draft never comes back. Best effort.
+        let marker = self.dir.join(GONE).join(id);
+        if write_atomic(&marker, b"").is_err() {
+            log::warn!("draft {id}: could not mark it deleted");
+        }
         let removed = fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io);
         // Also when the draft file is already gone: a retry after a partial
         // failure still clears the folder.
-        remove_dir_if_there(&self.files_dir(id))?;
+        let files = remove_dir_if_there(&self.files_dir(id));
+        if matches!(removed, Err(StoreError::NotFound)) && files.is_ok() {
+            // Nothing left to bring back.
+            let _ = fs::remove_file(&marker);
+        }
+        files?;
         removed?;
         // Without this a power loss can bring a sent draft back.
-        Ok(fs::File::open(&self.dir)?.sync_all()?)
+        fs::File::open(&self.dir)?.sync_all()?;
+        let _ = fs::remove_file(&marker);
+        Ok(())
     }
 
     /// Copies `source` into `files/<draft id>/` and returns the path of the
@@ -241,13 +350,16 @@ impl Drafts {
         self.dir.join(FILES).join(id)
     }
 
-    fn path(&self, id: &str) -> PathBuf {
+    pub(crate) fn path(&self, id: &str) -> PathBuf {
         self.dir.join(format!("{id}.json"))
     }
 }
 
 /// The folder of attachment copies inside the drafts folder.
 const FILES: &str = "files";
+
+/// One empty marker per draft whose delete is not finished.
+const GONE: &str = "gone";
 
 fn remove_dir_if_there(dir: &Path) -> Result<()> {
     match fs::remove_dir_all(dir) {

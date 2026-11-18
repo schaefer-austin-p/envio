@@ -35,6 +35,7 @@ enum KeeperMsg {
 }
 
 pub(crate) struct DraftKeeper {
+    book: Arc<DraftBook>,
     tx: Sender<KeeperMsg>,
     thread: Option<JoinHandle<()>>,
     /// Attachment copies, one at a time on their own thread (`envio-attach`)
@@ -44,7 +45,13 @@ pub(crate) struct DraftKeeper {
 }
 
 impl DraftKeeper {
-    pub fn start(book: Arc<DraftBook>, sink: Arc<dyn EventSink>) -> io::Result<Self> {
+    /// `closed` is called after each close the thread has handled (the draft
+    /// is saved by then), from the draft thread.
+    pub fn start(
+        book: Arc<DraftBook>,
+        sink: Arc<dyn EventSink>,
+        closed: Box<dyn Fn() + Send>,
+    ) -> io::Result<Self> {
         let (tx, rx) = channel();
         let waker = tx.clone();
         book.set_waker(move || {
@@ -52,14 +59,16 @@ impl DraftKeeper {
         });
         let (attach_tx, attach_rx) = channel();
         let attach_book = Arc::clone(&book);
+        let kept = Arc::clone(&book);
         let attach_sink = Arc::clone(&sink);
         thread::Builder::new()
             .name("envio-attach".into())
             .spawn(move || run_attach(&attach_book, &attach_rx, &*attach_sink))?;
         let thread = thread::Builder::new()
             .name("envio-drafts".into())
-            .spawn(move || run(&book, &rx, &*sink))?;
+            .spawn(move || run(&book, &rx, (&*sink, &*closed)))?;
         Ok(Self {
+            book: kept,
             tx,
             thread: Some(thread),
             attach_tx,
@@ -75,6 +84,9 @@ impl DraftKeeper {
     }
 
     pub fn close(&self, compose: ComposeId, discard: bool) {
+        // Here and now, on the caller's thread: the worker is told next and
+        // must not depend on the draft thread (or a flush) being done.
+        self.book.closing(compose);
         self.post(KeeperMsg::Close { compose, discard });
     }
 
@@ -116,9 +128,9 @@ fn emit_all(sink: &dyn EventSink, events: Vec<Event>) {
 
 /// Keeps going after a panic (the app's sink, or the store, may panic): the
 /// book is plain data and the channel is still there.
-fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) {
+fn run(book: &DraftBook, rx: &Receiver<KeeperMsg>, out: (&dyn EventSink, &dyn Fn())) {
     loop {
-        match panic::catch_unwind(AssertUnwindSafe(|| step(book, rx, sink))) {
+        match panic::catch_unwind(AssertUnwindSafe(|| step(book, rx, out))) {
             Ok(true) => {}
             Ok(false) => return,
             Err(_) => log::error!("the draft thread panicked; going on"),
@@ -140,7 +152,11 @@ fn run_attach(book: &DraftBook, rx: &Receiver<(ComposeId, PathBuf)>, sink: &dyn 
 }
 
 /// One message (or due time) handled; false when the thread should end.
-fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> bool {
+fn step(
+    book: &DraftBook,
+    rx: &Receiver<KeeperMsg>,
+    (sink, closed): (&dyn EventSink, &dyn Fn()),
+) -> bool {
     {
         let wait = book
             .next_due()
@@ -153,6 +169,7 @@ fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> boo
             Ok(KeeperMsg::Changed { compose, draft, at }) => book.changed(compose, *draft, at),
             Ok(KeeperMsg::Close { compose, discard }) => {
                 emit_all(sink, book.close(compose, discard));
+                closed();
             }
             Ok(KeeperMsg::Flush(ack)) => {
                 emit_all(sink, book.flush_all());
@@ -167,4 +184,51 @@ fn step(book: &DraftBook, rx: &Receiver<KeeperMsg>, sink: &dyn EventSink) -> boo
         emit_all(sink, book.save_due(now_ms()));
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+
+    struct Quiet;
+    impl EventSink for Quiet {
+        fn emit(&self, _: Event) {}
+    }
+
+    #[test]
+    fn a_handled_close_tells_the_worker_with_the_draft_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = Arc::new(DraftBook::new(dir.path()));
+        let (told, heard) = channel();
+        let probe = Arc::clone(&book);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&calls);
+        let keeper = DraftKeeper::start(
+            Arc::clone(&book),
+            Arc::new(Quiet),
+            Box::new(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+                let saved = probe.drafts().unwrap().list().unwrap().len();
+                let _ = told.send(saved);
+            }),
+        )
+        .unwrap();
+        let compose = ComposeId(1);
+        book.opened(compose, "1700");
+        keeper.changed(
+            compose,
+            DraftInput {
+                account: "1700".into(),
+                body: "text".into(),
+                ..DraftInput::default()
+            },
+            now_ms(),
+        );
+        keeper.close(compose, false);
+        // No flush: the thread finishes the close on its own time.
+        assert_eq!(heard.recv_timeout(Duration::from_secs(5)), Ok(1));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
 }

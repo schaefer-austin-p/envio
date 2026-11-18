@@ -144,6 +144,16 @@ impl Worker<'_> {
         }
     }
 
+    /// A window closed (its draft saved by now, see `Core::send`): the
+    /// account uploads it, or deletes the server copy of a discarded one.
+    pub(super) fn want_drafts_after_close(&mut self) {
+        for account in self.book.take_closed_accounts() {
+            if let Some(live) = self.live.get_mut(&account) {
+                live.wants.drafts = true;
+            }
+        }
+    }
+
     pub(super) fn send(&mut self, compose: ComposeId, draft: &DraftInput) {
         if self.book.is_sent(compose) {
             return;
@@ -227,6 +237,8 @@ impl Worker<'_> {
                 }
                 if let Some(live) = self.live.get_mut(&draft.account) {
                     live.wants.send = true;
+                    // The draft's server copy goes.
+                    live.wants.drafts = true;
                 }
                 self.remember_recipients(draft);
                 Ok(item.id)

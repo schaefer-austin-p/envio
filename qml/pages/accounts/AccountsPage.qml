@@ -2,7 +2,7 @@ import QtQuick 2.15
 import "../../platform"
 import "../../components"
 
-// Accounts (board 12): name, address and status per row. A tap opens the
+// Accounts (board 12): label (else name), address and status per row. A tap opens the
 // account's actions; there is no swipe. Removing asks first when the core
 // says unsent work would go (`confirmRemove`).
 Item {
@@ -13,6 +13,9 @@ Item {
     required property var accounts
     property string current: ""
     property string currentName: ""
+    property string currentEmail: ""
+    property string currentLabel: ""
+    property string currentState: ""
     signal backRequested()
     signal addRequested()
     signal updatePasswordRequested(string account, string name)
@@ -47,7 +50,10 @@ Item {
             width: list.width
             onClicked: {
                 root.current = row.model.key
-                root.currentName = row.model.name
+                root.currentName = row.model.display
+                root.currentEmail = row.model.email
+                root.currentLabel = row.model.label
+                root.currentState = row.model.state
                 actions.open()
             }
             Column {
@@ -57,8 +63,9 @@ Item {
                 spacing: 2
                 Text {
                     textFormat: Text.PlainText
+                    objectName: "accountLabel"
                     width: parent.width
-                    text: row.model.name
+                    text: row.model.display
                     elide: Text.ElideRight
                     color: root.theme.heading
                     font.family: root.theme.fontUi
@@ -115,6 +122,26 @@ Item {
         theme: root.theme
         title: root.currentName
         ListRow {
+            objectName: "renameRow"
+            // A broken entry is kept as read; it cannot take a label.
+            visible: root.currentState !== "broken"
+            theme: root.theme
+            width: parent.width
+            onClicked: {
+                actions.close()
+                rename.show(root.current, root.currentEmail, root.currentLabel)
+            }
+            Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2.5)
+                y: root.theme.gu(1.75)
+                text: qsTr("Rename")
+                color: root.theme.text
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+            }
+        }
+        ListRow {
             objectName: "updatePasswordRow"
             theme: root.theme
             width: parent.width
@@ -151,6 +178,12 @@ Item {
                 font.pixelSize: 16
             }
         }
+    }
+
+    RenameSheet {
+        id: rename
+        theme: root.theme
+        core: root.core
     }
 
     AppDialog {

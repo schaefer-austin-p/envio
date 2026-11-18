@@ -103,6 +103,7 @@ async fn load_older_fetches_50_then_the_rest_then_is_exhausted() {
         inbox,
         (now_ms(), Some(30)),
         None,
+        None,
     )
     .await
     .unwrap();
@@ -115,6 +116,7 @@ async fn load_older_fetches_50_then_the_rest_then_is_exhausted() {
         inbox,
         (now_ms(), Some(30)),
         Some(first.kept()),
+        None,
     )
     .await
     .unwrap();
@@ -136,6 +138,7 @@ async fn a_sync_with_the_floor_keeps_everything() {
         &mut store.local(),
         inbox,
         (now_ms(), Some(30)),
+        None,
         None,
     )
     .await
@@ -163,6 +166,7 @@ async fn a_sync_without_the_floor_goes_back_to_the_window() {
         &mut store.local(),
         inbox,
         (now_ms(), Some(30)),
+        None,
         None,
     )
     .await
@@ -222,6 +226,7 @@ async fn load_older_reaches_old_mail_appended_after_recent_mail() {
         inbox,
         (now_ms(), Some(30)),
         None,
+        None,
     )
     .await
     .unwrap();
@@ -233,6 +238,7 @@ async fn load_older_reaches_old_mail_appended_after_recent_mail() {
         inbox,
         (now_ms(), Some(30)),
         Some(first.kept()),
+        None,
     )
     .await
     .unwrap();

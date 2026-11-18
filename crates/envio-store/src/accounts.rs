@@ -57,12 +57,28 @@ pub struct Account {
     /// Never changes; the cache, journal and Outbox name the account by it.
     pub key: String,
     pub settings: AccountSettings,
+    /// What the user calls the account (tabs, drawer, Accounts page). Absent
+    /// or empty: the screens show the name, else the address. Not the sender
+    /// name, which stays in `settings.name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// Set when this entry of the file could not be read: what failed, with
     /// no secrets. `settings` then holds only what parsed (name, email) and
     /// empty values elsewhere, and the account must not be used. The file
     /// keeps the entry as it was.
     #[serde(skip)]
     pub broken: Option<String>,
+}
+
+impl Account {
+    /// The label if the user set a non-blank one. Read the label only through
+    /// this: a blank or whitespace-only string counts as unset.
+    pub fn label(&self) -> Option<&str> {
+        self.label
+            .as_deref()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+    }
 }
 
 #[derive(Deserialize)]
@@ -113,6 +129,7 @@ impl Accounts {
         let account = Account {
             key: key.clone(),
             settings,
+            label: None,
             broken: None,
         };
         self.change(|accounts| accounts.push(account))?;
@@ -126,6 +143,23 @@ impl Accounts {
             accounts[index].settings = settings;
             accounts[index].broken = None;
         })
+    }
+
+    /// Sets the label; blank (or `None`) clears it. Surrounding whitespace is
+    /// dropped. A broken entry is written back as read, so it takes none.
+    pub fn set_label(&mut self, key: &str, label: Option<&str>) -> Result<()> {
+        let index = self.index(key)?;
+        if let Some(reason) = &self.accounts[index].broken {
+            return Err(bad(
+                &self.path,
+                format!("account {key} is broken: {reason}"),
+            ));
+        }
+        let label = label
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_owned);
+        self.change(|accounts| accounts[index].label = label)
     }
 
     /// Removes the settings. The caller also drops the account's cache
@@ -232,8 +266,8 @@ fn unreadable(value: &serde_json::Value) -> String {
     }
 }
 
-/// A stand-in for an entry that did not parse: its key and whatever name and
-/// email it has, empty elsewhere.
+/// A stand-in for an entry that did not parse: its key and whatever name,
+/// email and label it has, empty elsewhere.
 fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
     let text = |field: &str| {
         value
@@ -258,6 +292,10 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             imap: server(),
             smtp: server(),
         },
+        label: value
+            .get("label")
+            .and_then(|label| label.as_str())
+            .map(str::to_owned),
         broken: Some(reason),
     }
 }

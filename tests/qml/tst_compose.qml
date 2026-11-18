@@ -79,8 +79,8 @@ Item {
             mock.reset()
             mock.accounts.clear()
             mock.suggestions.clear()
-            mock.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
-            mock.accounts.append({ key: "work", name: "Work", email: "ann@work.example", status: "", state: "ok", unread: 0, unreadText: "" })
+            mock.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            mock.accounts.append({ key: "work", name: "Work", display: "Work", label: "", email: "ann@work.example", status: "", state: "ok", unread: 0, unreadText: "" })
             sent.clear()
             closed.clear()
             page.reset()
@@ -469,6 +469,19 @@ Item {
             compare(lastDraft().account, "work")
         }
 
+        function test_from_sheet_keeps_the_sender_name_and_adds_the_label() {
+            mock.accounts.setProperty(1, "label", "Office")
+            mock.composeReady(1, reply, "")
+            mouseClick(find("fromRow"))
+            tryVerify(function() { return shown("account-work") })
+            const text = find("accountText-work")
+            compare(text.children[0].text, "Work")
+            compare(text.children[1].text, "Office \u00b7 ann@work.example")
+            mock.accounts.setProperty(1, "label", "")
+            mouseClick(find("account-work"))
+            tryVerify(function() { return !shown("account-work") })
+        }
+
         // Phone shot: the accounts in "Send from" sat at the sheet's left
         // edge and at the top of their rows.
         function test_from_sheet_rows_line_up_with_its_title() {
@@ -577,7 +590,7 @@ Item {
         }
 
         function test_mailto_waits_for_the_core_and_an_account() {
-            shellCore.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            shellCore.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
             shell.visible = true
             tryVerify(function() { return shell.accountCount === 1 })
             shell.openMailto("mailto:bob@example.org?subject=Hi")

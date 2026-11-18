@@ -173,6 +173,9 @@ pub enum Command {
     /// Remove an account and everything kept for it. Asks first when
     /// work is unsent, unless `confirmed`.
     RemoveAccount { account: String, confirmed: bool },
+    /// Name the account for the tabs, drawer and Accounts page; blank
+    /// clears it. The sender name on mail is not touched.
+    SetAccountLabel { account: String, label: String },
     /// The account's folders, from the cache.
     ListFolders { account: String },
     /// One page (`PAGE` rows) of a list, newest first, from the cache:
@@ -186,10 +189,12 @@ pub enum Command {
     /// Ask the server too: the folder of `scope` (an account's or the
     /// unified Inbox: each account's Inbox), found mail is cached.
     SearchServer { scope: SearchScope, query: String },
-    /// Fetch the next batch of mail older than what the list holds (for
-    /// `Inboxes`: one batch per account's Inbox). The answer is
-    /// `OlderLoaded` or `OlderFailed`.
-    LoadOlder { list: ListRef },
+    /// Fetch the next mail older than what the list holds (for `Inboxes`:
+    /// the same for each account's Inbox). `tail` is the date of the list's
+    /// last shown row: batches dated above it show nothing new, so the
+    /// fetch goes on (up to a limit) until mail below it arrives; `None`
+    /// fetches one batch. The answer is `OlderLoaded` or `OlderFailed`.
+    LoadOlder { list: ListRef, tail: Option<i64> },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,
@@ -310,6 +315,7 @@ impl Command {
             Self::UpdatePassword { .. } => "UpdatePassword",
             Self::AcceptCertificate { .. } => "AcceptCertificate",
             Self::RemoveAccount { .. } => "RemoveAccount",
+            Self::SetAccountLabel { .. } => "SetAccountLabel",
             Self::ListFolders { .. } => "ListFolders",
             Self::ListMessages { .. } => "ListMessages",
             Self::Search { .. } => "Search",

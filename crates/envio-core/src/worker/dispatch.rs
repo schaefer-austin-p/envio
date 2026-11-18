@@ -45,6 +45,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.remove_account(&account, confirmed);
             Flow::Continue
         }
+        Command::SetAccountLabel { account, label } => {
+            worker.set_account_label(&account, &label);
+            Flow::Continue
+        }
         Command::ListFolders { account } => {
             worker.list_folders(&account);
             Flow::Continue
@@ -61,8 +65,8 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.search_server(scope, query);
             Flow::Continue
         }
-        Command::LoadOlder { list } => {
-            worker.load_older(list);
+        Command::LoadOlder { list, tail } => {
+            worker.load_older(list, tail);
             Flow::Continue
         }
         Command::OpenMessage {
@@ -114,6 +118,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
         Command::CloseCompose { compose, .. } => {
             worker.forget_waiting(compose);
+            worker.want_drafts_after_close();
             Flow::Continue
         }
         Command::Send { compose, draft } => {

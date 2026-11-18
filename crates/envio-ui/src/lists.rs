@@ -160,6 +160,21 @@ impl ShownList {
         })
     }
 
+    /// Show a new name on the rows of an account: one update per row.
+    pub fn rename_account(&mut self, account: &str, name: &str) -> Vec<Op> {
+        let mut ops = Vec::new();
+        for (at, shown) in self.rows.iter_mut().enumerate() {
+            if shown.row.account == account && shown.row.account_name != name {
+                name.clone_into(&mut shown.row.account_name);
+                ops.push(Op::Update {
+                    at,
+                    row: Row::Message(shown.row.clone()),
+                });
+            }
+        }
+        ops
+    }
+
     /// Drop the rows of an account, as runs from the back.
     pub fn remove_account(&mut self, account: &str) -> Vec<Op> {
         let mut ops = Vec::new();

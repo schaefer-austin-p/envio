@@ -182,3 +182,20 @@ fn unknown_messages_are_not_found() {
         Err(StoreError::NotFound)
     ));
 }
+
+#[test]
+fn count_dated_before_is_strict_and_per_folder() {
+    let db = Db::open_in_memory().unwrap();
+    let folder = inbox(&db, "a1");
+    let other = db
+        .upsert_folder("a1", "Archive", FolderRole::Archive)
+        .unwrap();
+    for (uid, date) in [(1, 10), (2, 20), (3, 20), (4, 30)] {
+        db.upsert_message(folder, &message(uid, "m", date)).unwrap();
+    }
+    db.upsert_message(other, &message(1, "m", 5)).unwrap();
+    assert_eq!(db.count_dated_before(folder, 20).unwrap(), 1);
+    assert_eq!(db.count_dated_before(folder, 21).unwrap(), 3);
+    assert_eq!(db.count_dated_before(folder, 10).unwrap(), 0);
+    assert_eq!(db.count_dated_before(other, 100).unwrap(), 1);
+}

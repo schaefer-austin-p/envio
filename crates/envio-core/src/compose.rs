@@ -49,6 +49,8 @@ pub fn to_store(draft: &DraftInput, now_ms: i64) -> Draft {
         references: draft.references.clone(),
         attachments: draft.attachments.clone(),
         updated_at_ms: now_ms,
+        // Kept by the store across saves.
+        server: envio_store::ServerCopy::default(),
     }
 }
 

@@ -83,6 +83,7 @@ impl ImapSession {
             caps,
             exists,
             missed_changes,
+            header_search,
         } = self;
         let mut handle = session.idle();
         connect::within(async { handle.init().await.map_err(map_error) }).await?;
@@ -113,6 +114,7 @@ impl ImapSession {
             caps,
             exists,
             missed_changes,
+            header_search,
         };
         // DONE's reply may carry what changed while it was sent.
         let woke = if woke != Woke::Changed && this.take_changes() {

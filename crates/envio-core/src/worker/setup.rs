@@ -276,6 +276,7 @@ impl Worker<'_> {
         Ok(AccountInfo {
             key,
             name,
+            label: String::new(),
             email,
             status: AccountStatus::Ready,
             unread: 0,
@@ -333,6 +334,7 @@ mod tests {
                 imap: server(),
                 smtp: server(),
             },
+            label: None,
             broken: None,
         }
     }

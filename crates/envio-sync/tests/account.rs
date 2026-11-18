@@ -184,6 +184,37 @@ async fn removing_an_account_counts_then_drops_all_it_holds() {
 }
 
 #[tokio::test]
+async fn removing_an_account_drops_its_server_delete_notes_only() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server).await;
+    // A draft with a server copy, deleted: its note waits for the copy.
+    let noted = |account: &str, message_id: &str, at_ms: i64| {
+        let id = store
+            .drafts
+            .create(&Draft {
+                account: account.into(),
+                subject: "Gone".into(),
+                // The id comes from the stamp: keep the two notes apart.
+                updated_at_ms: at_ms,
+                ..Draft::default()
+            })
+            .unwrap();
+        store.drafts.mark_uploaded(&id, message_id, 1).unwrap();
+        store.drafts.delete(&id).unwrap();
+    };
+    noted(ACCOUNT, "<mine@example.org>", 1);
+    noted("1800", "<theirs@example.org>", 2);
+    assert_eq!(store.drafts.deletes().unwrap().len(), 2);
+    let (mut local, drafts) = store.with_drafts();
+    remove_account(&mut local, drafts, ACCOUNT).unwrap();
+    let left = store.drafts.deletes().unwrap();
+    assert_eq!(left.len(), 1, "only the other account's note stays");
+    assert_eq!(left[0].account, "1800");
+    // A re-added account with the same id inherits nothing.
+    assert!(left.iter().all(|note| note.account != ACCOUNT));
+}
+
+#[tokio::test]
 async fn a_refused_folder_does_not_block_the_ones_after_it() {
     let mut server = FakeServer::new();
     server.add_folder("Alpha", None);

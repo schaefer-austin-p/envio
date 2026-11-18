@@ -398,6 +398,7 @@ mod tests {
                 imap: server(pin),
                 smtp: server(None),
             },
+            label: None,
             broken: None,
         }
     }

@@ -107,7 +107,7 @@ Item {
                 required property var model
                 objectName: "chip-account-" + model.key
                 theme: root.theme
-                text: model.name
+                text: model.display
                 selected: root.scope === "account:" + model.key
                 onClicked: root.choose("account:" + model.key)
             }

@@ -52,6 +52,12 @@ pub struct Script {
     /// Untagged lines (each ending in CRLF) sent before a UID SEARCH's
     /// tagged reply, which is OK unless `search_refusal` says otherwise.
     pub search_untagged: &'static str,
+    /// The untagged lines for a `UID SEARCH UNDELETED` (the folder's live
+    /// UIDs); empty means `search_untagged`.
+    pub search_all_untagged: &'static str,
+    /// When not empty, the untagged lines for every HEADER search after
+    /// the first (which gets `search_untagged`).
+    pub search_later_untagged: &'static str,
     /// With `fetch_flags`: when not empty, the nth UID FETCH is answered
     /// with the nth of these (untagged lines, each ending in CRLF) instead
     /// of the flags; the commands after the last get no untagged line.
@@ -89,6 +95,8 @@ impl Default for Script {
             fetch_refusal: "NO refused",
             search_refusal: "",
             search_untagged: "",
+            search_all_untagged: "",
+            search_later_untagged: "",
             fetch_canned: &[],
             select_exists: 0,
             expunge_refusal: "",
@@ -187,6 +195,7 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
 ) {
     let mut signed_in = false;
     let mut fetches = 0;
+    let mut searches = 0;
     while let Some(command) = line(io, true, log).await {
         let (tag, verb) = split(&command);
         // "UID COPY ...": the word after UID, for the commands that need it.
@@ -221,7 +230,9 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                 }
             ),
             "UID" | "FETCH" | "SELECT" if answers(&script, &verb, &sub_verb) => {
-                let Some(reply) = scripted_reply(&command, &tag, &script, &mut fetches) else {
+                let Some(reply) =
+                    scripted_reply(&command, &tag, &script, (&mut fetches, &mut searches))
+                else {
                     return;
                 };
                 reply
@@ -256,7 +267,11 @@ fn answers(script: &Script, verb: &str, sub_verb: &str) -> bool {
         "SELECT" => script.select_exists != 0,
         _ => match sub_verb {
             "FETCH" => script.fetch_flags,
-            "SEARCH" => !(script.search_refusal.is_empty() && script.search_untagged.is_empty()),
+            "SEARCH" => {
+                !(script.search_refusal.is_empty()
+                    && script.search_untagged.is_empty()
+                    && script.search_all_untagged.is_empty())
+            }
             "EXPUNGE" => !(script.expunge_refusal.is_empty() && script.expunge_untagged.is_empty()),
             "STORE" => !script.store_refusal.is_empty(),
             _ => false,
@@ -270,7 +285,7 @@ fn scripted_reply(
     command: &str,
     tag: &str,
     script: &Script,
-    fetches: &mut usize,
+    (fetches, searches): (&mut usize, &mut usize),
 ) -> Option<String> {
     let word = |n| command.split(' ').nth(n).unwrap_or("").to_ascii_uppercase();
     match (word(1).as_str(), word(2).as_str()) {
@@ -284,7 +299,18 @@ fn scripted_reply(
             } else {
                 script.search_refusal
             };
-            Some(format!("{}{tag} {status}\r\n", script.search_untagged))
+            let untagged =
+                if command.ends_with(" UNDELETED") && !script.search_all_untagged.is_empty() {
+                    script.search_all_untagged
+                } else {
+                    *searches += 1;
+                    if *searches > 1 && !script.search_later_untagged.is_empty() {
+                        script.search_later_untagged
+                    } else {
+                        script.search_untagged
+                    }
+                };
+            Some(format!("{untagged}{tag} {status}\r\n"))
         }
         ("UID", "EXPUNGE") => {
             let status = match script.expunge_refusal {

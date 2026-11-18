@@ -9,6 +9,7 @@ mod dispatch;
 mod folder_order;
 mod inline;
 mod invite;
+mod label;
 mod older;
 mod open;
 mod outbox;
@@ -130,6 +131,9 @@ pub(crate) type Stamped = (Command, i64);
 pub(crate) enum Input {
     Command(Stamped),
     Setup(SetupDone),
+    /// The draft thread saved the draft of a window that closed: its
+    /// account may have something to upload.
+    DraftsSaved,
     /// `Core::set_poster` ran: the poster is told the current badge, on the
     /// worker's thread, in order with later unread changes.
     PosterSet,
@@ -194,6 +198,7 @@ impl<'s> Worker<'s> {
                                     .map(|input| match input {
                                         Input::Command((c, _)) => c.name(),
                                         Input::Setup(_) => "setup result",
+                                        Input::DraftsSaved => "drafts saved",
                                         Input::PosterSet => "poster set",
                                     })
                                     .collect();
@@ -278,6 +283,7 @@ impl<'s> Worker<'s> {
                 unread: self.seed_unread(&a.key),
                 key: a.key.clone(),
                 name: a.settings.name.clone(),
+                label: a.label().unwrap_or_default().to_owned(),
                 email: a.settings.email.clone(),
                 status: a
                     .broken
@@ -417,6 +423,10 @@ impl<'s> Worker<'s> {
             Input::Command((command, at_ms)) => handle(self, command, at_ms).await,
             Input::Setup(done) => {
                 self.setup_done(done);
+                Flow::Continue
+            }
+            Input::DraftsSaved => {
+                self.want_drafts_after_close();
                 Flow::Continue
             }
             Input::PosterSet => {

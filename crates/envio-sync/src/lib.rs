@@ -6,6 +6,7 @@
 //! asks `next_due` when to call again.
 
 pub mod convert;
+pub mod draft_mail;
 pub mod driver;
 pub mod error;
 pub mod newmail;

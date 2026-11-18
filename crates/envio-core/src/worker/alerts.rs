@@ -35,7 +35,7 @@ impl Worker<'_> {
             .store
             .accounts
             .get(&mail.account)
-            .map(|a| a.settings.name.clone())
+            .map(|a| a.label().unwrap_or(&a.settings.name).to_owned())
             .filter(|name| !name.is_empty())
             .unwrap_or_else(text::notice::new_mail_summary);
         // The card replaces the account's last one, so it counts all mail

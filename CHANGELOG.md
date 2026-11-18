@@ -26,6 +26,10 @@ All notable changes to Envio are listed here. The format follows
   wrote, no longer loads images or shows as known; mail without such a
   header is treated as unverified, and "Always for this sender" is hidden
   on it (#156).
+- Load older no longer comes back with nothing new under your scroll
+  position when a batch held only mail dated newer than the last row
+  shown (mail imported out of date order): it fetches on to the next
+  batch, up to 500 messages at a time (#254).
 - Mail styles containing `var(` or `env(` are now dropped on every
   property, not only in the `background` shorthand (#276).
 - Call-to-action buttons in mail keep their fill: a link or cell styled

@@ -80,6 +80,7 @@ Item {
     function acceptCertificate(account, service, hex) { record("acceptCertificate", [account, service, hex]) }
     function updatePassword(account, password) { record("updatePassword", [account, password]) }
     function removeAccount(account, confirmed) { record("removeAccount", [account, confirmed]) }
+    function setAccountLabel(account, label) { record("setAccountLabel", [account, label]) }
     function listFolders(account) { record("listFolders", [account]) }
     function drawerAccount(account) { record("drawerAccount", [account]) }
     function openList(kind, id) { record("openList", [kind, id]) }

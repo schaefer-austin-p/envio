@@ -191,9 +191,10 @@ pub fn plan_flags(
 pub fn rows(summaries: &[Summary], pending: &Pending) -> Vec<NewMessage> {
     summaries
         .iter()
-        .filter(|summary| !summary.flags.deleted && !pending.is_hidden(summary.uid))
-        .map(|summary| {
-            let mut row = new_message(summary);
+        .filter(|summary| !summary.flags.deleted)
+        .map(|summary| (summary, new_message(summary)))
+        .filter(|(summary, row)| !pending.hides(summary.uid, row.envelope.message_id.as_deref()))
+        .map(|(summary, mut row)| {
             row.flags = pending.flags(summary.uid, row.flags);
             row
         })
@@ -447,6 +448,32 @@ mod tests {
         );
         assert_eq!(rows.len(), 1);
         assert_eq!((rows[0].uid, rows[0].flags), (1, Flags::SEEN));
+    }
+
+    #[test]
+    fn rows_hide_a_message_deleted_under_the_old_uidvalidity() {
+        let mut old = delete(2);
+        old.target.uidvalidity = 6;
+        old.target.message_id = Some("<gone@example.org>".into());
+        let actions = [old];
+        let pending = Pending::of(&actions, "1700", "INBOX", 7);
+        let summary = |uid, id: &str| Summary {
+            uid,
+            flags: MessageFlags::from_flags([]),
+            size: 10,
+            internal_date: Some(1_800_000_000),
+            modseq: None,
+            header: format!("Message-ID: {id}\r\nSubject: x\r\n\r\n").into_bytes(),
+        };
+        let kept = rows(
+            &[
+                summary(1, "<gone@example.org>"),
+                summary(2, "<other@example.org>"),
+            ],
+            &pending,
+        );
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].uid, 2);
     }
 
     fn moved(uid: u32) -> Action {

@@ -1,4 +1,4 @@
-//! "Load older": a batch of mail below the oldest cached message, and what
+//! "Load older": mail below the oldest cached message, and what
 //! a later sync does with it.
 
 mod support;
@@ -69,7 +69,7 @@ fn load_older_fetches_a_batch_and_reports_it() {
     let (server, _, inbox) = seeded(&mut h, "me@example.org");
     h.start_core();
     let list = ListRef::Folder(inbox);
-    h.send(Command::LoadOlder { list });
+    h.send(Command::LoadOlder { list, tail: None });
     assert_eq!(older_loaded(&h, list), (9, true));
     assert!(lines(&server, "UID SEARCH ALL") >= 1);
     h.wait(|e| match e {
@@ -88,6 +88,7 @@ fn load_older_on_inboxes_asks_every_account() {
     h.start_core();
     h.send(Command::LoadOlder {
         list: ListRef::Inboxes,
+        tail: None,
     });
     // One event for both accounts: 9 each.
     assert_eq!(older_loaded(&h, ListRef::Inboxes), (18, true));
@@ -104,7 +105,7 @@ fn a_sync_after_load_older_keeps_the_older_rows() {
     let (server, key, inbox) = seeded(&mut h, "me@example.org");
     h.start_core();
     let list = ListRef::Folder(inbox);
-    h.send(Command::LoadOlder { list });
+    h.send(Command::LoadOlder { list, tail: None });
     older_loaded(&h, list);
     assert_eq!(settled(&h, &server, list), 10);
     let before = lines(&server, "UID SEARCH SINCE");
@@ -121,7 +122,7 @@ fn changing_the_window_drops_the_floor_and_resyncs() {
     let (server, _, inbox) = seeded(&mut h, "me@example.org");
     h.start_core();
     let list = ListRef::Folder(inbox);
-    h.send(Command::LoadOlder { list });
+    h.send(Command::LoadOlder { list, tail: None });
     older_loaded(&h, list);
     assert_eq!(settled(&h, &server, list), 10);
     let before = lines(&server, "UID SEARCH SINCE");
@@ -141,7 +142,7 @@ fn changing_the_window_announces_that_load_older_was_dropped() {
     let (server, _, inbox) = seeded(&mut h, "me@example.org");
     h.start_core();
     let list = ListRef::Folder(inbox);
-    h.send(Command::LoadOlder { list });
+    h.send(Command::LoadOlder { list, tail: None });
     older_loaded(&h, list);
     let before = lines(&server, "UID SEARCH SINCE");
     h.send(Command::SaveSettings(Settings {
@@ -165,7 +166,7 @@ fn load_older_offline_reports_older_unavailable() {
     let inbox = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(10, EML)]);
     h.start_core();
     let list = ListRef::Folder(inbox);
-    h.send(Command::LoadOlder { list });
+    h.send(Command::LoadOlder { list, tail: None });
     let text = h.wait(|e| match e {
         Event::OlderFailed { list: l, text } if *l == list => Some(text.clone()),
         _ => None,
@@ -187,6 +188,7 @@ fn an_offline_account_in_the_inboxes_is_reported_by_name() {
     h.start_core();
     h.send(Command::LoadOlder {
         list: ListRef::Inboxes,
+        tail: None,
     });
     let (fetched, exhausted) = older_loaded(&h, ListRef::Inboxes);
     // The other account's batch still counts, but the row is not exhausted.
@@ -211,6 +213,7 @@ fn removing_an_account_does_not_strand_a_load_on_the_inboxes() {
     h.send(Command::Stall { ms: 500 });
     h.send(Command::LoadOlder {
         list: ListRef::Inboxes,
+        tail: None,
     });
     h.send(Command::RemoveAccount {
         account: gone,
@@ -234,6 +237,7 @@ fn a_removed_account_gets_no_unavailable_notice() {
     h.send(Command::Stall { ms: 500 });
     h.send(Command::LoadOlder {
         list: ListRef::Inboxes,
+        tail: None,
     });
     h.send(Command::RemoveAccount {
         account: gone.clone(),
@@ -293,4 +297,20 @@ fn a_uidvalidity_change_resets_load_older_for_that_folder_once() {
         _ => None,
     });
     assert_eq!(resets.into_inner(), [(inbox, true)]);
+}
+
+#[test]
+fn load_older_with_a_tail_fetches_and_reports_the_same() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_, _, inbox) = seeded(&mut h, "me@example.org");
+    h.start_core();
+    let list = ListRef::Folder(inbox);
+    // Every message is dated before this tail: the first batch ends the call.
+    h.send(Command::LoadOlder {
+        list,
+        tail: Some(i64::MAX),
+    });
+    assert_eq!(older_loaded(&h, list), (9, true));
+    assert_eq!(rows_of(&h, list), 10);
 }
