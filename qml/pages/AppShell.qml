@@ -199,6 +199,7 @@ Item {
             onBackRequested: stack.pop()
             onAppearanceRequested: stack.push(appearancePage)
             onSyncRequested: stack.push(syncPage)
+            onNotificationsRequested: stack.push(notificationsPage)
             onImagesRequested: stack.push(imagesPage)
             onAccountsRequested: stack.push(accountsPage)
             onAboutRequested: stack.push(aboutPage)
@@ -211,6 +212,10 @@ Item {
     Component {
         id: syncPage
         SyncPage { theme: root.theme; accounts: root.accounts; core: root.core; onBackRequested: stack.pop() }
+    }
+    Component {
+        id: notificationsPage
+        NotificationsPage { theme: root.theme; accounts: root.accounts; core: root.core; onBackRequested: stack.pop() }
     }
     Component {
         id: imagesPage

@@ -80,6 +80,17 @@ fn several_declarations_use_the_last_valid_one() {
     );
 }
 
+#[test]
+fn nested_percentages_after_a_clamped_one_stay_in_range() {
+    // 5% of 16 is under 1px and is clamped; the later % must apply to that.
+    let out = clean(
+        r#"<center style="font-size:5%"><center style="font-size:150%"><center style="font-size:1500%">t</center></center></center>"#,
+    );
+    let over = common::out_of_range(&out);
+    assert!(over.is_empty(), "{out}: {over:?}");
+    assert_eq!(clean(&out), out);
+}
+
 /// Every absolute `font-size:` value (px, or `xx-large` and up as infinity)
 /// and `size=` level in `html`. Relative values (`%`, `em`, other keywords)
 /// are skipped on purpose: only the proptest's second pass covers them.

@@ -14,6 +14,7 @@ pub mod servers;
 #[doc(hidden)]
 pub mod hooks;
 
+mod alert;
 mod clock;
 mod compose;
 mod drafts;
@@ -32,11 +33,12 @@ mod text;
 mod undo;
 mod worker;
 
+pub use alert::{Alert, Poster};
 pub use api::command::{
     AccountSetup, Answer, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice,
     OutboxDecision, SearchScope, StartFrom, UndoId, UserAction,
 };
-pub use api::event::{Event, UndoScope};
+pub use api::event::{Event, NewMail, UndoScope};
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
     MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,

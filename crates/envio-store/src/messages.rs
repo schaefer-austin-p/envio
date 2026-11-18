@@ -324,6 +324,23 @@ impl Db {
         Ok(uids)
     }
 
+    /// The cached messages of a folder with `from <= uid < below`, by UID.
+    pub fn messages_in_uid_range(
+        &self,
+        folder: FolderId,
+        from: u32,
+        below: u32,
+    ) -> Result<Vec<Message>> {
+        let mut stmt = self.conn().prepare(&format!(
+            "SELECT {COLUMNS} FROM messages m
+             WHERE m.folder_id = ?1 AND m.uid >= ?2 AND m.uid < ?3 ORDER BY m.uid"
+        ))?;
+        let messages = stmt
+            .query_map(params![folder.0, from, below], from_row)?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(messages)
+    }
+
     /// Deletes the given UIDs; returns how many were cached.
     pub fn delete_messages(&self, folder: FolderId, uids: &[u32]) -> Result<usize> {
         self.savepoint(|| {

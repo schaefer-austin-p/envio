@@ -226,3 +226,68 @@ fn a_stale_save_keeps_the_current_allowed_senders() {
     let on_disk = load_settings(&h.paths().settings()).unwrap();
     assert!(!on_disk.images_from.contains("ada@example.org"));
 }
+
+#[test]
+fn two_set_notify_for_different_accounts_both_survive() {
+    let (h, _) = started(|_| ());
+    settings_event(&h);
+    // Both sent before either echo: a snapshot-based save would lose one.
+    h.send(Command::SetNotify {
+        account: "a".into(),
+        on: false,
+    });
+    h.send(Command::SetNotify {
+        account: "b".into(),
+        on: false,
+    });
+    settings_event(&h);
+    let settings = settings_event(&h);
+    assert_eq!(settings.notify_off.len(), 2);
+    let on_disk = load_settings(&h.paths().settings()).unwrap();
+    assert_eq!(on_disk.notify_off, settings.notify_off);
+    h.send(Command::SetNotify {
+        account: "a".into(),
+        on: true,
+    });
+    assert_eq!(
+        settings_event(&h).notify_off,
+        ["b".to_owned()].into_iter().collect()
+    );
+}
+
+#[test]
+fn set_notify_then_set_notify_text_both_survive() {
+    let (h, _) = started(|_| ());
+    settings_event(&h);
+    h.send(Command::SetNotify {
+        account: "a".into(),
+        on: false,
+    });
+    h.send(Command::SetNotifyText { on: true });
+    settings_event(&h);
+    let settings = settings_event(&h);
+    assert!(settings.notify_off.contains("a"));
+    assert!(settings.notify_show_text);
+}
+
+// An app save built from a snapshot older than a switch must not undo it.
+#[test]
+fn a_stale_save_keeps_the_notification_switches() {
+    let (h, _) = started(|_| ());
+    settings_event(&h);
+    h.send(Command::SetNotify {
+        account: "a".into(),
+        on: false,
+    });
+    h.send(Command::SetNotifyText { on: true });
+    h.send(Command::SaveSettings(Settings {
+        dark: DarkMode::Dark,
+        ..Settings::default()
+    }));
+    settings_event(&h);
+    settings_event(&h);
+    let settings = settings_event(&h);
+    assert_eq!(settings.dark, DarkMode::Dark);
+    assert!(settings.notify_off.contains("a"));
+    assert!(settings.notify_show_text);
+}

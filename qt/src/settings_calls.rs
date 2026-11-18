@@ -49,4 +49,18 @@ impl qobject::EnvioCore {
         };
         self.send_command(Command::SaveSettings(settings));
     }
+
+    /// The Notifications switch of one account; the core applies it to its
+    /// own settings.
+    pub fn set_notify(self: Pin<&mut Self>, account: &QString, on: bool) {
+        self.send_command(Command::SetNotify {
+            account: String::from(account),
+            on,
+        });
+    }
+
+    /// "Show sender and subject" in new-mail notifications.
+    pub fn set_notify_text(self: Pin<&mut Self>, on: bool) {
+        self.send_command(Command::SetNotifyText { on });
+    }
 }

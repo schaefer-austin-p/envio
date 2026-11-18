@@ -11,6 +11,7 @@ Item {
     signal backRequested()
     signal appearanceRequested()
     signal syncRequested()
+    signal notificationsRequested()
     signal imagesRequested()
     signal accountsRequested()
     signal aboutRequested()
@@ -30,6 +31,7 @@ Item {
             model: [
                 { key: "appearance", label: qsTr("Appearance") },
                 { key: "sync", label: qsTr("Sync") },
+                { key: "notifications", label: qsTr("Notifications") },
                 { key: "images", label: qsTr("Load remote images") },
                 { key: "accounts", label: qsTr("Accounts") },
                 { key: "about", label: qsTr("About") }
@@ -45,6 +47,7 @@ Item {
                     switch (modelData.key) {
                     case "appearance": root.appearanceRequested(); break
                     case "sync": root.syncRequested(); break
+                    case "notifications": root.notificationsRequested(); break
                     case "images": root.imagesRequested(); break
                     case "accounts": root.accountsRequested(); break
                     default: root.aboutRequested()

@@ -23,6 +23,9 @@ pub struct AccountRow {
     /// certificate changed): tab and drawer row show a signal that leads to
     /// Accounts.
     pub attention: bool,
+    /// New-mail notifications are on for the account (Settings →
+    /// Notifications).
+    pub notify: bool,
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
@@ -129,6 +132,7 @@ const ACCOUNT: &[&str] = &[
     "unread",
     "unreadText",
     "attention",
+    "notify",
     "pinService",
     "pinHost",
     "pinTitle",
@@ -193,6 +197,7 @@ impl Row {
             (Self::Account(r), "unread") => Int(r.unread.into()),
             (Self::Account(r), "unreadText") => s(&r.unread_text),
             (Self::Account(r), "attention") => Bool(r.attention),
+            (Self::Account(r), "notify") => Bool(r.notify),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
             (Self::Account(r), "pinTitle") => s(&r.pin.title),

@@ -37,7 +37,8 @@ pub(crate) struct Live {
     pub wants: Wants,
     pub next_full_ms: i64,
     pub conn: Conn,
-    pub idle_capable: bool,
+    /// What the server's greeting said; unknown until a connection worked.
+    pub idle_capable: Option<bool>,
     /// The Inbox was queued for a sync before this IDLE attempt: it is not
     /// queued again, so a sync that cannot finish never makes a loop.
     pub idle_synced_first: bool,
@@ -63,7 +64,7 @@ impl Live {
             wants: Wants::default(),
             next_full_ms: 0,
             conn: Conn::Closed,
-            idle_capable: false,
+            idle_capable: None,
             idle_synced_first: false,
             listed: false,
             relist: false,
@@ -196,7 +197,7 @@ impl Worker<'_> {
                 };
                 let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
                 if let Some(live) = self.live.get_mut(account) {
-                    live.idle_capable = session.caps().idle;
+                    live.idle_capable = Some(session.caps().idle);
                 }
                 Ok(session)
             }
@@ -214,6 +215,16 @@ impl Worker<'_> {
             return Ok(());
         };
         let mut session = self.imap(account).await?;
+        if !session.caps().idle {
+            // Learned just now: the planner stops asking for IDLE.
+            let disk_full = self.disk_full(now_ms());
+            if let Some(live) = self.live.get_mut(account) {
+                // It did connect: a connect failure is over.
+                live.health.connected(disk_full);
+                live.conn = Conn::Ready(session);
+            }
+            return Ok(());
+        }
         #[cfg(feature = "test-hooks")]
         crate::hooks::reached(crate::hooks::Point::IdleSelect, account);
         let state = prepare_idle(&mut session, &inbox.path)
@@ -223,12 +234,11 @@ impl Worker<'_> {
         let disk_full = self.disk_full(now_ms());
         if let Some(live) = self.live.get_mut(account) {
             let failed = live.health.failures > 0;
+            live.health.connected(disk_full);
             if sync_first(failed, behind && !disk_full, live.idle_synced_first) {
                 // Back after a failure, or the Inbox changed after its sync:
-                // sync it first; IDLE starts on the next turn.
-                if failed {
-                    live.health.ok(disk_full);
-                }
+                // sync it first; IDLE starts on the next turn. The failures
+                // stay: only an IDLE that ran clears them.
                 live.idle_synced_first = true;
                 live.wants.folders.insert(inbox.id);
                 live.conn = Conn::Ready(session);
@@ -260,14 +270,19 @@ impl Worker<'_> {
         result: envio_net::Result<(ImapSession, Woke)>,
     ) {
         let before = self.status_of(account);
-        let foreground = self.foreground;
+        // A background session stays only for an account that notifies: its
+        // Inbox goes back to IDLE.
+        let keep = self.foreground || self.notifies(account);
         let inbox = self.inbox_of(account);
+        let disk_full = self.disk_full(now_ms());
         let Some(live) = self.live.get_mut(account) else {
             return;
         };
         match result {
             Ok((session, woke)) => {
-                live.conn = if foreground {
+                // The IDLE ran (it did not fail at once): the backoff ends.
+                live.health.idle_ran(disk_full);
+                live.conn = if keep {
                     Conn::Ready(session)
                 } else {
                     Conn::Closed
@@ -284,7 +299,7 @@ impl Worker<'_> {
             Err(error) => {
                 live.conn = Conn::Closed;
                 let problem = problem::from_net(&error, Service::Imap);
-                super::run::failed(self, account, "connect", &problem);
+                super::run::failed(self, account, "idle", &problem);
                 // Nobody waiting for a body of this account gets it soon.
                 self.open_failed(Some(account));
             }
@@ -295,8 +310,18 @@ impl Worker<'_> {
     /// The app moved to the foreground or the background.
     pub(crate) fn app_active(&mut self, active: bool) {
         self.foreground = active;
+        self.poster.set_foreground(active);
+        if active {
+            self.poster.reset_unseen_all();
+        }
         if !active {
-            for live in self.live.values_mut() {
+            let notify_off = &self.store.settings.notify_off;
+            for (account, live) in &mut self.live {
+                // An account that notifies keeps Inbox IDLE (or the session
+                // that is about to start it); the others stop.
+                if !notify_off.contains(account) {
+                    continue;
+                }
                 match &live.conn {
                     Conn::Idling(notify) => notify.notify_one(),
                     Conn::Ready(_) => live.conn = Conn::Closed,
@@ -428,5 +453,83 @@ mod tests {
         let secrets = Secrets::open(dir.path()).unwrap();
         let result = connect_imap(&account(None), &secrets, &Roots::empty()).await;
         assert!(matches!(result, Err(Problem::SignIn)));
+    }
+
+    /// Whether going to the background woke the account's IDLE, and whether
+    /// it still idles afterwards.
+    fn background_wakes(notify_off: bool) -> (bool, bool) {
+        use crate::worker::testing::{Sink, open, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        if notify_off {
+            worker
+                .store
+                .settings
+                .notify_off
+                .insert(seeded.account.clone());
+        }
+        let stop = Rc::new(Notify::new());
+        worker.live.get_mut(&seeded.account).unwrap().conn = Conn::Idling(stop.clone());
+        worker.app_active(false);
+        let woken = stop.notified().now_or_never().is_some();
+        let idling = matches!(worker.live[&seeded.account].conn, Conn::Idling(_));
+        (woken, idling)
+    }
+
+    #[test]
+    fn background_keeps_inbox_idle_when_notify_is_on() {
+        assert_eq!(background_wakes(false), (false, true));
+    }
+
+    #[test]
+    fn background_closes_when_notify_is_off() {
+        // Woken, so its session comes back through `idle_done` and closes.
+        assert_eq!(background_wakes(true), (true, true));
+    }
+
+    #[test]
+    fn resume_reconnects_every_account() {
+        use crate::worker::testing::{Sink, open, seed};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.live.get_mut(&seeded.account).unwrap().conn = Conn::Idling(Rc::new(Notify::new()));
+        worker.app_active(false);
+        worker.app_active(true);
+        assert!(matches!(worker.live[&seeded.account].conn, Conn::Closed));
+    }
+
+    #[test]
+    fn an_idle_that_fails_right_after_starting_keeps_backing_off() {
+        use crate::worker::testing::{Sink, open, seed};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        let mut delays = Vec::new();
+        for _ in 0..4 {
+            worker.idle_done(&account, Err(envio_net::NetError::Timeout));
+            let health = &mut worker.live.get_mut(&account).unwrap().health;
+            delays.push(health.failures);
+            // The reconnect and the Inbox sync before IDLE work.
+            health.ok_step("folder", false);
+        }
+        assert_eq!(delays, [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn an_unknown_idle_capability_is_tried() {
+        assert!(super::super::plan::may_idle(None, true));
+        assert!(super::super::plan::may_idle(Some(true), true));
+        assert!(!super::super::plan::may_idle(Some(false), true));
+        assert!(!super::super::plan::may_idle(None, false));
     }
 }

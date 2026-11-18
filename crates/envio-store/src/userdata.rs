@@ -57,6 +57,11 @@ pub struct Settings {
     /// the whole file to `.damaged`.
     #[serde(default = "thirty", deserialize_with = "snap_window")]
     pub sync_window_days: u32,
+    /// Account keys whose new-mail notifications are off (empty: every
+    /// account notifies).
+    pub notify_off: BTreeSet<String>,
+    /// Whether a card for one new message shows its sender and subject.
+    pub notify_show_text: bool,
 }
 
 impl Default for Settings {
@@ -69,6 +74,8 @@ impl Default for Settings {
             images_from: BTreeSet::new(),
             default_account: None,
             sync_window_days: thirty(),
+            notify_off: BTreeSet::new(),
+            notify_show_text: false,
         }
     }
 }
@@ -205,5 +212,30 @@ mod tests {
         let settings = load_settings(&path).unwrap();
         assert_eq!(settings.theme, ThemeName::Airmail);
         assert_eq!(settings.sync_window_days, 30);
+    }
+
+    #[test]
+    fn old_settings_files_read_with_notifications_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, r#"{"version": 1, "theme": "airmail"}"#).unwrap();
+        let settings = load_settings(&path).unwrap();
+        assert!(settings.notify_off.is_empty());
+        assert!(!settings.notify_show_text);
+    }
+
+    #[test]
+    fn notify_fields_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let settings = Settings {
+            notify_off: BTreeSet::from(["a1".to_owned(), "b2".to_owned()]),
+            notify_show_text: true,
+            ..Settings::default()
+        };
+        save_settings(&path, &settings).unwrap();
+        let back = load_settings(&path).unwrap();
+        assert_eq!(back.notify_off, settings.notify_off);
+        assert!(back.notify_show_text);
     }
 }
