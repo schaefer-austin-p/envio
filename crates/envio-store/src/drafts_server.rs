@@ -50,10 +50,22 @@ impl Drafts {
     /// Writes the deletion note for `id`'s server copy, if it has one.
     /// Called by `delete` with the lock held.
     pub(crate) fn note_server_copy(&self, id: &str) -> Result<()> {
-        let Ok(draft) = self.load(id) else {
-            return Ok(());
+        let (account, server) = match self.load(id) {
+            Ok(draft) => (draft.account, draft.server),
+            // A damaged file still names its server copy, usually.
+            Err(StoreError::BadRecord { .. }) => match self.salvage_fields(id) {
+                Some(found) => found,
+                None => {
+                    log::warn!(
+                        "draft {id}: the file is damaged and names no server copy; \
+                         a copy in Drafts, if any, stays there"
+                    );
+                    return Ok(());
+                }
+            },
+            Err(_) => return Ok(()),
         };
-        let message_ids: Vec<String> = [&draft.server.message_id, &draft.server.pending_id]
+        let message_ids: Vec<String> = [&server.message_id, &server.pending_id]
             .into_iter()
             .flatten()
             .cloned()
@@ -63,7 +75,7 @@ impl Drafts {
         }
         let note = ServerDelete {
             id: id.to_owned(),
-            account: draft.account,
+            account,
             message_ids,
         };
         let bytes = serde_json::to_vec(&note).map_err(|error| StoreError::BadRecord {

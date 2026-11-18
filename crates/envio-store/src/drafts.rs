@@ -125,19 +125,25 @@ impl Drafts {
     /// read on its own, so the next save keeps naming the server copy. A
     /// file with nothing to salvage gives "never uploaded" (logged).
     fn salvage_server(&self, id: &str) -> ServerCopy {
-        let path = self.path(id);
-        let found = fs::read(&path)
-            .ok()
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .and_then(|mut value| value.get_mut("server").map(serde_json::Value::take))
-            .and_then(|server| serde_json::from_value(server).ok());
-        found.unwrap_or_else(|| {
-            log::warn!(
-                "draft {id}: the file is damaged and names no server copy; \
+        self.salvage_fields(id)
+            .map(|(_, server)| server)
+            .unwrap_or_else(|| {
+                log::warn!(
+                    "draft {id}: the file is damaged and names no server copy; \
                  a copy in Drafts, if any, stays there"
-            );
-            ServerCopy::default()
-        })
+                );
+                ServerCopy::default()
+            })
+    }
+
+    /// The `account` and `server` fields of a draft file that does not
+    /// parse as a whole, each read on its own.
+    pub(crate) fn salvage_fields(&self, id: &str) -> Option<(String, ServerCopy)> {
+        let bytes = fs::read(self.path(id)).ok()?;
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+        let account = value.get("account")?.as_str()?.to_owned();
+        let server = serde_json::from_value(value.get_mut("server")?.take()).ok()?;
+        Some((account, server))
     }
 
     pub fn load(&self, id: &str) -> Result<Draft> {

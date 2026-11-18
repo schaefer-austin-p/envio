@@ -63,6 +63,27 @@ fn saving_over_a_damaged_file_keeps_the_server_copy_it_still_names() {
 }
 
 #[test]
+fn deleting_a_damaged_draft_still_leaves_a_note_for_its_server_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 1)).unwrap();
+    let damaged =
+        r#"{"account":"1700","to":"oops","server":{"message_id":"<a@x>","pending_id":"<b@x>"}}"#;
+    fs::write(dir.path().join(format!("{id}.json")), damaged).unwrap();
+    assert!(drafts.load(&id).is_err());
+    drafts.delete(&id).unwrap();
+    let notes = drafts.deletes().unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].account, "1700");
+    assert_eq!(notes[0].message_ids, ["<a@x>", "<b@x>"]);
+    // Nothing to salvage: the delete still succeeds, with no note.
+    let other = drafts.create(&draft("Two", 2)).unwrap();
+    fs::write(dir.path().join(format!("{other}.json")), "not json").unwrap();
+    drafts.delete(&other).unwrap();
+    assert_eq!(drafts.deletes().unwrap().len(), 1);
+}
+
+#[test]
 fn marking_a_deleted_draft_changes_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let drafts = Drafts::open(dir.path()).unwrap();
