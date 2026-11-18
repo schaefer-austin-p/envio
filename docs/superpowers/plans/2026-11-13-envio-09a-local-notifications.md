@@ -199,8 +199,7 @@ shape comes from a Rust `Alert::to_postal_json()` in core (unit-tested).
 The card carries `actions: ["appid://envio.aps/envio/current-user-version"]`,
 so a tap brings Envio to the front on its usual unified Inbox (Task 1
 checked the URL). Opening one account's Inbox from the card is out of
-scope: it needs a custom URL scheme in `envio.url-dispatcher`; log it as
-a `moscow/could` issue.
+scope: it needs a custom URL scheme in `envio.url-dispatcher`; it is #230.
 
 **Tests:**
 - `to_postal_json` unit test (tag, card summary, body, popup, persist,
