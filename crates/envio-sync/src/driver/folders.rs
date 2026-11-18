@@ -5,7 +5,6 @@ use envio_net::imap::{FlagUpdate, Summary};
 use envio_store::{Flags, Folder, FolderId, FolderRole, MessageRowId};
 
 use super::Local;
-use crate::convert::store_flags;
 use crate::error::Result;
 use crate::newmail::{self, NewMail, NewRow};
 use crate::plan::folders::plan_folders;
@@ -50,8 +49,9 @@ pub struct Synced {
     pub more: bool,
     /// New mail this call stored; always empty for folders but the Inbox.
     /// A first sync, a UIDVALIDITY reset and a sync that is still
-    /// unfinished from one never count. When `more` is set, each call
-    /// reports what it stored itself: the caller sums them.
+    /// unfinished from one never count. Reported once, by the call that
+    /// finishes the sync (`more` false), for everything cached from the
+    /// old UIDNEXT up, even when earlier calls stored it.
     pub new_mail: NewMail,
 }
 
@@ -141,43 +141,41 @@ pub async fn sync_folder_as(
         ..Synced::default()
     };
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
-    let mut stored = Vec::new();
     for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
         synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
-        if folder.role == FolderRole::Inbox {
-            stored.extend(new_rows(&summaries, &pending));
-        }
-    }
-    if folder.role == FolderRole::Inbox {
-        let prev = folder.sync.map(|s| s.uidnext).filter(|next| *next > 0);
-        synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
     if !synced.more {
         local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
+        if folder.role == FolderRole::Inbox {
+            let prev = folder.sync.map(|s| s.uidnext).filter(|next| *next > 0);
+            let stored = new_rows(local, id, prev, plan.finish.uidnext)?;
+            synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
+        }
     }
     Ok(synced)
 }
 
-/// What a batch stored, as the new-mail rule reads it: the rows `rows`
-/// keeps, with their sender and subject.
-fn new_rows(summaries: &[Summary], pending: &Pending) -> Vec<NewRow> {
-    summaries
-        .iter()
-        .filter(|s| !s.flags.deleted && !pending.is_hidden(s.uid))
-        .map(|s| {
-            let parsed = envio_mime::envelope(&s.header).unwrap_or_default();
-            NewRow {
-                uid: s.uid,
-                seen: pending
-                    .flags(s.uid, store_flags(&s.flags))
-                    .contains(Flags::SEEN),
-                from: parsed.from.into_iter().next().unwrap_or_default(),
-                subject: parsed.subject,
-            }
+/// The cached rows from the old UIDNEXT up, as the new-mail rule reads
+/// them. Read from the cache once the sync is finished, so a sync split
+/// over several calls, or cut and retried, still reports everything it
+/// stored, once.
+fn new_rows(local: &Local<'_>, id: FolderId, prev: Option<u32>, next: u32) -> Result<Vec<NewRow>> {
+    let Some(prev) = prev else {
+        return Ok(Vec::new());
+    };
+    Ok(local
+        .db
+        .messages_in_uid_range(id, prev, next)?
+        .into_iter()
+        .map(|m| NewRow {
+            uid: m.uid,
+            seen: m.flags.contains(Flags::SEEN),
+            from: Address::parse(&m.envelope.from).unwrap_or_default(),
+            subject: m.envelope.subject,
         })
-        .collect()
+        .collect())
 }
 
 /// Caches one fetched batch in a single transaction (and remembers its

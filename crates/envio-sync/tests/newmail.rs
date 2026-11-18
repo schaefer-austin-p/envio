@@ -3,6 +3,7 @@
 mod support;
 
 use envio_mime::Address;
+use envio_net::NetError;
 use envio_net::imap::{Flag, MessageFlags, Role};
 use envio_sync::driver::{Options, Synced, sync_folder, sync_folder_as, sync_folders};
 use support::fake::{FakeServer, NOW_MS};
@@ -90,4 +91,77 @@ async fn other_folders_report_no_new_mail() {
             .count,
         0
     );
+}
+
+fn inbox_of(count: usize) -> FakeServer {
+    let mut server = FakeServer::new();
+    for n in 0..count {
+        server.deliver_id("INBOX", &format!("first{n}"));
+    }
+    server
+}
+
+fn deliver_more(server: &mut FakeServer, count: usize) {
+    for n in 0..count {
+        server.deliver_id("INBOX", &format!("later{n}"));
+    }
+}
+
+#[tokio::test]
+async fn a_uidvalidity_reset_reports_no_new_mail() {
+    let mut server = FakeServer::new();
+    server.deliver_id("INBOX", "a");
+    let mut store = Store::new();
+    sync(&mut server, &mut store, "INBOX").await;
+    server.deliver_id("INBOX", "b");
+    server.renumber("INBOX");
+    assert_eq!(
+        sync(&mut server, &mut store, "INBOX").await.new_mail.count,
+        0
+    );
+}
+
+#[tokio::test]
+async fn a_resumed_first_sync_reports_no_new_mail() {
+    let mut server = inbox_of(250);
+    let mut store = Store::new();
+    loop {
+        let synced = sync(&mut server, &mut store, "INBOX").await;
+        assert_eq!(synced.new_mail.count, 0);
+        if !synced.more {
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_sync_in_two_calls_reports_the_total_once() {
+    let mut server = inbox_of(1);
+    let mut store = Store::new();
+    sync(&mut server, &mut store, "INBOX").await;
+    deliver_more(&mut server, 120);
+    let first = sync(&mut server, &mut store, "INBOX").await;
+    assert!(first.more);
+    assert_eq!(first.new_mail.count, 0);
+    let last = sync(&mut server, &mut store, "INBOX").await;
+    assert!(!last.more);
+    assert_eq!(last.new_mail.count, 120);
+}
+
+#[tokio::test]
+async fn a_cut_sync_still_reports_what_it_stored_when_retried() {
+    let mut server = inbox_of(1);
+    let mut store = Store::new();
+    sync(&mut server, &mut store, "INBOX").await;
+    deliver_more(&mut server, 120);
+    server.fail_after("fetch_summaries", 1, NetError::Timeout);
+    sync_folders(&mut server, &mut store.local(), ACCOUNT)
+        .await
+        .unwrap();
+    let id = store.folder("INBOX").id;
+    let cut = sync_folder(&mut server, &mut store.local(), id, NOW_MS, Some(30), None).await;
+    assert!(cut.is_err());
+    let retried = sync(&mut server, &mut store, "INBOX").await;
+    assert!(!retried.more);
+    assert_eq!(retried.new_mail.count, 120);
 }
