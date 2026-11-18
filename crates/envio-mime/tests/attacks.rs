@@ -166,6 +166,8 @@ fn check(name: &str, html: &str, remote: bool) {
             "vbscript:",
             "data:",
             "url(",
+            "var(",
+            "env(",
             "expression",
             "position",
         ] {
@@ -248,5 +250,9 @@ fn attack_files_keep_their_safe_content() {
             confusion.html
         );
         assert!(confusion.html.contains("cid link"));
+
+        let vars = render_file("css-var-env.html", remote);
+        assert!(vars.html.contains("font-weight:bold"), "{}", vars.html);
+        assert!(vars.html.contains("color:#336699"), "{}", vars.html);
     }
 }
