@@ -290,4 +290,5 @@ fn started_with_a_label_shows_it() {
     let Op::Reset(rows) = ops[0] else { panic!() };
     let Row::Account(a) = &rows[0] else { panic!() };
     assert_eq!((a.names.display.as_str(), a.name.as_str()), ("Home", "A"));
+    assert_eq!(a.heading, "Home · a@example.org");
 }
