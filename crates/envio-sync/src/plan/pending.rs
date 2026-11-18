@@ -12,12 +12,16 @@ pub struct Pending {
     /// (add, remove) per UID, oldest first.
     flags: BTreeMap<u32, Vec<(Flags, Flags)>>,
     hidden: BTreeSet<u32>,
+    /// Message-IDs of Moves and Deletes journalled under an earlier
+    /// UIDVALIDITY: their UIDs mean nothing now, the messages are still
+    /// on their way out.
+    hidden_ids: BTreeSet<String>,
 }
 
 impl Pending {
     /// The pending actions on messages in `path` as of `uidvalidity`.
-    /// Actions from before a UIDVALIDITY change name other messages; they
-    /// are found by Message-ID when replayed.
+    /// Actions from before a UIDVALIDITY change name other UIDs; they are
+    /// found by Message-ID when replayed, and until then hide by Message-ID.
     pub fn of<'a>(
         actions: impl IntoIterator<Item = &'a Action>,
         account: &str,
@@ -25,12 +29,18 @@ impl Pending {
         uidvalidity: u32,
     ) -> Self {
         let mut pending = Self::default();
-        let here = actions.into_iter().filter(|action| {
-            action.target.account == account
-                && action.target.folder == path
-                && action.target.uidvalidity == uidvalidity
-        });
+        let here = actions
+            .into_iter()
+            .filter(|action| action.target.account == account && action.target.folder == path);
         for action in here {
+            if action.target.uidvalidity != uidvalidity {
+                if let (ActionKind::Move { .. } | ActionKind::Delete, Some(id)) =
+                    (&action.kind, &action.target.message_id)
+                {
+                    pending.hidden_ids.insert(id.clone());
+                }
+                continue;
+            }
             let uid = action.target.uid;
             match &action.kind {
                 ActionKind::SetFlags { add, remove } => {
@@ -57,6 +67,12 @@ impl Pending {
     /// The message is on its way out of this folder.
     pub fn is_hidden(&self, uid: u32) -> bool {
         self.hidden.contains(&uid)
+    }
+
+    /// Like [`Self::is_hidden`] for a fetched row: also true when a Move or
+    /// Delete journalled under an older UIDVALIDITY names its Message-ID.
+    pub fn hides(&self, uid: u32, message_id: Option<&str>) -> bool {
+        self.is_hidden(uid) || message_id.is_some_and(|id| self.hidden_ids.contains(id))
     }
 }
 
@@ -99,6 +115,20 @@ mod tests {
         );
         assert_eq!(pending.flags(9, Flags::SEEN), Flags::SEEN);
         assert!(pending.is_hidden(4));
+        assert!(!pending.is_hidden(3));
+    }
+
+    #[test]
+    fn an_old_uidvalidity_move_or_delete_hides_by_message_id() {
+        let mut old = action("INBOX", 6, 3, ActionKind::Delete);
+        old.target.message_id = Some("<a@b>".into());
+        let mut flag = action("INBOX", 6, 4, set(Flags::SEEN, Flags::empty()));
+        flag.target.message_id = Some("<c@d>".into());
+        let actions = [old, flag];
+        let pending = Pending::of(&actions, "1700", "INBOX", 7);
+        assert!(pending.hides(9, Some("<a@b>")));
+        assert!(!pending.hides(9, Some("<c@d>")));
+        assert!(!pending.hides(9, None));
         assert!(!pending.is_hidden(3));
     }
 
