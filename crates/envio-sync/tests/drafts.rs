@@ -201,7 +201,10 @@ async fn a_refusal_that_clears_is_uploaded_on_a_later_run() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
     server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
-    assert_eq!(run(&mut server, &store).await.refused, [id.clone()]);
+    assert_eq!(
+        run(&mut server, &store).await.refused,
+        std::slice::from_ref(&id)
+    );
     assert_eq!(run(&mut server, &store).await.uploaded, [id]);
 }
 
