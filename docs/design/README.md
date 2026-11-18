@@ -29,3 +29,10 @@ section disagree, the section wins.
 Added after the export: the meeting invite card (0.2.0), at the foot of
 `carbon-reading` and `airmail-reading`, in light and dark. It shows every state:
 open, with a note, answered, updated, cancelled, reply, sending and send failed.
+
+Also added (0.2.0, notifications): Settings → Notifications, at the foot of
+`carbon-prompts` and `airmail-prompts` (light) and `carbon-dark` and
+`airmail-dark` (dark). Each shows the Settings list with the new entry after
+Sync, the page (a switch per account, "Show sender and subject", and the
+"Keep checking in the background" help with the Terminal command) and the
+all-accounts-off state. The command text is a TODO until confirmed on the phone.
