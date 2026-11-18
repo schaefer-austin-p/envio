@@ -96,21 +96,74 @@ Item {
         }
 
         // What Content Hub hands over: items with file:// URLs.
-        readonly property var transfer: ({ items: [
-            { url: "file:///home/u/.cache/hub/a%20b.pdf" },
-            { url: "file:///home/u/.cache/hub/c.png" }
-        ] })
+        function newTransfer() {
+            return { finalized: 0, finalize: function() { this.finalized++ }, items: [
+                { url: "file:///home/u/.cache/hub/a%20b.pdf" },
+                { url: "file:///home/u/.cache/hub/c.png" }
+            ] }
+        }
+        readonly property var draft: ({ account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                        inReplyTo: "", references: [], attachments: [] })
 
         function test_a_shared_transfer_opens_compose_with_its_files() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
-            b.shell.shares.accept(transfer)
+            b.shell.shares.accept(newTransfer())
             compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
             compare(b.shell.depth, 2)
             compare(b.shell.currentPage.compose, 1)
+            b.core.composeReady(1, draft, "")
             compare(b.core.called("attach").map(function(c) { return c.args }),
                     [[1, "/home/u/.cache/hub/a b.pdf"], [1, "/home/u/.cache/hub/c.png"]])
             b.shell.destroy()
+        }
+
+        function test_files_are_attached_only_after_composeReady() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.shares.accept(newTransfer())
+            wait(50)
+            compare(b.core.called("attach").length, 0, "the worker does not know the compose yet")
+            b.core.composeReady(2, draft, "")
+            compare(b.core.called("attach").length, 0, "another compose's ready")
+            b.core.composeReady(1, draft, "")
+            compare(b.core.called("attach").length, 2)
+            b.core.composeReady(1, draft, "")
+            compare(b.core.called("attach").length, 2, "attached once")
+            b.shell.destroy()
+        }
+
+        function test_the_transfer_is_finalized_when_every_file_settled() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const t = newTransfer()
+            b.shell.shares.accept(t)
+            b.core.composeReady(1, draft, "")
+            b.core.attached(1, "/d/a b.pdf", "a b.pdf", 3)
+            compare(t.finalized, 0, "one file is still being copied")
+            b.core.attachFailed(1, "unreadable")
+            compare(t.finalized, 1)
+            b.core.attached(1, "/d/other.pdf", "other.pdf", 3)
+            compare(t.finalized, 1, "once")
+            b.shell.destroy()
+        }
+
+        function test_a_transfer_without_files_is_finalized_at_once() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const t = { finalized: 0, finalize: function() { this.finalized++ }, items: [] }
+            b.shell.shares.accept(t)
+            compare(t.finalized, 1)
+            b.shell.destroy()
+        }
+
+        function test_the_share_receiver_compiles() {
+            // Compiled, never created: creating it registers a Content Hub
+            // handler on the bus. (A missing Lomiri.Content is an Error too.)
+            const c = Qt.createComponent("../../qml/platform/ut/ShareReceiver.qml")
+            tryVerify(function() { return c.status !== Component.Loading })
+            verify(c.status === Component.Ready, c.errorString())
+            c.destroy()
         }
 
         function test_a_share_before_the_core_is_ready_waits_for_it() {
@@ -121,9 +174,10 @@ Item {
                 messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
                 searchResults: c.searchResults
             })
-            s.shares.accept(transfer)
+            s.shares.accept(newTransfer())
             compare(c.called("startCompose").length, 0)
             c.ready = true
+            c.composeReady(1, draft, "")
             tryVerify(function() { return c.called("attach").length === 2 })
             compare(c.called("startCompose").length, 1)
             s.destroy()
@@ -132,7 +186,7 @@ Item {
         function test_a_share_without_an_account_shows_the_wizard_and_waits() {
             const b = boot(false)
             tryVerify(function() { return b.shell.depth === 1 })
-            b.shell.shares.accept(transfer)
+            b.shell.shares.accept(newTransfer())
             compare(b.shell.currentPage.objectName, "wizardPage")
             compare(b.core.called("startCompose").length, 0)
             b.core.accounts.append(ann)
@@ -140,6 +194,7 @@ Item {
             wait(50)
             compare(b.core.called("attach").length, 0, "the wizard's Options step comes first")
             b.shell.wizardClosed()
+            b.core.composeReady(1, draft, "")
             compare(b.core.called("attach").length, 2)
             b.shell.destroy()
         }

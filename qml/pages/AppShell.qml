@@ -112,21 +112,39 @@ Item {
     // Files shared in from another app wait the same way (no account: the
     // wizard shows meanwhile); then a new message opens with them attached.
     // The core copies each file out of the hub's inbox (attach).
+    // [{ paths, transfer }]
     property var pendingShare: []
+    // compose id -> paths: attached once the core's worker has recorded the
+    // compose (`composeReady`); attach runs on another thread and fails for a
+    // compose the worker does not know yet.
+    property var shareWaiting: ({})
     // Main turns this on: only the real app listens to the Content Hub.
     property bool receiveShares: false
-    function openShared(paths) {
-        pendingShare = pendingShare.concat(paths)
+    function openShared(paths, transfer) {
+        pendingShare = pendingShare.concat([{ paths: paths, transfer: transfer }])
         startPendingShare()
     }
     function startPendingShare() {
         if (pendingShare.length === 0 || !core.ready || accountCount === 0 || rootKind !== "inbox") return
-        const paths = pendingShare
+        const entries = pendingShare
         pendingShare = []
         const id = core.startCompose("new", 0, composeAccount, "")
         if (id <= 0) return
+        let paths = []
+        for (const e of entries) paths = paths.concat(e.paths)
+        shareIn.track(id, paths.length, entries.map(function(e) { return e.transfer }))
+        const waiting = shareWaiting
+        waiting[id] = paths
+        shareWaiting = waiting
         composeOpened(id)
-        for (const p of paths) core.attach(id, p)
+    }
+    // Attaching follows composeReady, so the page's fill() has run before
+    // any Attached arrives (the attach result is an event queued after it).
+    function attachShared(compose) {
+        const paths = shareWaiting[compose]
+        if (paths === undefined) return
+        delete shareWaiting[compose]
+        for (const p of paths) core.attach(compose, p)
     }
 
     // For tests: where a transfer is handed in (`shares.accept(transfer)`).
@@ -134,7 +152,7 @@ Item {
     ShareIn {
         id: shareIn
         listening: root.receiveShares
-        onFilesShared: function(paths) { root.openShared(paths) }
+        onFilesShared: function(paths, transfer) { root.openShared(paths, transfer) }
     }
 
     Platform.Uri {
@@ -351,6 +369,9 @@ Item {
             root.startPendingMailto()
             root.startPendingShare()
         }
+        function onComposeReady(compose) { root.attachShared(compose) }
+        function onAttached(compose) { shareIn.settle(compose) }
+        function onAttachFailed(compose) { shareIn.settle(compose) }
         function onStoreProblem(text) { root.retrying = false; root.problem = text }
         function onStartFailed(text) { root.retrying = false; root.problem = text }
         // A trust prompt is the setup wizard's; it answers its own. Nothing
