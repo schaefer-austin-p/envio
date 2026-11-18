@@ -84,7 +84,9 @@ pub(crate) fn fit(html: &str) -> String {
             out.push_str(raw);
             continue;
         };
-        let inherited = open.last().map_or(DEFAULT_PX, |o| o.px);
+        // Qt paints whole px, so a `%` or `em` inside applies to the rounded
+        // size: 1.5px counts as 2px (#259).
+        let inherited = open.last().map_or(DEFAULT_PX, |o| o.px.round());
         let scripted =
             matches!(tag.name.as_str(), "sub" | "sup") || open.last().is_some_and(|o| o.scripted);
         let before = tag.attrs.clone();
