@@ -254,11 +254,8 @@ fn image(
             }
         }
     } else if lower.starts_with("http:") || lower.starts_with("https:") {
-        if !options.allow_remote_images {
-            out.blocked_images += 1;
-            image_label::write(tag, options, &mut out.html);
-            return Some(width);
-        }
+        // The same rule blocked or not, so the blocked count is what
+        // "Load images" brings back: each distinct URL once, up to the cap.
         if !seen.urls.contains(src) {
             if seen.urls.len() >= MAX_REMOTE_IMAGES {
                 // Over the cap: the label, not counted as blocked (the
@@ -267,7 +264,15 @@ fn image(
                 return Some(width);
             }
             seen.urls.insert(src.to_owned());
-            out.remote_images.push(src.to_owned());
+            if options.allow_remote_images {
+                out.remote_images.push(src.to_owned());
+            } else {
+                out.blocked_images += 1;
+            }
+        }
+        if !options.allow_remote_images {
+            image_label::write(tag, options, &mut out.html);
+            return Some(width);
         }
         natural = options.image_sizes.get(src).copied();
         src.to_owned()
