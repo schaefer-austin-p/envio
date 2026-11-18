@@ -210,6 +210,13 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   when. It learns no content.
 - A stolen device secret lets someone change that device's push token. It
   does not reveal passwords, because the relay never returns them.
+- Whoever holds Envio's push token can show up to 200 characters of
+  summary and body on an Envio card, if they can shape the helper's input
+  beyond the `message` wrapper: the helper tells a local `Post` (marked
+  `envio_local`, no `message`) from a remote push only by that shape, and
+  no unforgeable signal is known. The action is always fixed to open Envio.
+  9b.T1 checks whether the push service gives the helper a trustworthy
+  origin signal; if not, 9b decides whether to drop the local-text path.
 
 ## Testing
 

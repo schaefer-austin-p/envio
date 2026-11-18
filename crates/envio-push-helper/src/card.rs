@@ -4,6 +4,14 @@
 //! remote message never reaches the card except as a count. The card is a
 //! fixed template; the one input with words of its own is a local `Post`,
 //! marked by Envio, and even that keeps only whitelisted fields.
+//!
+//! Residual risk: nothing in the helper's input is known to be unforgeable
+//! by a remote sender. The push service wraps a remote `data` object as
+//! `message`, so a message carrying `message` never takes the local path;
+//! a sender who can shape the top level of the input beyond that could
+//! still show up to 200 characters of summary and body on an Envio card
+//! (never an action, never other fields). The spec's 9b "Threats this
+//! design accepts" lists this; 9b decides whether to close it.
 
 use serde_json::{Map, Value, json};
 
@@ -31,7 +39,9 @@ pub fn convert(input: &[u8], text: &Text) -> String {
     let Ok(Value::Object(input)) = serde_json::from_slice::<Value>(input) else {
         return json!({ "message": {} }).to_string();
     };
-    let marked = input.get(LOCAL_MARK) == Some(&Value::Bool(true));
+    // A remote push always arrives wrapped as `message`; a local Post has none.
+    let marked =
+        input.get(LOCAL_MARK) == Some(&Value::Bool(true)) && !input.contains_key("message");
     let notification = marked
         .then(|| local(&input))
         .flatten()
@@ -160,6 +170,18 @@ mod tests {
         assert_eq!(n["tag"], "new-1");
         assert_eq!(n["emblem-counter"]["count"], 2);
         assert_eq!(out["message"], json!({}));
+    }
+
+    #[test]
+    fn a_forged_mark_on_a_remote_message_is_ignored() {
+        let out = run(
+            r#"{"envio_local":true,"message":{"u":2},"notification":{"tag":"t","card":{"summary":"Bank","body":"Pay now"}}}"#,
+        );
+        let n = &out["notification"];
+        assert_eq!(n["card"]["summary"], "Envio");
+        assert_eq!(n["card"]["body"], "2 new");
+        assert_eq!(n["tag"], "new-mail");
+        assert!(!out.to_string().contains("Pay now"));
     }
 
     #[test]
