@@ -75,7 +75,7 @@ pub(crate) struct Worker<'s> {
     handled_release_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
-    /// Servers found through DNS (SRV) by `Detect`: connecting to them
+    /// Servers `Detect` found outside the address's domain: connecting to them
     /// needs the user's confirmation whatever the app says.
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.

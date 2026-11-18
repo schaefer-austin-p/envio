@@ -38,9 +38,10 @@ pub struct Found {
     pub imap: Setting,
     pub smtp: Setting,
     pub source: Source,
-    /// The servers came from unauthenticated DNS and at least one host is
-    /// outside the email domain; the setup screen must show the hosts and
-    /// ask before sending the password (RFC 6186 §6).
+    /// At least one host is outside the email domain, whatever the source
+    /// (DNS is unauthenticated, other files may point anywhere); the setup
+    /// screen must show the hosts and ask before sending the password
+    /// (RFC 6186 §6).
     pub confirm: bool,
 }
 

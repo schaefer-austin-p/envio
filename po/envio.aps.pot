@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 10:08+0100\n"
+"POT-Creation-Date: 2026-11-18 14:03+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -135,8 +135,8 @@ msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:18
 msgid ""
-"These servers are not on your address's domain. They came from the domain's "
-"DNS records. Use them only if you recognise them."
+"These servers are not on your address's domain. Use them only if you "
+"recognise them."
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
@@ -1143,7 +1143,7 @@ msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:30
 msgid ""
-"Your domain DNS records point to these servers:\n"
+"These servers are not on your address's domain:\n"
 "Incoming: {imap}\n"
 "Outgoing: {smtp}\n"
 "Your password is sent to them. Only continue if you trust them"
