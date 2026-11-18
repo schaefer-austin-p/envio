@@ -379,15 +379,29 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         let t = setup();
         let mut w = open(&t.config, t.sink);
         let raw = item(&w, &t, b"", failed());
-        let files = item(&w, &t, WITH_FILE, failed());
         let queued = item(&w, &t, EML, SendState::Queued);
-        for id in [&raw, &files, &queued] {
+        for id in [&raw, &queued] {
             w.edit_outbox(id, C);
             assert!(state(&w, id).is_some());
         }
-        assert_eq!(notices(&t), 3);
+        assert_eq!(notices(&t), 2);
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn edit_keeps_an_item_whose_attachment_cannot_be_stored() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, WITH_FILE, failed());
+        // The files folder cannot be made: the item and no draft stay.
+        let files = t.dir.path().join("data").join("drafts").join("files");
+        std::fs::write(&files, b"in the way").unwrap();
+        w.edit_outbox(&id, C);
+        assert!(state(&w, &id).is_some());
+        assert!(w.book.id_of(C).is_none());
+        assert!(w.store.drafts.list().unwrap().is_empty());
+        assert_eq!(notices(&t), 1);
     }
 
     #[test]
