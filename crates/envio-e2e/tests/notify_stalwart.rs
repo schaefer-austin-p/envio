@@ -132,11 +132,14 @@ async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text
         assert!(alert.body.ends_with("new message") || alert.body.ends_with("new messages"));
         assert!(!alert.body.contains("Alpha") && !alert.body.contains("Alice"));
     }
-    let shown: u32 = alerts
+    // Each card counts all new mail since Envio was last on screen, so the
+    // counts rise wake by wake and the last card says 3.
+    let shown: Vec<u32> = alerts
         .iter()
         .map(|a| a.body.split(' ').next().unwrap().parse::<u32>().unwrap())
-        .sum();
-    assert_eq!(shown, 3);
+        .collect();
+    assert!(shown.windows(2).all(|w| w[0] < w[1]), "{shown:?}");
+    assert_eq!(shown.last(), Some(&3), "{shown:?}");
     // The badge followed the Inbox unread count up.
     let badges = recorder.0.lock().unwrap().badges.clone();
     assert!(badges.last().is_some_and(|total| *total >= 3), "{badges:?}");
