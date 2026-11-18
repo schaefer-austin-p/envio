@@ -103,6 +103,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. The meeting invite card (0.2.0) sits above the body, in all its states, light and dark. |
 | Contacts | `*-contacts` | Superseded in part, see below. |
 | Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". Settings → Notifications (0.2.0) sits at the foot, light. |
+| Two panes | `carbon-two-pane` | Tablet and desktop (#192, Carbon, light): list left, reader or compose right (1280 px), empty reader, optional drawer column, the ~90 gu breakpoint and what survives it, hover, right-click menu, shortcut legend. New: reader Close, empty state, hover fill, context menu, shortcuts dialog. |
 | Dark | `*-dark` | Inbox, reader and sync settings in each dark theme. Settings → Notifications (0.2.0) sits at the foot, dark. |
 | App icon | `*-icons` | Chosen: Airmail 2, the postage stamp with envelope, for both themes. |
 
