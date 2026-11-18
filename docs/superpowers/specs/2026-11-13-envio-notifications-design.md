@@ -75,6 +75,10 @@ lomiri-push-service 0.100.1) unless it is marked as coming from source.
   screen, a card appears: summary "‹account name›", body "3 new messages"
   (gettext plural, `text::count::new_mail`). Bursts collapse: the card
   uses tag `new-‹account key›`, so a later card replaces the earlier one.
+  The card counts all new mail since Envio was last on screen, not just
+  the latest sync: three messages in three syncs read "3 new messages"
+  (a tally in the worker; it restarts when Envio is focused or the
+  account's switch goes off).
   Postal does not replace by tag on a local `Post` (phone run, 2026-11-18),
   so the poster calls `ClearPersistent(app, tag)` first and posts when that
   call has finished. Tapping the card brings Envio to the front (an
