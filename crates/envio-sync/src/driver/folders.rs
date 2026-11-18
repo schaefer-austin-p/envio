@@ -88,7 +88,7 @@ pub async fn sync_folder(
             window: &window,
             cached: folder.sync,
             cached_uids: &cached_uids,
-            kept,
+            kept: kept.as_ref(),
             condstore: server.caps().condstore,
         },
         &pending,
