@@ -57,11 +57,21 @@ impl Core {
         // log folder, the drafts folder); then whatever an older install
         // left too open is narrowed. The database and its files follow in
         // the worker, private as they are made.
-        for root in [&config.cache_dir, &config.data_dir] {
-            envio_store::create_private_dir(root)?;
-            envio_store::tighten_tree(root)?;
-        }
+        // Not fatal: a root that cannot be made is the store's to report, and
+        // the worker retries it.
+        let roots: Vec<_> = [&config.cache_dir, &config.data_dir]
+            .into_iter()
+            .filter_map(|root| {
+                envio_store::create_private_dir(root)
+                    .and_then(|()| envio_store::tighten_tree(root))
+                    .err()
+                    .map(|error| (root, error))
+            })
+            .collect();
         crate::logging::init(&config.logs_dir(), config.log_level)?;
+        for (root, error) in roots {
+            log::warn!("making {} private: {error}", root.display());
+        }
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
         let book = Arc::new(DraftBook::new(&paths.drafts()));
         // The first open of the folder (here when it works, else when the

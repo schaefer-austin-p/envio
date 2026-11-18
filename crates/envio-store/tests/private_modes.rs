@@ -5,7 +5,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use envio_store::{ActionKind, Bodies, Db, Drafts, FolderId, Journal, MessageRef, Outbox};
+use envio_store::{ActionKind, Bodies, Db, Draft, Drafts, FolderId, Journal, MessageRef, Outbox};
 
 fn mode(path: &Path) -> u32 {
     fs::metadata(path).unwrap().permissions().mode() & 0o777
@@ -105,7 +105,8 @@ fn drafts_and_their_attachment_copies_are_private() {
     assert_eq!(mode(&root), 0o700);
     let source = dir.path().join("report.pdf");
     fs::write(&source, b"secret").unwrap();
-    let copy = drafts.keep_attachment("d1", &source).unwrap();
+    let id = drafts.create(&Draft::default()).unwrap();
+    let copy = drafts.keep_attachment(&id, &source).unwrap();
     assert_eq!(mode(&copy), 0o600);
     assert_eq!(mode(copy.parent().unwrap()), 0o700);
 }
