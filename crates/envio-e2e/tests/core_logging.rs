@@ -36,7 +36,8 @@ async fn trace_logging_of_a_real_sign_in_never_records_the_password() {
     let run = CoreRun::start(LevelFilter::Trace);
     let account = run.add_account(&server, "heidi");
     run.folder(&account, FolderRole::Inbox);
-    run.wait(NET, |event| match event {
+    // The status may have changed while `add_account` or `folder` waited.
+    run.wait_ever(NET, |event| match event {
         Event::AccountStatus {
             status: AccountStatus::Ready,
             ..
