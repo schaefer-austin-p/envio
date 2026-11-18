@@ -1,10 +1,13 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use envio_mime::Address;
 use envio_net::imap::{FlagUpdate, Summary};
-use envio_store::{Folder, FolderId, MessageRowId};
+use envio_store::{Flags, Folder, FolderId, FolderRole, MessageRowId};
 
 use super::Local;
+use crate::convert::store_flags;
 use crate::error::Result;
+use crate::newmail::{self, NewMail, NewRow};
 use crate::plan::folders::plan_folders;
 use crate::plan::pending::Pending;
 use crate::plan::sync::{
@@ -37,7 +40,7 @@ pub async fn sync_folders(
 }
 
 /// What one folder sync changed, for core's notices and counts.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Synced {
     pub fetched: usize,
     pub removed: usize,
@@ -45,6 +48,11 @@ pub struct Synced {
     /// Batches remain: call `sync_folder` again for the same folder. The
     /// folder's sync state is not finished until a call returns `false`.
     pub more: bool,
+    /// New mail this call stored; always empty for folders but the Inbox.
+    /// A first sync, a UIDVALIDITY reset and a sync that is still
+    /// unfinished from one never count. When `more` is set, each call
+    /// reports what it stored itself: the caller sums them.
+    pub new_mail: NewMail,
 }
 
 /// Batches (of [`crate::plan::sync::BATCH`] messages) fetched per call, so
@@ -68,6 +76,40 @@ pub async fn sync_folder(
     now_ms: i64,
     window_days: Option<u32>,
     kept: Option<Kept>,
+) -> Result<Synced> {
+    let how = Options {
+        now_ms,
+        window_days,
+        kept,
+        own: &[],
+    };
+    sync_folder_as(server, local, id, how).await
+}
+
+/// What [`sync_folder`] takes besides the folder, plus the account's own
+/// addresses.
+#[derive(Debug, Clone, Copy)]
+pub struct Options<'a> {
+    pub now_ms: i64,
+    pub window_days: Option<u32>,
+    pub kept: Option<Kept>,
+    pub own: &'a [Address],
+}
+
+/// [`sync_folder`] that also knows the account's own addresses, so Inbox
+/// mail they sent does not count as new (`Synced::new_mail`). The sync
+/// step cannot find them itself: the store keeps no identities, so the
+/// caller passes them in.
+pub async fn sync_folder_as(
+    server: &mut impl MailServer,
+    local: &mut Local<'_>,
+    id: FolderId,
+    Options {
+        now_ms,
+        window_days,
+        kept,
+        own,
+    }: Options<'_>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
@@ -99,15 +141,43 @@ pub async fn sync_folder(
         ..Synced::default()
     };
     synced.flags_changed = check_flags(server, local, id, (&plan, &pending)).await?;
+    let mut stored = Vec::new();
     for batch in plan.fetch.iter().take(BATCHES_PER_STEP) {
         let summaries = server.fetch_summaries(batch).await?;
         synced.fetched += store_summaries(local, id, &summaries, &pending)?.len();
+        if folder.role == FolderRole::Inbox {
+            stored.extend(new_rows(&summaries, &pending));
+        }
+    }
+    if folder.role == FolderRole::Inbox {
+        let prev = folder.sync.map(|s| s.uidnext).filter(|next| *next > 0);
+        synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
     if !synced.more {
         local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
     }
     Ok(synced)
+}
+
+/// What a batch stored, as the new-mail rule reads it: the rows `rows`
+/// keeps, with their sender and subject.
+fn new_rows(summaries: &[Summary], pending: &Pending) -> Vec<NewRow> {
+    summaries
+        .iter()
+        .filter(|s| !s.flags.deleted && !pending.is_hidden(s.uid))
+        .map(|s| {
+            let parsed = envio_mime::envelope(&s.header).unwrap_or_default();
+            NewRow {
+                uid: s.uid,
+                seen: pending
+                    .flags(s.uid, store_flags(&s.flags))
+                    .contains(Flags::SEEN),
+                from: parsed.from.into_iter().next().unwrap_or_default(),
+                subject: parsed.subject,
+            }
+        })
+        .collect()
 }
 
 /// Caches one fetched batch in a single transaction (and remembers its

@@ -8,6 +8,7 @@
 pub mod convert;
 pub mod driver;
 pub mod error;
+pub mod newmail;
 pub mod plan;
 pub mod schedule;
 pub mod server;
