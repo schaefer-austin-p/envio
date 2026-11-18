@@ -123,6 +123,9 @@ pub(crate) type Stamped = (Command, i64);
 pub(crate) enum Input {
     Command(Stamped),
     Setup(SetupDone),
+    /// The draft thread saved the draft of a window that closed: its
+    /// account may have something to upload.
+    DraftsSaved,
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -183,6 +186,7 @@ impl<'s> Worker<'s> {
                                     .map(|input| match input {
                                         Input::Command((c, _)) => c.name(),
                                         Input::Setup(_) => "setup result",
+                                        Input::DraftsSaved => "drafts saved",
                                     })
                                     .collect();
                                 log::warn!(
@@ -373,6 +377,10 @@ impl<'s> Worker<'s> {
             Input::Command((command, at_ms)) => handle(self, command, at_ms).await,
             Input::Setup(done) => {
                 self.setup_done(done);
+                Flow::Continue
+            }
+            Input::DraftsSaved => {
+                self.want_drafts_after_close();
                 Flow::Continue
             }
         }

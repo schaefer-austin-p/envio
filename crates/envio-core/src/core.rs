@@ -81,8 +81,17 @@ impl Core {
         if let Err(error) = book.drafts() {
             log::warn!("opening the drafts folder: {error}");
         }
-        let keeper = DraftKeeper::start(Arc::clone(&book), Arc::clone(&sink))?;
         let (commands, receiver) = unbounded_channel();
+        // A close whose save finished after `send` stopped waiting for it
+        // still reaches the worker, which then uploads the text.
+        let saved = commands.clone();
+        let keeper = DraftKeeper::start(
+            Arc::clone(&book),
+            Arc::clone(&sink),
+            Box::new(move || {
+                let _ = saved.send(Input::DraftsSaved);
+            }),
+        )?;
         // Outlives the worker's restarts: a probe that was running when the
         // worker panicked ends in the same channel, and is dropped as stale.
         let setup = Arc::new(SetupThread::start(config.roots.clone(), commands.clone())?);
