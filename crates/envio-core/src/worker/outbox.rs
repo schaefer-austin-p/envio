@@ -425,6 +425,28 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
     }
 
     #[test]
+    fn edit_keeps_a_named_calendar_file_the_user_attached() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let eml: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\nSubject: s\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\n\
+Content-Type: text/plain\r\n\r\nhi\r\n--b\r\n\
+Content-Type: text/calendar; name=meeting.ics\r\n\
+Content-Disposition: attachment; filename=meeting.ics\r\n\r\n\
+BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n--b--\r\n";
+        let id = item(&w, &t, eml, failed());
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), None);
+        let drafts = w.store.drafts.list().unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].1.attachments.len(), 1);
+        assert_eq!(
+            drafts[0].1.attachments[0].file_name().unwrap(),
+            "meeting.ics"
+        );
+    }
+
+    #[test]
     fn edit_refuses_a_failed_invite_reply() {
         let t = setup();
         let mut w = open(&t.config, t.sink);
