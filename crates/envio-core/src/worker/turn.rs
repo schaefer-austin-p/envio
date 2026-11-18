@@ -119,18 +119,15 @@ impl Worker<'_> {
             match next(&timing, now) {
                 Next::Sleep { .. } => return None,
                 Next::Idle { until_ms } => {
-                    if !matches!(live.conn, Conn::Idling(_)) {
-                        if let Err(problem) = self.begin_idle(account, until_ms).await {
-                            let problem = idle_problem(problem, self.foreground);
-                            super::run::failed(self, account, "connect", &problem);
-                            self.open_failed(Some(account));
-                            return None;
-                        }
-                        // Recovery may have queued the Inbox: decide again.
-                        // The resets so far were of another pass.
-                        backstop.interrupted();
-                        continue;
+                    if !matches!(live.conn, Conn::Idling(_) | Conn::Opening(_))
+                        && let Err(problem) = self.begin_open(account, until_ms)
+                    {
+                        let problem = idle_problem(problem, self.foreground);
+                        super::run::failed(self, account, "connect", &problem);
+                        self.open_failed(Some(account));
                     }
+                    // The connect runs as a future of the turn loop; its
+                    // end decides again (`open_done`).
                     return None;
                 }
                 Next::Run => {
@@ -263,12 +260,6 @@ impl Backstop {
         }
         pass
     }
-
-    /// A pass that was not a `Run` one (IDLE began): only consecutive empty
-    /// plans count.
-    fn interrupted(&mut self) {
-        self.resets = 0;
-    }
 }
 
 #[cfg(test)]
@@ -291,7 +282,7 @@ fn forced_wants() -> bool {
 /// in the background when it notifies (its retries), and not in IDLE, whose
 /// own future wakes the loop.
 fn needs_timer(foreground: bool, notifies: bool, conn: &Conn) -> bool {
-    (foreground || notifies) && !matches!(conn, Conn::Idling(_))
+    (foreground || notifies) && !matches!(conn, Conn::Idling(_) | Conn::Opening(_))
 }
 
 /// The retry timer to handle now: the earliest one after the watermark, if
@@ -461,17 +452,6 @@ mod tests {
     }
 
     #[test]
-    fn only_consecutive_empty_plans_count() {
-        // Run (empty, reset), IDLE began, Run (empty): the IDLE pass in
-        // between means this is the first empty plan again, not the second.
-        let mut backstop = Backstop::default();
-        assert_eq!(backstop.plan(true, true), Pass::ResetAndRetry);
-        backstop.interrupted();
-        assert_eq!(backstop.plan(true, true), Pass::ResetAndRetry);
-        assert_eq!(backstop.plan(true, true), Pass::Stop);
-    }
-
-    #[test]
     fn pick_for_ends_when_wants_and_steps_disagree() {
         // The #116 disagreement: `has_wants` says run, `steps` is empty.
         let step = within_bound(|| {
@@ -596,6 +576,15 @@ mod tests {
         // A notifying account in the background waits for its retries only.
         assert!(needs_timer(false, true, &Conn::Closed));
         assert!(!needs_timer(false, true, &idling));
+    }
+
+    #[test]
+    fn a_connect_in_flight_needs_no_timer() {
+        // Its own future wakes the loop (its timeout), like IDLE's.
+        let (_future, handle) = futures::future::abortable(std::future::pending::<()>());
+        let opening = Conn::Opening(handle);
+        assert!(!needs_timer(true, true, &opening));
+        assert!(!needs_timer(false, true, &opening));
     }
 
     #[test]

@@ -122,8 +122,10 @@ impl Worker<'_> {
         if let Some(live) = self.live.get_mut(account) {
             // Sessions and the idler go; its IDLE future ends on the
             // notify and its result is dropped with the account.
-            if let Conn::Idling(stop) = &live.conn {
-                stop.notify_one();
+            match &live.conn {
+                Conn::Idling(stop) => stop.notify_one(),
+                Conn::Opening(handle) => handle.abort(),
+                _ => {}
             }
             live.conn = Conn::Closed;
             live.wants = super::plan::Wants::default();
