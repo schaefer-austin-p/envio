@@ -300,3 +300,98 @@ fn huge_table_widths_are_dropped() {
     assert!(!out.contains("width"), "{out}");
     assert!(out.contains("x"));
 }
+
+/// The most distinct remote images a message may load (#215).
+const CAP: usize = 200;
+
+fn many(n: usize) -> String {
+    (0..n)
+        .map(|i| format!(r#"<img src="https://example.com/{i}.png">"#))
+        .collect()
+}
+
+#[test]
+fn caps_the_distinct_remote_images() {
+    let r = sanitize_html(&many(10_000), &allowed());
+    assert_eq!(r.remote_images.len(), CAP);
+    assert_eq!(r.remote_images[0], "https://example.com/0.png");
+    assert_eq!(r.remote_images[CAP - 1], "https://example.com/199.png");
+    // Past the cap an image is its label: nothing loads it.
+    assert_eq!(r.html.matches("<img").count(), CAP);
+    assert!(r.html.contains("[image]"));
+    assert!(!r.html.contains("example.com/200.png"));
+}
+
+#[test]
+fn a_repeat_of_a_listed_image_still_shows_past_the_cap() {
+    let html = format!(r#"{}<img src="https://example.com/3.png">"#, many(CAP + 50));
+    let r = sanitize_html(&html, &allowed());
+    assert_eq!(r.remote_images.len(), CAP);
+    assert_eq!(r.html.matches("<img").count(), CAP + 1);
+}
+
+#[test]
+fn caps_the_images_that_wait_for_a_size() {
+    // One URL written with a different height each time: each is its own
+    // open size entry unless they are bounded.
+    let html: String = (1..20_000)
+        .map(|h| format!(r#"<img src="https://example.com/a.png" height="{h}">"#))
+        .collect();
+    let r = sanitize_html(&html, &allowed());
+    assert_eq!(r.remote_images, ["https://example.com/a.png"]);
+    assert!(r.unsized_images.len() <= PER_URL);
+}
+
+/// Hostile corpus: 100k distinct URLs (about 4 MB of HTML) must come out
+/// capped, and fast: the linear de-dup took billions of compares.
+#[test]
+fn a_hundred_thousand_distinct_urls_stay_capped_and_quick() {
+    let html = many(100_000);
+    let start = std::time::Instant::now();
+    let r = sanitize_html(&html, &allowed());
+    assert_eq!(r.remote_images.len(), CAP);
+    assert!(r.unsized_images.len() <= CAP * PER_URL);
+    assert!(start.elapsed() < std::time::Duration::from_secs(20));
+}
+
+/// Entries one URL may have waiting for a size (its widths and heights).
+const PER_URL: usize = 8;
+
+#[test]
+fn repeats_of_one_url_cannot_use_up_the_size_slots_of_others() {
+    // One URL written with a different height each time, then another.
+    let mut html: String = (1..400)
+        .map(|h| format!(r#"<img src="https://example.com/a.png" height="{h}">"#))
+        .collect();
+    html.push_str(r#"<img src="https://example.com/b.png">"#);
+    let r = sanitize_html(&html, &allowed());
+    assert!(r.unsized_images.iter().any(|u| u.url.ends_with("/b.png")));
+    let of_a = r
+        .unsized_images
+        .iter()
+        .filter(|u| u.url.ends_with("/a.png"));
+    assert!(of_a.count() <= PER_URL);
+}
+
+#[test]
+fn every_listed_url_keeps_a_size_slot() {
+    let r = sanitize_html(&many(10_000), &allowed());
+    assert_eq!(r.unsized_images.len(), CAP);
+}
+
+#[test]
+fn counts_only_the_blocked_images_that_would_load() {
+    // The count is what "Load images" brings back: at most the cap.
+    let r = sanitize_html(&many(10_000), &blocked());
+    assert_eq!(r.blocked_images, CAP);
+    assert!(r.remote_images.is_empty());
+    assert_eq!(r.html.matches("<img").count(), 0);
+}
+
+#[test]
+fn counts_a_blocked_url_once() {
+    let html = r#"<img src="https://example.com/a.png">"#.repeat(5);
+    let r = sanitize_html(&html, &blocked());
+    assert_eq!(r.blocked_images, 1);
+    assert_eq!(r.html.matches("[image]").count(), 5);
+}
