@@ -150,3 +150,25 @@ async fn the_window_is_dropped_once_the_sync_is_finished() {
     }
     assert!(synced.window.is_none());
 }
+
+#[tokio::test]
+async fn a_batch_with_some_uids_expunged_still_finishes_with_the_right_rows() {
+    let mut server = busy();
+    let mut store = Store::new();
+    let first = part(&mut server, &mut store, None).await;
+    assert!(first.more);
+    // Every other UID of the next 120 goes: each batch is half there.
+    let folder = server.folders.get_mut("INBOX").unwrap();
+    for uid in (231..=350).filter(|uid| uid % 2 == 0) {
+        folder.messages.remove(&uid);
+    }
+    let mut synced = first;
+    for _ in 0..30 {
+        if !synced.more {
+            break;
+        }
+        synced = part(&mut server, &mut store, synced.window.take()).await;
+    }
+    assert!(!synced.more, "never finished");
+    assert_eq!(store.uids("INBOX"), server.uids("INBOX"));
+}
