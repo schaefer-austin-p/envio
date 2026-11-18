@@ -51,7 +51,8 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
 - `cargo make net-it` / `e2e-it`: tests against a throwaway Stalwart named
   `envio-stalwart-<pid>`; `STALWART_NAME=envio-stalwart` gives the fixed name.
   The container is labelled with its owner PID (`envio.owner-*`); `up.sh`
-  removes labelled containers of dead owners from this host at the next start,
+  removes labelled containers of dead owners (same host, PID namespace and
+  user) at the next start,
   never unlabelled or hand-named ones.
 
 ## Blast radius
