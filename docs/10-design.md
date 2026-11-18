@@ -100,7 +100,8 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Inbox and accounts | `*-inbox` | Unified inbox, per-account tabs (All, then each account), unread dot, "New message" at the bottom. |
 | Add account | `*-wizard` | Email first, autodetect, then password; manual server settings behind "Set up manually". |
 | Account label | `carbon-account-label` | Accounts action sheet with Rename, the rename sheet (label field, "Leave empty to show the default.", Cancel and Save), inbox tabs and drawer heading showing the label. Carbon only (#217). |
-| Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (later); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
+| Sign-in and trust | `*-signin` | Google app password steps; Microsoft in the browser (built out in `carbon-ms-oauth`); self-signed certificate with SHA-256 fingerprint, Cancel as the primary button. |
+| Microsoft sign-in | `carbon-ms-oauth` | Outlook.com and Microsoft 365 through the system browser (#219), light and dark: the wizard step with "Sign in with Microsoft", waiting for the browser (Cancel), cancelled, failed, the "Sign in again" account state (status line, action sheet, page), a held Outbox message, and the no-client-ID state that keeps #221's "not supported yet" message. Carbon only. No new colour role: banners use tint A and tint B. |
 | Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.3.0. Drafts save on their own. |
 | Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
 | Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. The meeting invite card (0.2.0) sits above the body, in all its states, light and dark. |
