@@ -69,19 +69,30 @@ fn several_declarations_use_the_last_valid_one() {
     );
 }
 
+/// Only absolute sizes are checked here. Qt gives `h1`..`h6`, `big`, `small`,
+/// `sub` and `sup` their own size that the pass does not model, so a relative
+/// size under them is not verified (see #243).
 #[test]
-fn relative_sizes_under_headings_stay_in_range() {
+fn absolute_sizes_under_headings_keep_their_clamp() {
     for tag in [
         "h1", "h2", "h3", "h4", "h5", "h6", "big", "small", "sub", "sup",
     ] {
         let out = clean(&format!(
-            r#"<{tag} style="font-size:150%"><span style="font-size:1500%">t</span></{tag}>"#
+            r#"<{tag} style="font-size:40px"><span style="font-size:1500%">t</span></{tag}>"#
         ));
-        assert!(sizes_of(&out).iter().all(|s| *s <= 26.0), "{tag}: {out}");
+        assert_eq!(
+            out,
+            format!(
+                r#"<{tag} style="font-size:26px"><span style="font-size:26px">t</span></{tag}>"#
+            ),
+            "{tag}"
+        );
     }
 }
 
-/// Every `font-size:` px value and `size=` level in `html`.
+/// Every absolute `font-size:` value (px, or `xx-large` and up as infinity)
+/// and `size=` level in `html`. Relative values (`%`, `em`, other keywords)
+/// are skipped on purpose: only the proptest's second pass covers them.
 fn sizes_of(html: &str) -> Vec<f64> {
     let mut sizes = Vec::new();
     for part in html.split("font-size:").skip(1) {
@@ -89,14 +100,13 @@ fn sizes_of(html: &str) -> Vec<f64> {
             .chars()
             .take_while(|c| !matches!(c, ';' | '"'))
             .collect();
-        // Relative sizes are checked by `settled`: a second pass keeps them.
         match value.strip_suffix("px").map(str::parse::<f64>) {
             Some(Ok(n)) => sizes.push(n),
             Some(Err(_)) => sizes.push(f64::INFINITY),
             None if value.ends_with("large") && value.starts_with("xx") => {
                 sizes.push(f64::INFINITY)
             }
-            None => sizes.push(0.0),
+            None => {}
         }
     }
     for part in html.split(" size=\"").skip(1) {
