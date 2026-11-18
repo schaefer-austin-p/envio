@@ -118,8 +118,29 @@ fn parse_date(text: &str) -> Option<i64> {
         b'-' => -1,
         _ => return None,
     };
-    let digits: i64 = zone.get(1..)?.parse().ok()?;
-    let offset = sign * (digits / 100 * 3_600 + digits % 100 * 60);
+    // `hhmm`, as RFC 3501 writes it.
+    let digits = zone.get(1..).filter(|d| d.len() == 4 && d.is_ascii())?;
+    let (zone_hours, zone_minutes): (i64, i64) =
+        (digits[..2].parse().ok()?, digits[2..].parse().ok()?);
+    // Every field is in range below, so none of the arithmetic can overflow.
+    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    let days_in_month = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    };
+    let valid = (1..=9999).contains(&year)
+        && (1..=days_in_month).contains(&day)
+        && (0..24).contains(&hour)
+        && (0..60).contains(&minute)
+        && (0..=60).contains(&second)
+        && zone_hours <= 14
+        && zone_minutes < 60;
+    if !valid {
+        return None;
+    }
+    let offset = sign * (zone_hours * 3_600 + zone_minutes * 60);
     let days = days_from_civil(year, month, day);
     Some(days * 86_400 + hour * 3_600 + minute * 60 + second - offset)
 }
@@ -151,5 +172,29 @@ mod tests {
         );
         assert_eq!(parse_date("01-Jan-1970 00:00:00 +0000"), Some(0));
         assert_eq!(parse_date("nonsense"), None);
+    }
+
+    #[test]
+    fn impossible_or_huge_dates_are_none_not_a_wrong_time_or_a_panic() {
+        for text in [
+            "31-Feb-2026 10:00:00 +0000",
+            "29-Feb-2026 10:00:00 +0000",
+            "00-Nov-2026 10:00:00 +0000",
+            "08-Nov-2026 99:00:00 +0000",
+            "08-Nov-2026 10:60:00 +0000",
+            "08-Nov-2026 10:00:61 +0000",
+            "08-Nov-0000 10:00:00 +0000",
+            "08-Nov-10000 10:00:00 +0000",
+            "08-Nov-9223372036854775807 10:00:00 +0000",
+            "08-Nov-2026 10:00:00 +9999",
+            "08-Nov-2026 10:00:00 +1560",
+            "08-Nov-2026 10:00:00 +1500",
+            "08-Nov-2026 10:00:00 +9223372036854775807",
+        ] {
+            assert_eq!(parse_date(text), None, "{text}");
+        }
+        // A leap day and the zone limits are fine.
+        assert!(parse_date("29-Feb-2028 10:00:00 +1400").is_some());
+        assert!(parse_date("08-Nov-2026 10:00:60 -1200").is_some());
     }
 }
