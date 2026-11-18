@@ -95,6 +95,63 @@ Item {
             b.shell.destroy()
         }
 
+        // What Content Hub hands over: items with file:// URLs.
+        readonly property var transfer: ({ items: [
+            { url: "file:///home/u/.cache/hub/a%20b.pdf" },
+            { url: "file:///home/u/.cache/hub/c.png" }
+        ] })
+
+        function test_a_shared_transfer_opens_compose_with_its_files() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.shares.accept(transfer)
+            compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.compose, 1)
+            compare(b.core.called("attach").map(function(c) { return c.args }),
+                    [[1, "/home/u/.cache/hub/a b.pdf"], [1, "/home/u/.cache/hub/c.png"]])
+            b.shell.destroy()
+        }
+
+        function test_a_share_before_the_core_is_ready_waits_for_it() {
+            const c = coreComponent.createObject(root)
+            c.accounts.append(ann)
+            const s = shellComponent.createObject(root, {
+                theme: thm, core: c, accounts: c.accounts, folders: c.folders,
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
+                searchResults: c.searchResults
+            })
+            s.shares.accept(transfer)
+            compare(c.called("startCompose").length, 0)
+            c.ready = true
+            tryVerify(function() { return c.called("attach").length === 2 })
+            compare(c.called("startCompose").length, 1)
+            s.destroy()
+        }
+
+        function test_a_share_without_an_account_shows_the_wizard_and_waits() {
+            const b = boot(false)
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.shares.accept(transfer)
+            compare(b.shell.currentPage.objectName, "wizardPage")
+            compare(b.core.called("startCompose").length, 0)
+            b.core.accounts.append(ann)
+            tryVerify(function() { return b.shell.accountCount === 1 })
+            wait(50)
+            compare(b.core.called("attach").length, 0, "the wizard's Options step comes first")
+            b.shell.wizardClosed()
+            compare(b.core.called("attach").length, 2)
+            b.shell.destroy()
+        }
+
+        function test_an_empty_transfer_opens_nothing() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.shares.accept({ items: [] })
+            compare(b.core.called("startCompose").length, 0)
+            b.shell.destroy()
+        }
+
         function test_uri_offers_only_mailto_links() {
             const u = uriComponent.createObject(root, { arguments: [] })
             links.target = u

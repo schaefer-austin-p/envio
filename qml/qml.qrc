@@ -54,6 +54,8 @@
         <file>platform/Content.qml</file>
         <file>platform/ut/ContentExport.qml</file>
         <file>platform/ut/ContentImport.qml</file>
+        <file>platform/ut/ShareReceiver.qml</file>
+        <file>platform/ShareIn.qml</file>
         <file>platform/fileUrl.js</file>
         <file>platform/stampTint.js</file>
         <file>components/qmldir</file>

@@ -53,6 +53,7 @@ Item {
             rootKind = "inbox"
             stack.replace(null, inboxPage)
             startPendingMailto()
+            startPendingShare()
         }
     }
 
@@ -106,6 +107,34 @@ Item {
         pendingMailto = ""
         const id = core.startCompose("mailto", 0, "", link)
         if (id > 0) composeOpened(id)
+    }
+
+    // Files shared in from another app wait the same way (no account: the
+    // wizard shows meanwhile); then a new message opens with them attached.
+    // The core copies each file out of the hub's inbox (attach).
+    property var pendingShare: []
+    // Main turns this on: only the real app listens to the Content Hub.
+    property bool receiveShares: false
+    function openShared(paths) {
+        pendingShare = pendingShare.concat(paths)
+        startPendingShare()
+    }
+    function startPendingShare() {
+        if (pendingShare.length === 0 || !core.ready || accountCount === 0 || rootKind !== "inbox") return
+        const paths = pendingShare
+        pendingShare = []
+        const id = core.startCompose("new", 0, composeAccount, "")
+        if (id <= 0) return
+        composeOpened(id)
+        for (const p of paths) core.attach(id, p)
+    }
+
+    // For tests: where a transfer is handed in (`shares.accept(transfer)`).
+    readonly property alias shares: shareIn
+    ShareIn {
+        id: shareIn
+        listening: root.receiveShares
+        onFilesShared: function(paths) { root.openShared(paths) }
     }
 
     Platform.Uri {
@@ -320,6 +349,7 @@ Item {
             root.retrying = false
             root.route()
             root.startPendingMailto()
+            root.startPendingShare()
         }
         function onStoreProblem(text) { root.retrying = false; root.problem = text }
         function onStartFailed(text) { root.retrying = false; root.problem = text }
@@ -330,6 +360,7 @@ Item {
     onAccountCountChanged: {
         if (core.ready && accountCount === 0) route()
         startPendingMailto()
+        startPendingShare()
     }
 
     Connections {
