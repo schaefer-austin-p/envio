@@ -113,7 +113,7 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
         return out;
     }
     if parts.iter().any(|(_, _, _, have)| !have)
-        && let Err(e) = fs::create_dir_all(dir)
+        && let Err(e) = envio_store::create_private_dir(dir)
     {
         // Only reachable if the folder vanishes meanwhile: files already
         // there keep their URLs, the rest show as missing.
@@ -157,7 +157,7 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
                 let mut name = path.clone().into_os_string();
                 name.push(".tmp");
                 let temp = Path::new(&name);
-                fs::File::create(temp)
+                create_private(temp)
                     .and_then(|mut f| f.write_all(b))
                     .and_then(|()| fs::rename(temp, path))
                     .inspect_err(|_| drop(fs::remove_file(temp)))
@@ -172,6 +172,17 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
         }
     });
     out
+}
+
+/// Creates `path` with mode 0600: an image of a message is private.
+fn create_private(path: &Path) -> io::Result<fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
 }
 
 /// `file://` plus the path, with bytes outside the unreserved set encoded.
@@ -219,6 +230,18 @@ Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA
         let url = &urls["logo@example.org"];
         assert!(url.ends_with(".png"), "{url}");
         assert_eq!(fs::read(path_of(url)).unwrap(), png_header(1, 1));
+    }
+
+    #[test]
+    fn images_and_their_folders_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("inline").join("1");
+        let urls = write(&one, MAIL, &infos()).urls;
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(Path::new(path_of(&urls["logo@example.org"]))), 0o600);
+        assert_eq!(mode(&one), 0o700);
+        assert_eq!(mode(one.parent().unwrap()), 0o700);
     }
 
     #[test]

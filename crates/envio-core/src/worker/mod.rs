@@ -75,7 +75,7 @@ pub(crate) struct Worker<'s> {
     handled_release_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
-    /// Servers found through DNS (SRV) by `Detect`: connecting to them
+    /// Servers `Detect` found outside the address's domain: connecting to them
     /// needs the user's confirmation whatever the app says.
     srv_hosts: BTreeSet<(String, u16)>,
     /// Open requests waiting for a body: images, width.
@@ -108,6 +108,9 @@ pub(crate) struct Worker<'s> {
     floors: BTreeMap<FolderId, Kept>,
     /// The `LoadOlder` commands waiting for their folders.
     loads: HashMap<ListRef, older::Load>,
+    /// Folders whose Load older rows a window change drops with their next
+    /// sync; `OlderReset` follows that sync.
+    reset_pending: BTreeSet<FolderId>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -228,6 +231,7 @@ impl<'s> Worker<'s> {
             unread_sent: RefCell::new(BTreeMap::new()),
             floors: BTreeMap::new(),
             loads: HashMap::new(),
+            reset_pending: BTreeSet::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
