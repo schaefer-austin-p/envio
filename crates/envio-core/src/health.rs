@@ -85,10 +85,13 @@ impl Health {
         }
     }
 
-    /// A connection and the Inbox SELECT worked: a failure to connect is
-    /// over (and a full disk shows again), an IDLE failure stays.
+    /// A connection (and the Inbox SELECT) worked: a failure to connect is
+    /// over (and a full disk shows again). A failure of any other kind
+    /// stays, with its status.
     pub fn connected(&mut self, disk_full: bool) {
-        self.ok_step("connect", disk_full);
+        if matches!(self.failing, None | Some("connect")) {
+            self.ok_step("connect", disk_full);
+        }
     }
 
     /// An IDLE ran without failing: only an IDLE failure is cleared, so
@@ -366,6 +369,16 @@ mod tests {
         health.connected(false);
         assert_eq!(health.failures, 2);
         assert_eq!(health.failing, Some("idle"));
+    }
+
+    #[test]
+    fn a_connect_keeps_the_status_of_another_kinds_failure() {
+        let mut health = Health::default();
+        health.failed_step("folder", &Problem::Local, ("a", 0));
+        let before = health.clone();
+        health.connected(false);
+        assert_eq!(health, before);
+        assert!(matches!(health.status, AccountStatus::LocalError { .. }));
     }
 
     #[test]

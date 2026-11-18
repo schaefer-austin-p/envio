@@ -217,7 +217,10 @@ impl Worker<'_> {
         let mut session = self.imap(account).await?;
         if !session.caps().idle {
             // Learned just now: the planner stops asking for IDLE.
+            let disk_full = self.disk_full(now_ms());
             if let Some(live) = self.live.get_mut(account) {
+                // It did connect: a connect failure is over.
+                live.health.connected(disk_full);
                 live.conn = Conn::Ready(session);
             }
             return Ok(());
