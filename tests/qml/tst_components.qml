@@ -509,7 +509,7 @@ Item {
             growSheet.open()
             tryVerify(function() { return growSheet.opened })
             growBody.height = 3000
-            tryVerify(function() { return growSheet.height > growSheet.parent.height })
+            tryVerify(function() { return growSheet.implicitHeight > growSheet.parent.height })
             verify(growSheet.y >= thm.frameInset, "y " + growSheet.y)
             if (data.airmail) compare(growSheet.y, thm.frameInset)
             else compare(growSheet.y, 0)
@@ -517,6 +517,40 @@ Item {
             tryVerify(function() { return !growSheet.visible })
             growBody.height = 0
             thm.name = "carbon"
+        }
+
+        // #83: a sheet taller than the window is capped at parent.height -
+        // frameInset and scrolls, so its last row can be reached.
+        function test_tall_sheet_is_capped_and_scrolls_to_its_last_row() {
+            tallSheet.open()
+            tryVerify(function() { return tallSheet.opened })
+            tryVerify(function() { return tallSheet.implicitHeight > tallSheet.parent.height })
+            const cap = tallSheet.parent.height - thm.frameInset
+            compare(tallSheet.height, cap)
+            verify(tallSheet.y >= thm.frameInset, "y " + tallSheet.y)
+            verify(tallSheet.y + tallSheet.height <= tallSheet.parent.height, "bottom runs off")
+            const flick = tallSheet.contentItem
+            verify(flick.interactive, "a tall sheet flicks")
+            // The last row starts below the sheet's bottom until scrolled.
+            const bottomOf = function() {
+                return tallLast.mapToItem(tallSheet.contentItem, 0, tallLast.height).y
+            }
+            verify(bottomOf() > flick.height, "last row starts out of view")
+            flick.contentY = flick.contentHeight - flick.height
+            tryVerify(function() { return bottomOf() <= flick.height })
+            verify(tallLast.mapToItem(null, 0, tallLast.height).y <= tallSheet.parent.height)
+            tallSheet.close()
+            tryVerify(function() { return !tallSheet.visible })
+        }
+
+        // A sheet shorter than the window keeps its natural height and does not flick.
+        function test_short_sheet_does_not_flick() {
+            shortSheet.open()
+            tryVerify(function() { return shortSheet.opened })
+            compare(shortSheet.height, shortSheet.implicitHeight)
+            verify(!shortSheet.contentItem.interactive)
+            shortSheet.close()
+            tryVerify(function() { return !shortSheet.visible })
         }
 
         // A sheet whose parent does not start at window y 0 rests on the keyboard's top.
@@ -568,6 +602,14 @@ Item {
         id: buttonComponent
         AppButton { theme: thm; text: "Continue"; width: 300; y: 450 }
     }
+    Sheet {
+        id: tallSheet
+        theme: thm
+        title: "Tall"
+        Repeater { model: 30; Rectangle { width: 100; height: 44; color: "#ccc" } }
+        Rectangle { id: tallLast; width: 100; height: 44; color: "#f00" }
+    }
+    Sheet { id: shortSheet; theme: thm; Item { width: 10; height: 80 } }
     Sheet {
         id: growSheet
         theme: thm

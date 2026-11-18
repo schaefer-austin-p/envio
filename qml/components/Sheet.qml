@@ -9,7 +9,7 @@ QC.Popup {
     id: root
     required property Theme theme
     property string title: ""
-    default property alias content: body.data
+    default property alias content: column.data
 
     parent: QC.Overlay.overlay
     modal: true
@@ -30,7 +30,9 @@ QC.Popup {
     width: parent ? parent.width - 2 * theme.frameInset : 0
     // Follow the content as it grows after open (a popup left to itself kept
     // its first height on the phone and rested far too low).
-    height: implicitHeight
+    // Capped at the window less the ring's top band; past that the content
+    // scrolls (#83), so the last rows stay reachable.
+    height: parent ? Math.min(implicitHeight, parent.height - theme.frameInset) : implicitHeight
     y: parent ? Math.max(theme.frameInset, parent.height - height - keyboardInset - ringInset) : 0
     padding: 0
 
@@ -58,29 +60,44 @@ QC.Popup {
         }
     }
 
-    contentItem: Column {
-        spacing: root.theme.gu(1)
-        topPadding: root.theme.gu(1.25)
-        bottomPadding: root.theme.gu(2)
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: root.theme.gu(5)
-            height: 4
-            radius: height / 2
-            color: root.theme.field
+    contentItem: Flickable {
+        id: flick
+        objectName: "sheetFlick"
+        // Only a sheet that scrolls clips; one that fits looks as before.
+        clip: interactive
+        implicitHeight: column.implicitHeight
+        contentWidth: width
+        contentHeight: column.implicitHeight
+        // A sheet that fits stays still.
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+
+        Column {
+            id: column
+            width: flick.width
+            spacing: root.theme.gu(1)
+            topPadding: root.theme.gu(1.25)
+            bottomPadding: root.theme.gu(2)
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: root.theme.gu(5)
+                height: 4
+                radius: height / 2
+                color: root.theme.field
+            }
+            Text {
+                textFormat: Text.PlainText
+                visible: root.title !== ""
+                x: root.theme.gu(2.5)
+                width: parent.width - root.theme.gu(5)
+                text: root.title
+                elide: Text.ElideRight
+                color: root.theme.heading
+                font.family: root.theme.fontTitle
+                font.pixelSize: 18
+                font.weight: Font.DemiBold
+            }
         }
-        Text {
-            textFormat: Text.PlainText
-            visible: root.title !== ""
-            x: root.theme.gu(2.5)
-            width: parent.width - root.theme.gu(5)
-            text: root.title
-            elide: Text.ElideRight
-            color: root.theme.heading
-            font.family: root.theme.fontTitle
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
-        }
-        Column { id: body; width: parent.width }
     }
 }
