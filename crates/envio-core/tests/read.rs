@@ -143,7 +143,7 @@ Content-Type: multipart/related; boundary=XX\r\n\r\n\
 --XX\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
 <p>Logo</p><img src=\"cid:logo@example.org\" alt=\"Logo\">\r\n\
 --XX\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\
-Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
+Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA\r\n--XX--\r\n";
 
 #[test]
 fn inline_images_show_even_while_remote_images_are_blocked() {
@@ -157,7 +157,12 @@ fn inline_images_show_even_while_remote_images_are_blocked() {
         path.starts_with(s.h.cache_dir().join("inline").to_str().unwrap()),
         "{path}"
     );
-    assert_eq!(std::fs::read(path).unwrap(), b"hello");
+    // A PNG header (signature, IHDR 1x1): the part is checked before it is written.
+    assert!(
+        std::fs::read(path)
+            .unwrap()
+            .starts_with(b"\x89PNG\r\n\x1a\n")
+    );
 }
 
 #[test]

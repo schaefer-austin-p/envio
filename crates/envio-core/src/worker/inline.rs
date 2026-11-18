@@ -18,6 +18,8 @@ use envio_mime::AttachmentInfo;
 const MAX_BYTES: usize = 10 * 1024 * 1024;
 /// Most images written for one message.
 const MAX_IMAGES: usize = 50;
+/// Most pixels (width x height, from the header) an image may claim.
+const MAX_PIXELS: u64 = 16 * 1000 * 1000;
 
 /// The file extension for the image types Qt's rich text draws. SVG is left
 /// out: it can pull in other files.
@@ -30,6 +32,14 @@ fn extension(content_type: &str) -> Option<&'static str> {
         "image/bmp" => Some("bmp"),
         _ => None,
     }
+}
+
+/// The size from the header of `bytes`, if they are a PNG, GIF, JPEG or WebP
+/// (the content is sniffed: the declared type is not trusted) of at most
+/// [`MAX_PIXELS`]. Qt decodes a whole image in layout, so a small file that
+/// claims a huge canvas could exhaust memory.
+fn admitted(bytes: &[u8]) -> Option<(u32, u32)> {
+    envio_mime::image_size(bytes).filter(|&(w, h)| u64::from(w) * u64::from(h) <= MAX_PIXELS)
 }
 
 /// Removes every inline image. Missing is fine.
@@ -115,8 +125,15 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
     let indexes: Vec<usize> = parts.iter().map(|(i, _, _, _)| *i).collect();
     envio_mime::with_attachments(raw, &indexes, |n, bytes| {
         let (_, cid, path, have) = &parts[n];
-        if let Some(size) = bytes.and_then(envio_mime::image_size) {
+        let size = bytes.map(admitted);
+        if let Some(Some(size)) = size {
             out.sizes.insert((*cid).clone(), size);
+        } else if size == Some(None) {
+            // Not an image Qt may decode: left out like an over-size part.
+            log::warn!("skipping an inline image with an unreadable or oversized header");
+            out.urls.remove(*cid);
+            drop(fs::remove_file(path));
+            return;
         }
         if *have {
             return;
@@ -163,7 +180,7 @@ mod tests {
 Content-Type: multipart/related; boundary=XX\r\n\r\n\
 --XX\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:logo@example.org\">\r\n\
 --XX\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\
-Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
+Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA\r\n\
 --XX\r\nContent-Type: image/svg+xml\r\nContent-ID: <vec@example.org>\r\n\r\n<svg/>\r\n\
 --XX--\r\n";
 
@@ -185,7 +202,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
         assert_eq!(urls.len(), 1, "{urls:?}");
         let url = &urls["logo@example.org"];
         assert!(url.ends_with(".png"), "{url}");
-        assert_eq!(fs::read(path_of(url)).unwrap(), b"hello");
+        assert_eq!(fs::read(path_of(url)).unwrap(), png_header(1, 1));
     }
 
     #[test]
@@ -203,14 +220,15 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
         let urls = write(&one, MAIL, &infos()).urls;
         let path = path_of(&urls["logo@example.org"]).to_owned();
         // Same size, other bytes: only a skipped write leaves this.
-        fs::write(&path, b"HELLO").unwrap();
+        let same_size = vec![0u8; png_header(1, 1).len()];
+        fs::write(&path, &same_size).unwrap();
         let again = write(&one, MAIL, &infos()).urls;
         assert_eq!(again, urls);
-        assert_eq!(fs::read(&path).unwrap(), b"HELLO");
+        assert_eq!(fs::read(&path).unwrap(), same_size);
         // A wrong size is replaced, and no temp file stays.
         fs::write(&path, b"x").unwrap();
         write(&one, MAIL, &infos());
-        assert_eq!(fs::read(&path).unwrap(), b"hello");
+        assert_eq!(fs::read(&path).unwrap(), png_header(1, 1));
         let names: Vec<_> = fs::read_dir(&one).unwrap().flatten().collect();
         assert_eq!(names.len(), 1);
     }
@@ -267,7 +285,12 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
     #[test]
     fn only_the_first_images_up_to_the_limit_are_written() {
         let parts: Vec<_> = (0..MAX_IMAGES + 3)
-            .map(|i| (format!("img{i}@example.org"), "aGVsbG8="))
+            .map(|i| {
+                (
+                    format!("img{i}@example.org"),
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA",
+                )
+            })
             .collect();
         let raw = mail_with(&parts);
         let dir = tempfile::tempdir().unwrap();
@@ -289,15 +312,21 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
     #[test]
     fn a_duplicate_content_id_is_skipped_and_the_first_wins() {
         let raw = mail_with(&[
-            ("dup@example.org".to_owned(), "aGVsbG8="),
-            ("dup@example.org".to_owned(), "d29ybGQ="),
+            (
+                "dup@example.org".to_owned(),
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA",
+            ),
+            (
+                "dup@example.org".to_owned(),
+                "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAAAAAAAA",
+            ),
         ]);
         let dir = tempfile::tempdir().unwrap();
         let one = dir.path().join("1");
         let out = write(&one, &raw, &infos_of(&raw));
         assert_eq!(out.urls.len(), 1, "{:?}", out.urls);
         let url = &out.urls["dup@example.org"];
-        assert_eq!(fs::read(path_of(url)).unwrap(), b"hello");
+        assert_eq!(fs::read(path_of(url)).unwrap(), png_header(1, 1));
         assert_eq!(fs::read_dir(&one).unwrap().count(), 1);
     }
 
@@ -312,6 +341,66 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
             let out = write(&one, &raw, &infos_of(&raw));
             assert_eq!(out.sizes["p@example.org"], (2000, 7));
         }
+    }
+
+    /// Standard base64 of `b`, for building test messages.
+    fn b64(b: &[u8]) -> String {
+        const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for c in b.chunks(3) {
+            let n = c
+                .iter()
+                .enumerate()
+                .fold(0u32, |n, (i, &x)| n | u32::from(x) << (16 - 8 * i));
+            for i in 0..=c.len() {
+                out.push(char::from(A[(n >> (18 - 6 * i) & 63) as usize]));
+            }
+            out.push_str(&"=".repeat(3 - c.len()));
+        }
+        out
+    }
+
+    /// A PNG signature and IHDR claiming `w` x `h`: all a header check sees.
+    fn png_header(w: u32, h: u32) -> Vec<u8> {
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        b.extend(w.to_be_bytes());
+        b.extend(h.to_be_bytes());
+        b.extend([8, 6, 0, 0, 0, 0, 0, 0, 0]);
+        b
+    }
+
+    fn one_image(body: &[u8]) -> (tempfile::TempDir, Inlined) {
+        let raw = mail_with(&[("p@example.org".to_owned(), &b64(body))]);
+        let dir = tempfile::tempdir().unwrap();
+        let out = write(&dir.path().join("1"), &raw, &infos_of(&raw));
+        (dir, out)
+    }
+
+    #[test]
+    fn a_small_png_is_written() {
+        let (_dir, out) = one_image(&png_header(64, 48));
+        assert_eq!(out.urls.len(), 1, "{:?}", out.urls);
+        assert_eq!(out.sizes["p@example.org"], (64, 48));
+    }
+
+    #[test]
+    fn a_header_over_the_pixel_cap_is_skipped() {
+        let (dir, out) = one_image(&png_header(20_000, 20_000));
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(out.sizes.is_empty());
+        assert!(!dir.path().join("1/0.png").exists());
+        // Exactly the cap still passes; one pixel more does not.
+        let (_d, at) = one_image(&png_header(MAX_PIXELS as u32 / 4, 4));
+        assert_eq!(at.urls.len(), 1);
+        let (_d, over) = one_image(&png_header(MAX_PIXELS as u32 / 4 + 1, 4));
+        assert!(over.urls.is_empty());
+    }
+
+    #[test]
+    fn a_part_labelled_png_that_is_not_an_image_is_skipped() {
+        let (dir, out) = one_image(b"<svg xmlns='http://www.w3.org/2000/svg'/>");
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(!dir.path().join("1/0.png").exists());
     }
 
     #[test]
