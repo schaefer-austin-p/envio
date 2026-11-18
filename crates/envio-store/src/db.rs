@@ -18,8 +18,11 @@ impl Db {
     /// Opens (or creates) the cache at `path` and migrates it.
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-            crate::atomic::create_private_dir(dir)?;
+            crate::private::create_private_dir(dir)?;
         }
+        // Private before SQLite makes it: the -wal and -shm files copy its
+        // mode. An older, open file is narrowed.
+        crate::private::create_private_file(path)?;
         let conn = Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(5))?;
         conn.pragma_update_and_check(None, "journal_mode", "wal", |row| row.get::<_, String>(0))?;

@@ -53,6 +53,14 @@ const _: fn() = || {
 
 impl Core {
     pub fn start(config: Config, sink: Arc<dyn EventSink>) -> io::Result<Core> {
+        // The roots first, private, before anything else makes them (the
+        // log folder, the drafts folder); then whatever an older install
+        // left too open is narrowed. The database and its files follow in
+        // the worker, private as they are made.
+        for root in [&config.cache_dir, &config.data_dir] {
+            envio_store::create_private_dir(root)?;
+            envio_store::tighten_tree(root)?;
+        }
         crate::logging::init(&config.logs_dir(), config.log_level)?;
         let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
         let book = Arc::new(DraftBook::new(&paths.drafts()));
