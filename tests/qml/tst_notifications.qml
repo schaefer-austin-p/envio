@@ -69,6 +69,16 @@ Item {
             compare(core.called("setNotify")[1].args, ["bob", true])
         }
 
+        function test_a_failed_save_puts_the_switch_back() {
+            account("ann", true)
+            tryVerify(function() { return all("notify-ann").length === 1 })
+            mouseClick(find("notify-ann"))
+            verify(!find("notify-ann").checked)
+            // The core could not save: it says so, and the model is unchanged.
+            core.notice("not saved")
+            verify(find("notify-ann").checked)
+        }
+
         function test_the_text_switch_defaults_off() {
             account("ann", true)
             tryVerify(function() { return all("notify-ann").length === 1 })
@@ -85,9 +95,11 @@ Item {
             account("ann", true)
             tryVerify(function() { return all("notify-ann").length === 1 })
             verify(find("backgroundHelp").visible)
-            verify(find("exemptCommand").text.indexOf("'envio.aps'") >= 0)
-            verify(find("exemptCommand").text.indexOf("lifecycle-exempt-appids") >= 0)
-            verify(find("exemptCommand").text.indexOf("TODO") < 0)
+            verify(page.exemptCommand.indexOf("'envio.aps'") >= 0)
+            verify(page.exemptCommand.indexOf("lifecycle-exempt-appids") >= 0)
+            verify(page.exemptCommand.indexOf("TODO") < 0)
+            // The shown text only adds break points.
+            compare(find("exemptCommand").text.replace(/\u200b/g, ""), page.exemptCommand)
         }
 
         function test_all_accounts_off_dims_the_text_switch_and_hides_the_help() {

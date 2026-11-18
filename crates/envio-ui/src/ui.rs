@@ -23,8 +23,6 @@ use crate::signals::{OlderRow, Signal};
 use messages::Current;
 use search::SearchState;
 
-pub use notify::{settings_with_notify, settings_with_show_text};
-
 /// What `Ui::apply` hands the glue, in order.
 #[derive(Debug)]
 pub enum Output {

@@ -187,6 +187,22 @@ impl Worker<'_> {
         self.emit(Event::Settings(self.store.settings.clone()));
     }
 
+    pub(super) fn set_notify(&mut self, account: &str, on: bool) {
+        let mut settings = self.store.settings.clone();
+        if on {
+            settings.notify_off.remove(account);
+        } else {
+            settings.notify_off.insert(account.to_owned());
+        }
+        self.save_settings(settings);
+    }
+
+    pub(super) fn set_notify_text(&mut self, on: bool) {
+        let mut settings = self.store.settings.clone();
+        settings.notify_show_text = on;
+        self.save_settings(settings);
+    }
+
     pub(super) fn allow_images_from(&mut self, address: &str) {
         let mut settings = self.store.settings.clone();
         settings.images_from.insert(address.trim().to_lowercase());

@@ -13,10 +13,15 @@ Item {
     required property var core
     signal backRequested()
 
-    // Confirmed on the phone in Plan 9a Task 8
+    // To be confirmed on the phone in Plan 9a Task 8
     readonly property string exemptCommand:
         "gsettings get com.canonical.qtmir lifecycle-exempt-appids\n" +
         "gsettings set com.canonical.qtmir lifecycle-exempt-appids \"[<the apps it printed>, 'envio.aps']\""
+
+    // The command as shown: a zero-width space after "-" and "." lets a
+    // narrow block break there, not inside a word. `exemptCommand` itself
+    // stays exact.
+    readonly property string shownCommand: exemptCommand.replace(/([-.])/g, "$1\u200b")
 
     // Whether any account notifies; the text switch and the help need one.
     property bool anyOn: false
@@ -43,6 +48,7 @@ Item {
         Column {
             id: col
             width: parent.width
+            spacing: root.theme.gu(0.75)
 
             component Eyebrow: Text {
                 textFormat: Text.PlainText
@@ -78,7 +84,7 @@ Item {
                     theme: root.theme
                     width: col.width
                     separator: false
-                    implicitHeight: root.theme.touch
+                    implicitHeight: root.theme.touch + root.theme.gu(2.5)
                     onNotifyOnChanged: root.recount()
                     Component.onCompleted: root.recount()
                     Component.onDestruction: Qt.callLater(root.recount)
@@ -93,7 +99,6 @@ Item {
                         color: root.theme.text
                         font.family: root.theme.fontUi
                         font.pixelSize: 16
-                        font.weight: Font.Medium
                     }
                     Toggle {
                         id: accountToggle
@@ -103,6 +108,12 @@ Item {
                         text: acct.model.email
                         checked: acct.notifyOn
                         onToggled: root.core.setNotify(acct.model.key, checked)
+                        // A save that failed leaves the model as it was, so
+                        // the binding would not run again: restore it.
+                        Connections {
+                            target: root.core
+                            function onNotice() { accountToggle.checked = Qt.binding(function() { return acct.notifyOn }) }
+                        }
                     }
                 }
             }
@@ -125,7 +136,7 @@ Item {
                 theme: root.theme
                 width: col.width
                 separator: false
-                implicitHeight: Math.max(root.theme.touch, textCol.height + root.theme.gu(2))
+                implicitHeight: Math.max(root.theme.touch + root.theme.gu(2.5), textCol.height + root.theme.gu(2.5))
                 enabled: root.anyOn
                 onClicked: root.core.setNotifyText(!root.core.notifyShowText)
                 Column {
@@ -143,7 +154,6 @@ Item {
                         color: root.theme.text
                         font.family: root.theme.fontUi
                         font.pixelSize: 16
-                        font.weight: Font.Medium
                     }
                     Text {
                         objectName: "notifyTextOff"
@@ -166,6 +176,10 @@ Item {
                     enabled: root.anyOn
                     checked: root.core.notifyShowText
                     onToggled: root.core.setNotifyText(checked)
+                    Connections {
+                        target: root.core
+                        function onNotice() { textToggle.checked = Qt.binding(function() { return root.core.notifyShowText }) }
+                    }
                 }
             }
             Help {
@@ -181,7 +195,7 @@ Item {
                 visible: root.anyOn
                 width: col.width
                 height: visible ? implicitHeight : 0
-                spacing: root.theme.gu(0.5)
+                spacing: root.theme.gu(1)
                 Rectangle {
                     x: root.theme.gu(2)
                     width: col.width - root.theme.gu(4)
@@ -193,10 +207,12 @@ Item {
                     text: qsTr("Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. To keep it running, either:")
                 }
                 Help {
-                    text: qsTr("UT Tweak Tool: Apps, Envio, then turn on Prevent app suspension.")
+                    textFormat: Text.StyledText
+                    text: qsTr("<b>UT Tweak Tool:</b> Apps, Envio, then turn on Prevent app suspension.")
                 }
                 Help {
-                    text: qsTr("Terminal: run these. The second keeps the apps already in the list.")
+                    textFormat: Text.StyledText
+                    text: qsTr("<b>Terminal:</b> run these. The second keeps the apps already in the list.")
                 }
                 Rectangle {
                     x: root.theme.gu(2)
@@ -211,8 +227,8 @@ Item {
                         objectName: "exemptCommand"
                         textFormat: Text.PlainText
                         anchors { fill: parent; margins: root.theme.gu(1.5) }
-                        text: root.exemptCommand
-                        wrapMode: Text.WrapAnywhere
+                        text: root.shownCommand
+                        wrapMode: Text.Wrap
                         color: root.theme.text
                         font.family: root.theme.fontAddress
                         font.pixelSize: 11
