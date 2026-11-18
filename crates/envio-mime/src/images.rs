@@ -3,6 +3,8 @@
 //! attribute values and escapes `<` in text, so every `<` starts a tag and
 //! a quote-aware scan finds where it ends.
 
+use std::collections::HashSet;
+
 use crate::hidden::{Ends, is_unwrapped};
 use crate::image_label;
 use crate::natural::{Unsized, draws_wider};
@@ -60,6 +62,19 @@ impl Tag {
     }
 }
 
+/// Most distinct remote images one message loads, and most images waiting
+/// for a reported size (#215). Past it an image shows its label: the
+/// reader makes an item and a network load per URL, so an unbounded list
+/// would stall or exhaust the phone.
+pub(crate) const MAX_REMOTE_IMAGES: usize = 200;
+
+/// The remote images [`fit`] has listed, for a constant-time de-dup.
+struct Seen<'a> {
+    options: &'a RenderOptions,
+    urls: HashSet<String>,
+    unsized_images: HashSet<(String, u32, Option<u32>)>,
+}
+
 /// An image in [`fit`]'s result, shown or as its label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Placed {
@@ -79,6 +94,11 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
     };
     let mut rest = html;
     let mut ends: Option<Ends> = None;
+    let mut seen = Seen {
+        options,
+        urls: HashSet::new(),
+        unsized_images: HashSet::new(),
+    };
     // The pixel width of each open table cell, so a percentage image
     // width is a share of its cell rather than of the whole reader.
     let mut cells: Vec<Option<u32>> = Vec::new();
@@ -101,7 +121,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             Some(tag) if tag.name == "img" => {
                 let at = out.html.len();
                 let cell = cells.iter().rev().find_map(|w| *w);
-                if let Some(width) = image(&tag, options, cell, &mut out) {
+                if let Some(width) = image(&tag, cell, &mut seen, &mut out) {
                     let end = out.html.len();
                     images.push(Placed { at, end, width });
                 }
@@ -190,10 +210,11 @@ fn unescape(value: &str) -> String {
 /// unusable `src`.
 fn image(
     tag: &Tag,
-    options: &RenderOptions,
     cell: Option<u32>,
+    seen: &mut Seen<'_>,
     out: &mut Rendered,
 ) -> Option<Option<u32>> {
+    let options = seen.options;
     let src = tag.attr("src").unwrap_or_default().trim();
     let width = size(tag, "width");
     let height = size(tag, "height");
@@ -223,7 +244,14 @@ fn image(
             image_label::write(tag, options, &mut out.html);
             return Some(width);
         }
-        if !out.remote_images.iter().any(|seen| seen == src) {
+        if !seen.urls.contains(src) {
+            if seen.urls.len() >= MAX_REMOTE_IMAGES {
+                // Over the cap: the label, not counted as blocked (the
+                // "Load images" choice would not bring it back).
+                image_label::write(tag, options, &mut out.html);
+                return Some(width);
+            }
+            seen.urls.insert(src.to_owned());
             out.remote_images.push(src.to_owned());
         }
         natural = options.image_sizes.get(src).copied();
@@ -257,7 +285,12 @@ fn image(
     }
     // A remote image still without a width: a size the reader reports
     // later may cap it.
-    if width.is_none() && room > 0 && !is_cid {
+    if width.is_none()
+        && room > 0
+        && !is_cid
+        && seen.unsized_images.len() < MAX_REMOTE_IMAGES
+        && seen.unsized_images.insert((url.clone(), room, height))
+    {
         out.unsized_images.push(Unsized {
             url: url.clone(),
             room,
