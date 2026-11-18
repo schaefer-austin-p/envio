@@ -1,6 +1,7 @@
 //! A `Core` over a temporary folder with its events in a channel, set up
 //! for tests against Stalwart. (Not `core.rs`: that would shadow `core`.)
 
+use std::cell::RefCell;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -33,6 +34,9 @@ pub struct CoreRun {
     core: Option<Core>,
     pub events: Receiver<Event>,
     level: LevelFilter,
+    /// Every event `wait` or `happens` took off `events`, matched or
+    /// not, for `wait_ever`.
+    history: RefCell<Vec<Event>>,
 }
 
 /// How long a core may take to stop before the test fails.
@@ -85,6 +89,7 @@ impl CoreRun {
             core: Some(core),
             events,
             level,
+            history: RefCell::default(),
         }
     }
 
@@ -107,6 +112,7 @@ impl CoreRun {
         let (core, events) = begin(&self.dir, self.level);
         self.core = Some(core);
         self.events = events;
+        self.history.borrow_mut().clear();
         self
     }
 
@@ -123,6 +129,7 @@ impl CoreRun {
             let left = end.saturating_duration_since(Instant::now());
             match self.events.recv_timeout(left) {
                 Ok(event) => {
+                    self.history.borrow_mut().push(event.clone());
                     if let Some(found) = pick(&event) {
                         return found;
                     }
@@ -135,14 +142,31 @@ impl CoreRun {
         }
     }
 
+    /// Like `wait`, but an event an earlier `wait`, `happens` or helper
+    /// (`add_account`, `folder`, `rows`) already took off the channel
+    /// counts too. Use it for a state change that may have happened while
+    /// the test was waiting for something else, such as the account being
+    /// Ready (#257).
+    pub fn wait_ever<T>(&self, timeout: Duration, pick: impl Fn(&Event) -> Option<T>) -> T {
+        if let Some(found) = self.history.borrow().iter().find_map(&pick) {
+            return found;
+        }
+        self.wait(timeout, pick)
+    }
+
     /// True if an event `pick` takes arrives within `window`.
     pub fn happens(&self, window: Duration, pick: impl Fn(&Event) -> bool) -> bool {
         let end = Instant::now() + window;
         loop {
             let left = end.saturating_duration_since(Instant::now());
             match self.events.recv_timeout(left) {
-                Ok(event) if pick(&event) => return true,
-                Ok(_) => {}
+                Ok(event) => {
+                    let hit = pick(&event);
+                    self.history.borrow_mut().push(event);
+                    if hit {
+                        return true;
+                    }
+                }
                 Err(_) => return false,
             }
         }
