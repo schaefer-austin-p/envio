@@ -87,7 +87,6 @@ impl Worker<'_> {
                     stop.notify_one();
                     return None;
                 }
-                give_way(live);
                 return Some(Step::Body(id));
             }
             // The one prefetch rule: `has_wants` and `steps` both ask it.
@@ -137,8 +136,6 @@ impl Worker<'_> {
                         stop.notify_one();
                         return None;
                     }
-                    // A step does not wait for a background connect.
-                    give_way(live);
                     if !env.foreground {
                         // Only the Inbox, after a wake: the rest waits for
                         // the app to come back.
@@ -222,15 +219,6 @@ impl Worker<'_> {
             };
         }
         wake.map(|at| at.max(now))
-    }
-}
-
-/// A step needs the session: a connect in flight is cancelled (it owns the
-/// session; dropping it closes the socket, so no half-open one is reused).
-fn give_way(live: &mut super::conn::Live) {
-    if let Conn::Opening(handle) = &live.conn {
-        handle.abort();
-        live.conn = Conn::Closed;
     }
 }
 

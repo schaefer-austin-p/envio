@@ -304,7 +304,7 @@ impl<'s> Worker<'s> {
         let now = now_ms();
         self.on_timers(now);
         if let Some((account, step)) = self.pick(now).await {
-            run::run_one(self, &account, step).await;
+            self.run_polling(&account, step).await;
             self.last_ran = Some(account);
             return self.drain(commands).await;
         }
@@ -327,6 +327,29 @@ impl<'s> Worker<'s> {
             },
             () = self.ended() => Flow::Continue,
             () = sleep => Flow::Continue,
+        }
+    }
+
+    /// Runs a step while the connects in flight are still polled: a step
+    /// can take long, and a connect's timeout must not run out unseen.
+    /// Their results are handled after the step.
+    async fn run_polling(&mut self, account: &str, step: plan::Step) {
+        let mut opens = std::mem::take(&mut self.opens);
+        let mut ended = Vec::new();
+        {
+            let run = run::run_one(self, account, step);
+            tokio::pin!(run);
+            loop {
+                tokio::select! {
+                    () = &mut run => break,
+                    Some(end) = opens.next(), if !opens.is_empty() => ended.push(end),
+                }
+            }
+        }
+        opens.extend(std::mem::take(&mut self.opens));
+        self.opens = opens;
+        for (account, result) in ended {
+            self.open_done(&account, result);
         }
     }
 

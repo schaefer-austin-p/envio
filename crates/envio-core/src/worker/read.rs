@@ -455,7 +455,7 @@ mod tests {
         let mut worker = open(&config, &sink);
         worker.open_message(seeded.message, ImagesChoice::Default, 300);
         assert!(worker.opening.contains_key(&seeded.message));
-        // What `begin_idle` and `idle_done` do with an error.
+        // What `open_done` and `idle_done` do with an error.
         worker.open_failed(Some(&seeded.account));
         assert!(worker.opening.is_empty());
         assert!(worker.live[&seeded.account].wants.bodies.is_empty());

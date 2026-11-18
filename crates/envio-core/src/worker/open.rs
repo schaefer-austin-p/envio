@@ -185,3 +185,128 @@ impl Worker<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::future::{AbortHandle, abortable};
+
+    use super::*;
+    use crate::worker::testing::{Sink, open, seed};
+
+    /// A handle of a connect still in flight.
+    fn in_flight() -> AbortHandle {
+        let (_future, handle) = abortable(std::future::pending::<()>());
+        handle
+    }
+
+    /// The `Aborted` a cancelled connect ends with.
+    fn aborted() -> Aborted {
+        let (future, handle) = abortable(std::future::pending::<()>());
+        handle.abort();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        runtime.block_on(future).unwrap_err()
+    }
+
+    #[test]
+    fn a_cancelled_connect_leaves_health_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(in_flight());
+        let seen = sink.events().len();
+        worker.open_done(&account, Err(aborted()));
+        let live = &worker.live[&account];
+        assert_eq!(live.health.failures, 0);
+        assert!(live.health.can_run(0));
+        assert_eq!(sink.events().len(), seen);
+    }
+
+    #[test]
+    fn a_failed_connect_backs_off_and_closes() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(in_flight());
+        worker.open_done(&account, Ok(Err(Problem::Temporary)));
+        let live = &worker.live[&account];
+        assert_eq!(live.health.failures, 1);
+        assert!(live.health.wake_at().is_some());
+        assert!(matches!(live.conn, Conn::Closed));
+    }
+
+    #[test]
+    fn a_result_after_the_connect_was_given_up_is_dropped() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        // Not `Opening` any more: a step took the connection over.
+        worker.open_done(&account, Ok(Err(Problem::Temporary)));
+        assert_eq!(worker.live[&account].health.failures, 0);
+    }
+
+    #[test]
+    fn removing_an_account_cancels_its_connect() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        let handle = in_flight();
+        let seen = handle.clone();
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(handle);
+        assert!(!seen.is_aborted());
+        worker.remove_account(&account, true);
+        assert!(seen.is_aborted());
+    }
+
+    fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(future)
+    }
+
+    #[test]
+    fn a_step_that_needs_imap_cancels_the_connect() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        let handle = in_flight();
+        let seen = handle.clone();
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(handle);
+        // No password is stored: it ends at once, after giving way.
+        let _ = block_on(worker.imap(&account));
+        assert!(seen.is_aborted());
+    }
+
+    #[test]
+    fn a_send_step_leaves_the_connect_running() {
+        use crate::worker::plan::Step;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let account = seeded.account;
+        let handle = in_flight();
+        let seen = handle.clone();
+        worker.live.get_mut(&account).unwrap().conn = Conn::Opening(handle);
+        let _ = block_on(crate::worker::run::run_step(
+            &mut worker,
+            &account,
+            &Step::Send,
+        ));
+        assert!(!seen.is_aborted());
+        assert!(matches!(worker.live[&account].conn, Conn::Opening(_)));
+    }
+}

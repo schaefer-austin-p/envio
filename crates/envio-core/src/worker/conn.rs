@@ -194,36 +194,25 @@ impl Worker<'_> {
             return Err(Problem::Local);
         };
         match std::mem::replace(&mut live.conn, Conn::Closed) {
-            Conn::Ready(session) => Ok(session),
-            Conn::Closed => {
-                let Some(settings) = self.store.accounts.get(account) else {
-                    return Err(Problem::Local);
-                };
-                let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
-                if let Some(live) = self.live.get_mut(account) {
-                    live.idle_capable = Some(session.caps().idle);
-                }
-                Ok(session)
-            }
+            Conn::Ready(session) => return Ok(session),
+            Conn::Closed => {}
+            // A step needs the session: the background connect gives way
+            // (a session it owns is dropped with it) and this one connects.
+            Conn::Opening(handle) => handle.abort(),
             Conn::Idling(notify) => {
                 log::error!("a step was picked for an account in IDLE");
                 live.conn = Conn::Idling(notify);
-                Err(Problem::Temporary)
-            }
-            Conn::Opening(handle) => {
-                // A command needs the session now: the background connect
-                // gives way and this one connects itself.
-                handle.abort();
-                let Some(settings) = self.store.accounts.get(account) else {
-                    return Err(Problem::Local);
-                };
-                let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
-                if let Some(live) = self.live.get_mut(account) {
-                    live.idle_capable = Some(session.caps().idle);
-                }
-                Ok(session)
+                return Err(Problem::Temporary);
             }
         }
+        let Some(settings) = self.store.accounts.get(account) else {
+            return Err(Problem::Local);
+        };
+        let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
+        if let Some(live) = self.live.get_mut(account) {
+            live.idle_capable = Some(session.caps().idle);
+        }
+        Ok(session)
     }
 
     pub(super) fn inbox(&self, account: &str) -> Result<Option<envio_store::Folder>, Problem> {
