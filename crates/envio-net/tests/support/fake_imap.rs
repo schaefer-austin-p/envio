@@ -213,25 +213,11 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                     script.signed_out_capabilities
                 }
             ),
-            "UID" if answers_uid(&script, &sub_verb) => {
-                let Some(reply) = uid_reply(&command, &tag, &script, &mut fetches) else {
+            "UID" | "FETCH" | "SELECT" if answers(&script, &verb, &sub_verb) => {
+                let Some(reply) = scripted_reply(&command, &tag, &script, &mut fetches) else {
                     return;
                 };
                 reply
-            }
-            // A FETCH by message number, answered like a UID FETCH.
-            "FETCH" if script.fetch_flags => {
-                let Some(reply) = fetch_reply(&command, &tag, &script, &mut fetches) else {
-                    return;
-                };
-                reply
-            }
-            "SELECT" if script.select_exists != 0 => format!(
-                "* {} EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n{tag} OK [READ-WRITE] done\r\n",
-                script.select_exists
-            ),
-            "UID" if sub_verb == "EXPUNGE" && !script.expunge_refusal.is_empty() => {
-                format!("{tag} {}\r\n", script.expunge_refusal)
             }
             "IDLE" => idle_reply(io, log, &tag, &script).await,
             // Accepted and recorded; the tests read the transcript.
@@ -256,27 +242,45 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
-fn answers_uid(script: &Script, sub_verb: &str) -> bool {
-    (script.fetch_flags && sub_verb == "FETCH")
-        || (sub_verb == "SEARCH"
-            && !(script.search_refusal.is_empty() && script.search_untagged.is_empty()))
+/// Whether the script has its own answer to this command.
+fn answers(script: &Script, verb: &str, sub_verb: &str) -> bool {
+    match verb {
+        "FETCH" => script.fetch_flags,
+        "SELECT" => script.select_exists != 0,
+        _ => match sub_verb {
+            "FETCH" => script.fetch_flags,
+            "SEARCH" => !(script.search_refusal.is_empty() && script.search_untagged.is_empty()),
+            "EXPUNGE" => !script.expunge_refusal.is_empty(),
+            _ => false,
+        },
+    }
 }
 
-/// The reply to a UID FETCH or a refused UID SEARCH.
-fn uid_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -> Option<String> {
-    if command
-        .split(' ')
-        .nth(2)
-        .is_some_and(|word| word.eq_ignore_ascii_case("SEARCH"))
-    {
-        let status = if script.search_refusal.is_empty() {
-            "OK done"
-        } else {
-            script.search_refusal
-        };
-        return Some(format!("{}{tag} {status}\r\n", script.search_untagged));
+/// The reply to a SELECT, a FETCH (by number or UID), a UID SEARCH or a
+/// refused UID EXPUNGE; None from the fetch that is to drop the connection.
+fn scripted_reply(
+    command: &str,
+    tag: &str,
+    script: &Script,
+    fetches: &mut usize,
+) -> Option<String> {
+    let word = |n| command.split(' ').nth(n).unwrap_or("").to_ascii_uppercase();
+    match (word(1).as_str(), word(2).as_str()) {
+        ("SELECT", _) => Some(format!(
+            "* {} EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n{tag} OK [READ-WRITE] done\r\n",
+            script.select_exists
+        )),
+        ("UID", "SEARCH") => {
+            let status = if script.search_refusal.is_empty() {
+                "OK done"
+            } else {
+                script.search_refusal
+            };
+            Some(format!("{}{tag} {status}\r\n", script.search_untagged))
+        }
+        ("UID", "EXPUNGE") => Some(format!("{tag} {}\r\n", script.expunge_refusal)),
+        _ => fetch_reply(command, tag, script, fetches),
     }
-    fetch_reply(command, tag, script, fetches)
 }
 
 /// The flags of every UID in the command's set; None from the fetch
