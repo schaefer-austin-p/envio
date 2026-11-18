@@ -38,8 +38,15 @@ impl Worker<'_> {
             .map(|a| a.settings.name.clone())
             .filter(|name| !name.is_empty())
             .unwrap_or_else(text::notice::new_mail_summary);
-        let card = alert::plan(&mail, &name, &self.store.settings, self.focused());
-        let (account, count) = (mail.account.clone(), mail.count);
+        // The card replaces the account's last one, so it counts all mail
+        // alerted since the app was last on screen.
+        let alerted = if self.focused() || !self.notifies(&mail.account) {
+            mail.clone()
+        } else {
+            self.unseen.borrow_mut().add(&mail)
+        };
+        let card = alert::plan(&alerted, &name, &self.store.settings, self.focused());
+        let (account, count) = (alerted.account.clone(), alerted.count);
         self.sink.emit(Event::NewMail(mail));
         if let Some(card) = card {
             self.poster.post(&card);
@@ -126,6 +133,77 @@ mod tests {
         worker.new_mail(mail(&seeded.account, 3));
         assert!(recorder.0.lock().unwrap().0.is_empty());
         assert!(sink.events().iter().any(|e| matches!(e, Event::NewMail(_))));
+    }
+
+    fn bodies(recorder: &Recorder) -> Vec<String> {
+        let alerts = recorder.0.lock().unwrap().0.clone();
+        alerts.into_iter().map(|a| a.body).collect()
+    }
+
+    #[test]
+    fn separate_syncs_while_unfocused_count_all_new_mail_in_the_card() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let worker = open(&config, &sink);
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        for _ in 0..3 {
+            worker.new_mail(mail(&seeded.account, 1));
+        }
+        assert_eq!(
+            bodies(&recorder),
+            ["1 new message", "2 new messages", "3 new messages"]
+        );
+    }
+
+    #[test]
+    fn mail_found_while_focused_does_not_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        worker.foreground = true;
+        worker.new_mail(mail(&seeded.account, 2));
+        worker.foreground = false;
+        worker.new_mail(mail(&seeded.account, 1));
+        assert_eq!(bodies(&recorder), ["1 new message"]);
+    }
+
+    #[test]
+    fn the_count_starts_over_after_the_app_was_focused() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        worker.new_mail(mail(&seeded.account, 1));
+        worker.new_mail(mail(&seeded.account, 1));
+        worker.app_active(true);
+        worker.app_active(false);
+        worker.new_mail(mail(&seeded.account, 1));
+        assert_eq!(
+            bodies(&recorder),
+            ["1 new message", "2 new messages", "1 new message"]
+        );
+    }
+
+    #[test]
+    fn turning_the_switch_off_starts_the_count_over() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let recorder = Recorder::default();
+        worker.poster.set(Box::new(recorder.clone()));
+        worker.new_mail(mail(&seeded.account, 2));
+        worker.set_notify(&seeded.account, false);
+        worker.set_notify(&seeded.account, true);
+        worker.new_mail(mail(&seeded.account, 1));
+        assert_eq!(bodies(&recorder), ["2 new messages", "1 new message"]);
     }
 
     #[test]

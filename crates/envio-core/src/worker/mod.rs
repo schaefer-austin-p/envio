@@ -112,6 +112,8 @@ pub(crate) struct Worker<'s> {
     loads: HashMap<ListRef, older::Load>,
     /// Where alerts and the badge go (shared with `Core::set_poster`).
     poster: Arc<PosterSlot>,
+    /// New mail alerted since the app was last on screen, per account.
+    unseen: RefCell<crate::alert::Tally>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -238,6 +240,7 @@ impl<'s> Worker<'s> {
             floors: BTreeMap::new(),
             loads: HashMap::new(),
             poster: Arc::clone(poster),
+            unseen: RefCell::default(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

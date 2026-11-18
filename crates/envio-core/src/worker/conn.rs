@@ -311,6 +311,9 @@ impl Worker<'_> {
     pub(crate) fn app_active(&mut self, active: bool) {
         self.foreground = active;
         self.poster.set_foreground(active);
+        if active {
+            self.unseen.borrow_mut().reset_all();
+        }
         if !active {
             let notify_off = &self.store.settings.notify_off;
             for (account, live) in &mut self.live {

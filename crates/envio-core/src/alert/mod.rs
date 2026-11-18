@@ -3,10 +3,12 @@
 
 mod plan;
 mod postal;
+mod tally;
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 pub use plan::plan;
+pub(crate) use tally::Tally;
 
 /// A card for the platform to show. The text is final and translated.
 #[derive(Debug, Clone, PartialEq, Eq)]
