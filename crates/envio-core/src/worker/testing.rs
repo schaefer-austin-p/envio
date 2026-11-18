@@ -95,6 +95,43 @@ pub(super) fn seed(dir: &Path) -> (Config, Seeded) {
     )
 }
 
+/// Another account with an Inbox holding `unread` unread messages. The
+/// worker's unread counts are not refreshed.
+pub(super) fn add_account(worker: &mut Worker<'_>, name: &str, unread: u32) -> String {
+    let server = || Server {
+        host: "127.0.0.1".into(),
+        port: 1,
+        security: Security::Tls,
+        pin: None,
+    };
+    let settings = AccountSettings {
+        name: name.into(),
+        email: format!("{name}@example.org"),
+        username: format!("{name}@example.org"),
+        imap: server(),
+        smtp: server(),
+    };
+    let account = worker.store.accounts.add(settings, 2_000).unwrap();
+    let db = &worker.store.db;
+    let folder = db
+        .upsert_folder(&account, "INBOX", FolderRole::Inbox)
+        .unwrap();
+    for uid in 1..=unread {
+        let new = NewMessage {
+            uid,
+            size: 10,
+            envelope: Envelope {
+                subject: format!("m{uid}"),
+                ..Envelope::default()
+            },
+            flags: Flags::default(),
+            preview: String::new(),
+        };
+        db.upsert_message(folder, &new).unwrap();
+    }
+    account
+}
+
 pub(super) fn open<'s>(config: &Config, sink: &'s Sink) -> Worker<'s> {
     let paths = StorePaths::new(&config.cache_dir, &config.data_dir);
     let book = Arc::new(DraftBook::new(&paths.drafts()));

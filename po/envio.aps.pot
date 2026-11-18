@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 10:08+0100\n"
+"POT-Creation-Date: 2026-11-18 10:26+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -607,47 +607,47 @@ msgstr ""
 msgid "%1 · %2"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:179
+#: qml/pages/reader/InviteCard.qml:180
 msgid "Time zone not recognised"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:212
+#: qml/pages/reader/InviteCard.qml:213
 msgid "Change"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:220
+#: qml/pages/reader/InviteCard.qml:221
 msgid "Sending…"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:247
+#: qml/pages/reader/InviteCard.qml:248
 msgid "Not sent, see Outbox"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:266
+#: qml/pages/reader/InviteCard.qml:267
 msgid "Accept"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:273
+#: qml/pages/reader/InviteCard.qml:274
 msgid "Maybe"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:280
+#: qml/pages/reader/InviteCard.qml:281
 msgid "Decline"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:291
+#: qml/pages/reader/InviteCard.qml:292
 msgid "Hide note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:291
+#: qml/pages/reader/InviteCard.qml:292
 msgid "Add a note"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:298
+#: qml/pages/reader/InviteCard.qml:299
 msgid "Add to calendar"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:308
+#: qml/pages/reader/InviteCard.qml:309
 msgid "Note to %1"
 msgstr ""
 
@@ -953,76 +953,80 @@ msgstr ""
 msgid "The server refused: {reason}"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:11
+#: crates/envio-core/src/text/notice.rs:12
+msgid "New mail"
+msgstr ""
+
+#: crates/envio-core/src/text/notice.rs:16
 msgid "The mail cache was damaged and is being rebuilt from the server"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:15
+#: crates/envio-core/src/text/notice.rs:20
 msgid ""
 "Envio cannot open its mail storage. Your unsent mail is safe; trying again"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:19
+#: crates/envio-core/src/text/notice.rs:24
 msgid ""
 "The mail cache is damaged and could not be rebuilt. Free some space or "
 "restart Envio"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:23
+#: crates/envio-core/src/text/notice.rs:28
 msgid "Storage is full. Free some space to keep mail up to date"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:28
+#: crates/envio-core/src/text/notice.rs:33
 msgid ""
 "Envio could not start. Restart it, or free some space if that does not help"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:32
+#: crates/envio-core/src/text/notice.rs:37
 msgid ""
 "Envio hit a problem and restarted its mail engine. Your unsent mail is safe"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:38
+#: crates/envio-core/src/text/notice.rs:43
 msgid "Couldn't update the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:39
+#: crates/envio-core/src/text/notice.rs:44
 msgid "Couldn't move the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:40
+#: crates/envio-core/src/text/notice.rs:45
 msgid "Couldn't delete the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:47
+#: crates/envio-core/src/text/notice.rs:52
 msgid "Gave up updating the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:48
+#: crates/envio-core/src/text/notice.rs:53
 msgid "Gave up moving the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:49
+#: crates/envio-core/src/text/notice.rs:54
 msgid "Gave up deleting the message on the server; it's back"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:54
+#: crates/envio-core/src/text/notice.rs:59
 msgid "Could not save your settings"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:58
+#: crates/envio-core/src/text/notice.rs:63
 msgid "Could not save the contact"
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:63
+#: crates/envio-core/src/text/notice.rs:68
 msgid "This change couldn't be saved on the phone. It may still be applied."
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:68
+#: crates/envio-core/src/text/notice.rs:73
 msgid "Undo couldn't be saved on the phone. The change may still be undone."
 msgstr ""
 
-#: crates/envio-core/src/text/notice.rs:75
+#: crates/envio-core/src/text/notice.rs:80
 msgid "{n} pending change could not be read and was skipped"
 msgid_plural "{n} pending changes could not be read and were skipped"
 msgstr[0] ""

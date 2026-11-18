@@ -3,7 +3,7 @@
 
 mod plan;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 pub use plan::plan;
 
@@ -29,29 +29,35 @@ pub trait Poster: Send {
 
 /// Where the worker finds the poster; set after the core starts, and kept
 /// across worker restarts. Until one is set, alerts and badges go nowhere.
+/// The poster is called outside the slot's lock, so `set` never waits for a
+/// call, and one that panicked does not end alerts for good.
 #[derive(Default)]
-pub(crate) struct PosterSlot(Mutex<Option<Box<dyn Poster>>>);
+pub(crate) struct PosterSlot(Mutex<Option<Shared>>);
+
+type Shared = Arc<Mutex<Box<dyn Poster>>>;
+
+fn unpoisoned<T>(lock: &Mutex<T>) -> MutexGuard<'_, T> {
+    lock.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 impl PosterSlot {
     pub(crate) fn set(&self, poster: Box<dyn Poster>) {
-        if let Ok(mut slot) = self.0.lock() {
-            *slot = Some(poster);
-        }
+        *unpoisoned(&self.0) = Some(Arc::new(Mutex::new(poster)));
+    }
+
+    fn current(&self) -> Option<Shared> {
+        unpoisoned(&self.0).clone()
     }
 
     pub(crate) fn post(&self, alert: &Alert) {
-        if let Ok(slot) = self.0.lock()
-            && let Some(poster) = slot.as_ref()
-        {
-            poster.post(alert);
+        if let Some(poster) = self.current() {
+            unpoisoned(&poster).post(alert);
         }
     }
 
     pub(crate) fn badge(&self, total_unread: u32) {
-        if let Ok(slot) = self.0.lock()
-            && let Some(poster) = slot.as_ref()
-        {
-            poster.badge(total_unread);
+        if let Some(poster) = self.current() {
+            unpoisoned(&poster).badge(total_unread);
         }
     }
 }
