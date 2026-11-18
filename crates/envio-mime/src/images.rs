@@ -3,7 +3,7 @@
 //! attribute values and escapes `<` in text, so every `<` starts a tag and
 //! a quote-aware scan finds where it ends.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::hidden::{Ends, is_unwrapped};
 use crate::image_label;
@@ -68,11 +68,26 @@ impl Tag {
 /// would stall or exhaust the phone.
 pub(crate) const MAX_REMOTE_IMAGES: usize = 200;
 
+/// Most (room, height) variants of one URL kept for a reported size. Per
+/// URL, so repeats of one URL cannot use up the slots of the others; the
+/// total stays under `MAX_REMOTE_IMAGES * MAX_VARIANTS`.
+const MAX_VARIANTS: usize = 8;
+
 /// The remote images [`fit`] has listed, for a constant-time de-dup.
 struct Seen<'a> {
     options: &'a RenderOptions,
     urls: HashSet<String>,
-    unsized_images: HashSet<(String, u32, Option<u32>)>,
+    unsized_images: HashMap<String, HashSet<(u32, Option<u32>)>>,
+}
+
+impl Seen<'_> {
+    /// Whether `url` at this room and height is a new entry within its
+    /// URL's [`MAX_VARIANTS`]. Only listed URLs get here, so at most
+    /// `MAX_REMOTE_IMAGES` keys exist.
+    fn wants_size(&mut self, url: &str, room: u32, height: Option<u32>) -> bool {
+        let variants = self.unsized_images.entry(url.to_owned()).or_default();
+        variants.len() < MAX_VARIANTS && variants.insert((room, height))
+    }
 }
 
 /// An image in [`fit`]'s result, shown or as its label.
@@ -97,7 +112,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
     let mut seen = Seen {
         options,
         urls: HashSet::new(),
-        unsized_images: HashSet::new(),
+        unsized_images: HashMap::new(),
     };
     // The pixel width of each open table cell, so a percentage image
     // width is a share of its cell rather than of the whole reader.
@@ -285,12 +300,7 @@ fn image(
     }
     // A remote image still without a width: a size the reader reports
     // later may cap it.
-    if width.is_none()
-        && room > 0
-        && !is_cid
-        && seen.unsized_images.len() < MAX_REMOTE_IMAGES
-        && seen.unsized_images.insert((url.clone(), room, height))
-    {
+    if width.is_none() && room > 0 && !is_cid && seen.wants_size(&url, room, height) {
         out.unsized_images.push(Unsized {
             url: url.clone(),
             room,

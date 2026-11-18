@@ -339,7 +339,7 @@ fn caps_the_images_that_wait_for_a_size() {
         .collect();
     let r = sanitize_html(&html, &allowed());
     assert_eq!(r.remote_images, ["https://example.com/a.png"]);
-    assert!(r.unsized_images.len() <= CAP);
+    assert!(r.unsized_images.len() <= PER_URL);
 }
 
 /// Hostile corpus: 100k distinct URLs (about 4 MB of HTML) must come out
@@ -350,7 +350,7 @@ fn a_hundred_thousand_distinct_urls_stay_capped_and_quick() {
     let start = std::time::Instant::now();
     let r = sanitize_html(&html, &allowed());
     assert_eq!(r.remote_images.len(), CAP);
-    assert!(r.unsized_images.len() <= CAP);
+    assert!(r.unsized_images.len() <= CAP * PER_URL);
     assert!(start.elapsed() < std::time::Duration::from_secs(20));
 }
 
@@ -366,7 +366,10 @@ fn repeats_of_one_url_cannot_use_up_the_size_slots_of_others() {
     html.push_str(r#"<img src="https://example.com/b.png">"#);
     let r = sanitize_html(&html, &allowed());
     assert!(r.unsized_images.iter().any(|u| u.url.ends_with("/b.png")));
-    let of_a = r.unsized_images.iter().filter(|u| u.url.ends_with("/a.png"));
+    let of_a = r
+        .unsized_images
+        .iter()
+        .filter(|u| u.url.ends_with("/a.png"));
     assert!(of_a.count() <= PER_URL);
 }
 
