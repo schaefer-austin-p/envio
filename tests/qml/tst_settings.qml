@@ -76,7 +76,7 @@ Item {
         }
         function test_acting_at_once_rows_have_no_chevron() {
             // Light/Dark/System and the sync mode act at once.
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
             verify(all("chevron", find("darkMode-dark", appearance)).length === 0)
             verify(all("chevron", find("whileOpen-ann", sync)).length === 0)
         }
@@ -152,11 +152,19 @@ Item {
         }
 
         function test_sync_says_what_checking_means() {
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             sync.visible = true
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
             verify(find("whileOpen-ann", sync).selected)
+        }
+
+        function test_sync_heading_shows_the_label_not_the_sender_name() {
+            core.accounts.append({ key: "ann", name: "Ann", display: "Work", label: "Work", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
+            sync.visible = true
+            tryVerify(function() { return all("syncAccount-ann", sync).length === 1 })
+            compare(find("syncAccount-ann", sync).text, "Work")
         }
 
         function test_sync_window_choice_calls_set_sync_window() {
@@ -187,7 +195,7 @@ Item {
             sync.visible = true
             mouseClick(find("window-30", sync))
             verify(find("window-30", sync).selected)
-            core.accounts.append({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+            core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             tryVerify(function() { return all("whileOpen-ann", sync).length === 1 })
             mouseClick(find("whileOpen-ann", sync))

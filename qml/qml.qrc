@@ -39,6 +39,7 @@
         <file>pages/accounts/ConfirmHostsDialog.qml</file>
         <file>pages/accounts/TrustDialog.qml</file>
         <file>pages/accounts/AccountsPage.qml</file>
+        <file>pages/accounts/RenameSheet.qml</file>
         <file>pages/accounts/UpdatePasswordPage.qml</file>
         <file>pages/search/SearchPage.qml</file>
         <file>pages/settings/SettingsPage.qml</file>

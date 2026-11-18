@@ -45,6 +45,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.remove_account(&account, confirmed);
             Flow::Continue
         }
+        Command::SetAccountLabel { account, label } => {
+            worker.set_account_label(&account, &label);
+            Flow::Continue
+        }
         Command::ListFolders { account } => {
             worker.list_folders(&account);
             Flow::Continue

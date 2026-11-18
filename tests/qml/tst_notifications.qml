@@ -43,7 +43,7 @@ Item {
             return hit[0]
         }
         function account(key, notify) {
-            core.accounts.append({ key: key, name: key, email: key + "@example.org", status: "", state: "ok",
+            core.accounts.append({ key: key, name: key, display: key, label: "", email: key + "@example.org", status: "", state: "ok",
                                    unread: 0, unreadText: "", notify: notify })
         }
 

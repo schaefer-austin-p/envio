@@ -173,6 +173,9 @@ pub enum Command {
     /// Remove an account and everything kept for it. Asks first when
     /// work is unsent, unless `confirmed`.
     RemoveAccount { account: String, confirmed: bool },
+    /// Name the account for the tabs, drawer and Accounts page; blank
+    /// clears it. The sender name on mail is not touched.
+    SetAccountLabel { account: String, label: String },
     /// The account's folders, from the cache.
     ListFolders { account: String },
     /// One page (`PAGE` rows) of a list, newest first, from the cache:
@@ -312,6 +315,7 @@ impl Command {
             Self::UpdatePassword { .. } => "UpdatePassword",
             Self::AcceptCertificate { .. } => "AcceptCertificate",
             Self::RemoveAccount { .. } => "RemoveAccount",
+            Self::SetAccountLabel { .. } => "SetAccountLabel",
             Self::ListFolders { .. } => "ListFolders",
             Self::ListMessages { .. } => "ListMessages",
             Self::Search { .. } => "Search",

@@ -190,6 +190,9 @@ pub mod qobject {
         #[cxx_name = "removeAccount"]
         fn remove_account(self: Pin<&mut EnvioCore>, account: &QString, confirmed: bool);
         #[qinvokable]
+        #[cxx_name = "setAccountLabel"]
+        fn set_account_label(self: Pin<&mut EnvioCore>, account: &QString, label: &QString);
+        #[qinvokable]
         #[cxx_name = "listFolders"]
         fn list_folders(self: Pin<&mut EnvioCore>, account: &QString);
         #[qinvokable]

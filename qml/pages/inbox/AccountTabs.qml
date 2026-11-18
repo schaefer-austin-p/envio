@@ -50,7 +50,7 @@ Item {
             objectName: "tab-" + model.key
             theme: root.theme
             // The count is a number beside the name, not counted prose.
-            text: model.unreadText !== "" ? model.name + "  " + model.unreadText : model.name
+            text: model.unreadText !== "" ? model.display + "  " + model.unreadText : model.display
             selected: root.current === model.key
             readonly property bool offline: model.state === "offline"
             // Sign-in failed or certificate changed: sync is stopped.
@@ -61,6 +61,8 @@ Item {
             Accessible.name: attention ? qsTr("%1, sync stopped").arg(text)
                                        : (offline ? qsTr("%1, offline").arg(text) : text)
             height: tabs.height
+            // A long label elides instead of filling the strip.
+            width: Math.min(implicitWidth, root.width * 0.6)
             onClicked: {
                 // The first tap shows the account's saved mail, the next one
                 // leads to the problem.

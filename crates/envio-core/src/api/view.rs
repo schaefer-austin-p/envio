@@ -15,7 +15,10 @@ pub enum CacheState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountInfo {
     pub key: String,
+    /// The sender name on mail.
     pub name: String,
+    /// What the user called the account; empty when unset.
+    pub label: String,
     pub email: String,
     pub status: AccountStatus,
     /// Unread messages in the Inbox.

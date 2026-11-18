@@ -113,6 +113,11 @@ pub enum Event {
         unsent: UnsentCounts,
         text: String,
     },
+    /// An account's label changed (blank: cleared).
+    AccountLabel {
+        account: String,
+        label: String,
+    },
     AccountRemoved {
         account: String,
     },

@@ -29,7 +29,7 @@ Item {
         name: "Shell"
         when: windowShown
 
-        readonly property var ann: ({ key: "ann", name: "Ann", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
+        readonly property var ann: ({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
 
         // A shell on its own core, with an account unless told otherwise.
         function boot(withAccount) {

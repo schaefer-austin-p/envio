@@ -65,7 +65,7 @@ Item {
                      flagged: false, hasAttachments: false, selected: false }
         }
         function account(key, name) {
-            return { key: key, name: name, email: key + "@example.org", status: "", state: "ok", unread: 0, unreadText: "",
+            return { key: key, name: name, display: name, label: "", email: key + "@example.org", status: "", state: "ok", unread: 0, unreadText: "",
                      pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" }
         }
         function init() {
@@ -84,6 +84,12 @@ Item {
             find("searchField").input.text = text
         }
         function searches() { return core.called("search") }
+
+        function test_scope_chips_show_the_display_name() {
+            core.accounts.setProperty(1, "display", "Home")
+            compare(find("chip-account-bob").text, "Home")
+            compare(find("chip-account-ann").text, "Ann")
+        }
 
         function test_search_runs_local_first() {
             typeQuery("train")

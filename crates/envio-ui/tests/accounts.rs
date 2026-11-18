@@ -244,3 +244,51 @@ fn text(v: envio_ui::RowValue) -> String {
         ),
     }
 }
+
+#[test]
+fn a_label_becomes_the_display_name_and_the_heading() {
+    let mut ui = Ui::new();
+    start(&mut ui);
+    let outs = feed(
+        &mut ui,
+        Event::AccountLabel {
+            account: "a".into(),
+            label: "Work".into(),
+        },
+    );
+    let row = account_row_of(&outs);
+    assert_eq!(row.names.label, "Work");
+    assert_eq!(row.names.display, "Work");
+    assert_eq!(row.heading, "Work · a@example.org");
+    // The sender name stays what goes out on mail.
+    assert_eq!(row.name, "A");
+    let outs = feed(
+        &mut ui,
+        Event::AccountLabel {
+            account: "a".into(),
+            label: String::new(),
+        },
+    );
+    let row = account_row_of(&outs);
+    assert_eq!(row.names.display, "A");
+    assert_eq!(row.heading, "A · a@example.org");
+}
+
+#[test]
+fn started_with_a_label_shows_it() {
+    let mut ui = Ui::new();
+    let mut labelled = info("a");
+    labelled.label = "Home".into();
+    let outs = feed(
+        &mut ui,
+        Event::Started {
+            accounts: vec![labelled],
+            cache: envio_core::CacheState::Existing,
+        },
+    );
+    let ops = changes(&outs, Model::Accounts);
+    let Op::Reset(rows) = ops[0] else { panic!() };
+    let Row::Account(a) = &rows[0] else { panic!() };
+    assert_eq!((a.names.display.as_str(), a.name.as_str()), ("Home", "A"));
+    assert_eq!(a.heading, "Home · a@example.org");
+}
