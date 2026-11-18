@@ -60,11 +60,19 @@ impl qobject::EnvioCore {
 
     /// The open message can clear by itself (its row left, the list
     /// changed): the property follows `Ui`.
-    fn sync_open_message(mut self: Pin<&mut Self>) {
+    ///
+    /// Queued like the signals, behind the row changes of the same `run`,
+    /// so a handler of `openMessageChanged` sees the rows it describes.
+    fn sync_open_message(self: Pin<&mut Self>) {
         let open = self.rust().ui.open_message().unwrap_or(0);
-        if self.rust().open_message != open {
-            self.as_mut().rust_mut().open_message = open;
-            self.as_mut().open_message_changed();
+        let queued = self.qt_thread().queue(move |mut obj| {
+            if obj.rust().open_message != open {
+                obj.as_mut().rust_mut().open_message = open;
+                obj.as_mut().open_message_changed();
+            }
+        });
+        if queued.is_err() {
+            log::info!("EnvioCore is gone; dropped the open message");
         }
     }
 

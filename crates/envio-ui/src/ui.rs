@@ -63,6 +63,8 @@ pub struct Ui {
     selection: BTreeSet<i64>,
     /// The message the reader shows (the row's `open` role).
     open: Option<i64>,
+    /// The model `open` was opened from; its row leaving clears `open`.
+    open_from: Option<Model>,
     /// The "Load older" row's state, as last announced.
     older: OlderRow,
     /// Load older found nothing more on the server for the shown list.

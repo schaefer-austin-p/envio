@@ -142,6 +142,32 @@ fn search_rows_get_the_open_mark_too() {
 }
 
 #[test]
+fn open_clears_when_it_leaves_messages_though_a_stale_search_holds_it() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+    let _ = ui.search(SearchScope::All, "q".into(), false);
+    feed(
+        &mut ui,
+        Event::SearchResults {
+            scope: SearchScope::All,
+            query: "q".into(),
+            server: false,
+            rows: vec![msg(1, 10)],
+        },
+    );
+    ui.set_open(Some(1));
+    // The message is archived: the refresh drops it from Messages only.
+    feed(
+        &mut ui,
+        Event::MessagesChanged {
+            folders: vec![FolderId(1)],
+        },
+    );
+    feed(&mut ui, page(F1, None, vec![msg(2, 20)], true));
+    assert_eq!(ui.open_message(), None);
+}
+
+#[test]
 fn an_unknown_id_does_not_open() {
     let mut ui = three();
     ui.set_open(Some(1));

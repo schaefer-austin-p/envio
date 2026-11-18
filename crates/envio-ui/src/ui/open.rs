@@ -18,6 +18,7 @@ impl Ui {
         let mut outs = self.unmark_open(|prev| Some(prev) != id);
         if let Some(id) = id {
             self.open = Some(id);
+            self.open_from = Some(self.source_of(id));
             outs.extend(self.mark_open(id, true));
         }
         self.mirror.track(&outs);
@@ -35,6 +36,7 @@ impl Ui {
             return Vec::new();
         };
         self.open = None;
+        self.open_from = None;
         self.mark_open(prev, false)
     }
 
@@ -49,10 +51,30 @@ impl Ui {
         .collect()
     }
 
-    /// A row that left its models cannot be open.
+    /// The model the open message is opened from: the message list when
+    /// it shows it, else Search.
+    fn source_of(&self, id: i64) -> Model {
+        if self.current.as_ref().is_some_and(|c| c.shown.contains(id)) {
+            Model::Messages
+        } else {
+            Model::Search
+        }
+    }
+
+    /// The message cannot stay open once its row leaves the model it was
+    /// opened from. Another model that still holds it (a search whose
+    /// results are never refreshed) does not keep it open.
     pub(super) fn prune_open(&mut self) {
-        if self.open.is_some_and(|i| !self.shows(i)) {
+        let (Some(id), Some(from)) = (self.open, self.open_from) else {
+            return;
+        };
+        let held = match from {
+            Model::Messages => self.current.as_ref().is_some_and(|c| c.shown.contains(id)),
+            _ => self.found.contains(id),
+        };
+        if !held {
             self.open = None;
+            self.open_from = None;
         }
     }
 }
