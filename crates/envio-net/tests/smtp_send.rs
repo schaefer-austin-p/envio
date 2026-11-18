@@ -35,6 +35,38 @@ async fn send_with(script: Script) -> Result<(), SendError> {
         .await
 }
 
+/// RUSTSEC-2026-0562: lettre 0.11.23 panics on an EHLO reply line of only
+/// white space. A hostile server must get an error, not a dead task.
+#[tokio::test]
+async fn an_ehlo_reply_line_of_white_space_does_not_panic() {
+    let script = Script {
+        ehlo_reply: Some("250-fake\r\n250  \r\n"),
+        ..Script::default()
+    };
+    // `send_with` unwraps connect and login, so a clean error would also end
+    // in a panic there; run connect directly instead.
+    let cert = Cert::self_signed("localhost");
+    let (port, _) = serve(
+        &cert,
+        Script {
+            implicit: true,
+            ..script
+        },
+    )
+    .await;
+    let endpoint = Endpoint {
+        pin: Some(Fingerprint::of(&cert.der)),
+        ..Endpoint::new("localhost", port, Security::Tls)
+    };
+    let joined = tokio::spawn(async move {
+        SmtpSession::connect(&endpoint, &Roots::empty())
+            .await
+            .is_ok()
+    })
+    .await;
+    joined.expect("the connect task panicked");
+}
+
 #[tokio::test]
 async fn a_cut_after_the_final_dot_may_have_sent_the_message() {
     let err = send_with(Script {
@@ -145,8 +177,8 @@ async fn wire_after_data(eml: &[u8]) -> String {
         .iter()
         .position(|(_, l)| l.starts_with("DATA"))
         .unwrap();
-    // lettre ends the data with its own CRLF before the dot, hence the extra
-    // empty line. The transcript trims line ends; lines are joined with "\n".
+    // lettre 0.11.24 adds no empty line before the dot when the message
+    // ends in CRLF. The transcript trims line ends; lines are joined with "\n".
     lines[at + 1..]
         .iter()
         .map(|(_, l)| l.as_str())
@@ -157,13 +189,13 @@ async fn wire_after_data(eml: &[u8]) -> String {
 #[tokio::test]
 async fn a_body_line_starting_with_a_dot_is_stuffed() {
     let wire = wire_after_data(b"Subject: x\r\n\r\n.hidden\r\nend\r\n").await;
-    assert_eq!(wire, "Subject: x\n\n..hidden\nend\n\n.");
+    assert_eq!(wire, "Subject: x\n\n..hidden\nend\n.");
 }
 
 #[tokio::test]
 async fn a_bare_lf_dot_in_the_body_does_not_end_the_data() {
     let wire = wire_after_data(b"Subject: x\r\n\r\nbefore\n.\r\nQUIT\r\nafter\r\n").await;
-    assert_eq!(wire, "Subject: x\n\nbefore\n..\nQUIT\nafter\n\n.");
+    assert_eq!(wire, "Subject: x\n\nbefore\n..\nQUIT\nafter\n.");
 }
 
 #[tokio::test]
@@ -174,10 +206,7 @@ async fn a_body_over_one_chunk_arrives_intact() {
         eml.extend_from_slice(line.as_bytes());
     }
     let wire = wire_after_data(&eml).await;
-    let expected = format!(
-        "{}\n.",
-        String::from_utf8(eml).unwrap().replace("\r\n", "\n")
-    );
+    let expected = format!("{}.", String::from_utf8(eml).unwrap().replace("\r\n", "\n"));
     assert!(
         wire == expected,
         "lengths {} vs {}",
