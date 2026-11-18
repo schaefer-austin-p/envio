@@ -196,7 +196,7 @@ Item {
             open(v)
             // The card pushes the attachment below the fold: scroll to it.
             const flick = everything(root.page, []).filter(function(o) {
-                return o.contentY !== undefined && o.boundsBehavior !== undefined })[0]
+                return o.contentY !== undefined && o.boundsBehavior !== undefined && o.objectName !== "sheetFlick" })[0]
             flick.contentY = Math.max(0, flick.contentHeight - flick.height)
             waitForRendering(root.page)
             mouseClick(find("attachmentRow-0"))
