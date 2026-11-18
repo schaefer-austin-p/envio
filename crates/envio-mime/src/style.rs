@@ -31,6 +31,8 @@ const IMG_SIZE_PROPS: &[&str] = &["width", "height", "max-width"];
 /// Substrings that make a CSS value unsafe, checked in lower case.
 const BAD_CSS: &[&str] = &[
     "url(",
+    "var(",
+    "env(",
     "expression",
     "\\",
     "@",
