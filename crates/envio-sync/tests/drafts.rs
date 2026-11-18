@@ -249,15 +249,7 @@ async fn a_draft_that_drops_the_connection_does_not_starve_the_others() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].0.contains("good text"));
     assert_eq!(store.drafts.load(bad).unwrap().server.message_id, None);
-    assert!(
-        store
-            .drafts
-            .load(&good)
-            .unwrap()
-            .server
-            .message_id
-            .is_some()
-    );
+    assert!(store.drafts.load(good).unwrap().server.message_id.is_some());
 }
 
 #[tokio::test]
