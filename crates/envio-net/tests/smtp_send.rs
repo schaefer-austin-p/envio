@@ -75,7 +75,22 @@ async fn a_wrong_class_reply_to_data_fails_the_send() {
         data_go: "250 not a go-ahead",
         ..Script::default()
     };
-    assert!(send_with(script).await.is_err());
+    let error = send_with(script).await.unwrap_err();
+    assert!(matches!(error.error, NetError::Protocol(_)), "{error:?}");
+    assert!(!error.unconfirmed, "nothing was sent yet");
+}
+
+/// A positive reply of the wrong class after the message is not a
+/// confirmation. The whole message went out, so it is not safe to resend.
+#[tokio::test]
+async fn a_wrong_class_reply_after_the_message_is_unconfirmed() {
+    let script = Script {
+        data_reply: Some("354 not a completion"),
+        ..Script::default()
+    };
+    let error = send_with(script).await.unwrap_err();
+    assert!(matches!(error.error, NetError::Protocol(_)), "{error:?}");
+    assert!(error.unconfirmed, "the message was fully sent");
 }
 
 #[tokio::test]
