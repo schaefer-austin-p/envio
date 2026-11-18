@@ -239,6 +239,7 @@ fn invite_value(c: &InviteCard) -> Value {
         "organizer": c.organizer,
         "organizerEmail": c.organizer_email,
         "canAnswer": c.can_answer,
+        "canAddToCalendar": c.can_add_to_calendar,
         "icsIndex": c.ics_index,
     })
 }
@@ -420,6 +421,7 @@ mod tests {
             organizer: "Grace".into(),
             organizer_email: "grace@example.org".into(),
             can_answer: true,
+            can_add_to_calendar: true,
             ics_index: -1,
         });
         let v = message_view_value(1, &view);
@@ -447,6 +449,7 @@ mod tests {
             ("zoneUnknown", false),
             ("repeats", true),
             ("canAnswer", true),
+            ("canAddToCalendar", true),
         ];
         for (k, want) in bools {
             assert_eq!(c[k], want, "{k}");
@@ -455,6 +458,6 @@ mod tests {
             assert!(c[k].is_i64(), "{k}");
         }
         assert_eq!(c["icsIndex"], -1);
-        assert_eq!(c.len(), 20);
+        assert_eq!(c.len(), 21);
     }
 }

@@ -181,3 +181,23 @@ fn a_changed_occurrence_keeps_its_recurrence_id() {
     );
     assert!(at("UID") < at("RECURRENCE-ID"), "{out:?}");
 }
+
+#[test]
+fn a_cancellation_with_an_undefined_zone_stays_cancelled() {
+    let ics = event("DTSTART;TZID=W. Europe Standard Time:20261201T100000\r\n")
+        .replace("METHOD:REQUEST", "METHOD:CANCEL");
+    let out = lines(&export(&ics));
+    assert!(out.contains(&"STATUS:CANCELLED".to_owned()), "{out:?}");
+}
+
+#[test]
+fn a_status_cancelled_request_with_an_undefined_zone_stays_cancelled() {
+    let ics = event("DTSTART;TZID=Tokyo Standard Time:20261121T090000\r\nSTATUS:CANCELLED\r\n");
+    assert!(lines(&export(&ics)).contains(&"STATUS:CANCELLED".to_owned()));
+}
+
+#[test]
+fn a_live_request_is_not_marked_cancelled() {
+    let ics = event("DTSTART;TZID=Tokyo Standard Time:20261121T090000\r\n");
+    assert!(!export(&ics).contains("STATUS"));
+}
