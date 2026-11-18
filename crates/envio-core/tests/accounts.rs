@@ -604,3 +604,33 @@ fn a_password_for_a_broken_account_is_refused_and_not_written() {
     let secrets = Secrets::open(&h.data_dir()).unwrap();
     assert_eq!(secrets.get(&broken).unwrap().expose_secret(), "old-pw");
 }
+
+#[test]
+fn set_account_label_saves_it_and_keeps_the_sender_name() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    h.start_core();
+    started(&h);
+    h.send(Command::SetAccountLabel {
+        account: key.clone(),
+        label: " Work ".into(),
+    });
+    let label = h.wait(|e| match e {
+        Event::AccountLabel { account, label } if *account == key => Some(label.clone()),
+        _ => None,
+    });
+    assert_eq!(label, "Work");
+    let saved = saved_accounts(&h);
+    assert_eq!(saved[0].label.as_deref(), Some("Work"));
+    assert_eq!(saved[0].settings.name, "Test");
+    h.send(Command::SetAccountLabel {
+        account: key.clone(),
+        label: String::new(),
+    });
+    let label = h.wait(|e| match e {
+        Event::AccountLabel { label, .. } => Some(label.clone()),
+        _ => None,
+    });
+    assert_eq!(label, "");
+    assert_eq!(saved_accounts(&h)[0].label, None);
+}

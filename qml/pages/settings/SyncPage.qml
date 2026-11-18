@@ -64,11 +64,12 @@ Item {
                     required property var model
                     width: col.width
                     Text {
+                        objectName: "syncAccount-" + acct.model.key
                         textFormat: Text.PlainText
                         x: root.theme.gu(2)
                         topPadding: root.theme.gu(2)
                         width: parent.width - root.theme.gu(4)
-                        text: acct.model.name
+                        text: acct.model.display
                         elide: Text.ElideRight
                         color: root.theme.heading
                         font.family: root.theme.fontUi

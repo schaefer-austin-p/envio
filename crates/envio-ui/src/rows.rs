@@ -6,7 +6,10 @@ use crate::models::Model;
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccountRow {
     pub key: String,
+    /// The sender name on mail (not what the screens show; see `display`).
     pub name: String,
+    /// The label and what to show (boxed to keep rows small).
+    pub names: Box<NameRow>,
     pub email: String,
     /// What the drawer shows: name and address, or the address once when the
     /// name is empty or the same.
@@ -29,6 +32,16 @@ pub struct AccountRow {
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
+}
+
+/// How an account is called on screen.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NameRow {
+    /// The user's label for the account, empty when unset.
+    pub label: String,
+    /// What tabs, rows and the unified-inbox tag show: the label, else the
+    /// name, else the address.
+    pub display: String,
 }
 
 /// What the trust dialog shows; all empty when there is nothing to trust.
@@ -125,6 +138,8 @@ pub enum RowValue {
 const ACCOUNT: &[&str] = &[
     "key",
     "name",
+    "label",
+    "display",
     "email",
     "heading",
     "status",
@@ -190,6 +205,8 @@ impl Row {
         Some(match (self, role) {
             (Self::Account(r), "key") => s(&r.key),
             (Self::Account(r), "name") => s(&r.name),
+            (Self::Account(r), "label") => s(&r.names.label),
+            (Self::Account(r), "display") => s(&r.names.display),
             (Self::Account(r), "email") => s(&r.email),
             (Self::Account(r), "heading") => s(&r.heading),
             (Self::Account(r), "status") => s(&r.status),

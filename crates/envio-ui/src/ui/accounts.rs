@@ -22,11 +22,58 @@ impl Ui {
         row
     }
 
+    fn display_of(&self, info: &AccountInfo) -> String {
+        convert::account_row(info, "").names.display
+    }
+
+    /// The label changed: the row and the heading follow at once, and later
+    /// message rows carry the new name.
+    pub(super) fn account_label(&mut self, key: &str, label: &str) -> Vec<Output> {
+        let Some(at) = self.accounts.iter().position(|a| a.key == key) else {
+            return Vec::new();
+        };
+        let row = &mut self.accounts[at];
+        row.names.label = label.to_owned();
+        row.names.display = crate::heading::display_name(label, &row.name, &row.email);
+        row.heading = crate::heading::account_heading(
+            if label.trim().is_empty() {
+                &row.name
+            } else {
+                label
+            },
+            &row.email,
+        );
+        let display = row.names.display.clone();
+        self.names.insert(key.to_owned(), display.clone());
+        let mut outs = vec![change(
+            Model::Accounts,
+            Op::Update {
+                at,
+                row: Row::Account(self.accounts[at].clone()),
+            },
+        )];
+        if let Some(cur) = self.current.as_mut() {
+            outs.extend(
+                cur.shown
+                    .rename_account(key, &display)
+                    .into_iter()
+                    .map(|op| change(Model::Messages, op)),
+            );
+        }
+        outs.extend(
+            self.found
+                .rename_account(key, &display)
+                .into_iter()
+                .map(|op| change(Model::Search, op)),
+        );
+        outs
+    }
+
     pub(super) fn started(&mut self, infos: &[AccountInfo]) -> Vec<Output> {
         self.accounts = infos.iter().map(|i| self.row_of(i)).collect();
         self.names = infos
             .iter()
-            .map(|i| (i.key.clone(), i.name.clone()))
+            .map(|i| (i.key.clone(), self.display_of(i)))
             .collect();
         let rows = self.accounts.iter().cloned().map(Row::Account).collect();
         vec![change(Model::Accounts, Op::Reset(rows))]
@@ -36,7 +83,7 @@ impl Ui {
     /// replaced in place, so it never shows twice.
     pub(super) fn account_added(&mut self, info: &AccountInfo) -> Vec<Output> {
         let row = self.row_of(info);
-        self.names.insert(info.key.clone(), info.name.clone());
+        self.names.insert(info.key.clone(), self.display_of(info));
         let op = match self.accounts.iter().position(|a| a.key == info.key) {
             Some(at) => {
                 self.accounts[at] = row.clone();

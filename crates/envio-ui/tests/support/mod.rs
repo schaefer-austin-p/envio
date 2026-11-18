@@ -84,6 +84,7 @@ pub fn info(key: &str) -> AccountInfo {
     AccountInfo {
         key: key.into(),
         name: key.to_uppercase(),
+        label: String::new(),
         email: format!("{key}@example.org"),
         status: AccountStatus::Ready,
         unread: 0,

@@ -107,7 +107,7 @@ Item {
                     Text {
                         textFormat: Text.PlainText
                         width: parent.width
-                        text: pick.model.email
+                        text: pick.model.label !== "" ? pick.model.label + " \u00b7 " + pick.model.email : pick.model.email
                         elide: Text.ElideRight
                         color: root.theme.secondary
                         font.family: root.theme.fontLabel

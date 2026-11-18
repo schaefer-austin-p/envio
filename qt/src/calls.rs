@@ -127,6 +127,13 @@ impl qobject::EnvioCore {
         });
     }
 
+    pub fn set_account_label(self: Pin<&mut Self>, account: &QString, label: &QString) {
+        self.send_command(Command::SetAccountLabel {
+            account: s(account),
+            label: s(label),
+        });
+    }
+
     pub fn list_folders(self: Pin<&mut Self>, account: &QString) {
         self.send_command(Command::ListFolders {
             account: s(account),
