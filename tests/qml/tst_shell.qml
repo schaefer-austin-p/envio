@@ -197,6 +197,17 @@ Item {
             b.shell.destroy()
         }
 
+        function test_the_hook_offers_envio_to_share_and_open_with() {
+            // "share" is the share sheets, "destination" the File Manager's
+            // "Open with another app".
+            const xhr = new XMLHttpRequest()
+            xhr.open("GET", Qt.resolvedUrl("../../envio.content-hub"), false)
+            xhr.send()
+            const hook = JSON.parse(xhr.responseText)
+            verify(hook.share.length > 0)
+            compare(hook.destination, hook.share)
+        }
+
         function test_the_share_receiver_compiles() {
             // Compiled, never created: creating it registers a Content Hub
             // handler on the bus. (A missing Lomiri.Content is an Error too.)
