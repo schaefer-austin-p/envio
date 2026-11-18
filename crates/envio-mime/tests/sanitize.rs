@@ -269,13 +269,13 @@ fn a_very_large_font_size_is_clamped() {
         "40px !important",
     ] {
         assert_eq!(
-            clean(&format!(r#"<h1 style="font-size:{big}">t</h1>"#)),
-            r#"<h1 style="font-size:26px">t</h1>"#,
+            clean(&format!(r#"<div style="font-size:{big}">t</div>"#)),
+            r#"<div style="font-size:26px">t</div>"#,
             "{big}"
         );
     }
     for ok in ["26px", "14px", "12pt", "1.2em", "large", "120%", "1px"] {
-        let html = format!(r#"<h1 style="font-size:{ok}">t</h1>"#);
+        let html = format!(r#"<div style="font-size:{ok}">t</div>"#);
         assert_eq!(clean(&html), html, "{ok}");
     }
 }
