@@ -28,6 +28,9 @@ pub struct ServerCopy {
     /// many times in a row: the planner stops retrying that save.
     pub failed_ms: i64,
     pub failures: u32,
+    /// When an upload of this draft last ended the run (a lost
+    /// connection): the next run tries the others first.
+    pub tried_ms: i64,
 }
 
 /// A deleted draft whose copy on the server is still to go.
@@ -165,6 +168,12 @@ impl Drafts {
             server.failed_ms = saved_ms;
             server.failures = before.saturating_add(weight);
         })
+    }
+
+    /// An upload of this draft ended the run at `at_ms` (not counted as a
+    /// failure). False when the draft is gone.
+    pub fn mark_tried(&self, id: &str, at_ms: i64) -> Result<bool> {
+        self.edit(id, |draft| draft.server.tried_ms = at_ms)
     }
 
     fn edit(&self, id: &str, change: impl FnOnce(&mut Draft)) -> Result<bool> {

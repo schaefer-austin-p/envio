@@ -225,6 +225,42 @@ async fn a_lost_connection_is_not_counted_against_the_draft() {
 }
 
 #[tokio::test]
+async fn a_draft_that_drops_the_connection_does_not_starve_the_others() {
+    let (mut server, store) = setup(true).await;
+    store.drafts.create(&draft("zzbad", 1)).unwrap();
+    store.drafts.create(&draft("good text", 2)).unwrap();
+    // The bad one is whichever the store lists first, so without an order
+    // of its own it is tried first in every run.
+    let listed = store.drafts.list().unwrap();
+    let (bad, bad_draft) = &listed[0];
+    let good = &listed[1].0;
+    let mut poisoned = bad_draft.clone();
+    poisoned.body = "zzbad".into();
+    store.drafts.save(bad, &poisoned).unwrap();
+    let mut fine = listed[1].1.clone();
+    fine.body = "good text".into();
+    store.drafts.save(good, &fine).unwrap();
+    server.poison_appends_with("zzbad");
+    for _ in 0..2 {
+        // The run that meets the bad draft ends in an error.
+        let _ = run_with(&mut server, &store, &BTreeSet::new()).await;
+    }
+    let found = copies(&server);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].0.contains("good text"));
+    assert_eq!(store.drafts.load(bad).unwrap().server.message_id, None);
+    assert!(
+        store
+            .drafts
+            .load(&good)
+            .unwrap()
+            .server
+            .message_id
+            .is_some()
+    );
+}
+
+#[tokio::test]
 async fn a_save_after_the_clock_stepped_back_is_still_uploaded() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("first text", 900)).unwrap();

@@ -78,13 +78,16 @@ pub async fn sync_drafts(
         done.no_folder = true;
         return Ok(done);
     };
-    let due: Vec<(String, Draft)> = drafts
+    let mut due: Vec<(String, Draft)> = drafts
         .list()?
         .into_iter()
         .filter(|(id, draft)| {
             draft.account == run.account && !run.open.contains(id) && needs_upload(draft)
         })
         .collect();
+    // The least recently tried first: a draft whose upload drops the
+    // connection goes to the back, and cannot starve the others.
+    due.sort_by_key(|(_, draft)| draft.server.tried_ms);
     if due.is_empty() && notes.is_empty() {
         return Ok(done);
     }
@@ -110,7 +113,11 @@ pub async fn sync_drafts(
                     done.failed.push(id);
                 }
                 // A lost connection ends the run and is not counted against
-                // the draft: the next run retries it.
+                // the draft: the next run retries it, after the others.
+                ErrorKind::Temporary => {
+                    drafts.mark_tried(&id, run.now_ms)?;
+                    return Err(error);
+                }
                 _ => return Err(error),
             },
         }
