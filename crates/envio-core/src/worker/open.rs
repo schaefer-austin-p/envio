@@ -339,6 +339,9 @@ mod tests {
 
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_time()
+            // Paused: the clock only moves when everything waits, so the
+            // 10 ms timer always fires before the 60 ms one.
+            .start_paused(true)
             .build()
             .unwrap();
         let connected = Rc::new(Cell::new(false));
