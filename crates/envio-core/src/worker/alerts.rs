@@ -216,6 +216,20 @@ mod tests {
         assert!(badges(&recorder).is_empty());
     }
 
+    #[test]
+    fn a_restarted_worker_tells_the_poster_the_current_total() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, _seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let slot = Arc::new(crate::alert::PosterSlot::default());
+        let recorder = Recorder::default();
+        slot.set(Box::new(recorder.clone()));
+        // A worker the supervisor starts after a panic: it announces itself
+        // to the poster that is already set.
+        let _worker = crate::worker::testing::open_with(&config, &sink, &slot);
+        assert_eq!(badges(&recorder), [1]);
+    }
+
     #[derive(Clone)]
     struct PanicsOnce(Arc<Mutex<Vec<u32>>>, Arc<std::sync::atomic::AtomicBool>);
 

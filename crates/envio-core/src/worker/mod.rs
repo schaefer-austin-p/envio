@@ -280,6 +280,9 @@ impl<'s> Worker<'s> {
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
         self.sink.emit(Event::Settings(self.store.settings.clone()));
+        // A restarted worker re-seeds the counts, so nothing looks changed:
+        // the poster (if one is set) hears the total now.
+        self.poster_set();
     }
 
     /// One loop iteration: run a step if an account has one, else wait for

@@ -98,11 +98,20 @@ fn a_poster_set_after_the_start_is_told_the_total_then_each_change() {
     let (tx, rx) = std::sync::mpsc::channel();
     s.h.core.as_ref().unwrap().set_poster(Box::new(Badges(tx)));
     let wait = std::time::Duration::from_secs(5);
-    assert_eq!(rx.recv_timeout(wait).unwrap(), 3);
     let ids = s.ids();
     s.h.send(Command::Act {
         ids: vec![ids[0]],
         action: UserAction::MarkRead(true),
     });
-    assert_eq!(rx.recv_timeout(wait).unwrap(), 2);
+    // The start's own announcement may tell the poster a second 3; the
+    // change comes after every 3.
+    let mut told = vec![rx.recv_timeout(wait).unwrap()];
+    while told.last() != Some(&2) {
+        told.push(rx.recv_timeout(wait).unwrap());
+    }
+    let before = &told[..told.len() - 1];
+    assert!(
+        !before.is_empty() && before.iter().all(|n| *n == 3),
+        "{told:?}"
+    );
 }
