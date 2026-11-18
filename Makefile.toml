@@ -63,7 +63,12 @@ description = "envio-net's tests (the same Stalwart serves envio-e2e's, see e2e-
 script = '''
 set -eu
 # Removed on exit, whatever the tests did; a failed start fails the task.
-trap 'docker rm -f "${STALWART_NAME:-envio-stalwart}" >/dev/null 2>&1 || true' EXIT
+# A name of its own: up.sh replaces a container of the same name, so two
+# runs (two worktrees) would kill each other's Stalwart and share its users
+# and its send limit of 25 messages an hour per user (#257).
+STALWART_NAME="${STALWART_NAME:-envio-stalwart-$$}"
+export STALWART_NAME
+trap 'docker rm -f "$STALWART_NAME" >/dev/null 2>&1 || true' EXIT
 settings=$(crates/envio-net/tests/stalwart/up.sh)
 eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-net
@@ -73,7 +78,12 @@ ENVIO_REQUIRE_STALWART=1 cargo test -p envio-net
 description = "envio-e2e's tests (sync over net into store) against a throwaway Stalwart in local Docker"
 script = '''
 set -eu
-trap 'docker rm -f "${STALWART_NAME:-envio-stalwart}" >/dev/null 2>&1 || true' EXIT
+# A name of its own: up.sh replaces a container of the same name, so two
+# runs (two worktrees) would kill each other's Stalwart and share its users
+# and its send limit of 25 messages an hour per user (#257).
+STALWART_NAME="${STALWART_NAME:-envio-stalwart-$$}"
+export STALWART_NAME
+trap 'docker rm -f "$STALWART_NAME" >/dev/null 2>&1 || true' EXIT
 settings=$(crates/envio-net/tests/stalwart/up.sh)
 eval "$settings"
 ENVIO_REQUIRE_STALWART=1 cargo test -p envio-e2e
