@@ -232,11 +232,12 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     } else {
         cleaner(&extra).clean(html)
     };
-    let clean = crate::fontsize::fit(&clean.to_string());
+    let clean = clean.to_string();
     let mut images = Vec::new();
     let mut rendered = crate::images::fit(&clean, options, &mut images);
     rendered.html = crate::linear::linearise(&rendered.html, &images);
     rendered.html = crate::backgrounds::fill(&rendered.html);
+    rendered.html = crate::fontsize::fit(&rendered.html);
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }

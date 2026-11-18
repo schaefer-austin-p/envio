@@ -3,10 +3,13 @@
 //! the mail sets is resolved against the size it inherits and clamped to
 //! 1 to 26 px, so nested `%` and `em` cannot compound past the limit (#191).
 //!
-//! Works on the balanced, double-quoted markup ammonia writes, in one
+//! Runs last, on the markup Qt finally reads, so its stack of open
+//! elements matches Qt's (elements the earlier passes drop do not count).
+//! Works on the balanced, double-quoted markup the earlier passes leave, in one
 //! forward pass with a stack of open elements. A size that cannot be
 //! parsed (`1e3px`, `40px 40px`, an unknown unit) is dropped, never kept.
 
+use crate::hidden::VOID;
 use crate::images::{Tag, parse_tag, tag_len};
 
 /// The largest font size kept, in px.
@@ -15,9 +18,6 @@ const MAX_PX: f64 = 26.0;
 const MIN_PX: f64 = 1.0;
 /// The size at the root of the document.
 const DEFAULT_PX: f64 = 16.0;
-
-/// Elements without an end tag.
-const VOID: &[&str] = &["br", "col", "hr", "img"];
 
 /// Sizes of `<font size=1..=7>` in px.
 const FONT_TAG_PX: [f64; 7] = [10.0, 13.0, 16.0, 18.0, 24.0, 32.0, 48.0];
@@ -127,8 +127,13 @@ fn font_tag_level(value: &str) -> Option<i32> {
     if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    let n: i32 = digits.parse().ok()?;
-    let level = if sign == 0 { n } else { 3 + sign * n };
+    // More digits than an i32 holds is just a very large number.
+    let n: i32 = digits.parse().unwrap_or(i32::MAX);
+    let level = if sign == 0 {
+        n
+    } else {
+        3i32.saturating_add(sign * n)
+    };
     Some(level.clamp(1, MAX_FONT_TAG))
 }
 
