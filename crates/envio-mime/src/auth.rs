@@ -392,12 +392,26 @@ mod tests {
             "Authentication-Results: mx.me.org; spf=pass (nested (smtp.mailfrom=x@corp.com) \\) smtp.mailfrom=x@corp.com) smtp.mailfrom=evil.net\r\n",
         );
         assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        // Standalone tokens: read as the first property if comments stayed.
+        let m = mail(
+            "Authentication-Results: mx.me.org; spf=pass ( smtp.mailfrom=corp.com ) smtp.mailfrom=evil.net\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m = mail(
+            "Authentication-Results: mx.me.org; dkim=pass (header.d=corp.com ) header.d=evil.net\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
     }
 
     #[test]
     fn a_quoted_local_part_holding_a_property_is_not_read() {
         let m = mail(
             "Authentication-Results: mx.me.org; spf=pass smtp.mailfrom=\"x@corp.com b\"@evil.net\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        // A quoted local part holding a `;` must not start a new clause.
+        let m = mail(
+            "Authentication-Results: mx.me.org; spf=pass smtp.mailfrom=\"a; dkim=pass header.d=corp.com b\"@evil.net\r\n",
         );
         assert!(!sender_verified(&m, "bob@corp.com", HOST));
         let m =
