@@ -64,8 +64,10 @@ pub async fn load_older(
     // keep its rows after a server-side deletion.
     let all = match window_start(now_ms, window_days) {
         Some(since) => {
-            let window: BTreeSet<u32> = server.search_since(since).await?.into_iter().collect();
+            // All first: mail arriving between the two is missing from `all`,
+            // so it is left to the sync, never planned.
             let mut all = server.search_all().await?;
+            let window: BTreeSet<u32> = server.search_since(since).await?.into_iter().collect();
             all.retain(|uid| !window.contains(uid));
             all
         }

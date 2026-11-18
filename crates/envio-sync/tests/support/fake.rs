@@ -40,6 +40,9 @@ pub struct FakeServer {
     failures: Vec<Failure>,
     /// Every operation, in order, e.g. `select INBOX`.
     pub calls: Vec<String>,
+    /// Ids delivered to the selected folder right after the next search
+    /// answers (mail that arrives between two searches).
+    late: Vec<String>,
 }
 
 struct Failure {
@@ -59,6 +62,7 @@ impl FakeServer {
             selected: None,
             failures: Vec::new(),
             calls: Vec::new(),
+            late: Vec::new(),
         };
         server.add_folder("INBOX", Some(Role::Inbox));
         server
@@ -98,6 +102,21 @@ impl FakeServer {
     /// A short message with this Message-ID, arrived now.
     pub fn deliver_id(&mut self, path: &str, id: &str) -> u32 {
         self.deliver(path, &eml(id), NOW_SECS)
+    }
+
+    /// `id` is delivered to the selected folder right after the next
+    /// search (`search_since` or `search_all`) answers.
+    pub fn deliver_after_next_search(&mut self, id: &str) {
+        self.late.push(id.to_owned());
+    }
+
+    fn deliver_late(&mut self) {
+        let Some(path) = self.selected.clone() else {
+            return;
+        };
+        for id in std::mem::take(&mut self.late) {
+            self.deliver_id(&path, &id);
+        }
     }
 
     /// The next call of `op` (e.g. "select", "move_to") fails with `error`.
@@ -334,17 +353,21 @@ impl MailServer for FakeServer {
         self.call("search_since", "")?;
         let day = unix_secs - unix_secs.rem_euclid(86_400);
         let folder = self.selected()?;
-        Ok(folder
+        let found = folder
             .messages
             .iter()
             .filter(|(_, message)| message.date >= day)
             .map(|(uid, _)| *uid)
-            .collect())
+            .collect();
+        self.deliver_late();
+        Ok(found)
     }
 
     async fn search_all(&mut self) -> Result<Vec<u32>> {
         self.call("search_all", "")?;
-        Ok(self.selected()?.messages.keys().copied().collect())
+        let found = self.selected()?.messages.keys().copied().collect();
+        self.deliver_late();
+        Ok(found)
     }
 
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {

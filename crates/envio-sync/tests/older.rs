@@ -297,3 +297,40 @@ async fn in_window_mail_that_load_older_meets_is_not_kept_when_deleted() {
     assert!(!store.uids("INBOX").contains(&121));
     assert_eq!(store.uids("INBOX").len(), 20 + 50);
 }
+
+#[tokio::test]
+async fn mail_arriving_between_load_olders_two_searches_is_left_to_the_sync() {
+    let mut server = server_with_history();
+    let mut store = Store::new();
+    first_sync(&mut server, &mut store, Some(30)).await;
+    let inbox = store.folder("INBOX").id;
+    server.deliver_after_next_search("late");
+    let older = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
+    // UID 121 arrived mid-call: in the window, so the sync's, not kept.
+    assert!(!store.uids("INBOX").contains(&121));
+    server
+        .folders
+        .get_mut("INBOX")
+        .unwrap()
+        .messages
+        .remove(&121);
+    sync_folder(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        NOW_MS,
+        Some(30),
+        Some(older.kept()),
+    )
+    .await
+    .unwrap();
+    assert!(!store.uids("INBOX").contains(&121));
+}
