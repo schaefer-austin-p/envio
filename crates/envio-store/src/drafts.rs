@@ -5,10 +5,12 @@ use std::fs::{self, OpenOptions};
 use std::io;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
 
 use crate::atomic::{is_temp, write_atomic};
+use crate::drafts_server::ServerCopy;
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
 use crate::private::create_private_dir;
@@ -28,13 +30,19 @@ pub struct Draft {
     /// Paths of files to attach.
     pub attachments: Vec<PathBuf>,
     pub updated_at_ms: i64,
+    /// What identifies the draft's copy in the server's Drafts folder (see
+    /// `ServerCopy`). Saves never change it: only the upload does.
+    pub server: ServerCopy,
 }
 
 /// Readable drafts, then the ids of damaged ones.
 type Scan = (Vec<(String, Draft)>, Vec<String>);
 
 pub struct Drafts {
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
+    /// Held across every read-modify-write of a draft file: core's draft
+    /// thread saves while its worker records an upload.
+    lock: Mutex<()>,
 }
 
 impl Drafts {
@@ -49,6 +57,7 @@ impl Drafts {
         }
         Ok(Self {
             dir: dir.to_owned(),
+            lock: Mutex::new(()),
         })
     }
 
@@ -67,16 +76,31 @@ impl Drafts {
     /// since an autosave can race the attach that made it.
     pub fn save(&self, id: &str, draft: &Draft) -> Result<()> {
         check(id)?;
+        let _held = self.held();
         // An attachment path that is not UTF-8 cannot be written as JSON:
         // the save fails and the draft stays pending, it never panics.
+        let old = self.load(id).ok();
+        let mut draft = draft.clone();
+        draft.server = old
+            .as_ref()
+            .map(|old| old.server.clone())
+            .unwrap_or_default();
+        self.write(id, &draft)?;
+        let before = old.map(|old| old.attachments).unwrap_or_default();
+        self.prune(id, &before, &draft.attachments);
+        Ok(())
+    }
+
+    pub(crate) fn held(&self) -> MutexGuard<'_, ()> {
+        self.lock.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(crate) fn write(&self, id: &str, draft: &Draft) -> Result<()> {
         let bytes = serde_json::to_vec_pretty(draft).map_err(|error| StoreError::BadRecord {
             file: self.path(id).display().to_string(),
             reason: error.to_string(),
         })?;
-        let before = self.load(id).map(|old| old.attachments).unwrap_or_default();
-        write_atomic(&self.path(id), &bytes)?;
-        self.prune(id, &before, &draft.attachments);
-        Ok(())
+        Ok(write_atomic(&self.path(id), &bytes)?)
     }
 
     /// Best effort: what stays is cleared by `delete`. Only files directly
@@ -140,8 +164,12 @@ impl Drafts {
     }
 
     /// Deletes a draft (sent, or discarded by the user).
+    /// When the draft has a copy on the server, a note to delete it there
+    /// is written first (see `deletes`).
     pub fn delete(&self, id: &str) -> Result<()> {
         check(id)?;
+        let _held = self.held();
+        self.note_server_copy(id)?;
         let removed = fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io);
         // Also when the draft file is already gone: a retry after a partial
         // failure still clears the folder.
@@ -241,7 +269,7 @@ impl Drafts {
         self.dir.join(FILES).join(id)
     }
 
-    fn path(&self, id: &str) -> PathBuf {
+    pub(crate) fn path(&self, id: &str) -> PathBuf {
         self.dir.join(format!("{id}.json"))
     }
 }
