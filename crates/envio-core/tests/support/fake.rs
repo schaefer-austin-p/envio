@@ -202,6 +202,9 @@ fn message_reply(line: &str) -> (String, bool) {
         format!(
             "* 1 EXISTS\r\n* OK [UIDVALIDITY 1] ok\r\n* OK [UIDNEXT 2] ok\r\n{tag} OK [READ-WRITE] done\r\n"
         )
+    } else if upper.starts_with("UID SEARCH") {
+        // The one message is on the server: a sync must not expunge it.
+        format!("* SEARCH 1\r\n{tag} OK done\r\n")
     } else if upper.starts_with("UID FETCH") && upper.contains("BODY.PEEK[]") {
         format!(
             "* 1 FETCH (UID 1 BODY[] {{{}}}\r\n{MESSAGE})\r\n{tag} OK done\r\n",
