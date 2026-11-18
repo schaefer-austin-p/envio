@@ -507,6 +507,47 @@ async fn a_refused_search_is_an_error_not_an_empty_result() {
     }
 }
 
+/// What `take_changes` says after a search whose reply carried `lines`.
+async fn changed_by_search(lines: &'static str) -> bool {
+    let (mut session, _) = fetching(Script {
+        search_untagged: lines,
+        ..Script::default()
+    })
+    .await;
+    assert!(!session.take_changes());
+    session.search_since(0).await.unwrap();
+    session.take_changes()
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_search_are_reported() {
+    assert!(changed_by_search("* 3 FETCH (FLAGS (\\Seen))\r\n").await);
+    assert!(changed_by_search("* 2 EXPUNGE\r\n").await);
+    assert!(changed_by_search("* 9 EXISTS\r\n").await);
+    // Nothing unsolicited, nothing changed.
+    assert!(!changed_by_search("* SEARCH 4 5\r\n").await);
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_flag_fetch_are_reported() {
+    // A FETCH without a UID is an unsolicited flag change (no QRESYNC).
+    for line in [
+        "* 3 FETCH (FLAGS (\\Seen))\r\n",
+        "* 2 EXPUNGE\r\n",
+        "* 9 EXISTS\r\n",
+    ] {
+        let canned: &'static [&'static str] = Box::leak(Box::new([line]));
+        let (mut session, _) = fetching(Script {
+            fetch_canned: canned,
+            ..Script::default()
+        })
+        .await;
+        assert!(!session.take_changes());
+        session.fetch_flags(&[1], None).await.unwrap();
+        assert!(session.take_changes(), "{line:?}");
+    }
+}
+
 #[tokio::test]
 async fn a_reply_without_the_structure_is_an_error_not_a_gone_message() {
     // The fake answers every FETCH with a flags-only line for the UID, as a

@@ -49,6 +49,9 @@ pub struct Script {
     /// When not empty, a UID SEARCH is answered with this tagged status
     /// (such as `NO nope`); empty leaves it to the default reply.
     pub search_refusal: &'static str,
+    /// Untagged lines (each ending in CRLF) sent before a UID SEARCH's
+    /// tagged reply, which is OK unless `search_refusal` says otherwise.
+    pub search_untagged: &'static str,
     /// With `fetch_flags`: when not empty, the nth UID FETCH is answered
     /// with the nth of these (untagged lines, each ending in CRLF) instead
     /// of the flags; the commands after the last get no untagged line.
@@ -74,6 +77,7 @@ impl Default for Script {
             fetch_refused_at: 0,
             fetch_refusal: "NO refused",
             search_refusal: "",
+            search_untagged: "",
             fetch_canned: &[],
         }
     }
@@ -232,7 +236,8 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
 
 fn answers_uid(script: &Script, sub_verb: &str) -> bool {
     (script.fetch_flags && sub_verb == "FETCH")
-        || (sub_verb == "SEARCH" && !script.search_refusal.is_empty())
+        || (sub_verb == "SEARCH"
+            && !(script.search_refusal.is_empty() && script.search_untagged.is_empty()))
 }
 
 /// The reply to a UID FETCH or a refused UID SEARCH.
@@ -242,7 +247,12 @@ fn uid_reply(command: &str, tag: &str, script: &Script, fetches: &mut usize) -> 
         .nth(2)
         .is_some_and(|word| word.eq_ignore_ascii_case("SEARCH"))
     {
-        return Some(format!("{tag} {}\r\n", script.search_refusal));
+        let status = if script.search_refusal.is_empty() {
+            "OK done"
+        } else {
+            script.search_refusal
+        };
+        return Some(format!("{}{tag} {status}\r\n", script.search_untagged));
     }
     fetch_reply(command, tag, script, fetches)
 }

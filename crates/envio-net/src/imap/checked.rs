@@ -28,7 +28,8 @@ impl ImapSession {
             let response = reply(self.session.read_response().await)?;
             match response.parsed() {
                 Response::MailboxData(MailboxDatum::Search(uids)) => found.extend(uids),
-                Response::Expunge(_)
+                Response::Fetch(..)
+                | Response::Expunge(_)
                 | Response::Vanished { .. }
                 | Response::MailboxData(MailboxDatum::Exists(_)) => self.missed_changes = true,
                 other => {
@@ -44,14 +45,19 @@ impl ImapSession {
     }
 
     /// Runs a UID FETCH for flags and returns its updates, or the error of
-    /// its tagged NO or BAD. A reply without a UID is skipped.
+    /// its tagged NO or BAD. A reply without a UID counts as a change.
     pub(super) async fn checked_flag_fetch(&mut self, command: &str) -> Result<Vec<FlagUpdate>> {
         let id = self.session.run_command(command).await.map_err(map_error)?;
         let mut updates = Vec::new();
         loop {
             let response = reply(self.session.read_response().await)?;
             match response.parsed() {
-                Response::Fetch(_, attributes) => updates.extend(flag_update(attributes)),
+                Response::Fetch(_, attributes) => match flag_update(attributes) {
+                    Some(update) => updates.push(update),
+                    // No UID: an unsolicited flag change, which the
+                    // channel path would have counted.
+                    None => self.missed_changes = true,
+                },
                 Response::Expunge(_)
                 | Response::Vanished { .. }
                 | Response::MailboxData(MailboxDatum::Exists(_)) => self.missed_changes = true,
