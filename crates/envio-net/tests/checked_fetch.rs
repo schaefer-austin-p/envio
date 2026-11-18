@@ -7,11 +7,15 @@ mod support;
 use envio_net::imap::{Flag, ImapSession};
 use envio_net::{Credentials, Endpoint, Fingerprint, NetError, Roots, Security};
 use support::certs::Cert;
-use support::fake_imap::{Script, serve};
+use support::fake_imap::{Script, Transcript, serve};
 
 async fn session(script: Script) -> ImapSession {
+    session_logged(script).await.0
+}
+
+async fn session_logged(script: Script) -> (ImapSession, Transcript) {
     let cert = Cert::self_signed("localhost");
-    let (port, _) = serve(
+    let (port, log) = serve(
         &cert,
         Script {
             implicit: true,
@@ -24,9 +28,10 @@ async fn session(script: Script) -> ImapSession {
         pin: Some(Fingerprint::of(&cert.der)),
         ..Endpoint::new("localhost", port, Security::Tls)
     };
-    ImapSession::open(&endpoint, &Roots::empty(), &Credentials::new("a", "b"))
+    let session = ImapSession::open(&endpoint, &Roots::empty(), &Credentials::new("a", "b"))
         .await
-        .unwrap()
+        .unwrap();
+    (session, log)
 }
 
 /// The three refusals and whether each must be transient.
@@ -65,6 +70,7 @@ async fn a_refused_message_id_scan_is_an_error_not_not_found() {
         let mut s = session(Script {
             select_exists: 5,
             search_untagged: "* SEARCH\r\n",
+            search_all_untagged: "* SEARCH 8 9\r\n",
             fetch_refused_at: 1,
             fetch_refusal: refusal,
             ..Script::default()
@@ -87,6 +93,7 @@ async fn a_message_id_scan_still_finds_a_live_match() {
     let mut s = session(Script {
         select_exists: 5,
         search_untagged: "* SEARCH\r\n",
+        search_all_untagged: "* SEARCH 8 9\r\n",
         fetch_canned: leak_all(vec![reply]),
         ..Script::default()
     })
@@ -104,9 +111,17 @@ async fn a_deep_message_id_scan_reaches_a_copy_outside_the_newest_200() {
     let reply = leak(format!(
         "* 3 FETCH (UID 3 FLAGS (\\Seen) BODY[HEADER.FIELDS (MESSAGE-ID)] {{{n}}}\r\n{header})\r\n"
     ));
+    let all = leak(format!(
+        "* SEARCH {}\r\n",
+        (1..=450)
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(" ")
+    ));
     let script = || Script {
         select_exists: 450,
         search_untagged: "* SEARCH\r\n",
+        search_all_untagged: all,
         fetch_canned: leak_all(vec!["", "", reply]),
         ..Script::default()
     };
@@ -116,6 +131,55 @@ async fn a_deep_message_id_scan_reaches_a_copy_outside_the_newest_200() {
     let mut s = session(script()).await;
     s.select("Drafts").await.unwrap();
     assert_eq!(s.search_message_id_deep("<a@b>").await.unwrap(), vec![3]);
+}
+
+#[tokio::test]
+async fn a_scan_names_the_folders_uids_not_numbers_counted_from_select() {
+    let header = "Message-ID: <a@b>\r\n\r\n";
+    let reply = leak(format!(
+        "* 2 FETCH (UID 4 FLAGS (\\Seen) BODY[HEADER.FIELDS (MESSAGE-ID)] {{{}}}\r\n{header})\r\n",
+        header.len()
+    ));
+    let (mut s, log) = session_logged(Script {
+        select_exists: 450,
+        search_untagged: "* SEARCH\r\n",
+        // After the expunge and the append the folder holds three.
+        search_all_untagged: "* SEARCH 2 3 4\r\n",
+        expunge_untagged: "* 1 EXPUNGE\r\n",
+        before_append_ok: "* 451 EXISTS\r\n",
+        fetch_canned: leak_all(vec![reply]),
+        ..Script::default()
+    })
+    .await;
+    s.select("Drafts").await.unwrap();
+    s.delete(&[1]).await.unwrap();
+    s.append("Drafts", &[Flag::Draft], b"Subject: x\r\n\r\nx")
+        .await
+        .unwrap();
+    assert_eq!(s.search_message_id_deep("<a@b>").await.unwrap(), vec![4]);
+    let fetches: Vec<_> = log
+        .lines()
+        .into_iter()
+        .filter(|(_, line)| line.contains("FETCH"))
+        .collect();
+    assert_eq!(fetches.len(), 1, "{fetches:?}");
+    assert!(fetches[0].1.contains("UID FETCH 2:4 "), "{fetches:?}");
+}
+
+#[tokio::test]
+async fn a_miss_is_trusted_once_the_server_has_found_a_message_by_header() {
+    let (mut s, log) = session_logged(Script {
+        select_exists: 5,
+        search_untagged: "* SEARCH 3\r\n",
+        search_later_untagged: "* SEARCH\r\n",
+        search_all_untagged: "* SEARCH 1 2 3\r\n",
+        ..Script::default()
+    })
+    .await;
+    s.select("Drafts").await.unwrap();
+    assert_eq!(s.search_message_id_deep("<a@b>").await.unwrap(), vec![3]);
+    assert!(s.search_message_id_deep("<c@d>").await.unwrap().is_empty());
+    assert!(!log.lines().iter().any(|(_, line)| line.contains("FETCH")));
 }
 
 #[tokio::test]

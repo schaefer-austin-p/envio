@@ -231,34 +231,45 @@ impl ImapSession {
     async fn find_message_id(&mut self, message_id: &str, deep: bool) -> Result<Vec<u32>> {
         let key = query::search_message_id(message_id)?;
         let found = self.search(&key).await?;
-        if !found.is_empty() || self.exists == 0 {
+        if !found.is_empty() {
+            self.header_search = Some(true);
             return Ok(found);
         }
+        if self.header_search == Some(true) {
+            // This server's header search has found messages before: a miss
+            // is a miss.
+            return Ok(found);
+        }
+        // The folder's own list of UIDs, not sequence numbers counted from
+        // the EXISTS of SELECT, which an expunge or an append since has
+        // made wrong.
+        let all = self.search("UNDELETED").await?;
         let mut uids = Vec::new();
-        let mut last = self.exists;
-        loop {
-            let first = last.saturating_sub(SCAN - 1).max(1);
-            uids.extend(self.scan_message_id(first, last, message_id).await?);
-            if !deep || first == 1 || !uids.is_empty() {
+        let mut end = all.len();
+        while end > 0 {
+            let start = end.saturating_sub(SCAN as usize);
+            uids.extend(self.scan_message_id(&all[start..end], message_id).await?);
+            if !deep || !uids.is_empty() {
                 break;
             }
-            last = first - 1;
+            end = start;
+        }
+        if !uids.is_empty() {
+            self.header_search = Some(false);
         }
         uids.sort_unstable();
         Ok(uids)
     }
 
-    /// Live messages numbered `first..=last` with this Message-ID.
-    async fn scan_message_id(
-        &mut self,
-        first: u32,
-        last: u32,
-        message_id: &str,
-    ) -> Result<Vec<u32>> {
+    /// Live messages among `uids` with this Message-ID.
+    async fn scan_message_id(&mut self, uids: &[u32], message_id: &str) -> Result<Vec<u32>> {
+        let Some(set) = query::uid_set(uids) else {
+            return Ok(Vec::new());
+        };
         connect::within(async {
             // A refused scan is an error: "not found" would send again.
             self.checked_fetch(
-                &format!("FETCH {first}:{last} (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
+                &format!("UID FETCH {set} (UID FLAGS BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"),
                 |attributes| {
                     let live = !fetched::flags(attributes).deleted;
                     let same =

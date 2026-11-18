@@ -134,6 +134,10 @@ pub struct ImapSession {
     /// Changes (EXPUNGE, EXISTS, VANISHED) seen while reading a reply
     /// ourselves, which async-imap's unsolicited channel never got.
     missed_changes: bool,
+    /// Whether this server's HEADER search can be trusted: true once it
+    /// found a message, false once a scan found one it missed (Stalwart 1.0
+    /// never matches). None until one of those happens.
+    header_search: Option<bool>,
 }
 
 impl ImapSession {
@@ -157,6 +161,7 @@ impl ImapSession {
             caps,
             exists: 0,
             missed_changes: false,
+            header_search: None,
         })
     }
 
