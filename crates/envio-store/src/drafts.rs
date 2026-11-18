@@ -79,12 +79,13 @@ impl Drafts {
         let _held = self.held();
         // An attachment path that is not UTF-8 cannot be written as JSON:
         // the save fails and the draft stays pending, it never panics.
-        let old = self.load(id).ok();
+        let old = self.load(id);
         let mut draft = draft.clone();
-        draft.server = old
-            .as_ref()
-            .map(|old| old.server.clone())
-            .unwrap_or_default();
+        draft.server = match &old {
+            Ok(old) => old.server.clone(),
+            Err(StoreError::BadRecord { .. }) => self.salvage_server(id),
+            Err(_) => ServerCopy::default(),
+        };
         self.write(id, &draft)?;
         let before = old.map(|old| old.attachments).unwrap_or_default();
         self.prune(id, &before, &draft.attachments);
@@ -118,6 +119,25 @@ impl Drafts {
             // Fails when files remain; that is fine.
             let _ = fs::remove_dir(&folder);
         }
+    }
+
+    /// The `server` field of a draft file that does not parse as a whole,
+    /// read on its own, so the next save keeps naming the server copy. A
+    /// file with nothing to salvage gives "never uploaded" (logged).
+    fn salvage_server(&self, id: &str) -> ServerCopy {
+        let path = self.path(id);
+        let found = fs::read(&path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|mut value| value.get_mut("server").map(serde_json::Value::take))
+            .and_then(|server| serde_json::from_value(server).ok());
+        found.unwrap_or_else(|| {
+            log::warn!(
+                "draft {id}: the file is damaged and names no server copy; \
+                 a copy in Drafts, if any, stays there"
+            );
+            ServerCopy::default()
+        })
     }
 
     pub fn load(&self, id: &str) -> Result<Draft> {

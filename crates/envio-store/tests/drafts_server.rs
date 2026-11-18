@@ -43,6 +43,26 @@ fn saving_keeps_what_names_the_server_copy() {
 }
 
 #[test]
+fn saving_over_a_damaged_file_keeps_the_server_copy_it_still_names() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 1)).unwrap();
+    // The text is damaged (a wrong type), the server field is whole.
+    let damaged =
+        r#"{"account":"1700","to":"oops","server":{"message_id":"<a@x>","uploaded_ms":4}}"#;
+    fs::write(dir.path().join(format!("{id}.json")), damaged).unwrap();
+    assert!(drafts.load(&id).is_err());
+    drafts.save(&id, &draft("Two", 5)).unwrap();
+    let loaded = drafts.load(&id).unwrap();
+    assert_eq!(loaded.subject, "Two");
+    assert_eq!(loaded.server.message_id.as_deref(), Some("<a@x>"));
+    // Nothing to salvage: the save still succeeds.
+    fs::write(dir.path().join(format!("{id}.json")), "not json").unwrap();
+    drafts.save(&id, &draft("Three", 6)).unwrap();
+    assert_eq!(drafts.load(&id).unwrap().server, ServerCopy::default());
+}
+
+#[test]
 fn marking_a_deleted_draft_changes_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let drafts = Drafts::open(dir.path()).unwrap();

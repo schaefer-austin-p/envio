@@ -24,6 +24,10 @@ pub struct ServerCopy {
     pub pending_id: Option<String>,
     /// The `updated_at_ms` of the draft text the server copy has.
     pub uploaded_ms: i64,
+    /// The `updated_at_ms` of the save whose upload last failed, and how
+    /// many times in a row: the planner stops retrying that save.
+    pub failed_ms: i64,
+    pub failures: u32,
 }
 
 /// A deleted draft whose copy on the server is still to go.
@@ -130,7 +134,24 @@ impl Drafts {
                 message_id: Some(message_id.to_owned()),
                 pending_id: None,
                 uploaded_ms,
+                ..ServerCopy::default()
             };
+        })
+    }
+
+    /// The upload of the save stamped `saved_ms` failed: counts `weight`
+    /// more failures of that save (a newer save starts again from zero).
+    /// False when the draft is gone.
+    pub fn mark_failed(&self, id: &str, saved_ms: i64, weight: u32) -> Result<bool> {
+        self.edit(id, |draft| {
+            let server = &mut draft.server;
+            let before = if server.failed_ms == saved_ms {
+                server.failures
+            } else {
+                0
+            };
+            server.failed_ms = saved_ms;
+            server.failures = before.saturating_add(weight);
         })
     }
 

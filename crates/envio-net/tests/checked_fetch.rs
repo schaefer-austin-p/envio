@@ -96,6 +96,29 @@ async fn a_message_id_scan_still_finds_a_live_match() {
 }
 
 #[tokio::test]
+async fn a_deep_message_id_scan_reaches_a_copy_outside_the_newest_200() {
+    let header = "Message-ID: <a@b>\r\n\r\n";
+    let n = header.len();
+    // 450 messages: the scans cover 251-450, 51-250, then 1-50, where the
+    // copy is.
+    let reply = leak(format!(
+        "* 3 FETCH (UID 3 FLAGS (\\Seen) BODY[HEADER.FIELDS (MESSAGE-ID)] {{{n}}}\r\n{header})\r\n"
+    ));
+    let script = || Script {
+        select_exists: 450,
+        search_untagged: "* SEARCH\r\n",
+        fetch_canned: leak_all(vec!["", "", reply]),
+        ..Script::default()
+    };
+    let mut s = session(script()).await;
+    s.select("Drafts").await.unwrap();
+    assert!(s.search_message_id("<a@b>").await.unwrap().is_empty());
+    let mut s = session(script()).await;
+    s.select("Drafts").await.unwrap();
+    assert_eq!(s.search_message_id_deep("<a@b>").await.unwrap(), vec![3]);
+}
+
+#[tokio::test]
 async fn refused_summaries_are_an_error_not_an_empty_list() {
     for (refusal, busy) in REFUSALS {
         let mut s = session(Script {
