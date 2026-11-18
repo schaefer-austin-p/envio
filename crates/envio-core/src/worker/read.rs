@@ -26,6 +26,8 @@ const MAX_NAME_BYTES: usize = 200;
 /// What `render_view` needs to know about the user and the message's place.
 pub(crate) struct ViewContext<'a> {
     pub account: &'a str,
+    /// The account's IMAP host: whose `Authentication-Results` to believe.
+    pub imap_host: &'a str,
     pub settings: &'a envio_store::Settings,
     pub contacts: &'a [envio_store::Contact],
     /// The cached envelope, for mail that can not be parsed.
@@ -63,6 +65,7 @@ pub(super) fn stored_header(stored: &envio_store::Envelope, account: &str) -> Me
         date: (stored.date != 0).then_some(stored.date),
         account: account.to_owned(),
         sender_known: false,
+        sender_verified: false,
     }
 }
 
@@ -90,7 +93,8 @@ pub(crate) fn render_view(
             ..header
         };
     }
-    let verified = envio_mime::sender_verified(raw, &header.from_address);
+    let verified = envio_mime::sender_verified(raw, &header.from_address, ctx.imap_host);
+    header.sender_verified = verified;
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address, verified);
     let load = loads_images(ctx.settings, images, &header.from_address, verified);
     let inlined = match (&message, ctx.inline_dir) {
@@ -317,8 +321,15 @@ impl Worker<'_> {
             .then(|| self.store.paths.inline().join(message.id.0.to_string()));
         let image_sizes = self.sizes_for(message.id);
         let invites = self.invite_data(&account, raw);
+        let imap_host = self
+            .store
+            .accounts
+            .get(&account)
+            .map(|a| a.settings.imap.host.clone())
+            .unwrap_or_default();
         let ctx = ViewContext {
             account: &account,
+            imap_host: &imap_host,
             settings: &self.store.settings,
             contacts: &self.store.contacts,
             stored: &message.envelope,
@@ -554,6 +565,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let settings = envio_store::Settings::default();
         let ctx = ViewContext {
             account: "me",
+            imap_host: "",
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -572,6 +584,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let settings = envio_store::Settings::default();
         let ctx = ViewContext {
             account: "me",
+            imap_host: "",
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -595,6 +608,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let settings = envio_store::Settings::default();
         let ctx = ViewContext {
             account: "me",
+            imap_host: "",
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -623,6 +637,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let settings = envio_store::Settings::default();
         let ctx = ViewContext {
             account: "me",
+            imap_host: "",
             settings: &settings,
             contacts: &[],
             stored: &stored,

@@ -209,6 +209,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "date": h.date.unwrap_or(0),
         "account": h.account,
         "senderKnown": h.sender_known,
+        "senderVerified": h.sender_verified,
         "attachments": attachments,
     });
     if let (Some(card), Some(map)) = (&view.invite, value.as_object_mut()) {
@@ -333,6 +334,7 @@ mod tests {
                 date: None,
                 account: "a".into(),
                 sender_known: false,
+                sender_verified: false,
             },
             html: String::new(),
             raw: false,
@@ -358,6 +360,7 @@ mod tests {
                 date: None,
                 account: "a".into(),
                 sender_known: false,
+                sender_verified: false,
             },
             html: String::new(),
             raw: false,
@@ -367,6 +370,9 @@ mod tests {
             attachments: vec![],
             invite: None,
         };
+        assert_eq!(message_view_value(1, &view)["senderVerified"], false);
+        view.header.sender_verified = true;
+        assert_eq!(message_view_value(1, &view)["senderVerified"], true);
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
         assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
         view.remote_images = vec!["https://example.org/a.png".into()];
@@ -391,6 +397,7 @@ mod tests {
                 date: None,
                 account: "a".into(),
                 sender_known: false,
+                sender_verified: false,
             },
             html: String::new(),
             raw: false,

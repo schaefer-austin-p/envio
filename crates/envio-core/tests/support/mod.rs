@@ -122,8 +122,18 @@ impl Harness {
 
     /// Like `seed_account`, with the servers' port chosen.
     pub fn seed_account_at(&self, email: &str, password: Option<&str>, port: u16) -> String {
+        self.seed_account_on(email, password, ("127.0.0.1", port))
+    }
+
+    /// Like `seed_account_at`, with the servers' host chosen too.
+    pub fn seed_account_on(
+        &self,
+        email: &str,
+        password: Option<&str>,
+        (host, port): (&str, u16),
+    ) -> String {
         let server = || Server {
-            host: "127.0.0.1".into(),
+            host: host.into(),
             port,
             security: Security::Tls,
             pin: None,

@@ -88,7 +88,7 @@ Item {
             return { id: 5, html: "<p>Hello</p>", blockedImages: blocked, from: "Ana Ruiz",
                      fromAddress: "ana@example.org", to: ["me@example.org"], cc: [],
                      subject: "Invoice 0042", date: 1700000000, account: "ann",
-                     senderKnown: false, attachments: attachments }
+                     senderKnown: false, senderVerified: true, attachments: attachments }
         }
         function pdf() { return [{ index: 0, name: "invoice.pdf", mime: "application/pdf", size: 86016 }] }
         function open(v) {
@@ -544,6 +544,15 @@ Item {
             const calls = mock.called("open")
             compare(calls.length, 1)
             compare(calls[0].args[1], false)
+        }
+
+        function test_always_for_sender_is_hidden_for_unverified_mail() {
+            const v = view([], 1)
+            v.senderVerified = false
+            open(v)
+            verify(shown("imagesBanner"))
+            verify(shown("loadImages"))
+            verify(!shown("alwaysForSender"))
         }
 
         function test_link_opens_only_from_the_sheet() {

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-18 14:50+0100\n"
+"POT-Creation-Date: 2026-11-18 20:10+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:405
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:406
 msgid "Try again"
 msgstr ""
 
@@ -459,7 +459,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:478
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:479
 msgid "Undo"
 msgstr ""
 
@@ -565,17 +565,17 @@ msgstr ""
 msgid "Account"
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:16
+#: qml/pages/reader/ImagesBanner.qml:19
 msgid ""
 "Remote images are blocked. They can tell the sender when and where you "
 "opened this."
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:32
+#: qml/pages/reader/ImagesBanner.qml:35
 msgid "Load images"
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:38
+#: qml/pages/reader/ImagesBanner.qml:42
 msgid "Always for this sender"
 msgstr ""
 
@@ -663,7 +663,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:383
+#: qml/pages/reader/ReaderPage.qml:384
 msgid "Loading…"
 msgstr ""
 
