@@ -475,6 +475,15 @@ Item {
             compare(find("header-Account").font.family, thm.fontLabel)
         }
 
+        function test_header_account_row_shows_the_label_not_the_sender_name() {
+            mock.accounts.clear()
+            mock.accounts.append({ key: "ann", name: "Ann", display: "Work", label: "Work", email: "ann@example.org",
+                                   status: "", state: "ok", unread: 0, unreadText: "" })
+            open(view([], 0))
+            tryCompare(find("header-Account"), "text", "Work")
+            mock.accounts.clear()
+        }
+
         function test_airmail_header_drops_only_the_from_row() {
             thm.name = "airmail"
             open(view([], 0))

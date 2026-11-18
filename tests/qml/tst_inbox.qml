@@ -601,6 +601,17 @@ Item {
             return hit.length > 0 ? hit[0] : null
         }
 
+        function test_a_long_label_is_capped_and_elided_in_its_tab() {
+            const wide = "0123456789012345678901234567890123456789"
+            core.accounts.setProperty(1, "display", wide)
+            const bob = find("tab-bob", page)
+            const text = find("chipText", bob)
+            tryVerify(function() { return bob.width > 0 })
+            verify(bob.width <= page.width * 0.6 + 0.5, "tab " + bob.width + " of " + page.width)
+            verify(text.truncated, "the label is cut with an ellipsis")
+            core.accounts.setProperty(1, "display", "Bob")
+        }
+
         function test_offline_account_tab_shows_the_icon_and_name() {
             core.accounts.setProperty(1, "state", "offline")
             const bob = find("tab-bob", page)

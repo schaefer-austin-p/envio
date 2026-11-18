@@ -23,6 +23,7 @@ AbstractButton {
         textFormat: Text.PlainText
         id: label
         elide: Text.ElideRight
+        objectName: "chipText"
         text: root.text
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
