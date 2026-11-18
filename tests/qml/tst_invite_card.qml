@@ -49,7 +49,7 @@ Item {
                         sendFailed: false, summary: "Quarterly planning", location: "Room 4, Example Office",
                         allDay: false, floating: false, start: 1795168800, end: 1795172400,
                         startDate: "", endDate: "", zoneUnknown: false, repeats: false,
-                        organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
+                        organizer: "Grace Example", canAnswer: true, canAddToCalendar: true, icsIndex: 0 }
             for (const k in over) v[k] = over[k]
             return v
         }
@@ -128,7 +128,7 @@ Item {
         }
 
         function test_cancelled_has_no_buttons() {
-            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false })
+            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false, canAddToCalendar: false })
             compare(find("inviteEyebrow").text, "Cancelled")
             verify(!shown("inviteAccept"))
             verify(!shown("inviteNoteLink"))
@@ -137,7 +137,7 @@ Item {
         }
 
         function test_reply_has_no_buttons() {
-            show({ method: "reply", state: "replied", stateText: "Grace accepted", answer: "accepted", canAnswer: false })
+            show({ method: "reply", state: "replied", stateText: "Grace accepted", answer: "accepted", canAnswer: false, canAddToCalendar: false })
             compare(find("inviteEyebrow").text, "Reply")
             compare(find("inviteState").text, "Grace accepted")
             verify(!shown("inviteAccept"))
@@ -208,7 +208,7 @@ Item {
         }
 
         function test_cancelled_strikes_the_facts() {
-            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false })
+            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false, canAddToCalendar: false })
             verify(find("inviteWhen").font.strikeout)
             verify(find("inviteLocation").font.strikeout)
             verify(!find("inviteOrganizer").font.strikeout)
@@ -251,7 +251,9 @@ Item {
             root.card.hubAvailable = false
             verify(!shown("inviteCalendar"))
             root.card.hubAvailable = true
-            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false })
+            show({ method: "cancel", state: "cancelled", stateText: "Cancelled", canAnswer: false, canAddToCalendar: false })
+            verify(!shown("inviteCalendar"))
+            show({ method: "reply", state: "replied", stateText: "Grace accepted", answer: "accepted", canAnswer: false, canAddToCalendar: false })
             verify(!shown("inviteCalendar"))
             show({ state: "answered", stateText: "You accepted", answer: "accepted" })
             verify(shown("inviteCalendar"))

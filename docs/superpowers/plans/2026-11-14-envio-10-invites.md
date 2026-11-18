@@ -49,6 +49,7 @@ From the spec and `CLAUDE.md`, verbatim where quoted:
 | `repeats` | bool | |
 | `organizer` | string | display name, else address |
 | `canAnswer` | bool | `request` with a `mailto:` organizer |
+| `canAddToCalendar` | bool | true only for a live `REQUEST`; false for `CANCEL`, `REPLY` or `STATUS:CANCELLED` |
 | `icsIndex` | int | attachment index of the calendar part, -1 if it is inline-only |
 
 Calls: `core.answerInvite(id, answer, note)` (answer is `accepted`, `tentative` or `declined`; anything else is ignored). Undo reuses the existing `core.undo(undoId)`. Signals: `message_opened` again with the new card after an answer or an undo (the core re-emits `MessageOpened` for that id), and the existing `undoOffer`/`undoClosed` signals; `undoOffer` gains a third argument `scope` (`"list"` or `"reader"`). The inbox toast ignores `"reader"` offers and the reader toast shows only `"reader"` offers.

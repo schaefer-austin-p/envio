@@ -18,6 +18,11 @@ use envio_mime::AttachmentInfo;
 const MAX_BYTES: usize = 10 * 1024 * 1024;
 /// Most images written for one message.
 const MAX_IMAGES: usize = 50;
+/// Most pixels (width x height, from the header) an image may claim.
+const MAX_PIXELS: u64 = 16 * 1000 * 1000;
+/// Most pixels all the images of one message may claim together: a decoded
+/// image costs about 4 bytes a pixel, and many under-cap images add up.
+const MAX_TOTAL_PIXELS: u64 = 32 * 1000 * 1000;
 
 /// The file extension for the image types Qt's rich text draws. SVG is left
 /// out: it can pull in other files.
@@ -27,9 +32,20 @@ fn extension(content_type: &str) -> Option<&'static str> {
         "image/jpeg" | "image/jpg" | "image/pjpeg" => Some("jpg"),
         "image/gif" => Some("gif"),
         "image/webp" => Some("webp"),
-        "image/bmp" => Some("bmp"),
         _ => None,
     }
+}
+
+/// The size from the header of `bytes`, if they are a PNG, GIF, JPEG or WebP
+/// (the content is sniffed: the declared type is not trusted) of at most
+/// [`MAX_PIXELS`], and that fits in what is left of [`MAX_TOTAL_PIXELS`] after
+/// the `spent` pixels of the images admitted before it. Qt decodes a whole image in layout, so a small file that
+/// claims a huge canvas could exhaust memory.
+fn admitted(bytes: &[u8], spent: u64) -> Option<(u32, u32)> {
+    envio_mime::image_size(bytes).filter(|&(w, h)| {
+        let px = u64::from(w) * u64::from(h);
+        px <= MAX_PIXELS && spent + px <= MAX_TOTAL_PIXELS
+    })
 }
 
 /// Removes every inline image. Missing is fine.
@@ -113,12 +129,26 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
     // from them even for a file kept from an earlier open, and nothing is
     // copied in memory (a part still to be written goes straight to disk).
     let indexes: Vec<usize> = parts.iter().map(|(i, _, _, _)| *i).collect();
+    let mut spent = 0u64;
     envio_mime::with_attachments(raw, &indexes, |n, bytes| {
         let (_, cid, path, have) = &parts[n];
-        if let Some(size) = bytes.and_then(envio_mime::image_size) {
+        let size = bytes.map(|b| admitted(b, spent));
+        let pixels = size
+            .flatten()
+            .map_or(0, |(w, h)| u64::from(w) * u64::from(h));
+        if let Some(Some(size)) = size {
             out.sizes.insert((*cid).clone(), size);
+        } else if size == Some(None) {
+            // Not an image Qt may decode: left out like an over-size part.
+            log::warn!(
+                "skipping an inline image with an unreadable or oversized or over-budget header"
+            );
+            out.urls.remove(*cid);
+            drop(fs::remove_file(path));
+            return;
         }
         if *have {
+            spent += pixels;
             return;
         }
         let written = bytes
@@ -136,6 +166,9 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
             log::warn!("writing an inline image: {e}");
             out.urls.remove(*cid);
             out.sizes.remove(*cid);
+        } else {
+            // Only an image that stays costs budget.
+            spent += pixels;
         }
     });
     out
@@ -163,7 +196,7 @@ mod tests {
 Content-Type: multipart/related; boundary=XX\r\n\r\n\
 --XX\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:logo@example.org\">\r\n\
 --XX\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\
-Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
+Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA\r\n\
 --XX\r\nContent-Type: image/svg+xml\r\nContent-ID: <vec@example.org>\r\n\r\n<svg/>\r\n\
 --XX--\r\n";
 
@@ -185,7 +218,7 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
         assert_eq!(urls.len(), 1, "{urls:?}");
         let url = &urls["logo@example.org"];
         assert!(url.ends_with(".png"), "{url}");
-        assert_eq!(fs::read(path_of(url)).unwrap(), b"hello");
+        assert_eq!(fs::read(path_of(url)).unwrap(), png_header(1, 1));
     }
 
     #[test]
@@ -203,14 +236,15 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n\
         let urls = write(&one, MAIL, &infos()).urls;
         let path = path_of(&urls["logo@example.org"]).to_owned();
         // Same size, other bytes: only a skipped write leaves this.
-        fs::write(&path, b"HELLO").unwrap();
+        let same_size = vec![0u8; png_header(1, 1).len()];
+        fs::write(&path, &same_size).unwrap();
         let again = write(&one, MAIL, &infos()).urls;
         assert_eq!(again, urls);
-        assert_eq!(fs::read(&path).unwrap(), b"HELLO");
+        assert_eq!(fs::read(&path).unwrap(), same_size);
         // A wrong size is replaced, and no temp file stays.
         fs::write(&path, b"x").unwrap();
         write(&one, MAIL, &infos());
-        assert_eq!(fs::read(&path).unwrap(), b"hello");
+        assert_eq!(fs::read(&path).unwrap(), png_header(1, 1));
         let names: Vec<_> = fs::read_dir(&one).unwrap().flatten().collect();
         assert_eq!(names.len(), 1);
     }
@@ -267,7 +301,12 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
     #[test]
     fn only_the_first_images_up_to_the_limit_are_written() {
         let parts: Vec<_> = (0..MAX_IMAGES + 3)
-            .map(|i| (format!("img{i}@example.org"), "aGVsbG8="))
+            .map(|i| {
+                (
+                    format!("img{i}@example.org"),
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA",
+                )
+            })
             .collect();
         let raw = mail_with(&parts);
         let dir = tempfile::tempdir().unwrap();
@@ -289,15 +328,21 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
     #[test]
     fn a_duplicate_content_id_is_skipped_and_the_first_wins() {
         let raw = mail_with(&[
-            ("dup@example.org".to_owned(), "aGVsbG8="),
-            ("dup@example.org".to_owned(), "d29ybGQ="),
+            (
+                "dup@example.org".to_owned(),
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAAAAAA",
+            ),
+            (
+                "dup@example.org".to_owned(),
+                "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAAAAAAAA",
+            ),
         ]);
         let dir = tempfile::tempdir().unwrap();
         let one = dir.path().join("1");
         let out = write(&one, &raw, &infos_of(&raw));
         assert_eq!(out.urls.len(), 1, "{:?}", out.urls);
         let url = &out.urls["dup@example.org"];
-        assert_eq!(fs::read(path_of(url)).unwrap(), b"hello");
+        assert_eq!(fs::read(path_of(url)).unwrap(), png_header(1, 1));
         assert_eq!(fs::read_dir(&one).unwrap().count(), 1);
     }
 
@@ -312,6 +357,169 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
             let out = write(&one, &raw, &infos_of(&raw));
             assert_eq!(out.sizes["p@example.org"], (2000, 7));
         }
+    }
+
+    /// Standard base64 of `b`, for building test messages.
+    fn b64(b: &[u8]) -> String {
+        const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut out = String::new();
+        for c in b.chunks(3) {
+            let n = c
+                .iter()
+                .enumerate()
+                .fold(0u32, |n, (i, &x)| n | u32::from(x) << (16 - 8 * i));
+            for i in 0..=c.len() {
+                out.push(char::from(A[(n >> (18 - 6 * i) & 63) as usize]));
+            }
+            out.push_str(&"=".repeat(3 - c.len()));
+        }
+        out
+    }
+
+    /// A PNG signature and IHDR claiming `w` x `h`: all a header check sees.
+    fn png_header(w: u32, h: u32) -> Vec<u8> {
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        b.extend(w.to_be_bytes());
+        b.extend(h.to_be_bytes());
+        b.extend([8, 6, 0, 0, 0, 0, 0, 0, 0]);
+        b
+    }
+
+    fn one_image(body: &[u8]) -> (tempfile::TempDir, Inlined) {
+        one_image_of("image/png", body)
+    }
+
+    fn one_image_of(content_type: &str, body: &[u8]) -> (tempfile::TempDir, Inlined) {
+        let raw = mail_with(&[("p@example.org".to_owned(), &b64(body))]);
+        let raw = String::from_utf8(raw)
+            .unwrap()
+            .replace("image/png", content_type)
+            .into_bytes();
+        let dir = tempfile::tempdir().unwrap();
+        let out = write(&dir.path().join("1"), &raw, &infos_of(&raw));
+        (dir, out)
+    }
+
+    #[test]
+    fn a_small_png_is_written() {
+        let (_dir, out) = one_image(&png_header(64, 48));
+        assert_eq!(out.urls.len(), 1, "{:?}", out.urls);
+        assert_eq!(out.sizes["p@example.org"], (64, 48));
+    }
+
+    #[test]
+    fn a_header_over_the_pixel_cap_is_skipped() {
+        let (dir, out) = one_image(&png_header(20_000, 20_000));
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(out.sizes.is_empty());
+        assert!(!dir.path().join("1/0.png").exists());
+        // Exactly the cap still passes; one pixel more does not.
+        let (_d, at) = one_image(&png_header(MAX_PIXELS as u32 / 4, 4));
+        assert_eq!(at.urls.len(), 1);
+        let (_d, over) = one_image(&png_header(MAX_PIXELS as u32 / 4 + 1, 4));
+        assert!(over.urls.is_empty());
+    }
+
+    #[test]
+    fn a_part_labelled_png_that_is_not_an_image_is_skipped() {
+        let (dir, out) = one_image(b"<svg xmlns='http://www.w3.org/2000/svg'/>");
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(!dir.path().join("1/0.png").exists());
+    }
+
+    #[test]
+    fn images_past_the_total_pixel_budget_are_skipped() {
+        // Each is under the per-image cap; together they are over the budget.
+        let side = 4000;
+        let n = (MAX_TOTAL_PIXELS / (side * side)) as usize;
+        let body = b64(&png_header(side as u32, side as u32));
+        let parts: Vec<_> = (0..n + 2)
+            .map(|i| (format!("big{i}@example.org"), body.as_str()))
+            .collect();
+        let raw = mail_with(&parts);
+        let dir = tempfile::tempdir().unwrap();
+        let out = write(&dir.path().join("1"), &raw, &infos_of(&raw));
+        assert_eq!(out.urls.len(), n, "{:?}", out.urls);
+        assert!(out.urls.contains_key("big0@example.org"));
+        assert!(!out.urls.contains_key(&format!("big{n}@example.org")));
+        assert!(!out.urls.contains_key(&format!("big{}@example.org", n + 1)));
+    }
+
+    #[test]
+    fn a_kept_file_whose_bytes_are_now_rejected_is_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        let bomb = png_header(20_000, 20_000);
+        let raw = mail_with(&[("p@example.org".to_owned(), &b64(&bomb))]);
+        let infos = infos_of(&raw);
+        // A file of the part's size is already there, so it counts as kept.
+        fs::create_dir_all(&one).unwrap();
+        let stale = one.join("0.png");
+        fs::write(&stale, vec![0u8; bomb.len()]).unwrap();
+        assert_eq!(infos[0].size, bomb.len());
+        let out = write(&one, &raw, &infos);
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+        assert!(!stale.exists());
+    }
+
+    fn gif_with_frame(screen: (u16, u16), frame: (u16, u16)) -> Vec<u8> {
+        let mut v = b"GIF89a".to_vec();
+        v.extend(screen.0.to_le_bytes());
+        v.extend(screen.1.to_le_bytes());
+        // No global colour table, then one image descriptor.
+        v.extend([0, 0, 0, 0x2c, 0, 0, 0, 0]);
+        v.extend(frame.0.to_le_bytes());
+        v.extend(frame.1.to_le_bytes());
+        v.push(0);
+        v
+    }
+
+    #[test]
+    fn a_gif_frame_larger_than_its_screen_counts_by_the_frame() {
+        let (_d, out) = one_image_of("image/gif", &gif_with_frame((10, 10), (20_000, 20_000)));
+        assert!(out.urls.is_empty(), "{:?}", out.urls);
+    }
+
+    #[test]
+    fn over_cap_jpeg_gif_and_webp_are_skipped() {
+        // JPEG with the SOF after a large APP segment.
+        let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe1, 0xff, 0xff];
+        jpeg.extend(vec![0u8; 0xffff - 2]);
+        jpeg.extend([0xff, 0xc0, 0, 11, 8]);
+        jpeg.extend(20_000u16.to_be_bytes());
+        jpeg.extend(20_000u16.to_be_bytes());
+        jpeg.extend([1, 1, 0x11, 0]);
+        // WebP lossy header, 16383 x 16383 (over 16 Mpx).
+        let mut webp = b"RIFF\0\0\0\0WEBPVP8 \0\0\0\0\0\0\0\0\0\0\0\0\x9d\x01\x2a".to_vec();
+        webp.extend(16383u16.to_le_bytes());
+        webp.extend(16383u16.to_le_bytes());
+        let gif = gif_with_frame((20_000, 20_000), (20_000, 20_000));
+        for (ty, bytes) in [
+            ("image/jpeg", jpeg),
+            ("image/gif", gif),
+            ("image/webp", webp),
+        ] {
+            let (_d, out) = one_image_of(ty, &bytes);
+            assert!(out.urls.is_empty(), "{ty}: {:?}", out.urls);
+        }
+    }
+
+    #[test]
+    fn a_failed_write_does_not_use_up_the_pixel_budget() {
+        // Three 16 Mpx images: only two fit. The first cannot be written (a
+        // directory sits where its temp file goes), so the other two are kept.
+        let body = b64(&png_header(4000, 4000));
+        let parts: Vec<_> = (0..3)
+            .map(|i| (format!("big{i}@example.org"), body.as_str()))
+            .collect();
+        let raw = mail_with(&parts);
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        fs::create_dir_all(one.join("0.png.tmp")).unwrap();
+        let out = write(&one, &raw, &infos_of(&raw));
+        let mut cids: Vec<_> = out.urls.keys().cloned().collect();
+        cids.sort();
+        assert_eq!(cids, ["big1@example.org", "big2@example.org"]);
     }
 
     #[test]

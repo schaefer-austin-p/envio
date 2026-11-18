@@ -166,7 +166,7 @@ Item {
             v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
                          sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
                          floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
-                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true, canAddToCalendar: true,
                          icsIndex: 1 }
             open(v)
             mouseClick(find("inviteCalendar"))
@@ -192,7 +192,7 @@ Item {
             v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
                          sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
                          start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
-                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: -1 }
+                         repeats: false, organizer: "Grace Example", canAnswer: true, canAddToCalendar: true, icsIndex: -1 }
             open(v)
             // The card pushes the attachment below the fold: scroll to it.
             const flick = everything(root.page, []).filter(function(o) {
@@ -217,7 +217,7 @@ Item {
             v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
                          sendFailed: false, summary: "Q", location: "", allDay: false, floating: false,
                          start: 1795168800, end: 0, startDate: "", endDate: "", zoneUnknown: false,
-                         repeats: false, organizer: "Grace Example", canAnswer: true, icsIndex: 0 }
+                         repeats: false, organizer: "Grace Example", canAnswer: true, canAddToCalendar: true, icsIndex: 0 }
             open(v)
             mouseClick(find("inviteCalendar"))
             mock.inviteExportFailed(5)
@@ -237,7 +237,7 @@ Item {
             v.invite = { method: "request", state: "open", stateText: "", answer: "", sending: false,
                          sendFailed: false, summary: "Quarterly planning", location: "", allDay: false,
                          floating: false, start: 1795168800, end: 1795172400, startDate: "", endDate: "",
-                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true,
+                         zoneUnknown: false, repeats: false, organizer: "Grace Example", canAnswer: true, canAddToCalendar: true,
                          icsIndex: 0 }
             open(v)
             verify(shown("inviteCard"))

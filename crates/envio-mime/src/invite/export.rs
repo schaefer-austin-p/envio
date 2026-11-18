@@ -46,6 +46,10 @@ pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     if let Some(organizer) = &invite.organizer_line {
         line(organizer);
     }
+    if invite.cancelled {
+        // Never turn a cancellation into a live event.
+        line("STATUS:CANCELLED");
+    }
     line("END:VEVENT");
     line("END:VCALENDAR");
     out

@@ -445,6 +445,109 @@ async fn fetch_flags_fails_when_a_later_chunk_fails() {
     assert_eq!(fetch_commands(&transcript), 2);
 }
 
+/// A server that refuses a later chunk with a tagged NO or BAD leaves the
+/// stream ending normally: the flags must not come back as a short result.
+async fn refused_chunk(refusal: &'static str) -> envio_net::NetError {
+    let uids = fragmented_uids();
+    let (mut session, transcript) = fetching(Script {
+        fetch_refused_at: 2,
+        fetch_refusal: refusal,
+        ..Script::default()
+    })
+    .await;
+    let error = session.fetch_flags(&uids, None).await.unwrap_err();
+    assert_eq!(fetch_commands(&transcript), 2, "stops at the refused chunk");
+    error
+}
+
+#[tokio::test]
+async fn fetch_flags_fails_when_a_later_chunk_gets_a_tagged_no() {
+    assert!(matches!(
+        refused_chunk("NO [OVERQUOTA] nope").await,
+        envio_net::NetError::Refused(_)
+    ));
+}
+
+#[tokio::test]
+async fn fetch_flags_fails_when_a_later_chunk_gets_a_tagged_bad() {
+    assert!(matches!(
+        refused_chunk("BAD command too long").await,
+        envio_net::NetError::Protocol(_)
+    ));
+}
+
+#[tokio::test]
+async fn fetch_flags_treats_a_busy_no_on_a_later_chunk_as_transient() {
+    let error = refused_chunk("NO [UNAVAILABLE] try later").await;
+    assert!(error.is_temporary(), "{error:?}");
+}
+
+#[tokio::test]
+async fn a_refused_search_is_an_error_not_an_empty_result() {
+    // An empty answer reads as "nothing matches" (the Outbox then sends
+    // again), so a tagged NO or BAD must not look like one.
+    for (refusal, busy) in [
+        ("NO [OVERQUOTA] nope", false),
+        ("BAD bad key", false),
+        ("NO [UNAVAILABLE] later", true),
+    ] {
+        let (mut session, _) = fetching(Script {
+            search_refusal: refusal,
+            ..Script::default()
+        })
+        .await;
+        let error = session.search_since(0).await.unwrap_err();
+        assert_eq!(error.is_temporary(), busy, "{refusal}: {error:?}");
+        let (mut session, _) = fetching(Script {
+            search_refusal: refusal,
+            ..Script::default()
+        })
+        .await;
+        assert!(session.search_text("hi").await.is_err(), "{refusal}");
+    }
+}
+
+/// What `take_changes` says after a search whose reply carried `lines`.
+async fn changed_by_search(lines: &'static str) -> bool {
+    let (mut session, _) = fetching(Script {
+        search_untagged: lines,
+        ..Script::default()
+    })
+    .await;
+    assert!(!session.take_changes());
+    session.search_since(0).await.unwrap();
+    session.take_changes()
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_search_are_reported() {
+    assert!(changed_by_search("* 3 FETCH (FLAGS (\\Seen))\r\n").await);
+    assert!(changed_by_search("* 2 EXPUNGE\r\n").await);
+    assert!(changed_by_search("* 9 EXISTS\r\n").await);
+    // Nothing unsolicited, nothing changed.
+    assert!(!changed_by_search("* SEARCH 4 5\r\n").await);
+}
+
+#[tokio::test]
+async fn changes_seen_during_a_flag_fetch_are_reported() {
+    // A FETCH without a UID is an unsolicited flag change (no QRESYNC).
+    for line in [
+        "* 3 FETCH (FLAGS (\\Seen))\r\n",
+        "* 2 EXPUNGE\r\n",
+        "* 9 EXISTS\r\n",
+    ] {
+        let canned: &'static [&'static str] = Box::leak(Box::new([line]));
+        let (mut session, _) = fetching(Script {
+            fetch_canned: canned,
+            ..Script::default()
+        })
+        .await;
+        assert!(!session.take_changes());
+        session.fetch_flags(&[1], None).await.unwrap();
+        assert!(session.take_changes(), "{line:?}");
+    }
+}
+
 #[tokio::test]
 async fn a_reply_without_the_structure_is_an_error_not_a_gone_message() {
     // The fake answers every FETCH with a flags-only line for the UID, as a
@@ -480,4 +583,25 @@ async fn a_text_part_in_the_reply_is_kept() {
     .await;
     let eml = session.fetch_partial(7).await.unwrap().unwrap();
     assert!(String::from_utf8(eml).unwrap().ends_with("hello"));
+}
+
+#[tokio::test]
+async fn a_small_messages_own_stub_marks_are_renamed_in_the_full_fetch() {
+    // #214: a plain mark, and ones behind a leading CR and FF.
+    let eml = "Subject: Hi\r\nX-Envio-Section: 7\r\n\rX-Envio-Size: 9\r\n\x0cx-envio-truncated: 1\r\n\r\nbody\r\n";
+    let reply: &'static str = Box::leak(
+        format!("* 1 FETCH (UID 7 BODY[] {{{}}}\r\n{eml})\r\n", eml.len()).into_boxed_str(),
+    );
+    let canned: &'static [&'static str] = Box::leak(vec![reply].into_boxed_slice());
+    let (mut session, _) = fetching(Script {
+        fetch_canned: canned,
+        ..Script::default()
+    })
+    .await;
+    let body = session.fetch_body(7, eml.len()).await.unwrap().unwrap();
+    assert_eq!(
+        String::from_utf8(body).unwrap(),
+        "Subject: Hi\r\nX-Untrusted-Envio-Section: 7\r\n\rX-Untrusted-Envio-Size: 9\r\n\
+         \x0cX-Untrusted-envio-truncated: 1\r\n\r\nbody\r\n"
+    );
 }

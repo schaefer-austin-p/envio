@@ -163,6 +163,7 @@ fn message_opened_carries_the_invite_card() {
         organizer: "Grace".into(),
         organizer_email: "grace@example.org".into(),
         can_answer: true,
+        can_add_to_calendar: true,
         ics_index: 0,
     };
     let view = MessageView {

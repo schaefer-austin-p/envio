@@ -51,6 +51,12 @@ pub(crate) fn can_answer(invite: &Invite) -> bool {
     invite.method == InviteMethod::Request && !invite.cancelled && invite.organizer.is_some()
 }
 
+/// Whether the card offers Add to calendar: only a live request is an event
+/// to add; a cancellation or a reply is not.
+pub(crate) fn can_add_to_calendar(invite: &Invite) -> bool {
+    invite.method == InviteMethod::Request && !invite.cancelled
+}
+
 /// The state, its text and the answer it shows.
 fn state_of(
     invite: &Invite,
@@ -153,6 +159,7 @@ pub(crate) fn card(
             .map(|p| p.email.clone())
             .unwrap_or_default(),
         can_answer: can_answer(invite),
+        can_add_to_calendar: can_add_to_calendar(invite),
         ics_index: -1,
     }
 }
@@ -296,6 +303,17 @@ mod card_unit_tests {
         );
         assert!(!c.can_answer);
         assert_eq!(c.state_text, "Cancelled");
+    }
+
+    #[test]
+    fn only_a_live_request_can_be_added_to_a_calendar() {
+        let add = |i: &Invite| card(i, None, ReplyState::Gone, ME).can_add_to_calendar;
+        assert!(add(&invite(InviteMethod::Request)));
+        assert!(!add(&invite(InviteMethod::Cancel)));
+        assert!(!add(&invite(InviteMethod::Reply)));
+        let mut i = invite(InviteMethod::Request);
+        i.cancelled = true;
+        assert!(!add(&i));
     }
 
     #[test]
