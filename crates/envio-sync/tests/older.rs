@@ -505,3 +505,36 @@ async fn a_failure_after_the_first_batch_keeps_what_was_stored() {
     let next = older((&mut server, &mut store, inbox), Some(result.kept()), tail).await;
     assert_eq!(next.fetched.len(), 50);
 }
+
+/// A batch of 50 with `below` rows dated before the 40-day tail and the
+/// rest after it (UIDs 21..=70 are 62 days old and wait behind it).
+async fn fetched_with_below(below: i64) -> usize {
+    let (mut server, mut store, inbox) =
+        windowed_with(&[(50, 62 * DAY), (50 - below, 35 * DAY), (below, 60 * DAY)]).await;
+    let tail = Some(NOW_SECS - 40 * DAY);
+    older((&mut server, &mut store, inbox), None, tail)
+        .await
+        .fetched
+        .len()
+}
+
+#[tokio::test]
+async fn ten_rows_below_the_tail_end_the_call_and_nine_do_not() {
+    // Nine below: the call goes on to the 62-day mail.
+    assert_eq!(fetched_with_below(9).await, 100);
+    // Ten below: it stops after the batch.
+    assert_eq!(fetched_with_below(10).await, 50);
+}
+
+#[tokio::test]
+async fn a_call_with_a_tail_ends_when_the_server_is_exhausted() {
+    // Five messages, all above the tail: fewer than ten can never be below
+    // it, so only exhaustion ends the call.
+    let (mut server, mut store, inbox) = windowed_with(&[(5, 35 * DAY)]).await;
+    let before = fetches(&server);
+    let tail = Some(NOW_SECS - 40 * DAY);
+    let first = older((&mut server, &mut store, inbox), None, tail).await;
+    assert_eq!(first.fetched.len(), 5);
+    assert!(first.exhausted);
+    assert_eq!(fetches(&server) - before, 1);
+}

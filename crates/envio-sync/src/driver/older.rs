@@ -96,37 +96,29 @@ pub async fn load_older(
     let mut fetched = Vec::new();
     let mut exhausted = false;
     for _ in 0..(if tail.is_some() { MAX_BATCHES } else { 1 }) {
-        let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
-        let plan = plan_older(&all, &cached, Some(&planned));
-        exhausted = plan.exhausted;
-        if plan.fetch.is_empty() {
-            break;
-        }
-        let pending = Pending::of(
-            local.journal.pending(),
-            &row.account,
-            &row.path,
-            state.uid_validity,
-        );
-        let stored = match server.fetch_summaries(&plan.fetch).await {
-            Ok(summaries) => store_summaries(local, folder, &summaries, &pending),
-            Err(e) => Err(e.into()),
-        };
-        let stored = match stored {
-            Ok(stored) => stored,
-            // Earlier batches are committed: report them, and let the
-            // next press find the failure again.
-            Err(_) if !fetched.is_empty() => {
+        let step = batch(
+            server,
+            local,
+            &Ctx::new(&row, state.uid_validity, &all, &planned),
+        )
+        .await;
+        let step = match step {
+            Ok(step) => step,
+            // Earlier batches are committed: report them, and let the next
+            // press find the failure again.
+            Err(error) if !fetched.is_empty() => {
+                log::warn!("load older: stopped after a failure ({:?})", error.kind());
                 exhausted = false;
                 break;
             }
-            Err(e) => return Err(e),
+            Err(error) => return Err(error),
         };
-        planned = planned.with(&plan.fetch);
-        let empty = stored.is_empty();
-        fetched.extend(stored);
+        exhausted = step.exhausted;
+        planned = planned.with(&step.fetch);
+        let empty = step.stored.is_empty();
+        fetched.extend(step.stored);
         let shown = match tail {
-            Some(tail) if !empty => local.db.count_dated_before(folder, tail)? - base,
+            Some(tail) if !empty => below(local, folder, tail, base),
             _ => MIN_BELOW,
         };
         if exhausted || empty || shown >= MIN_BELOW {
@@ -137,5 +129,77 @@ pub async fn load_older(
         fetched,
         planned,
         exhausted,
+    })
+}
+
+/// How many rows dated before `tail` the call has stored since `base`; a
+/// failed count ends the call (`MIN_BELOW`).
+fn below(local: &Local<'_>, folder: FolderId, tail: i64, base: u32) -> u32 {
+    match local.db.count_dated_before(folder, tail) {
+        Ok(count) => count.saturating_sub(base),
+        Err(error) => {
+            log::warn!("load older: counting rows failed ({error})");
+            MIN_BELOW
+        }
+    }
+}
+
+/// What `batch` plans from.
+struct Ctx<'a> {
+    row: &'a envio_store::Folder,
+    uid_validity: u32,
+    all: &'a [u32],
+    planned: &'a Kept,
+}
+
+impl<'a> Ctx<'a> {
+    fn new(
+        row: &'a envio_store::Folder,
+        uid_validity: u32,
+        all: &'a [u32],
+        planned: &'a Kept,
+    ) -> Self {
+        Self {
+            row,
+            uid_validity,
+            all,
+            planned,
+        }
+    }
+}
+
+/// One planned and stored batch.
+struct Step {
+    /// The UIDs planned, stored or not.
+    fetch: Vec<u32>,
+    stored: Vec<MessageRowId>,
+    exhausted: bool,
+}
+
+/// Plans the next batch from the cache, fetches and stores it.
+async fn batch(server: &mut impl MailServer, local: &mut Local<'_>, ctx: &Ctx<'_>) -> Result<Step> {
+    let Ctx {
+        row,
+        uid_validity,
+        all,
+        planned,
+    } = *ctx;
+    let cached: BTreeSet<u32> = local.db.uids(row.id)?.into_iter().collect();
+    let plan = plan_older(all, &cached, Some(planned));
+    let mut stored = Vec::new();
+    if !plan.fetch.is_empty() {
+        let pending = Pending::of(
+            local.journal.pending(),
+            &row.account,
+            &row.path,
+            uid_validity,
+        );
+        let summaries = server.fetch_summaries(&plan.fetch).await?;
+        stored = store_summaries(local, row.id, &summaries, &pending)?;
+    }
+    Ok(Step {
+        fetch: plan.fetch,
+        stored,
+        exhausted: plan.exhausted,
     })
 }
