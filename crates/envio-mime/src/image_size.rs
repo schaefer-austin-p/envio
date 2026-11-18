@@ -8,7 +8,7 @@ pub fn size(b: &[u8]) -> Option<(u32, u32)> {
     let s = if b.starts_with(b"\x89PNG\r\n\x1a\n") {
         png(b)
     } else if b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a") {
-        le16(b, 6).zip(le16(b, 8))
+        gif(b)
     } else if b.starts_with(&[0xff, 0xd8]) {
         jpeg(b)
     } else if b.starts_with(b"RIFF") && b.get(8..12) == Some(b"WEBP") {
@@ -39,6 +39,38 @@ fn png(b: &[u8]) -> Option<(u32, u32)> {
         return None;
     }
     be32(b, 16).zip(be32(b, 20))
+}
+
+/// The larger of the logical screen and the first frame, per axis: Qt grows
+/// the canvas for a frame that does not fit the screen. The screen alone when
+/// no frame header is in `b`.
+fn gif(b: &[u8]) -> Option<(u32, u32)> {
+    let screen = le16(b, 6).zip(le16(b, 8))?;
+    let Some(&flags) = b.get(10) else {
+        return Some(screen);
+    };
+    let mut at = 13;
+    if flags & 0x80 != 0 {
+        at += 3 << ((flags & 7) + 1);
+    }
+    // Skip extension blocks (0x21, label, sub-blocks ending in a 0 length).
+    while b.get(at) == Some(&0x21) {
+        at += 2;
+        loop {
+            let len = usize::from(*b.get(at)?);
+            at += 1 + len;
+            if len == 0 {
+                break;
+            }
+        }
+    }
+    if b.get(at) != Some(&0x2c) {
+        return Some(screen);
+    }
+    Some(match le16(b, at + 5).zip(le16(b, at + 7)) {
+        Some((w, h)) => (screen.0.max(w), screen.1.max(h)),
+        None => screen,
+    })
 }
 
 /// Walks the segments to the first start-of-frame marker.
@@ -130,6 +162,20 @@ mod tests {
         v.extend(700u16.to_le_bytes());
         v.extend(5u16.to_le_bytes());
         assert_eq!(size(&v), Some((700, 5)));
+    }
+
+    #[test]
+    fn gif_frame_larger_than_the_screen_wins() {
+        let mut v = b"GIF89a".to_vec();
+        v.extend([10, 0, 10, 0, 0x80, 0, 0]);
+        // A 2-entry global colour table, a comment extension, then a frame.
+        v.extend([0; 6]);
+        v.extend([0x21, 0xfe, 2, b'h', b'i', 0]);
+        v.extend([0x2c, 0, 0, 0, 0]);
+        v.extend(300u16.to_le_bytes());
+        v.extend(4u16.to_le_bytes());
+        v.push(0);
+        assert_eq!(size(&v), Some((300, 10)));
     }
 
     #[test]
