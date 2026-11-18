@@ -133,8 +133,10 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
     envio_mime::with_attachments(raw, &indexes, |n, bytes| {
         let (_, cid, path, have) = &parts[n];
         let size = bytes.map(|b| admitted(b, spent));
+        let pixels = size
+            .flatten()
+            .map_or(0, |(w, h)| u64::from(w) * u64::from(h));
         if let Some(Some(size)) = size {
-            spent += u64::from(size.0) * u64::from(size.1);
             out.sizes.insert((*cid).clone(), size);
         } else if size == Some(None) {
             // Not an image Qt may decode: left out like an over-size part.
@@ -146,6 +148,7 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
             return;
         }
         if *have {
+            spent += pixels;
             return;
         }
         let written = bytes
@@ -163,6 +166,9 @@ pub(super) fn write(dir: &Path, raw: &[u8], attachments: &[AttachmentInfo]) -> I
             log::warn!("writing an inline image: {e}");
             out.urls.remove(*cid);
             out.sizes.remove(*cid);
+        } else {
+            // Only an image that stays costs budget.
+            spent += pixels;
         }
     });
     out
@@ -496,6 +502,24 @@ Content-Transfer-Encoding: base64\r\n\r\n{body}\r\n"
             let (_d, out) = one_image_of(ty, &bytes);
             assert!(out.urls.is_empty(), "{ty}: {:?}", out.urls);
         }
+    }
+
+    #[test]
+    fn a_failed_write_does_not_use_up_the_pixel_budget() {
+        // Three 16 Mpx images: only two fit. The first cannot be written (a
+        // directory sits where its temp file goes), so the other two are kept.
+        let body = b64(&png_header(4000, 4000));
+        let parts: Vec<_> = (0..3)
+            .map(|i| (format!("big{i}@example.org"), body.as_str()))
+            .collect();
+        let raw = mail_with(&parts);
+        let dir = tempfile::tempdir().unwrap();
+        let one = dir.path().join("1");
+        fs::create_dir_all(one.join("0.png.tmp")).unwrap();
+        let out = write(&one, &raw, &infos_of(&raw));
+        let mut cids: Vec<_> = out.urls.keys().cloned().collect();
+        cids.sort();
+        assert_eq!(cids, ["big1@example.org", "big2@example.org"]);
     }
 
     #[test]
