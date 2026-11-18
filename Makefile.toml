@@ -68,6 +68,9 @@ set -eu
 # and its send limit of 25 messages an hour per user (#257).
 STALWART_NAME="${STALWART_NAME:-envio-stalwart-$$}"
 export STALWART_NAME
+# Labels the container with this run so a later run can reap it if this one is killed.
+STALWART_OWNER_PID=$$
+export STALWART_OWNER_PID
 trap 'docker rm -f "$STALWART_NAME" >/dev/null 2>&1 || true' EXIT
 settings=$(crates/envio-net/tests/stalwart/up.sh)
 eval "$settings"
@@ -83,6 +86,8 @@ set -eu
 # and its send limit of 25 messages an hour per user (#257).
 STALWART_NAME="${STALWART_NAME:-envio-stalwart-$$}"
 export STALWART_NAME
+STALWART_OWNER_PID=$$
+export STALWART_OWNER_PID
 trap 'docker rm -f "$STALWART_NAME" >/dev/null 2>&1 || true' EXIT
 settings=$(crates/envio-net/tests/stalwart/up.sh)
 eval "$settings"

@@ -477,6 +477,43 @@ async fn mail_that_arrives_before_the_idle_select_is_not_missed() {
 }
 
 #[tokio::test]
+async fn mail_that_arrives_between_the_idle_select_and_idle_is_found_by_the_next_select() {
+    let Some((server, _turn)) = find().await else {
+        return;
+    };
+    let server = Arc::new(server);
+    let run = CoreRun::start(LevelFilter::Info);
+    let account = run.add_account(&server, "grace");
+    let (inbox, _) = run.folder(&account, FolderRole::Inbox);
+    idle_entered(&account, 0);
+    let gap = unique("Between SELECT and IDLE");
+    let hook_server = Arc::clone(&server);
+    let hook_subject = gap.clone();
+    // Stalwart reports nothing for mail appended here (#48). The renewal
+    // is capped at 1 s: the quiet wake re-SELECTs, sees the new UIDNEXT and
+    // syncs the Inbox. (The 5 minute interval itself is pinned by the
+    // planner's unit tests.)
+    hooks::cap_idle_renewal(&account, 1_000);
+    hooks::before_next(Point::IdleBegin, &account, move || {
+        let server = Arc::clone(&hook_server);
+        let subject = hook_subject.clone();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(deliver(&server, "grace", &subject));
+        })
+        .join()
+        .unwrap();
+    });
+    // A fresh IDLE in the background: the hook fires as it begins.
+    run.core().send(Command::AppActive(true));
+    run.core().send(Command::AppActive(false));
+    run.row_with(inbox, &gap);
+}
+
+#[tokio::test]
 async fn an_open_whose_body_cannot_be_fetched_answers_with_a_failure() {
     let Some((server, _turn)) = find().await else {
         return;

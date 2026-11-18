@@ -31,6 +31,7 @@ zeroize = "1"
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1.54", features = ["test-util"] }
 libc = "0.2"
 rusqlite = { version = "0.41", features = ["bundled"] }
 rcgen = "0.14"
