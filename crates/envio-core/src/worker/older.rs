@@ -1,5 +1,5 @@
-//! Load older: one batch of mail below the oldest cached message, a step per
-//! folder. For the unified Inbox the accounts' answers are gathered into one
+//! Load older: mail below the list's tail (a batch, or several while they
+//! show nothing below it), a step per folder. For the unified Inbox the accounts' answers are gathered into one
 //! `OlderLoaded`. A folder's floor (the lowest UID reached) is remembered for
 //! the session so the next sync keeps these rows and the next batch starts
 //! below them.
@@ -22,6 +22,8 @@ use crate::text;
 /// A `LoadOlder` in progress: the folders that have not answered yet and
 /// what the others fetched.
 pub(crate) struct Load {
+    /// The date of the list's last shown row.
+    tail: Option<i64>,
     waiting: BTreeSet<FolderId>,
     fetched: usize,
     /// Every folder that answered has nothing older (and none failed).
@@ -34,9 +36,10 @@ pub(crate) struct Load {
 }
 
 impl Worker<'_> {
-    pub(super) fn load_older(&mut self, list: ListRef) {
+    pub(super) fn load_older(&mut self, list: ListRef, tail: Option<i64>) {
         let targets = self.older_targets(list);
         let mut load = Load {
+            tail,
             waiting: targets.iter().map(|(_, folder)| *folder).collect(),
             fetched: 0,
             exhausted: true,
@@ -63,7 +66,7 @@ impl Worker<'_> {
         self.older_check(list);
     }
 
-    /// The (account, folder) pairs `list` loads one batch for.
+    /// The (account, folder) pairs `list` loads older mail for.
     fn older_targets(&self, list: ListRef) -> Vec<(String, FolderId)> {
         match list {
             ListRef::Folder(folder) => match self.store.db.folder(folder) {
@@ -83,15 +86,29 @@ impl Worker<'_> {
         }
     }
 
-    /// The step: one batch for `folder`.
+    /// The step: older mail for `folder`.
     pub(super) async fn older_step(
         &mut self,
         session: &mut ImapSession,
         folder: FolderId,
     ) -> Result<(), Problem> {
         let floor = self.floors.get(&folder).cloned();
+        let tail = self
+            .loads
+            .values()
+            .find(|load| load.waiting.contains(&folder))
+            .and_then(|load| load.tail);
         let window = (now_ms(), self.store.settings.sync_window());
-        match driver::load_older(session, &mut self.store.local(), folder, window, floor).await {
+        match driver::load_older(
+            session,
+            &mut self.store.local(),
+            folder,
+            window,
+            floor,
+            tail,
+        )
+        .await
+        {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());
                 self.older_done(folder, older.fetched.len(), older.exhausted);
@@ -283,6 +300,7 @@ mod tests {
         worker.loads.insert(
             list,
             Load {
+                tail: None,
                 waiting: BTreeSet::from([seeded.folder]),
                 fetched: 9,
                 exhausted: true,

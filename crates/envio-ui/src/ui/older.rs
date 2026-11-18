@@ -1,5 +1,5 @@
 //! The "Load older messages" row: shown at the end of a folder or the
-//! unified inbox, pressed to fetch one batch, and `Done` once the server
+//! unified inbox, pressed to fetch older mail, and `Done` once the server
 //! has nothing older. Search results are their own page without the row,
 //! so a search leaves it alone: the list behind it keeps its row.
 
@@ -14,10 +14,11 @@ impl Ui {
         if self.older != OlderRow::Ready {
             return None;
         }
-        let list = self.current.as_ref()?.list;
+        let cur = self.current.as_ref()?;
+        let (list, tail) = (cur.list, cur.shown.last_cursor().map(|c| c.date));
         self.older_reset_while_loading = false;
         let outs = self.set_older(OlderRow::Loading);
-        Some((Command::LoadOlder { list }, outs))
+        Some((Command::LoadOlder { list, tail }, outs))
     }
 
     /// The list was scrolled near its end: ask for a batch, like a tap, but

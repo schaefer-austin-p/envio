@@ -186,10 +186,12 @@ pub enum Command {
     /// Ask the server too: the folder of `scope` (an account's or the
     /// unified Inbox: each account's Inbox), found mail is cached.
     SearchServer { scope: SearchScope, query: String },
-    /// Fetch the next batch of mail older than what the list holds (for
-    /// `Inboxes`: one batch per account's Inbox). The answer is
-    /// `OlderLoaded` or `OlderFailed`.
-    LoadOlder { list: ListRef },
+    /// Fetch the next mail older than what the list holds (for `Inboxes`:
+    /// the same for each account's Inbox). `tail` is the date of the list's
+    /// last shown row: batches dated above it show nothing new, so the
+    /// fetch goes on (up to a limit) until mail below it arrives; `None`
+    /// fetches one batch. The answer is `OlderLoaded` or `OlderFailed`.
+    LoadOlder { list: ListRef, tail: Option<i64> },
     /// Show a message; its body is fetched first if it is not cached.
     OpenMessage {
         id: MessageRowId,

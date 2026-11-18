@@ -13,8 +13,11 @@ use crate::plan::pending::Pending;
 use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
 
-/// Most batches one call fetches while none holds mail below the tail.
+/// Most batches one call fetches while they show nothing below the tail.
 const MAX_BATCHES: usize = 10;
+/// Rows dated below the tail that end the call: a lone outlier-dated
+/// message in a batch of newer mail must not.
+const MIN_BELOW: u32 = 10;
 
 /// One batch of older mail.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,12 +40,20 @@ impl Older {
 
 /// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages the
 /// folder's cache lacks outside the sync window (`window_days`, `None` = all
-/// mail, so nothing is older), newest UID first, in one transaction. Paged by UID
+/// mail, so nothing is older), newest UID first, one transaction per batch.
+/// Paged by UID
 /// among the missing, not below the oldest cached UID: old mail may have
 /// been appended after new mail (#94). The caller remembers `kept()` (and
 /// passes it to the next call and to `sync_folder`) so the next sync keeps
 /// these rows and a batch that stored nothing (all \Deleted or hidden) is
 /// not planned again.
+///
+/// UID order is not date order (#254): a batch dated above `tail` (the date
+/// of the list's last shown row) puts its rows above what the user sees. So
+/// with a `tail` the call goes on to the next batch, up to [`MAX_BATCHES`],
+/// until [`MIN_BELOW`] rows are dated strictly before it (the unified Inbox
+/// passes its global tail to each folder). Without one it fetches one batch.
+/// A failure after the first batch returns what was stored.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
@@ -54,6 +65,7 @@ pub async fn load_older(
     folder: FolderId,
     (now_ms, window_days): (i64, Option<u32>),
     kept: Option<Kept>,
+    tail: Option<i64>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
     let state = server.select(&row.path).await?;
@@ -76,16 +88,16 @@ pub async fn load_older(
         }
         None => Vec::new(),
     };
-    let floor = local.db.oldest_date(folder)?;
+    let base = match tail {
+        Some(tail) => local.db.count_dated_before(folder, tail)?,
+        None => 0,
+    };
     let mut planned = kept.unwrap_or_default();
     let mut fetched = Vec::new();
     let mut exhausted = false;
-    // UID order is not date order (#254): a batch dated all above the list's
-    // tail shows the user nothing new there, so go on, up to MAX_BATCHES.
-    for _ in 0..MAX_BATCHES {
+    for _ in 0..(if tail.is_some() { MAX_BATCHES } else { 1 }) {
         let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
         let plan = plan_older(&all, &cached, Some(&planned));
-        planned = planned.with(&plan.fetch);
         exhausted = plan.exhausted;
         if plan.fetch.is_empty() {
             break;
@@ -96,11 +108,28 @@ pub async fn load_older(
             &row.path,
             state.uid_validity,
         );
-        let summaries = server.fetch_summaries(&plan.fetch).await?;
-        let stored = store_summaries(local, folder, &summaries, &pending)?;
-        let below = stored.is_empty() || floor.is_none() || local.db.oldest_date(folder)? < floor;
+        let stored = match server.fetch_summaries(&plan.fetch).await {
+            Ok(summaries) => store_summaries(local, folder, &summaries, &pending),
+            Err(e) => Err(e.into()),
+        };
+        let stored = match stored {
+            Ok(stored) => stored,
+            // Earlier batches are committed: report them, and let the
+            // next press find the failure again.
+            Err(_) if !fetched.is_empty() => {
+                exhausted = false;
+                break;
+            }
+            Err(e) => return Err(e),
+        };
+        planned = planned.with(&plan.fetch);
+        let empty = stored.is_empty();
         fetched.extend(stored);
-        if exhausted || below {
+        let shown = match tail {
+            Some(tail) if !empty => local.db.count_dated_before(folder, tail)? - base,
+            _ => MIN_BELOW,
+        };
+        if exhausted || empty || shown >= MIN_BELOW {
             break;
         }
     }

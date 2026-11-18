@@ -324,11 +324,11 @@ impl Db {
         Ok(uids)
     }
 
-    /// The date of the folder's oldest cached message, if any.
-    pub fn oldest_date(&self, folder: FolderId) -> Result<Option<i64>> {
+    /// How many of the folder's cached messages are dated before `date`.
+    pub fn count_dated_before(&self, folder: FolderId, date: i64) -> Result<u32> {
         Ok(self.conn().query_row(
-            "SELECT MIN(date) FROM messages WHERE folder_id = ?1",
-            [folder.0],
+            "SELECT COUNT(*) FROM messages WHERE folder_id = ?1 AND date < ?2",
+            params![folder.0, date],
             |row| row.get(0),
         )?)
     }

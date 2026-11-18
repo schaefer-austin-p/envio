@@ -61,8 +61,8 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.search_server(scope, query);
             Flow::Continue
         }
-        Command::LoadOlder { list } => {
-            worker.load_older(list);
+        Command::LoadOlder { list, tail } => {
+            worker.load_older(list, tail);
             Flow::Continue
         }
         Command::OpenMessage {
