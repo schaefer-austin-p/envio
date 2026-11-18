@@ -3,7 +3,7 @@
 //! has nothing older. Search results are their own page without the row,
 //! so a search leaves it alone: the list behind it keeps its row.
 
-use envio_core::{Command, ListRef};
+use envio_core::{Command, FolderId, ListRef};
 
 use super::{Output, Ui};
 use crate::signals::{OlderRow, Signal};
@@ -48,11 +48,20 @@ impl Ui {
         self.set_older(OlderRow::Hidden)
     }
 
-    /// What Load older reached is dropped: "no older messages" no longer
-    /// holds, so the row can be pressed again.
-    pub(super) fn older_dropped(&mut self) -> Vec<Output> {
+    /// What Load older reached in `folder` is dropped: "no older messages"
+    /// no longer holds for a list showing it (the unified inbox shows every
+    /// folder), so the row can be pressed again.
+    pub(super) fn older_dropped(&mut self, folder: FolderId) -> Vec<Output> {
+        let lists = [ListRef::Folder(folder), ListRef::Inboxes];
+        self.older_auto_blocked.retain(|l| !lists.contains(l));
+        if !self
+            .current
+            .as_ref()
+            .is_some_and(|c| lists.contains(&c.list))
+        {
+            return Vec::new();
+        }
         self.older_done = false;
-        self.older_auto_blocked.clear();
         if self.older == OlderRow::Done {
             return self.set_older(OlderRow::Ready);
         }

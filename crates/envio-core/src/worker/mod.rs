@@ -108,6 +108,9 @@ pub(crate) struct Worker<'s> {
     floors: BTreeMap<FolderId, Kept>,
     /// The `LoadOlder` commands waiting for their folders.
     loads: HashMap<ListRef, older::Load>,
+    /// Folders whose Load older rows a window change drops with their next
+    /// sync; `OlderReset` follows that sync.
+    reset_pending: BTreeSet<FolderId>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -228,6 +231,7 @@ impl<'s> Worker<'s> {
             unread_sent: RefCell::new(BTreeMap::new()),
             floors: BTreeMap::new(),
             loads: HashMap::new(),
+            reset_pending: BTreeSet::new(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

@@ -185,9 +185,12 @@ impl Worker<'_> {
         if self.loads.get(&list).is_none_or(|l| !l.waiting.is_empty()) {
             return;
         }
-        let Some(load) = self.loads.remove(&list) else {
+        let Some(mut load) = self.loads.remove(&list) else {
             return;
         };
+        // An account removed meanwhile is nothing to report or wait for.
+        load.failed
+            .retain(|key| self.store.accounts.get(key).is_some());
         if !load.answered {
             self.emit(Event::OlderFailed {
                 list,
@@ -206,12 +209,8 @@ impl Worker<'_> {
             let names: Vec<String> = load
                 .failed
                 .iter()
-                .map(|key| {
-                    self.store
-                        .accounts
-                        .get(key)
-                        .map_or_else(|| key.clone(), |a| a.settings.email.clone())
-                })
+                .filter_map(|key| self.store.accounts.get(key))
+                .map(|a| a.settings.email.clone())
                 .collect();
             self.emit(Event::Notice {
                 text: text::read::older_unavailable_for(&names.join(", ")),
@@ -228,7 +227,21 @@ impl Worker<'_> {
     /// and every account syncs again under the new window.
     pub(super) fn window_changed(&mut self) {
         self.floors.clear();
-        self.emit(Event::OlderReset);
+        // Announced per folder once its resync has dropped the rows: before
+        // that, a Load older still sees them and could end at "no older
+        // messages" for good.
+        let keys: Vec<String> = self
+            .store
+            .accounts
+            .list()
+            .iter()
+            .map(|a| a.key.clone())
+            .collect();
+        for key in keys {
+            for folder in self.store.db.folders(&key).unwrap_or_default() {
+                self.reset_pending.insert(folder.id);
+            }
+        }
         for live in self.live.values_mut() {
             live.wants.full = true;
         }

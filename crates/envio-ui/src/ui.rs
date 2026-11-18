@@ -168,7 +168,7 @@ impl Ui {
                 fetched,
                 exhausted,
             } => self.older_loaded(list, fetched, exhausted),
-            Event::OlderReset => self.older_dropped(),
+            Event::OlderReset { folder } => self.older_dropped(folder),
             Event::OlderFailed { list, text } => self.older_failed(list, text),
             Event::MessagesFailed { list, after } => self.messages_failed((list, after)),
             Event::SearchResults {

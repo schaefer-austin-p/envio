@@ -59,9 +59,13 @@ pub(super) async fn folder(
         .await
         .map_err(|e| imap_error(&e))?;
     // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
-    if before.is_some() && validity(worker) != before {
+    let reset = before.is_some() && validity(worker) != before;
+    if reset {
         worker.floors.remove(&id);
-        worker.emit(Event::OlderReset);
+    }
+    // Also after a window change: this sync dropped the rows past the window.
+    if worker.reset_pending.remove(&id) || reset {
+        worker.emit(Event::OlderReset { folder: id });
     }
     folder_synced(worker, account, (id, synced.more));
     if synced.fetched + synced.removed + synced.flags_changed > 0 {

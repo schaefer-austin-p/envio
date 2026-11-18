@@ -147,10 +147,13 @@ pub enum Event {
         fetched: usize,
         exhausted: bool,
     },
-    /// What Load older reached is dropped (the sync window changed, or a
-    /// folder was reset): the next sync removes those rows, so a list that
-    /// said "no older messages" can load older again.
-    OlderReset,
+    /// What Load older reached in `folder` is dropped (the sync window
+    /// changed, or the folder was reset) and its sync has removed those rows,
+    /// so a list showing the folder that said "no older messages" can load
+    /// older again. The unified Inbox counts for every folder.
+    OlderReset {
+        folder: FolderId,
+    },
     /// `LoadOlder` could not; `text` says why. Pressing it again retries.
     OlderFailed {
         list: ListRef,
