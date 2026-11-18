@@ -44,6 +44,7 @@ impl Older {
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
 /// next sync resets the folder.
+#[allow(clippy::too_many_arguments)] // like `sync_folder`: the window as a (now, days) pair
 pub async fn load_older(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
