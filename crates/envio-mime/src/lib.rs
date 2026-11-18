@@ -11,6 +11,7 @@ mod build;
 mod colours;
 mod content_type;
 mod envelope;
+mod fontsize;
 mod hidden;
 mod image_label;
 mod image_size;

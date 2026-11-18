@@ -232,7 +232,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     } else {
         cleaner(&extra).clean(html)
     };
-    let clean = clean.to_string();
+    let clean = crate::fontsize::fit(&clean.to_string());
     let mut images = Vec::new();
     let mut rendered = crate::images::fit(&clean, options, &mut images);
     rendered.html = crate::linear::linearise(&rendered.html, &images);
