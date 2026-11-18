@@ -10,6 +10,7 @@ use std::cell::Cell;
 use lettre::address::Envelope;
 use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
 use lettre::transport::smtp::extension::{Extension, MailBodyParameter, MailParameter};
+use lettre::transport::smtp::response::{Response, Severity};
 
 use super::{SmtpSession, envelope, map_error};
 use crate::connect;
@@ -78,9 +79,13 @@ impl SmtpSession {
         .await;
         match outcome {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(error)) => Err(SendError {
+            Ok(Err(Fault::Smtp(error))) => Err(SendError {
                 unconfirmed: all_out.get() && error.status().is_none(),
                 error: map_error(error, false),
+            }),
+            Ok(Err(Fault::Reply(what))) => Err(SendError {
+                unconfirmed: all_out.get(),
+                error: NetError::Protocol(what),
             }),
             Err(timeout) => Err(SendError {
                 error: timeout,
@@ -117,16 +122,45 @@ impl SmtpSession {
         envelope: &Envelope,
         options: Vec<MailParameter>,
         chunks: Chunks<'_>,
-    ) -> Result<(), lettre::transport::smtp::Error> {
+    ) -> Result<(), Fault> {
         self.conn
             .command(Mail::new(envelope.from().cloned(), options))
             .await?;
         for to in envelope.to() {
             self.conn.command(Rcpt::new(to.clone(), vec![])).await?;
         }
-        self.conn.command(Data).await?;
-        self.conn.message_iter(chunks).await?;
+        let go = self.conn.command(Data).await?;
+        expect(&go, Severity::PositiveIntermediate, "DATA")?;
+        let done = self.conn.message_iter(chunks).await?;
+        expect(&done, Severity::PositiveCompletion, "the message")?;
         Ok(())
+    }
+}
+
+/// Why a transaction failed.
+enum Fault {
+    Smtp(lettre::transport::smtp::Error),
+    /// A positive reply of the wrong class. lettre's own `send` checks
+    /// these, but its low-level `command` does not. Going on would have the
+    /// server read the message as commands, or a refused message counted as
+    /// sent.
+    Reply(String),
+}
+
+impl From<lettre::transport::smtp::Error> for Fault {
+    fn from(error: lettre::transport::smtp::Error) -> Self {
+        Self::Smtp(error)
+    }
+}
+
+fn expect(reply: &Response, want: Severity, to: &str) -> Result<(), Fault> {
+    if reply.code().severity == want {
+        Ok(())
+    } else {
+        Err(Fault::Reply(format!(
+            "unexpected reply code {} to {to}",
+            reply.code()
+        )))
     }
 }
 
