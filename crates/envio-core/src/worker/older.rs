@@ -89,8 +89,9 @@ impl Worker<'_> {
         session: &mut ImapSession,
         folder: FolderId,
     ) -> Result<(), Problem> {
-        let floor = self.floors.get(&folder).copied();
-        match driver::load_older(session, &mut self.store.local(), folder, floor).await {
+        let floor = self.floors.get(&folder).cloned();
+        let window = (now_ms(), self.store.settings.sync_window());
+        match driver::load_older(session, &mut self.store.local(), folder, window, floor).await {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());
                 self.older_done(folder, older.fetched.len(), older.exhausted);

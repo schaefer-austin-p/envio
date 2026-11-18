@@ -132,11 +132,27 @@ impl Drafts {
     pub fn keep_attachment(&self, draft_id: &str, source: &Path) -> Result<PathBuf> {
         check(draft_id)?;
         let mut input = fs::File::open(source).map_err(StoreError::missing_or_io)?;
+        self.keep_reader(draft_id, &safe_name(source), &mut input)
+    }
+
+    /// Like `keep_attachment`, for bytes already in memory (an attachment
+    /// taken out of a message): writes them as `name` into the draft's
+    /// `files/<draft id>/` folder, which `delete` clears with the draft.
+    pub fn keep_bytes(&self, draft_id: &str, name: &str, bytes: &[u8]) -> Result<PathBuf> {
+        check(draft_id)?;
+        self.keep_reader(draft_id, &safe_name(Path::new(name)), &mut &*bytes)
+    }
+
+    fn keep_reader(
+        &self,
+        draft_id: &str,
+        name: &str,
+        input: &mut impl io::Read,
+    ) -> Result<PathBuf> {
         let folder = self.files_dir(draft_id);
         fs::create_dir_all(&folder)?;
-        let name = safe_name(source);
         for n in 1_u32.. {
-            let target = folder.join(numbered(&name, n));
+            let target = folder.join(numbered(name, n));
             // `create_new` so two copies never share a name, even racing.
             let mut output = match OpenOptions::new()
                 .write(true)
@@ -147,7 +163,7 @@ impl Drafts {
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error.into()),
             };
-            let copied = io::copy(&mut input, &mut output).and_then(|_| output.sync_all());
+            let copied = io::copy(input, &mut output).and_then(|_| output.sync_all());
             if let Err(error) = copied {
                 drop(output);
                 let _ = fs::remove_file(&target);

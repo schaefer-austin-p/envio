@@ -45,15 +45,24 @@ fn background(run: &CoreRun) {
     run.core().send(Command::AppActive(false));
 }
 
-fn idle_entered(account: &str) -> std::sync::mpsc::Receiver<()> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let tx = Mutex::new(tx);
-    hooks::before_next(Point::IdleEntered, account, move || {
-        if let Ok(tx) = tx.lock() {
-            let _ = tx.send(());
-        }
-    });
-    rx
+/// Waits until the account has entered IDLE more than `before` times
+/// (`idles(account)` taken earlier; 0 for a new account). It counts rather
+/// than registers a hook, because the first IDLE after `Connect` can come
+/// before the test gets to register one (#167).
+fn idle_entered(account: &str, before: usize) {
+    let end = std::time::Instant::now() + NET;
+    while idles(account) <= before {
+        assert!(
+            std::time::Instant::now() < end,
+            "IDLE was never entered (entered {} times, wanted more than {before})",
+            idles(account)
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn idles(account: &str) -> usize {
+    hooks::reached_count(Point::IdleEntered, account)
 }
 
 fn creds(user: &str) -> envio_net::Credentials {
@@ -94,8 +103,7 @@ async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text
     run.core().set_poster(Box::new(recorder.clone()));
     let account = run.add_account(&server, "grace");
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
-    let idle = idle_entered(&account);
-    idle.recv_timeout(NET).expect("IDLE was never entered");
+    idle_entered(&account, 0);
     // The first sync of an account never notifies.
     assert!(recorder.alerts().is_empty());
 
@@ -155,16 +163,15 @@ async fn mail_the_account_sent_to_itself_does_not_notify() {
     run.core().set_poster(Box::new(recorder.clone()));
     let account = run.add_account(&server, "heidi");
     let (inbox, _) = run.folder(&account, FolderRole::Inbox);
-    let idle = idle_entered(&account);
-    idle.recv_timeout(NET).expect("IDLE was never entered");
+    idle_entered(&account, 0);
 
     background(&run);
     // The next IDLE after the wake the note causes.
-    let idle = idle_entered(&account);
+    let before = idles(&account);
     deliver(&server, "heidi", &[from_self("heidi", "Note to self")]).await;
     run.row_with(inbox, "Note to self");
     // A mail from someone else right after is the control: it notifies.
-    idle.recv_timeout(NET).expect("IDLE did not come back");
+    idle_entered(&account, before);
     deliver(&server, "heidi", &[from_alice("Control")]).await;
     // Waiting for the rows would swallow the events, so wait for the alert.
     let end = std::time::Instant::now() + NET;

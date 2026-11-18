@@ -88,7 +88,7 @@ pub async fn sync_folder(
 
 /// What [`sync_folder`] takes besides the folder, plus the account's own
 /// addresses.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Options<'a> {
     pub now_ms: i64,
     pub window_days: Option<u32>,
@@ -130,7 +130,7 @@ pub async fn sync_folder_as(
             window: &window,
             cached: folder.sync,
             cached_uids: &cached_uids,
-            kept,
+            kept: kept.as_ref(),
             condstore: server.caps().condstore,
         },
         &pending,

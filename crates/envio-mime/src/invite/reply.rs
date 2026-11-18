@@ -23,7 +23,7 @@ pub fn reply_ics(
     let mut out = String::new();
     let mut line = |text: &str| fold_into(&mut out, &plain(text));
     line("BEGIN:VCALENDAR");
-    line("PRODID:-//Envio//Envio 0.2//EN");
+    line(&prodid());
     line("VERSION:2.0");
     line("METHOD:REPLY");
     line("BEGIN:VEVENT");
@@ -175,4 +175,13 @@ pub(super) fn fold_into(out: &mut String, text: &str) {
         width += c.len_utf8();
     }
     out.push_str("\r\n");
+}
+
+/// `PRODID:-//Envio//Envio 0.2//EN`, from the crate's major.minor.
+pub(super) fn prodid() -> String {
+    format!(
+        "PRODID:-//Envio//Envio {}.{}//EN",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )
 }

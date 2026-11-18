@@ -5,6 +5,15 @@ use envio_mime::{calendar_file, parse_invite};
 
 const STAMP: i64 = 1_794_000_000;
 
+/// The PRODID line for the crate's current major.minor.
+fn prodid() -> String {
+    format!(
+        "PRODID:-//Envio//Envio {}.{}//EN",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )
+}
+
 fn export(ics: &str) -> String {
     calendar_file(&parse_invite(ics.as_bytes()).unwrap(), STAMP)
 }
@@ -64,7 +73,7 @@ fn a_zone_without_its_vtimezone_is_rewritten_in_utc() {
         out,
         [
             "BEGIN:VCALENDAR",
-            "PRODID:-//Envio//Envio 0.2//EN",
+            prodid().as_str(),
             "VERSION:2.0",
             "BEGIN:VEVENT",
             "UID:evt-1@example.org",
@@ -200,4 +209,54 @@ fn a_status_cancelled_request_with_an_undefined_zone_stays_cancelled() {
 fn a_live_request_is_not_marked_cancelled() {
     let ics = event("DTSTART;TZID=Tokyo Standard Time:20261121T090000\r\n");
     assert!(!export(&ics).contains("STATUS"));
+}
+
+#[test]
+fn a_rebuilt_event_names_the_current_version_in_prodid() {
+    let ics = event("DTSTART;TZID=Europe/Berlin:20261201T100000\r\n");
+    assert!(lines(&export(&ics)).contains(&prodid()));
+}
+
+#[test]
+fn a_rebuilt_event_keeps_its_description_escaped() {
+    let ics = event(
+        "DTSTART;TZID=Europe/Berlin:20261201T100000\r\n\
+         DESCRIPTION:Agenda: a\\, b\\; c\\nSecond line\\\\ok\r\n",
+    );
+    let out = lines(&export(&ics));
+    assert!(
+        out.contains(&"DESCRIPTION:Agenda: a\\, b\\; c\\nSecond line\\\\ok".to_owned()),
+        "{out:?}"
+    );
+    let again = reparse(&export(&ics));
+    assert_eq!(again.description, "Agenda: a, b; c\nSecond line\\ok");
+}
+
+#[test]
+fn a_long_description_is_folded_and_survives_a_rebuild() {
+    let text = "word, ".repeat(120) + "é end";
+    let body = format!(
+        "DTSTART;TZID=Europe/Berlin:20261201T100000\r\nDESCRIPTION:{}\r\n",
+        text.replace(',', "\\,")
+    );
+    let out = export(&event(&body));
+    assert!(out.split("\r\n").all(|l| l.len() <= 75), "{out}");
+    assert!(out.contains("\r\n "), "folded");
+    assert_eq!(reparse(&out).description, text);
+}
+
+#[test]
+fn an_event_without_description_gets_none() {
+    let ics = event("DTSTART;TZID=Europe/Berlin:20261201T100000\r\n");
+    assert!(!export(&ics).contains("DESCRIPTION"));
+}
+
+/// The exported file read back (it carries no METHOD, so one is added).
+fn reparse(ics: &str) -> envio_mime::Invite {
+    let ics = ics.replacen(
+        "BEGIN:VCALENDAR\r\n",
+        "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n",
+        1,
+    );
+    parse_invite(ics.as_bytes()).unwrap()
 }

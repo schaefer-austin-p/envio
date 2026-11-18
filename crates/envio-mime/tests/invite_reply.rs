@@ -50,9 +50,13 @@ fn reply_has_method_in_body_and_header() {
     let l = lines(&ics);
     assert_eq!(l.first().unwrap(), "BEGIN:VCALENDAR");
     assert_eq!(l.last().unwrap(), "END:VCALENDAR");
+    assert!(l.contains(&format!(
+        "PRODID:-//Envio//Envio {}.{}//EN",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )));
     for want in [
         "METHOD:REPLY",
-        "PRODID:-//Envio//Envio 0.2//EN",
         "VERSION:2.0",
         "UID:evt-1@example.org",
         "SEQUENCE:2",
@@ -215,4 +219,18 @@ fn outgoing_without_calendar_is_unchanged() {
     let mail = String::from_utf8(build(&with, 0, "x@example.org").bytes).unwrap();
     let mixed = mail.find("multipart/mixed").unwrap();
     assert!(mixed < mail.find("multipart/alternative").unwrap());
+}
+
+#[test]
+fn the_built_reply_lists_an_unnamed_calendar_part_with_method_reply() {
+    let built = build(&outgoing(&Envelope::default(), ""), STAMP, "m1@example.org");
+    let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(&built.bytes) else {
+        panic!("not parsed");
+    };
+    let part = attachments
+        .iter()
+        .find(|a| a.content_type == "text/calendar")
+        .unwrap();
+    assert_eq!(part.method.as_deref(), Some("REPLY"));
+    assert_eq!(part.filename, None);
 }

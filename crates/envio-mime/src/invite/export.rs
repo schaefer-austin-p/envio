@@ -7,13 +7,13 @@ use std::collections::HashSet;
 
 use super::event::MAX_LINES;
 use super::lines::{split, unfold};
-use super::reply::{escape, fold_into, plain, stamp};
+use super::reply::{escape, fold_into, plain, prodid, stamp};
 use super::{Invite, NaiveParts, When};
 
 /// The calendar text to hand to a calendar app: the part as received when
 /// every TZID it uses is defined in it, else one VEVENT rebuilt from what
 /// was read. A rebuilt event keeps UID, RECURRENCE-ID, the times, SUMMARY,
-/// LOCATION and ORGANIZER; it drops RRULE, so a repeating meeting exports
+/// LOCATION, DESCRIPTION and ORGANIZER; it drops RRULE, so a repeating meeting exports
 /// only its first occurrence. `dtstamp_unix` is when the file was made.
 pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     if self_contained(&invite.raw) {
@@ -22,7 +22,7 @@ pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     let mut out = String::new();
     let mut line = |text: &str| fold_into(&mut out, &plain(text));
     line("BEGIN:VCALENDAR");
-    line("PRODID:-//Envio//Envio 0.2//EN");
+    line(&prodid());
     line("VERSION:2.0");
     line("BEGIN:VEVENT");
     line(&format!("UID:{}", invite.uid));
@@ -42,6 +42,9 @@ pub fn calendar_file(invite: &Invite, dtstamp_unix: i64) -> String {
     }
     if !invite.location.is_empty() {
         line(&format!("LOCATION:{}", escape(&invite.location)));
+    }
+    if !invite.description.is_empty() {
+        line(&format!("DESCRIPTION:{}", escape(&invite.description)));
     }
     if let Some(organizer) = &invite.organizer_line {
         line(organizer);

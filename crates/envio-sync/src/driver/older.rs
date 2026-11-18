@@ -1,4 +1,4 @@
-//! "Load older": the next batch of messages below the oldest cached one.
+//! "Load older": the next batch of messages the cache does not hold yet.
 
 use std::collections::BTreeSet;
 
@@ -10,7 +10,7 @@ use super::folders::store_summaries;
 use crate::error::{Result, SyncError};
 use crate::plan::older::plan_older;
 use crate::plan::pending::Pending;
-use crate::plan::sync::Kept;
+use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
 
 /// One batch of older mail.
@@ -18,39 +18,38 @@ use crate::server::MailServer;
 pub struct Older {
     /// The rows cached by this call, newest first.
     pub fetched: Vec<MessageRowId>,
-    /// The lowest UID planned in this batch, stored or not: the folder's new
-    /// kept floor.
-    pub floor: u32,
-    /// The oldest cached UID when the first batch of this run was loaded:
-    /// rows from it up are the window's, not kept.
-    pub ceiling: u32,
-    /// Nothing older is left on the server.
+    /// Every UID planned in this run up to and including this batch,
+    /// stored or not.
+    pub planned: Kept,
+    /// Nothing is left on the server that the cache does not hold.
     pub exhausted: bool,
 }
 
 impl Older {
     /// What a sync keeps, and what the next batch passes back in.
     pub fn kept(&self) -> Kept {
-        Kept {
-            floor: self.floor,
-            ceiling: self.ceiling,
-        }
+        self.planned.clone()
     }
 }
 
-/// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages
-/// below the folder's oldest cached UID, newest first, in one transaction.
-/// The caller remembers `kept()` (and passes it to the next call and to
-/// `sync_folder`) so the next sync keeps these rows and the next batch starts
-/// below this one even if nothing was stored.
+/// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages the
+/// folder's cache lacks outside the sync window (`window_days`, `None` = all
+/// mail, so nothing is older), newest UID first, in one transaction. Paged by UID
+/// among the missing, not below the oldest cached UID: old mail may have
+/// been appended after new mail (#94). The caller remembers `kept()` (and
+/// passes it to the next call and to `sync_folder`) so the next sync keeps
+/// these rows and a batch that stored nothing (all \Deleted or hidden) is
+/// not planned again.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
 /// next sync resets the folder.
+#[allow(clippy::too_many_arguments)] // like `sync_folder`: the window as a (now, days) pair
 pub async fn load_older(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     folder: FolderId,
+    (now_ms, window_days): (i64, Option<u32>),
     kept: Option<Kept>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
@@ -61,19 +60,22 @@ pub async fn load_older(
     {
         return Err(SyncError::Net(NetError::Refused(String::new())));
     }
-    let cached_uids = local.db.uids(folder)?;
-    // Below the oldest cached UID and below the last floor, so a batch that
-    // stored nothing (all \Deleted or hidden) is not planned again.
-    let oldest = cached_uids
-        .first()
-        .copied()
-        .unwrap_or(state.uid_next)
-        .min(kept.map_or(u32::MAX, |kept| kept.floor));
-    let ceiling = kept.map_or(oldest, |kept| kept.ceiling);
-    let below = server.search_uids_below(oldest).await?;
-    let cached: BTreeSet<u32> = cached_uids.into_iter().collect();
-    let plan = plan_older(&below, &cached);
-    let floor = plan.fetch.last().copied().unwrap_or(oldest);
+    // The window's mail is the sync's, not Load older's: planning it would
+    // keep its rows after a server-side deletion.
+    let all = match window_start(now_ms, window_days) {
+        Some(since) => {
+            // All first: mail arriving between the two is missing from `all`,
+            // so it is left to the sync, never planned.
+            let mut all = server.search_all().await?;
+            let window: BTreeSet<u32> = server.search_since(since).await?.into_iter().collect();
+            all.retain(|uid| !window.contains(uid));
+            all
+        }
+        None => Vec::new(),
+    };
+    let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
+    let plan = plan_older(&all, &cached, kept.as_ref());
+    let planned = kept.unwrap_or_default().with(&plan.fetch);
     let mut fetched = Vec::new();
     if !plan.fetch.is_empty() {
         let pending = Pending::of(
@@ -87,8 +89,7 @@ pub async fn load_older(
     }
     Ok(Older {
         fetched,
-        floor,
-        ceiling,
+        planned,
         exhausted: plan.exhausted,
     })
 }

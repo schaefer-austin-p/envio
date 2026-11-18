@@ -15,6 +15,14 @@ const EML: &[u8] = b"From: me@example.org\r\nTo: Ada <ada@example.org>\r\n\
 Subject: Plans\r\nMessage-ID: <q1@example.org>\r\nMIME-Version: 1.0\r\n\
 Content-Type: text/plain; charset=utf-8\r\n\r\nSee you\r\n";
 
+const EML_WITH_FILE: &[u8] = b"From: me@example.org\r\nTo: Ada <ada@example.org>\r\n\
+Subject: Plans\r\nMessage-ID: <q1@example.org>\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\n\
+Content-Type: text/plain; charset=utf-8\r\n\r\nSee you\r\n--b\r\n\
+Content-Type: application/pdf; name=a.pdf\r\n\
+Content-Disposition: attachment; filename=a.pdf\r\n\
+Content-Transfer-Encoding: base64\r\n\r\nSGVsbG8=\r\n--b--\r\n";
+
 /// An unstarted harness with one account.
 fn unstarted() -> (Harness, String) {
     let h = Harness::unstarted();
@@ -24,6 +32,10 @@ fn unstarted() -> (Harness, String) {
 
 /// Queues `EML` for `account` in the given state; returns the item id.
 fn seed_item(h: &Harness, account: &str, state: SendState) -> String {
+    seed_eml(h, account, state, EML)
+}
+
+fn seed_eml(h: &Harness, account: &str, state: SendState, eml: &[u8]) -> String {
     let outbox = Outbox::open(&h.paths().outbox()).unwrap();
     let item = outbox
         .enqueue(
@@ -35,7 +47,7 @@ fn seed_item(h: &Harness, account: &str, state: SendState) -> String {
                 from: ME.into(),
                 recipients: vec!["ada@example.org".into(), "hidden@example.org".into()],
             },
-            EML,
+            eml,
         )
         .unwrap();
     if state != SendState::Queued {
@@ -236,6 +248,35 @@ fn edit_turns_a_failed_item_into_a_draft_then_removes_it() {
         assert!(Instant::now() < deadline, "the change was not saved");
         std::thread::sleep(Duration::from_millis(50));
     }
+}
+
+#[test]
+fn edit_of_a_failed_item_with_attachments_keeps_them_in_the_draft() {
+    let (mut h, key) = unstarted();
+    let item = seed_eml(&h, &key, failed(), EML_WITH_FILE);
+    h.start_core();
+    h.send(Command::EditOutbox {
+        item: item.clone(),
+        compose: C,
+    });
+    let draft = h.wait(|e| match e {
+        Event::ComposeReady { compose, draft, .. } if *compose == C => Some(draft.clone()),
+        _ => None,
+    });
+    assert_eq!(draft.attachments.len(), 1);
+    let path = &draft.attachments[0];
+    assert_eq!(path.file_name().unwrap(), "a.pdf");
+    assert!(path.starts_with(h.paths().draft_files()), "{path:?}");
+    assert_eq!(std::fs::read(path).unwrap(), b"Hello");
+    let items = h.wait(|e| match e {
+        Event::Outbox { items } => Some(items.clone()),
+        _ => None,
+    });
+    assert!(items.is_empty());
+    let drafts = Drafts::open(&h.paths().drafts()).unwrap();
+    let stored = drafts.list().unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].1.attachments, draft.attachments);
 }
 
 #[test]

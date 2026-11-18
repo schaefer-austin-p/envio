@@ -270,3 +270,19 @@ fn sweep_removes_files_of_drafts_that_are_gone() {
     assert!(!orphan.exists());
     assert_eq!(drafts.list().unwrap().len(), 1);
 }
+
+#[test]
+fn keep_bytes_writes_a_safe_numbered_copy_that_delete_removes() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(&dir.path().join("drafts")).unwrap();
+    let id = drafts.create(&draft("x", 1)).unwrap();
+    let a = drafts.keep_bytes(&id, "../report.pdf", b"one").unwrap();
+    let b = drafts.keep_bytes(&id, "../report.pdf", b"two").unwrap();
+    assert_eq!(a.file_name().unwrap(), "report.pdf");
+    assert_eq!(b.file_name().unwrap(), "report (2).pdf");
+    assert_eq!(a.parent().unwrap().file_name().unwrap(), id.as_str());
+    assert_eq!(fs::read(&a).unwrap(), b"one");
+    assert_eq!(fs::read(&b).unwrap(), b"two");
+    drafts.delete(&id).unwrap();
+    assert!(!a.exists());
+}
