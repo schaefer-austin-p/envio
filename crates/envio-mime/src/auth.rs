@@ -15,6 +15,8 @@ const PROVIDER_STAMPS: &[(&str, &[&str])] = &[
     ("me.com", &["icloud.com", "apple.com"]),
     // imap.mail.yahoo.com stamps as *.yahoo.com.
     ("yahoo.com", &["yahoo.com"]),
+    // imap.fastmail.com stamps as mx*.messagingengine.com.
+    ("fastmail.com", &["messagingengine.com"]),
 ];
 
 /// Second-level labels that sit under a two-letter country code (co.uk,
@@ -341,6 +343,35 @@ mod tests {
             "Authentication-Results: x.protection.outlook.com; spf=pass smtp.mailfrom=corp.com\r\n",
         );
         assert!(sender_verified(&m, "bob@corp.com", "outlook.office365.com"));
+    }
+
+    #[test]
+    fn the_provider_map_covers_fastmail() {
+        let m = mail(
+            "Authentication-Results: mx3.messagingengine.com; dkim=pass header.d=corp.com\r\n",
+        );
+        assert!(sender_verified(&m, "bob@corp.com", "imap.fastmail.com"));
+        let m = mail("Authentication-Results: mx3.other.net; dkim=pass header.d=corp.com\r\n");
+        assert!(!sender_verified(&m, "bob@corp.com", "imap.fastmail.com"));
+    }
+
+    #[test]
+    fn a_header_without_an_authserv_id_does_not_verify() {
+        // Some Exchange Online headers start straight at the results.
+        let m = mail(
+            "Authentication-Results: dkim=pass header.d=corp.com; spf=pass smtp.mailfrom=corp.com\r\n",
+        );
+        assert!(!sender_verified(
+            &m,
+            "bob@corp.com",
+            "outlook.office365.com"
+        ));
+        let m = mail("Authentication-Results: ; dkim=pass header.d=corp.com\r\n");
+        assert!(!sender_verified(
+            &m,
+            "bob@corp.com",
+            "outlook.office365.com"
+        ));
     }
 
     #[test]
