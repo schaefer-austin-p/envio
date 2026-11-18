@@ -49,6 +49,7 @@ async fn synced(
             user.name,
             now_ms(),
             Some(30),
+            &[],
         )
         .await
         .unwrap(),
@@ -76,6 +77,7 @@ async fn a_first_sync_caches_the_inbox_and_a_second_fetches_nothing() {
             carol.name,
             now_ms(),
             Some(30),
+            &[],
         )
         .await
         .unwrap(),
@@ -111,6 +113,7 @@ async fn a_flag_change_reaches_the_server_after_the_undo_window() {
             dave.name,
             now + UNDO_MS,
             Some(30),
+            &[],
         )
         .await
         .unwrap(),
@@ -154,6 +157,7 @@ async fn delete_with_undo_then_delete_for_real_moves_to_trash() {
             erin.name,
             now + UNDO_MS,
             Some(30),
+            &[],
         )
         .await
         .unwrap(),

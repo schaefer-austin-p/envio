@@ -37,6 +37,7 @@ pub mod qobject {
         #[qproperty(QStringList, allowed_senders, cxx_name = "allowedSenders")]
         #[qproperty(i32, older_row, cxx_name = "olderRow")]
         #[qproperty(i32, sync_days, cxx_name = "syncDays")]
+        #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -209,6 +210,12 @@ pub mod qobject {
         #[cxx_name = "setSyncWindow"]
         fn set_sync_window(self: Pin<&mut EnvioCore>, days: i32);
         #[qinvokable]
+        #[cxx_name = "setNotify"]
+        fn set_notify(self: Pin<&mut EnvioCore>, account: &QString, on: bool);
+        #[qinvokable]
+        #[cxx_name = "setNotifyText"]
+        fn set_notify_text(self: Pin<&mut EnvioCore>, on: bool);
+        #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]
         #[cxx_name = "clearSelection"]
@@ -323,6 +330,8 @@ pub struct EnvioCoreRust {
     pub(crate) older_row: i32,
     /// The sync window in days; 0 is all mail.
     pub(crate) sync_days: i32,
+    /// "Show sender and subject" in new-mail notifications.
+    pub(crate) notify_show_text: bool,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,

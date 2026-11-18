@@ -45,6 +45,7 @@
         <file>pages/settings/AppearancePage.qml</file>
         <file>pages/settings/ImagesPage.qml</file>
         <file>pages/settings/SyncPage.qml</file>
+        <file>pages/settings/NotificationsPage.qml</file>
         <file>pages/settings/AboutPage.qml</file>
         <file>platform/qmldir</file>
         <file>platform/Theme.qml</file>

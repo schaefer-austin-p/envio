@@ -118,9 +118,16 @@ async fn unsent_mail_is_never_lost_or_resent() {
         // Odd seeds: the server files accepted mail in Sent itself.
         let gmail = seed % 2 == 1;
         let mut store = Store::new();
-        sync_account(&mut server, &mut store.local(), ACCOUNT, NOW_MS, Some(30))
-            .await
-            .unwrap();
+        sync_account(
+            &mut server,
+            &mut store.local(),
+            ACCOUNT,
+            NOW_MS,
+            Some(30),
+            &[],
+        )
+        .await
+        .unwrap();
         let mut sender = Recording::default();
         let mut mirrored = 0;
         let mut queued = BTreeSet::new();
@@ -202,7 +209,7 @@ async fn unsent_mail_is_never_lost_or_resent() {
                 file_sent(&mut server, &mut store.local(), ACCOUNT, gmail).await,
                 seed,
             );
-            let synced = sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30))
+            let synced = sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30), &[])
                 .await
                 .unwrap();
             assert!(
@@ -277,9 +284,16 @@ async fn flags_converge_on_the_servers() {
             server.deliver_id("INBOX", &format!("m{n}"));
         }
         let mut store = Store::new();
-        sync_account(&mut server, &mut store.local(), ACCOUNT, NOW_MS, Some(30))
-            .await
-            .unwrap();
+        sync_account(
+            &mut server,
+            &mut store.local(),
+            ACCOUNT,
+            NOW_MS,
+            Some(30),
+            &[],
+        )
+        .await
+        .unwrap();
         let inbox = store.folder("INBOX").id;
         let mut now = NOW_MS;
         for _ in 0..STEPS {
@@ -305,7 +319,8 @@ async fn flags_converge_on_the_servers() {
                     server.fail_on(op, NetError::Timeout);
                 }
                 3 => tolerate(
-                    sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30)).await,
+                    sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30), &[])
+                        .await,
                     seed,
                 ),
                 _ => now += 1 + rng.below(UNDO_MS as u64 * 2) as i64,
@@ -314,7 +329,7 @@ async fn flags_converge_on_the_servers() {
         server.clear_failures();
         for _ in 0..10 {
             now += SETTLE_MS;
-            let synced = sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30))
+            let synced = sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30), &[])
                 .await
                 .unwrap();
             assert!(

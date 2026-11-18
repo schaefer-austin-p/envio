@@ -1,0 +1,17 @@
+[package]
+name = "envio-push-helper"
+description = "Envio's push helper: turns what the push service hands it into a notification card"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# Depends on no workspace crate: it runs under its own, tight AppArmor
+# profile and must start fast.
+[dependencies]
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+serde_json = "1"

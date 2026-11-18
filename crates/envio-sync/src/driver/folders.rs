@@ -1,10 +1,12 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use envio_mime::Address;
 use envio_net::imap::{FlagUpdate, Summary};
-use envio_store::{Folder, FolderId, MessageRowId};
+use envio_store::{Flags, Folder, FolderId, FolderRole, MessageRowId};
 
 use super::Local;
 use crate::error::Result;
+use crate::newmail::{self, NewMail, NewRow};
 use crate::plan::folders::plan_folders;
 use crate::plan::pending::Pending;
 use crate::plan::sync::{
@@ -37,7 +39,7 @@ pub async fn sync_folders(
 }
 
 /// What one folder sync changed, for core's notices and counts.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Synced {
     pub fetched: usize,
     pub removed: usize,
@@ -45,6 +47,12 @@ pub struct Synced {
     /// Batches remain: call `sync_folder` again for the same folder. The
     /// folder's sync state is not finished until a call returns `false`.
     pub more: bool,
+    /// New mail this call stored; always empty for folders but the Inbox.
+    /// A first sync, a UIDVALIDITY reset and a sync that is still
+    /// unfinished from one never count. Reported once, by the call that
+    /// finishes the sync (`more` false), for everything cached from the
+    /// old UIDNEXT up, even when earlier calls stored it.
+    pub new_mail: NewMail,
 }
 
 /// Batches (of [`crate::plan::sync::BATCH`] messages) fetched per call, so
@@ -68,6 +76,40 @@ pub async fn sync_folder(
     now_ms: i64,
     window_days: Option<u32>,
     kept: Option<Kept>,
+) -> Result<Synced> {
+    let how = Options {
+        now_ms,
+        window_days,
+        kept,
+        own: &[],
+    };
+    sync_folder_as(server, local, id, how).await
+}
+
+/// What [`sync_folder`] takes besides the folder, plus the account's own
+/// addresses.
+#[derive(Debug, Clone)]
+pub struct Options<'a> {
+    pub now_ms: i64,
+    pub window_days: Option<u32>,
+    pub kept: Option<Kept>,
+    pub own: &'a [Address],
+}
+
+/// [`sync_folder`] that also knows the account's own addresses, so Inbox
+/// mail they sent does not count as new (`Synced::new_mail`). The sync
+/// step cannot find them itself: the store keeps no identities, so the
+/// caller passes them in.
+pub async fn sync_folder_as(
+    server: &mut impl MailServer,
+    local: &mut Local<'_>,
+    id: FolderId,
+    Options {
+        now_ms,
+        window_days,
+        kept,
+        own,
+    }: Options<'_>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
     let state = server.select(&folder.path).await?;
@@ -105,9 +147,56 @@ pub async fn sync_folder(
     }
     synced.more = plan.fetch.len() > BATCHES_PER_STEP;
     if !synced.more {
+        // Before the state is stored: if this fails the old UIDNEXT stays
+        // and the retry reports the same messages.
+        if folder.role == FolderRole::Inbox {
+            let prev = folder.sync.map(|s| s.uidnext).filter(|next| *next > 0);
+            let stored = new_rows(local, id, prev, plan.finish.uidnext)?;
+            synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
+        }
         local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
     }
     Ok(synced)
+}
+
+/// The cached rows from the old UIDNEXT up, as the new-mail rule reads
+/// them. Read from the cache once the sync is finished, so a sync split
+/// over several calls, or cut and retried, still reports everything it
+/// stored, once.
+fn new_rows(local: &Local<'_>, id: FolderId, prev: Option<u32>, next: u32) -> Result<Vec<NewRow>> {
+    let Some(prev) = prev else {
+        return Ok(Vec::new());
+    };
+    Ok(local
+        .db
+        .messages_in_uid_range(id, prev, next)?
+        .into_iter()
+        .map(|m| NewRow {
+            uid: m.uid,
+            seen: m.flags.contains(Flags::SEEN),
+            from: first_address(&m.envelope.from),
+            subject: m.envelope.subject,
+        })
+        .collect())
+}
+
+/// The first address of a cached, comma-joined From display
+/// (`Name <a@x>, b@y`); commas inside quotes or `<>` do not split.
+fn first_address(shown: &str) -> Address {
+    let (mut quoted, mut angled) = (false, false);
+    let end = shown
+        .char_indices()
+        .find(|&(_, c)| {
+            match c {
+                '"' => quoted = !quoted,
+                '<' if !quoted => angled = true,
+                '>' if !quoted => angled = false,
+                _ => {}
+            }
+            c == ',' && !quoted && !angled
+        })
+        .map_or(shown.len(), |(at, _)| at);
+    Address::parse(&shown[..end]).unwrap_or_default()
 }
 
 /// Caches one fetched batch in a single transaction (and remembers its

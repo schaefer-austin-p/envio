@@ -7,6 +7,11 @@ pub fn refused(reason: &str) -> String {
     fill(&tr("The server refused: {reason}"), &[("reason", reason)])
 }
 
+/// The card's summary when the account's name is not known.
+pub fn new_mail_summary() -> String {
+    tr("New mail")
+}
+
 pub fn cache_rebuilt() -> String {
     tr("The mail cache was damaged and is being rebuilt from the server")
 }

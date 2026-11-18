@@ -214,3 +214,27 @@ because they show the owner's phone. Phone: Ubuntu Touch 24.04, build
 2026-11-13. The Stalwart server was replaced mid-run (its 2 h backstop
 ended) and reseeded, which is why the certificate swap, #109 and #110
 shots come after the server change.
+
+## Notifications run (Plan 9a)
+
+Envio exempted with `gsettings` (entry `'envio.aps'`), Carbon light, synthetic
+account grace@envio.test only. Mail delivered from the host by IMAP APPEND
+into grace's Inbox; another app (Calculator) in front for the background
+steps.
+
+| Item | Result | Evidence |
+| ---- | ------ | -------- |
+| Exemption command | Pass | The list holds package names (`'music.ubports'`, ...), so the entry is `'envio.aps'`, not `'envio.aps_envio'`. Set over adb with `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/32011/bus` (without it `gsettings set` exits 0 and silently changes nothing; the Terminal app has the bus). Envio behind Calculator stayed `S (sleeping)`, IDLE kept receiving. UT Tweak Tool (installed, asks for the passcode, so not driven): Apps + Scopes, Envio, Details, General, "Prevent app suspension" (from its QML). |
+| 1. One message, card with the account name | Pass | "grace@envio.test / 1 new message", Envio's icon (`card-1-message`). |
+| 2. Three messages, "3 new messages" | Pass | Appended in one burst: "3 new messages" (`card-3-messages`). Appended 0.5 s apart they sync one by one, each with its own count (see the next row for the cards). |
+| Bursts collapse into one card | Pass | First run: Fail, the cards stacked because a local `Post` doesn't replace by tag. Fixed: the poster calls `ClearPersistent(app, tag)` and posts from its finished handler. Re-run 2026-11-18 (build 0.2.2): three messages appended 0.5 s apart, each synced alone, left one card for the account, showing the latest sync's count ("1 new message"; defect: the count was per sync, not a running total; fixed afterwards with a per-account tally since Envio was last on screen, so this case reads "3 new messages"; to re-check on the phone) (`card-replace`). Three appended at once: one card, "3 new messages" (`card-replace-burst`). |
+| 3. Text switch on, sender and subject | Pass | "Ada Tester / Notify test G #1" (`card-text-on`). The page in Carbon light: fonts, spacing and the wrapped command block as designed, no scrolling needed (`settings-notifications-carbon`, `settings-notifications-text-on`). |
+| 4. Card action brings Envio to the front | Pass | `DispatchURL appid://envio.aps/envio/current-user-version` brings Envio forward (`card-action-dispatch`); it opens where the user left it (here Settings, Notifications), not on the Inbox (separate issue). Re-run 2026-11-18 (build 0.2.2) with the card's own action: a card posted as Envio, Calculator in front, then the card's entry in the messaging indicator activated over D-Bus (`org.gtk.Actions.Activate` on `org.ayatana.indicator.messages`, the action a finger tap fires): Envio came to the front and the card was consumed. ute2e's synthetic tap on the card only closes the drawer (a synthetic tap on a drawer switch does work), so no finger tap was made; no shot kept (the Inbox shows the owner's mail). |
+| 5. Launcher badge equals Inbox unread | Pass | Badge 31, Inbox unread 31 (IMAP UNSEEN 31, the menu's Inbox count 31) (`launcher-crop`). |
+| 6. No exemption: no card while suspended | Pass | Original list restored; Envio behind Calculator went to `T (stopped)`, a message delivered then gave no card and no log line (`suspended-no-card`). |
+| 6. No exemption: none on resume while focused | Pass | On resume the worker logged one `notified ... count 1` for the missed message but no card showed in the drawer (`resume-no-card`): Postal drops it while Envio is focused. |
+| German card text | Skipped | The phone's `LANG` is en_US and no `de` catalogue exists yet. |
+
+Shots are git-ignored (`.superpowers/sdd/09a/shots/`). Phone: Ubuntu Touch
+24.04.5, dev build 0.2.1 (branch plan9a-notify, version bumped locally so
+AppArmor regenerated), throwaway Stalwart through `adb reverse`, 2026-11-18.
