@@ -127,12 +127,49 @@ fn vertical_margins(prop: &str, value: &str) -> Option<String> {
     (!kept.is_empty()).then(|| kept.join(";"))
 }
 
-/// The `background` shorthand reduced to its colour as `background-color`
-/// (Qt 5 rich text has no shorthand), so a call-to-action link or cell
-/// keeps its fill (#178). Images, gradients and other layers are dropped;
-/// `None` when no token is a colour.
+/// The `background` shorthand reduced to `background-color` (Qt 5 rich
+/// text has no shorthand), so a call-to-action link or cell keeps its
+/// fill (#178). The first colour token wins and is written normalised
+/// (`#rrggbb`, `transparent`, or as written lower-cased when it is half
+/// transparent). A shorthand with no colour (`none`, a gradient, a
+/// keyword-only value) gives `background-color:transparent`, so it resets
+/// an earlier colour.
+///
+/// `None` when any token is not a plain keyword, length, colour or
+/// gradient (`var(`, `env(`, escapes, comments and so on): nothing of that
+/// value is kept. A value with `url(` never gets this far; the gate in
+/// [`filter_style`] drops the whole value, colour included, so a value
+/// with a URL is never partially trusted.
 fn shorthand_colour(value: &str) -> Option<String> {
-    let mut tokens = Vec::new();
+    let mut colour = None;
+    for token in tokens(value) {
+        let lower = token.to_ascii_lowercase();
+        if lower == "!important" {
+            continue;
+        }
+        if lower.trim_end_matches("!important") == "transparent" {
+            colour.get_or_insert_with(|| "transparent".to_owned());
+        } else if crate::colours::parse_colour(&lower).is_some() {
+            colour.get_or_insert_with(|| match crate::colours::paint(&lower) {
+                crate::colours::Paint::Opaque(hex) => hex,
+                crate::colours::Paint::Clear => "transparent".to_owned(),
+                crate::colours::Paint::Unknown => {
+                    lower.trim_end_matches("!important").trim_end().to_owned()
+                }
+            });
+        } else if !plain(&lower) {
+            return None;
+        }
+    }
+    Some(format!(
+        "background-color:{}",
+        colour.as_deref().unwrap_or("transparent")
+    ))
+}
+
+/// `value` split at whitespace outside parentheses.
+fn tokens(value: &str) -> Vec<&str> {
+    let mut out = Vec::new();
     let (mut start, mut depth) = (None, 0usize);
     for (i, c) in value.char_indices() {
         match c {
@@ -142,18 +179,31 @@ fn shorthand_colour(value: &str) -> Option<String> {
         }
         match (c.is_whitespace() && depth == 0, start) {
             (true, Some(s)) => {
-                tokens.push(&value[s..i]);
+                out.push(&value[s..i]);
                 start = None;
             }
             (false, None) => start = Some(i),
             _ => {}
         }
     }
-    tokens.extend(start.map(|s| &value[s..]));
-    let colour = tokens.into_iter().find(|t| {
-        t.eq_ignore_ascii_case("transparent") || crate::colours::parse_colour(t).is_some()
-    })?;
-    Some(format!("background-color:{colour}"))
+    out.extend(start.map(|s| &value[s..]));
+    out
+}
+
+/// A non-colour shorthand token that is harmless: a keyword, length or
+/// percentage (letters, digits and `-%.,/`), or a linear or radial
+/// gradient whose arguments are made of the same plus `#`, spaces and
+/// parentheses.
+fn plain(token: &str) -> bool {
+    let word = |c: char| c.is_ascii_alphanumeric() || "-%.,/".contains(c);
+    match token.split_once('(') {
+        None => token.chars().all(word),
+        Some((name, args)) => {
+            matches!(name, "linear-gradient" | "radial-gradient")
+                && args.ends_with(')')
+                && args.chars().all(|c| word(c) || "#() ".contains(c))
+        }
+    }
 }
 
 fn safe_css_value(value: &str) -> bool {
