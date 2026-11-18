@@ -20,8 +20,13 @@ admin="admin:envio-admin-$$"
 
 log() { echo "up.sh: $*" >&2; }
 
+# Containers of killed local runs (their labelled owner is gone) go first.
+. "$(dirname "$0")/clean.sh"
+clean_stale_stalwart
+labels=()
+while IFS= read -r l; do labels+=("$l"); done < <(stalwart_owner_labels)
 docker rm -f "$name" >/dev/null 2>&1 || true
-docker run -d --rm --name "$name" \
+docker run -d --rm --name "$name" ${labels[@]+"${labels[@]}"} \
   -e STALWART_RECOVERY_ADMIN="$admin" \
   -p 993 -p 143 -p 465 -p 587 -p 8080 \
   --entrypoint timeout "$image" 7200 \
