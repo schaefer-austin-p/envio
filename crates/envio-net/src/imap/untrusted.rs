@@ -9,7 +9,8 @@ use std::borrow::Cow;
 const PREFIX: &[u8] = b"x-envio-";
 const NEUTRAL: &[u8] = b"X-Untrusted-";
 
-/// Bytes a header parser may skip before a name: ASCII whitespace plus VT.
+/// Bytes skipped before a name: ASCII whitespace, which mail-parser skips,
+/// plus VT, which it does not today; skipped defensively in case it ever does.
 fn is_skipped(b: &u8) -> bool {
     b.is_ascii_whitespace() || *b == 0x0b
 }
@@ -31,7 +32,8 @@ fn is_ours(line: &[u8]) -> bool {
 /// `raw` with every line that begins `X-Envio-` (after any whitespace or
 /// control bytes a header parser skips; CR, LF and CR LF all end a line) renamed `X-Untrusted-Envio-`.
 /// Borrowed when nothing needed renaming.
-pub(super) fn neutralize(raw: &[u8]) -> Cow<'_, [u8]> {
+/// `pub` only so envio-e2e can run it into the real parser.
+pub fn neutralize(raw: &[u8]) -> Cow<'_, [u8]> {
     if !raw.split(is_line_end).any(is_ours) {
         return Cow::Borrowed(raw);
     }
@@ -74,37 +76,43 @@ mod tests {
         neutralize(raw).into_owned()
     }
 
+    /// Explicit expected outputs, written out by hand: the lead stays, the
+    /// name is renamed.
     #[test]
     fn leading_whitespace_or_control_bytes_do_not_hide_our_names() {
-        // Bytes mail-parser skips before a header name, and bytes that can
-        // end a line or start a fold.
-        for lead in [
-            &b"\r"[..],
-            b"\x0c",
-            b"\x0b",
-            b"\t",
-            b" ",
-            b"\r\x0c",
-            b" \t\x0c\x0b\r",
-            b"\n",
-        ] {
-            for name in ["X-Envio-Section", "x-envio-truncated", "X-ENVIO-Size"] {
-                let mut raw = b"A: b\r\n".to_vec();
-                raw.extend_from_slice(lead);
-                raw.extend_from_slice(name.as_bytes());
-                raw.extend_from_slice(b": 1\r\n\r\nbody\r\n");
-                let out = renamed(&raw);
-                // Nothing may be left that starts a line, after skipped
-                // whitespace, with the prefix.
-                for l in out.split(|b| matches!(b, b'\r' | b'\n')) {
-                    let t = l.trim_ascii_start();
-                    assert!(
-                        !(t.len() >= PREFIX.len()
-                            && t[..PREFIX.len()].eq_ignore_ascii_case(PREFIX)),
-                        "{lead:?} {name}: {out:?}"
-                    );
-                }
-            }
+        let cases: &[(&[u8], &[u8])] = &[
+            (
+                b"A: b\r\n\rX-Envio-Section: 1\r\n",
+                b"A: b\r\n\rX-Untrusted-Envio-Section: 1\r\n",
+            ),
+            (
+                b"A: b\r\n\x0cX-Envio-Section: 1\r\n",
+                b"A: b\r\n\x0cX-Untrusted-Envio-Section: 1\r\n",
+            ),
+            (
+                b"A: b\r\n\x0bX-Envio-Section: 1\r\n",
+                b"A: b\r\n\x0bX-Untrusted-Envio-Section: 1\r\n",
+            ),
+            (
+                b"A: b\r\n\tX-Envio-Size: 1\r\n",
+                b"A: b\r\n\tX-Untrusted-Envio-Size: 1\r\n",
+            ),
+            (
+                b"A: b\r\n X-Envio-Size: 1\r\n",
+                b"A: b\r\n X-Untrusted-Envio-Size: 1\r\n",
+            ),
+            (
+                b"A: b\r\n\r\x0cx-envio-truncated: 1\r\n",
+                b"A: b\r\n\r\x0cX-Untrusted-envio-truncated: 1\r\n",
+            ),
+            (
+                b"A: b\r\n \t\x0c\x0b\rX-ENVIO-Size: 1\r\n",
+                b"A: b\r\n \t\x0c\x0b\rX-Untrusted-ENVIO-Size: 1\r\n",
+            ),
+            (b"X-Envio-Section: 1\n", b"X-Untrusted-Envio-Section: 1\n"),
+        ];
+        for (raw, want) in cases {
+            assert_eq!(renamed(raw), *want, "{raw:?}");
         }
     }
 

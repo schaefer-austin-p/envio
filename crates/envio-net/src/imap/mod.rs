@@ -11,7 +11,8 @@ mod ops;
 mod partial;
 pub mod query;
 mod sign_in;
-mod untrusted;
+#[doc(hidden)]
+pub mod untrusted;
 mod window;
 
 use async_imap::Session;
