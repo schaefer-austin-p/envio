@@ -90,7 +90,8 @@ impl Worker<'_> {
         folder: FolderId,
     ) -> Result<(), Problem> {
         let floor = self.floors.get(&folder).cloned();
-        match driver::load_older(session, &mut self.store.local(), folder, floor).await {
+        let window = (now_ms(), self.store.settings.sync_window());
+        match driver::load_older(session, &mut self.store.local(), folder, window, floor).await {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());
                 self.older_done(folder, older.fetched.len(), older.exhausted);

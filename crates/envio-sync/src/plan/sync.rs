@@ -24,10 +24,10 @@ pub fn window_start(now_ms: i64, days: Option<u32>) -> Option<i64> {
 }
 
 /// The UIDs "Load older" planned in this run (fetched, or skipped because
-/// the mail is \Deleted or on its way out). Cached rows among them are kept
-/// outside the window wherever their UIDs sit: old mail can have been
-/// appended after new mail (#94). A server-side deletion of a window row
-/// still goes, as that UID was never planned.
+/// the mail is \Deleted or on its way out), always from outside the sync
+/// window. Cached rows among them are kept wherever their UIDs sit: old
+/// mail can have been appended after new mail (#94). A server-side deletion
+/// of a window row still goes, as that UID was never planned.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Kept {
     uids: Arc<BTreeSet<u32>>,

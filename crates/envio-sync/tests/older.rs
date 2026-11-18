@@ -49,9 +49,15 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
     let inbox = store.folder("INBOX").id;
 
     let before = fetches(&server);
-    let first = load_older(&mut server, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let first = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(first.fetched.len(), 50);
     assert!(!first.exhausted);
     // One fetch, so one batch and one transaction.
@@ -65,9 +71,15 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
         .collect();
     assert_eq!(uids, (51..=100).rev().collect::<Vec<_>>());
 
-    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
-        .await
-        .unwrap();
+    let second = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
     assert_eq!(second.fetched.len(), 50);
     assert!(second.exhausted);
     assert_eq!(store.uids("INBOX"), (1..=120).collect::<Vec<_>>());
@@ -81,9 +93,15 @@ async fn load_older_refuses_on_uidvalidity_change() {
     let inbox = store.folder("INBOX").id;
     server.renumber("INBOX");
     let before = fetches(&server);
-    let error = load_older(&mut server, &mut store.local(), inbox, None)
-        .await
-        .unwrap_err();
+    let error = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap_err();
     assert_eq!(error.kind(), ErrorKind::Refused);
     assert_eq!(fetches(&server), before);
     assert_eq!(store.uids("INBOX"), (101..=120).collect::<Vec<_>>());
@@ -95,9 +113,15 @@ async fn a_sync_with_the_floor_keeps_older_rows_and_without_it_drops_them() {
     let mut store = Store::new();
     first_sync(&mut server, &mut store, Some(30)).await;
     let inbox = store.folder("INBOX").id;
-    let older = load_older(&mut server, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let older = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     // A server-side deletion inside the window still goes.
     server
         .folders
@@ -143,15 +167,27 @@ async fn a_whole_batch_of_deleted_mail_does_not_stall_load_older() {
     let mut store = Store::new();
     first_sync(&mut server, &mut store, Some(30)).await;
     let inbox = store.folder("INBOX").id;
-    let first = load_older(&mut server, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let first = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     // Everything in the batch was \Deleted: nothing is stored.
     assert!(first.fetched.is_empty());
     assert!(!first.exhausted);
-    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
-        .await
-        .unwrap();
+    let second = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
     assert_eq!(second.fetched.len(), 50);
     assert!(second.exhausted);
 }
@@ -186,14 +222,26 @@ async fn load_older_reaches_old_mail_appended_after_the_window_mail() {
     assert_eq!(store.uids("INBOX"), (1..=20).collect::<Vec<_>>());
     let inbox = store.folder("INBOX").id;
 
-    let first = load_older(&mut server, &mut store.local(), inbox, None)
-        .await
-        .unwrap();
+    let first = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
     assert_eq!(first.fetched.len(), 50);
     assert!(!first.exhausted);
-    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
-        .await
-        .unwrap();
+    let second = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
     assert_eq!(second.fetched.len(), 50);
     assert!(second.exhausted);
     assert_eq!(store.uids("INBOX"), (1..=120).collect::<Vec<_>>());
@@ -210,4 +258,42 @@ async fn load_older_reaches_old_mail_appended_after_the_window_mail() {
     .await
     .unwrap();
     assert_eq!(store.uids("INBOX").len(), 120);
+}
+
+#[tokio::test]
+async fn in_window_mail_that_load_older_meets_is_not_kept_when_deleted() {
+    let mut server = server_with_history();
+    let mut store = Store::new();
+    first_sync(&mut server, &mut store, Some(30)).await;
+    let inbox = store.folder("INBOX").id;
+    // Mail that arrived since the last sync: in the window, not fetched yet.
+    server.deliver_id("INBOX", "fresh");
+    let older = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
+    // The user deletes it in webmail; the next sync must not keep its row.
+    server
+        .folders
+        .get_mut("INBOX")
+        .unwrap()
+        .messages
+        .remove(&121);
+    sync_folder(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        NOW_MS,
+        Some(30),
+        Some(older.kept()),
+    )
+    .await
+    .unwrap();
+    assert!(!store.uids("INBOX").contains(&121));
+    assert_eq!(store.uids("INBOX").len(), 20 + 50);
 }

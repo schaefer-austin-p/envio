@@ -10,7 +10,7 @@ use super::folders::store_summaries;
 use crate::error::{Result, SyncError};
 use crate::plan::older::plan_older;
 use crate::plan::pending::Pending;
-use crate::plan::sync::Kept;
+use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
 
 /// One batch of older mail.
@@ -33,7 +33,8 @@ impl Older {
 }
 
 /// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages the
-/// folder's cache lacks, newest UID first, in one transaction. Paged by UID
+/// folder's cache lacks outside the sync window (`window_days`, `None` = all
+/// mail, so nothing is older), newest UID first, in one transaction. Paged by UID
 /// among the missing, not below the oldest cached UID: old mail may have
 /// been appended after new mail (#94). The caller remembers `kept()` (and
 /// passes it to the next call and to `sync_folder`) so the next sync keeps
@@ -47,6 +48,7 @@ pub async fn load_older(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     folder: FolderId,
+    (now_ms, window_days): (i64, Option<u32>),
     kept: Option<Kept>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
@@ -57,7 +59,17 @@ pub async fn load_older(
     {
         return Err(SyncError::Net(NetError::Refused(String::new())));
     }
-    let all = server.search_all().await?;
+    // The window's mail is the sync's, not Load older's: planning it would
+    // keep its rows after a server-side deletion.
+    let all = match window_start(now_ms, window_days) {
+        Some(since) => {
+            let window: BTreeSet<u32> = server.search_since(since).await?.into_iter().collect();
+            let mut all = server.search_all().await?;
+            all.retain(|uid| !window.contains(uid));
+            all
+        }
+        None => Vec::new(),
+    };
     let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
     let plan = plan_older(&all, &cached, kept.as_ref());
     let planned = kept.unwrap_or_default().with(&plan.fetch);
