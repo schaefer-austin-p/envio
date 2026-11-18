@@ -1,4 +1,4 @@
-//! "Load older": the next batch of messages below the oldest cached one.
+//! "Load older": the next batch of messages the cache does not hold yet.
 
 use std::collections::BTreeSet;
 
@@ -18,31 +18,27 @@ use crate::server::MailServer;
 pub struct Older {
     /// The rows cached by this call, newest first.
     pub fetched: Vec<MessageRowId>,
-    /// The lowest UID planned in this batch, stored or not: the folder's new
-    /// kept floor.
-    pub floor: u32,
-    /// The oldest cached UID when the first batch of this run was loaded:
-    /// rows from it up are the window's, not kept.
-    pub ceiling: u32,
-    /// Nothing older is left on the server.
+    /// Every UID planned in this run up to and including this batch,
+    /// stored or not.
+    pub planned: Kept,
+    /// Nothing is left on the server that the cache does not hold.
     pub exhausted: bool,
 }
 
 impl Older {
     /// What a sync keeps, and what the next batch passes back in.
     pub fn kept(&self) -> Kept {
-        Kept {
-            floor: self.floor,
-            ceiling: self.ceiling,
-        }
+        self.planned.clone()
     }
 }
 
-/// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages
-/// below the folder's oldest cached UID, newest first, in one transaction.
-/// The caller remembers `kept()` (and passes it to the next call and to
-/// `sync_folder`) so the next sync keeps these rows and the next batch starts
-/// below this one even if nothing was stored.
+/// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages the
+/// folder's cache lacks, newest UID first, in one transaction. Paged by UID
+/// among the missing, not below the oldest cached UID: old mail may have
+/// been appended after new mail (#94). The caller remembers `kept()` (and
+/// passes it to the next call and to `sync_folder`) so the next sync keeps
+/// these rows and a batch that stored nothing (all \Deleted or hidden) is
+/// not planned again.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
@@ -61,19 +57,10 @@ pub async fn load_older(
     {
         return Err(SyncError::Net(NetError::Refused(String::new())));
     }
-    let cached_uids = local.db.uids(folder)?;
-    // Below the oldest cached UID and below the last floor, so a batch that
-    // stored nothing (all \Deleted or hidden) is not planned again.
-    let oldest = cached_uids
-        .first()
-        .copied()
-        .unwrap_or(state.uid_next)
-        .min(kept.map_or(u32::MAX, |kept| kept.floor));
-    let ceiling = kept.map_or(oldest, |kept| kept.ceiling);
-    let below = server.search_uids_below(oldest).await?;
-    let cached: BTreeSet<u32> = cached_uids.into_iter().collect();
-    let plan = plan_older(&below, &cached);
-    let floor = plan.fetch.last().copied().unwrap_or(oldest);
+    let all = server.search_all().await?;
+    let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
+    let plan = plan_older(&all, &cached, kept.as_ref());
+    let planned = kept.unwrap_or_default().with(&plan.fetch);
     let mut fetched = Vec::new();
     if !plan.fetch.is_empty() {
         let pending = Pending::of(
@@ -87,8 +74,7 @@ pub async fn load_older(
     }
     Ok(Older {
         fetched,
-        floor,
-        ceiling,
+        planned,
         exhausted: plan.exhausted,
     })
 }

@@ -89,7 +89,7 @@ impl Worker<'_> {
         session: &mut ImapSession,
         folder: FolderId,
     ) -> Result<(), Problem> {
-        let floor = self.floors.get(&folder).copied();
+        let floor = self.floors.get(&folder).cloned();
         match driver::load_older(session, &mut self.store.local(), folder, floor).await {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());

@@ -6,6 +6,7 @@
 //! lost and nothing fetched twice. Pure.
 
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
 use envio_net::imap::{FlagUpdate, FolderState, Summary};
 use envio_store::{Flags, NewMessage, SyncState};
@@ -22,19 +23,29 @@ pub fn window_start(now_ms: i64, days: Option<u32>) -> Option<i64> {
     days.map(|days| now_ms / 1_000 - i64::from(days) * 86_400)
 }
 
-/// The UIDs "Load older" fetched in this run: `floor` up to (not including)
-/// `ceiling`, the oldest cached UID when the first "Load older" ran. Rows
-/// from `ceiling` up are the window's, so a server-side deletion there goes
-/// even when the UID is below the window's oldest.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The UIDs "Load older" planned in this run (fetched, or skipped because
+/// the mail is \Deleted or on its way out). Cached rows among them are kept
+/// outside the window wherever their UIDs sit: old mail can have been
+/// appended after new mail (#94). A server-side deletion of a window row
+/// still goes, as that UID was never planned.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Kept {
-    pub floor: u32,
-    pub ceiling: u32,
+    uids: Arc<BTreeSet<u32>>,
 }
 
 impl Kept {
-    fn holds(self, uid: u32) -> bool {
-        self.floor <= uid && uid < self.ceiling
+    pub fn holds(&self, uid: u32) -> bool {
+        self.uids.contains(&uid)
+    }
+
+    /// This set and `planned`.
+    #[must_use]
+    pub fn with(&self, planned: &[u32]) -> Self {
+        let mut uids = (*self.uids).clone();
+        uids.extend(planned.iter().copied());
+        Self {
+            uids: Arc::new(uids),
+        }
     }
 }
 
@@ -51,7 +62,7 @@ pub struct FolderView<'a> {
     pub cached_uids: &'a [u32],
     /// What "Load older" fetched in this run: those cached rows are kept
     /// outside the window. `None` after a restart.
-    pub kept: Option<Kept>,
+    pub kept: Option<&'a Kept>,
     pub condstore: bool,
 }
 
@@ -229,9 +240,14 @@ mod tests {
         }
     }
 
-    fn with_floor<'a>(mut view: FolderView<'a>, floor: u32) -> FolderView<'a> {
-        view.kept = Some(Kept { floor, ceiling: 30 });
+    fn with_kept<'a>(mut view: FolderView<'a>, kept: &'a Kept) -> FolderView<'a> {
+        view.kept = Some(kept);
         view
+    }
+
+    /// What Load older planned: UIDs 20 to 29.
+    fn planned() -> Kept {
+        Kept::default().with(&(20..30).collect::<Vec<u32>>())
     }
 
     #[test]
@@ -506,50 +522,62 @@ mod tests {
         assert_eq!(window_start(1_800_000_000_000, None), None);
     }
 
-    fn floor_view<'a>(cached_uids: &'a [u32], floor: u32) -> FolderView<'a> {
-        with_floor(
+    fn kept_view<'a>(cached_uids: &'a [u32], kept: &'a Kept) -> FolderView<'a> {
+        with_kept(
             view(
                 server(7, 40, None),
                 &[30, 31, 33],
                 Some(state(7, 34, None)),
                 cached_uids,
             ),
-            floor,
+            kept,
         )
     }
 
     #[test]
-    fn rows_above_the_floor_survive_the_window() {
-        let plan = plan_folder(&floor_view(&[10, 20, 25, 30], 20), &Pending::default());
-        // 20 and 25 are older than the window but at or above the floor.
+    fn planned_rows_survive_the_window() {
+        let kept = planned();
+        let plan = plan_folder(&kept_view(&[10, 20, 25, 30], &kept), &Pending::default());
+        // 20 and 25 are older than the window but were planned.
         assert_eq!(plan.remove, [10]);
     }
 
     #[test]
-    fn rows_below_the_floor_are_removed() {
-        let plan = plan_folder(&floor_view(&[5, 19, 20], 20), &Pending::default());
+    fn planned_rows_survive_wherever_their_uids_sit() {
+        // Old mail appended after the window's: UIDs above it (#94).
+        let kept = Kept::default().with(&[100, 101]);
+        let plan = plan_folder(&kept_view(&[5, 30, 100, 101], &kept), &Pending::default());
+        assert_eq!(plan.remove, [5]);
+    }
+
+    #[test]
+    fn rows_never_planned_are_removed() {
+        let kept = planned();
+        let plan = plan_folder(&kept_view(&[5, 19, 20], &kept), &Pending::default());
         assert_eq!(plan.remove, [5, 19]);
     }
 
     #[test]
-    fn in_window_deletions_are_removed_with_a_floor() {
+    fn in_window_deletions_are_removed_with_kept_rows() {
+        let kept = planned();
         // 32 is inside the window's range but gone from the server.
-        let plan = plan_folder(&floor_view(&[25, 30, 32], 20), &Pending::default());
+        let plan = plan_folder(&kept_view(&[25, 30, 32], &kept), &Pending::default());
         assert_eq!(plan.remove, [32]);
     }
 
     #[test]
-    fn a_window_deletion_below_the_windows_oldest_uid_is_removed_with_a_floor() {
+    fn a_window_deletion_below_the_windows_oldest_uid_is_removed_with_kept_rows() {
+        let kept = planned();
         // Window [30, 31, 33] lost 30 in webmail: it is now [31, 33].
         let plan = plan_folder(
-            &with_floor(
+            &with_kept(
                 view(
                     server(7, 40, None),
                     &[31, 33],
                     Some(state(7, 34, None)),
                     &[25, 30, 31, 33],
                 ),
-                20,
+                &kept,
             ),
             &Pending::default(),
         );
@@ -557,16 +585,17 @@ mod tests {
     }
 
     #[test]
-    fn an_emptied_window_removes_every_window_row_with_a_floor() {
+    fn an_emptied_window_removes_every_window_row_with_kept_rows() {
+        let kept = planned();
         let plan = plan_folder(
-            &with_floor(
+            &with_kept(
                 view(
                     server(7, 40, None),
                     &[],
                     Some(state(7, 34, None)),
                     &[25, 30, 31, 33],
                 ),
-                20,
+                &kept,
             ),
             &Pending::default(),
         );
@@ -575,7 +604,8 @@ mod tests {
 
     #[test]
     fn kept_rows_are_not_flag_checked() {
-        let plan = plan_folder(&floor_view(&[25, 30], 20), &Pending::default());
+        let kept = planned();
+        let plan = plan_folder(&kept_view(&[25, 30], &kept), &Pending::default());
         assert_eq!(plan.check, [30]);
     }
 }

@@ -53,9 +53,7 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
         .await
         .unwrap();
     assert_eq!(first.fetched.len(), 50);
-    assert_eq!((first.floor, first.exhausted), (51, false));
-    // The window's oldest row when Load older started stays the ceiling.
-    assert_eq!(first.ceiling, 101);
+    assert!(!first.exhausted);
     // One fetch, so one batch and one transaction.
     assert_eq!(fetches(&server), before + 1);
     assert_eq!(store.uids("INBOX").first(), Some(&51));
@@ -71,7 +69,7 @@ async fn load_older_fetches_newest_first_in_one_transaction_per_batch() {
         .await
         .unwrap();
     assert_eq!(second.fetched.len(), 50);
-    assert_eq!((second.floor, second.exhausted), (1, true));
+    assert!(second.exhausted);
     assert_eq!(store.uids("INBOX"), (1..=120).collect::<Vec<_>>());
 }
 
@@ -150,7 +148,7 @@ async fn a_whole_batch_of_deleted_mail_does_not_stall_load_older() {
         .unwrap();
     // Everything in the batch was \Deleted: nothing is stored.
     assert!(first.fetched.is_empty());
-    assert_eq!((first.floor, first.exhausted), (51, false));
+    assert!(!first.exhausted);
     let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
         .await
         .unwrap();
@@ -165,4 +163,51 @@ async fn window_all_caches_everything() {
     first_sync(&mut server, &mut store, None).await;
     assert_eq!(store.uids("INBOX").len(), 120);
     assert!(server.calls.iter().any(|call| call == "search_all"));
+}
+
+/// 20 messages from now (UIDs 1..=20), then 100 from 40 days ago appended
+/// after them (UIDs 21..=120): the old mail has the higher UIDs (#94).
+fn server_with_old_mail_appended_last() -> FakeServer {
+    let mut server = FakeServer::new();
+    for n in 0..20 {
+        server.deliver_id("INBOX", &format!("new{n}"));
+    }
+    for n in 0..100 {
+        server.deliver("INBOX", &eml(&format!("old{n}")), NOW_SECS - 40 * 86_400);
+    }
+    server
+}
+
+#[tokio::test]
+async fn load_older_reaches_old_mail_appended_after_the_window_mail() {
+    let mut server = server_with_old_mail_appended_last();
+    let mut store = Store::new();
+    first_sync(&mut server, &mut store, Some(30)).await;
+    assert_eq!(store.uids("INBOX"), (1..=20).collect::<Vec<_>>());
+    let inbox = store.folder("INBOX").id;
+
+    let first = load_older(&mut server, &mut store.local(), inbox, None)
+        .await
+        .unwrap();
+    assert_eq!(first.fetched.len(), 50);
+    assert!(!first.exhausted);
+    let second = load_older(&mut server, &mut store.local(), inbox, Some(first.kept()))
+        .await
+        .unwrap();
+    assert_eq!(second.fetched.len(), 50);
+    assert!(second.exhausted);
+    assert_eq!(store.uids("INBOX"), (1..=120).collect::<Vec<_>>());
+
+    // A sync that holds what Load older reached keeps it all.
+    sync_folder(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        NOW_MS,
+        Some(30),
+        Some(second.kept()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(store.uids("INBOX").len(), 120);
 }
