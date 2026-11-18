@@ -138,16 +138,22 @@ fn changing_the_window_drops_the_floor_and_resyncs() {
 fn changing_the_window_announces_that_load_older_was_dropped() {
     let mut h = Harness::unstarted();
     h.foreground = true;
-    let (_server, _, inbox) = seeded(&mut h, "me@example.org");
+    let (server, _, inbox) = seeded(&mut h, "me@example.org");
     h.start_core();
     let list = ListRef::Folder(inbox);
     h.send(Command::LoadOlder { list });
     older_loaded(&h, list);
+    let before = lines(&server, "UID SEARCH SINCE");
     h.send(Command::SaveSettings(Settings {
         sync_window_days: 7,
         ..Settings::default()
     }));
-    h.wait(|e| matches!(e, Event::OlderReset).then_some(()));
+    h.wait(|e| {
+        matches!(e, Event::OlderReset { folder, inbox: true } if *folder == inbox).then_some(())
+    });
+    // Announced after the resync dropped the rows, not before: a Load older
+    // answered in between would leave the list at "no older messages" (#95).
+    assert!(lines(&server, "UID SEARCH SINCE") > before);
 }
 
 #[test]
@@ -211,8 +217,80 @@ fn removing_an_account_does_not_strand_a_load_on_the_inboxes() {
         confirmed: true,
     });
     let (fetched, exhausted) = older_loaded(&h, ListRef::Inboxes);
-    // The removed account did not answer: the total is the other's.
+    // The removed account is not counted: the total and "nothing older" are
+    // the other's (its 9 older messages were all there was).
     assert_eq!(fetched, 9);
-    assert!(!exhausted);
+    assert!(exhausted);
     assert_eq!(rows_of(&h, ListRef::Folder(kept)), 10);
+}
+
+#[test]
+fn a_removed_account_gets_no_unavailable_notice() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_, gone, _) = seeded(&mut h, "one@example.org");
+    let _ = seeded(&mut h, "two@example.org");
+    h.start_core();
+    h.send(Command::Stall { ms: 500 });
+    h.send(Command::LoadOlder {
+        list: ListRef::Inboxes,
+    });
+    h.send(Command::RemoveAccount {
+        account: gone.clone(),
+        confirmed: true,
+    });
+    older_loaded(&h, ListRef::Inboxes);
+    // The batch's events end with MessagesChanged; a notice comes before it.
+    let notices = std::cell::RefCell::new(Vec::new());
+    h.wait(|e| match e {
+        Event::Notice { text } => {
+            notices.borrow_mut().push(text.clone());
+            None
+        }
+        Event::MessagesChanged { .. } => Some(()),
+        _ => None,
+    });
+    let notices = notices.into_inner();
+    assert!(
+        notices.iter().all(|t| !t.contains("Couldn't load older")),
+        "{notices:?}"
+    );
+}
+
+#[test]
+fn a_uidvalidity_change_resets_load_older_for_that_folder_once() {
+    let mut h = Harness::unstarted();
+    h.foreground = true;
+    let (_server, _, inbox) = seeded(&mut h, "me@example.org");
+    // The cache remembers UIDVALIDITY 2; the server says 1.
+    let db = envio_store::Db::open(&h.paths().db()).unwrap();
+    let state = envio_store::SyncState {
+        uidvalidity: 2,
+        uidnext: 11,
+        highestmodseq: None,
+    };
+    db.set_sync_state(inbox, &state).unwrap();
+    drop(db);
+    h.start_core();
+    let resets = std::cell::RefCell::new(Vec::new());
+    h.wait(|e| match e {
+        Event::OlderReset { folder, inbox } => {
+            resets.borrow_mut().push((*folder, *inbox));
+            Some(())
+        }
+        _ => None,
+    });
+    // The listing is answered after the sync, so a second reset from it
+    // would show up before the answer.
+    let list = ListRef::Folder(inbox);
+    h.send(Command::ListMessages { list, after: None });
+    h.wait(|e| match e {
+        Event::OlderReset { folder, inbox } => {
+            resets.borrow_mut().push((*folder, *inbox));
+            None
+        }
+        Event::Messages { list: l, .. } if *l == list => Some(()),
+        _ => None,
+    });
+    assert_eq!(resets.into_inner(), [(inbox, true)]);
 }

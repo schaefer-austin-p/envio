@@ -15,6 +15,20 @@ fn rows(outs: &[Output]) -> Vec<OlderRow> {
         .collect()
 }
 
+fn reset(folder: i64) -> Event {
+    Event::OlderReset {
+        folder: envio_core::FolderId(folder),
+        inbox: false,
+    }
+}
+
+fn inbox_reset(folder: i64) -> Event {
+    Event::OlderReset {
+        folder: envio_core::FolderId(folder),
+        inbox: true,
+    }
+}
+
 fn loaded(fetched: usize, exhausted: bool) -> Event {
     Event::OlderLoaded {
         list: F1,
@@ -162,8 +176,50 @@ fn an_older_reset_brings_the_load_older_row_back_from_done() {
     let _ = ui.load_older().unwrap();
     assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
     // The sync window changed: the older rows go, so more can be loaded.
-    assert_eq!(rows(&feed(&mut ui, Event::OlderReset)), [OlderRow::Ready]);
+    assert_eq!(rows(&feed(&mut ui, reset(1))), [OlderRow::Ready]);
     assert!(ui.load_older().is_some());
+}
+
+#[test]
+fn an_older_reset_of_another_folder_leaves_the_list_alone() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
+    // Folder 2 was reset; the shown folder 1 still has nothing older.
+    assert!(rows(&feed(&mut ui, reset(2))).is_empty());
+    assert!(ui.load_older().is_none());
+    // The unified inbox shows the inboxes only: another folder's reset is
+    // not its business, an inbox's is.
+    let mut ui = Ui::new();
+    let inboxes = envio_core::ListRef::Inboxes;
+    opened(&mut ui, inboxes, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    let done = Event::OlderLoaded {
+        list: inboxes,
+        fetched: 0,
+        exhausted: true,
+    };
+    assert_eq!(rows(&feed(&mut ui, done)), [OlderRow::Done]);
+    assert!(rows(&feed(&mut ui, reset(2))).is_empty());
+    assert_eq!(rows(&feed(&mut ui, inbox_reset(2))), [OlderRow::Ready]);
+}
+
+#[test]
+fn an_inbox_reset_during_a_unified_load_keeps_it_from_ending_done() {
+    let mut ui = Ui::new();
+    let inboxes = envio_core::ListRef::Inboxes;
+    opened(&mut ui, inboxes, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    // One account's inbox is reset while the batch loads; the batch's
+    // "exhausted" may stem from before the reset.
+    let _ = feed(&mut ui, inbox_reset(2));
+    let done = Event::OlderLoaded {
+        list: inboxes,
+        fetched: 0,
+        exhausted: true,
+    };
+    assert_eq!(rows(&feed(&mut ui, done)), [OlderRow::Ready]);
 }
 
 // Reaching the end of the list loads older mail by itself (#130).
@@ -281,12 +337,12 @@ fn a_dropped_older_window_allows_auto_loading_again() {
     let _ = feed(&mut ui, offline());
     assert!(ui.load_older_near_end().is_none());
     // The sync window changed (the older rows went): the state is new.
-    let _ = feed(&mut ui, Event::OlderReset);
+    let _ = feed(&mut ui, reset(1));
     assert!(ui.load_older_near_end().is_some());
     // The same after Done, and for a list that was blocked while not shown.
     let _ = feed(&mut ui, loaded(0, true));
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     assert!(ui.load_older_near_end().is_none());
-    let _ = feed(&mut ui, Event::OlderReset);
+    let _ = feed(&mut ui, reset(1));
     assert!(ui.load_older_near_end().is_some());
 }
