@@ -370,6 +370,10 @@ impl MailServer for FakeServer {
         Ok(found)
     }
 
+    async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        self.search_message_id(message_id).await
+    }
+
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         self.call("search_message_id", message_id)?;
         let wanted = bare(message_id).to_owned();

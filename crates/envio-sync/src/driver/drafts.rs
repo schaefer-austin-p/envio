@@ -14,7 +14,7 @@ use envio_store::{Db, Draft, Drafts, FolderRole};
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
 use crate::error::{ErrorKind, Result};
-use crate::plan::drafts::{cut_copy, needs_upload, replaced};
+use crate::plan::drafts::{GIVE_UP, cut_copy, needs_upload, replaced};
 use crate::plan::message_id::search_id;
 use crate::server::MailServer;
 
@@ -35,8 +35,12 @@ pub struct DraftsSynced {
     /// Server copies of sent or discarded drafts that are gone now.
     pub deleted: Vec<String>,
     /// The server refused this one (quota, a read-only folder): it is left
-    /// as it was until the next full run.
+    /// alone until the draft changes again.
     pub refused: Vec<String>,
+    /// The server answered this one with nonsense (a BAD): the run went on
+    /// with the others; the draft is tried again, a few times, then left
+    /// until it changes.
+    pub failed: Vec<String>,
     /// The account has no Drafts folder: nothing is uploaded (core logs it).
     pub no_folder: bool,
     /// Drafts could not be selected: the cached folder list may be stale.
@@ -45,8 +49,10 @@ pub struct DraftsSynced {
 
 /// Uploads the account's changed drafts and deletes the server copies of
 /// removed ones. With no folders cached yet nothing happens (the folder
-/// list comes first in a run). A temporary error ends the run and is
-/// returned; what was done before it is kept.
+/// list comes first in a run). A failure of one draft's upload is recorded
+/// on that draft and the run goes on; only a lost connection (or a local
+/// or sign-in problem) ends it and is returned. What was done before is
+/// kept.
 pub async fn sync_drafts(
     server: &mut impl MailServer,
     db: &Db,
@@ -93,8 +99,23 @@ pub async fn sync_drafts(
         match upload(server, drafts, (&folder.path, &id, &draft), run).await {
             Ok(true) => done.uploaded.push(id),
             Ok(false) => {}
-            Err(error) if error.kind() == ErrorKind::Refused => done.refused.push(id),
-            Err(error) => return Err(error),
+            Err(error) => match error.kind() {
+                ErrorKind::Refused => {
+                    drafts.mark_failed(&id, draft.updated_at_ms, GIVE_UP)?;
+                    done.refused.push(id);
+                }
+                ErrorKind::Protocol => {
+                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
+                    done.failed.push(id);
+                }
+                ErrorKind::Temporary => {
+                    // The connection may be gone: end the run, but count it
+                    // against this draft, in case it is what drops it.
+                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
+                    return Err(error);
+                }
+                _ => return Err(error),
+            },
         }
     }
     // After the uploads: a draft deleted while one was running is covered.
@@ -146,7 +167,9 @@ async fn upload(
 async fn remove_copies(server: &mut impl MailServer, ids: &[String]) -> Result<()> {
     for id in ids {
         let Some(id) = search_id(id) else { continue };
-        let uids = server.search_message_id(id).await?;
+        // Drafts folders are small: a server that cannot search headers is
+        // scanned whole, so a miss really is "gone".
+        let uids = server.search_message_id_deep(id).await?;
         if !uids.is_empty() {
             server.delete(&uids).await?;
         }

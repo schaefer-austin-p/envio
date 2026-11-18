@@ -162,9 +162,6 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
     if wants.full || wants.file {
         out.push(Step::File);
     }
-    if wants.full || wants.drafts {
-        out.push(Step::Drafts);
-    }
     if !disk_full {
         out.extend(
             sync_order(folders)
@@ -172,6 +169,11 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
                 .filter(|id| wants.full || wants.folders.contains(id))
                 .map(Step::Folder),
         );
+    }
+    // After the folders: a draft that cannot be uploaded never holds up
+    // the Inbox.
+    if wants.full || wants.drafts {
+        out.push(Step::Drafts);
     }
     // A LIST starts every run, so a run that only sends or syncs drafts
     // (the folder it needs is known) goes without it.
@@ -415,6 +417,21 @@ mod tests {
     #[test]
     fn nothing_wanted_is_no_steps() {
         assert!(steps(&Wants::default(), &folders(), &env()).is_empty());
+    }
+
+    #[test]
+    fn drafts_come_after_every_folder_so_they_never_hold_up_the_inbox() {
+        let wants = Wants {
+            full: true,
+            ..Wants::default()
+        };
+        let list = steps(&wants, &folders(), &env());
+        let drafts = list.iter().position(|s| *s == Step::Drafts).unwrap();
+        let last_folder = list
+            .iter()
+            .rposition(|s| matches!(s, Step::Folder(_)))
+            .unwrap();
+        assert!(drafts > last_folder, "{list:?}");
     }
 
     #[test]

@@ -97,10 +97,11 @@ pub(super) async fn drafts(
     if done.no_folder {
         log::info!("account {account}: no Drafts folder, drafts are not uploaded");
     }
-    if !done.refused.is_empty() {
+    if !(done.refused.is_empty() && done.failed.is_empty()) {
         log::warn!(
-            "account {account}: the server refused {} draft(s)",
-            done.refused.len()
+            "account {account}: the server refused {} draft(s) and failed {}",
+            done.refused.len(),
+            done.failed.len()
         );
     }
     if let Some(live) = worker.live.get_mut(account)

@@ -12,13 +12,19 @@ pub fn is_blank(draft: &Draft) -> bool {
         && draft.attachments.is_empty()
 }
 
-/// The server's copy is missing or older than the saved text. A blank
-/// draft that was never uploaded stays local; one that was is replaced, so
-/// the server never keeps text the user has since removed.
+/// Failures of one save after which it is left alone until it changes.
+pub const GIVE_UP: u32 = 5;
+
+/// The server's copy is not the saved text: compared by the save's stamp
+/// being different, not older, so a clock that stepped back does not hide
+/// later saves. A blank draft that was never uploaded stays local; one that
+/// was is replaced, so the server never keeps text the user has since
+/// removed. A save that failed `GIVE_UP` times waits for the next change.
 pub fn needs_upload(draft: &Draft) -> bool {
-    let current =
-        draft.server.message_id.is_some() && draft.server.uploaded_ms >= draft.updated_at_ms;
-    !current && !(is_blank(draft) && draft.server.message_id.is_none())
+    let server = &draft.server;
+    let current = server.message_id.is_some() && server.uploaded_ms == draft.updated_at_ms;
+    let given_up = server.failed_ms == draft.updated_at_ms && server.failures >= GIVE_UP;
+    !current && !given_up && !(is_blank(draft) && server.message_id.is_none())
 }
 
 /// A copy from an upload that was cut: it may hold older text, so it goes
@@ -44,6 +50,7 @@ mod tests {
                 message_id: id.map(str::to_owned),
                 pending_id: None,
                 uploaded_ms: uploaded,
+                ..ServerCopy::default()
             },
             ..Draft::default()
         }
@@ -61,6 +68,24 @@ mod tests {
     }
 
     #[test]
+    fn a_save_after_the_clock_stepped_back_is_uploaded() {
+        // Uploaded at 9, then saved again at 5: the stamps differ.
+        assert!(needs_upload(&draft(5, Some("<a@b>"), 9)));
+    }
+
+    #[test]
+    fn a_save_that_failed_repeatedly_waits_for_the_next_change() {
+        let mut failing = draft(5, None, 0);
+        failing.server.failed_ms = 5;
+        failing.server.failures = GIVE_UP - 1;
+        assert!(needs_upload(&failing));
+        failing.server.failures = GIVE_UP;
+        assert!(!needs_upload(&failing));
+        failing.updated_at_ms = 6;
+        assert!(needs_upload(&failing));
+    }
+
+    #[test]
     fn a_blank_draft_is_uploaded_only_to_replace_a_copy() {
         let mut blank = draft(5, None, 0);
         blank.body.clear();
@@ -75,6 +100,7 @@ mod tests {
             message_id: Some("<old@x>".into()),
             pending_id: Some("<cut@x>".into()),
             uploaded_ms: 1,
+            ..ServerCopy::default()
         };
         assert_eq!(replaced(&server, "<new@x>"), Some("<old@x>"));
         assert_eq!(replaced(&server, "<old@x>"), None);

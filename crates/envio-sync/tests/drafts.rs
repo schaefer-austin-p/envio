@@ -164,6 +164,47 @@ async fn a_failed_upload_keeps_the_local_draft_and_the_next_run_uploads_once() {
 }
 
 #[tokio::test]
+async fn a_draft_the_server_answers_badly_does_not_stop_the_others() {
+    let (mut server, store) = setup(true).await;
+    let bad = store.drafts.create(&draft("bad text", 1)).unwrap();
+    let good = store.drafts.create(&draft("good text", 2)).unwrap();
+    server.fail_on("append", NetError::Protocol("BAD oversized".into()));
+    let done = run(&mut server, &store).await;
+    assert_eq!(done.failed.len() + done.uploaded.len(), 2);
+    assert_eq!(done.failed.len(), 1, "{done:?}");
+    assert_eq!(done.uploaded.len(), 1, "{done:?}");
+    assert_eq!(copies(&server).len(), 1);
+    let failed = if done.failed[0] == bad { &bad } else { &good };
+    assert_eq!(store.drafts.load(failed).unwrap().server.failures, 1);
+    assert!(bad != good);
+}
+
+#[tokio::test]
+async fn a_refused_draft_is_left_alone_until_it_changes() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
+    let done = run(&mut server, &store).await;
+    assert_eq!(done.refused, std::slice::from_ref(&id));
+    assert_eq!(run(&mut server, &store).await, DraftsSynced::default());
+    assert!(copies(&server).is_empty());
+    store.drafts.save(&id, &draft("changed", 2)).unwrap();
+    assert_eq!(run(&mut server, &store).await.uploaded, [id]);
+}
+
+#[tokio::test]
+async fn a_save_after_the_clock_stepped_back_is_still_uploaded() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("first text", 900)).unwrap();
+    run(&mut server, &store).await;
+    store.drafts.save(&id, &draft("second text", 500)).unwrap();
+    run(&mut server, &store).await;
+    let found = copies(&server);
+    assert_eq!(found.len(), 1);
+    assert!(found[0].0.contains("second text"));
+}
+
+#[tokio::test]
 async fn a_cut_after_the_append_never_leaves_two_copies() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("first text", 1)).unwrap();
