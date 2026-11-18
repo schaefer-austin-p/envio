@@ -11,9 +11,10 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
-use crate::atomic::{create_private_dir, is_temp, write_atomic};
+use crate::atomic::{is_temp, write_atomic};
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
+use crate::private::create_private_dir;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "snake_case")]

@@ -1,10 +1,12 @@
 //! Replacing a file so a crash leaves the old content or the new, never half.
 
-use std::fs::{self, DirBuilder, File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::private::create_private_dir;
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -45,21 +47,6 @@ fn write_and_rename(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
     fs::rename(temp, path)
 }
 
-/// Creates `dir` and any missing parents with mode 0700 (mail is private to
-/// the user). Folders that already exist keep their mode.
-pub(crate) fn create_private_dir(dir: &Path) -> io::Result<()> {
-    DirBuilder::new().recursive(true).mode(0o700).create(dir)
-}
-
-/// Opens `path` for appending, creating it with mode 0600.
-pub(crate) fn open_private_append(path: &Path) -> io::Result<File> {
-    OpenOptions::new()
-        .create(true)
-        .append(true)
-        .mode(0o600)
-        .open(path)
-}
-
 /// A temp file `write_atomic` left behind when it was interrupted.
 pub(crate) fn is_temp(name: &str) -> bool {
     name.starts_with('.') && name.ends_with(".tmp")
@@ -68,6 +55,7 @@ pub(crate) fn is_temp(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::private::open_private_append;
 
     #[test]
     fn writes_and_replaces_without_leaving_a_temp_file() {

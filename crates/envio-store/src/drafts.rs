@@ -3,6 +3,7 @@
 
 use std::fs::{self, OpenOptions};
 use std::io;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::atomic::{is_temp, write_atomic};
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
+use crate::private::create_private_dir;
 
 /// Missing fields load as empty, so older and newer drafts both open.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +40,7 @@ pub struct Drafts {
 impl Drafts {
     /// Opens the drafts folder and clears interrupted saves.
     pub fn open(dir: &Path) -> Result<Self> {
-        fs::create_dir_all(dir)?;
+        create_private_dir(dir)?;
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             if entry.file_name().to_str().is_some_and(is_temp) {
@@ -133,7 +135,7 @@ impl Drafts {
         check(draft_id)?;
         let mut input = fs::File::open(source).map_err(StoreError::missing_or_io)?;
         let folder = self.files_dir(draft_id);
-        fs::create_dir_all(&folder)?;
+        create_private_dir(&folder)?;
         let name = safe_name(source);
         for n in 1_u32.. {
             let target = folder.join(numbered(&name, n));
@@ -141,6 +143,7 @@ impl Drafts {
             let mut output = match OpenOptions::new()
                 .write(true)
                 .create_new(true)
+                .mode(0o600)
                 .open(&target)
             {
                 Ok(output) => output,

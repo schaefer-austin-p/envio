@@ -147,7 +147,7 @@ impl Worker<'_> {
             .bodies()
             .with_file_name(format!("forward-{}", compose.0));
         for info in attachments.iter().filter(|a| !a.inline) {
-            let staged = std::fs::create_dir_all(&stage)
+            let staged = envio_store::create_private_dir(&stage)
                 .and_then(|()| super::attachment::write_attachment_of(raw, info.index, &stage));
             match staged {
                 Ok(path) => {

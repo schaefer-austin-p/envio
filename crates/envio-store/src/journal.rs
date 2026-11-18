@@ -14,10 +14,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::atomic::{create_private_dir, open_private_append, write_atomic};
+use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
 use crate::journal_replay::{Replay, Skipped, replay};
 use crate::messages::Flags;
+use crate::private::{create_private_dir, open_private_append};
 
 /// Names a message without cache row ids, so it still resolves after a
 /// rebuild; after a UIDVALIDITY change, by Message-ID.
