@@ -4,7 +4,7 @@ import "../../platform"
 
 // The meeting invite card above the body (Plan 10, boards "Meeting invite
 // card"). `view` is the `messageOpened` map; `view.invite` is the card
-// contract (method, state, stateText, times, canAnswer, ...). Rust picks and
+// contract (method, state, stateText, times, canAnswer, canAddToCalendar, ...). Rust picks and
 // translates the state text; this only shows it. Answers go to the core,
 // which re-emits the message with the new card.
 Rectangle {
@@ -97,8 +97,7 @@ Rectangle {
     onCardKeyChanged: changing = false
     readonly property var messageId: view !== null ? view.id : -1
     onMessageIdChanged: { note.text = ""; noteOpen = false }
-    readonly property bool calendarShown: hubAvailable && invite !== null
-        && (cardState === "open" || cardState === "updated" || cardState === "answered")
+    readonly property bool calendarShown: hubAvailable && invite !== null && invite.canAddToCalendar
     function addToCalendar() {
         calendarRequested()
         core.exportInvite(view.id, attachmentsDir)
