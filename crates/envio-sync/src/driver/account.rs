@@ -136,6 +136,8 @@ pub fn remove_account(local: &mut Local<'_>, drafts: &Drafts, account: &str) -> 
             drafts.delete(&id)?;
         }
     }
+    // The account's server is not asked about them any more.
+    drafts.forget_deletes(account)?;
     for folder in local.db.step(|db| db.remove_account_cache(account))? {
         local.bodies.remove_folder(folder)?;
     }
