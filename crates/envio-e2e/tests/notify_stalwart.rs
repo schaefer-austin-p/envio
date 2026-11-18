@@ -2,10 +2,8 @@
 //! through a recording `Poster`. Skips without it, unless
 //! ENVIO_REQUIRE_STALWART=1.
 //!
-//! The core has no background IDLE yet, so these run with the app in the
-//! foreground and `hooks::set_unfocused`, which makes the worker treat it
-//! as not focused (what a background app is). Plan 9a Task 4 adds the
-//! variant with a real `AppActive(false)`.
+//! The app goes to the background with `AppActive(false)`; the Inbox keeps
+//! IDLE there for an account that notifies.
 
 mod support;
 
@@ -13,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use envio_core::hooks::{self, Point};
-use envio_core::{Alert, Event, FolderRole, Poster};
+use envio_core::{Alert, Command, Event, FolderRole, Poster};
 use log::LevelFilter;
 use support::core_run::{CoreRun, NET, password};
 use support::stalwart::{Stalwart, message, message_id};
@@ -42,20 +40,9 @@ impl Recorder {
     }
 }
 
-/// Puts the core back to normal when the test ends, however it ends.
-struct Unfocused;
-
-impl Unfocused {
-    fn on() -> Self {
-        hooks::set_unfocused(true);
-        Unfocused
-    }
-}
-
-impl Drop for Unfocused {
-    fn drop(&mut self) {
-        hooks::set_unfocused(false);
-    }
+/// The app leaves the foreground; the account stays in IDLE.
+fn background(run: &CoreRun) {
+    run.core().send(Command::AppActive(false));
 }
 
 fn idle_entered(account: &str) -> std::sync::mpsc::Receiver<()> {
@@ -97,12 +84,8 @@ fn from_self(user: &str, subject: &str) -> Vec<u8> {
     .into_bytes()
 }
 
-/// One test at a time: the focus hook is process-wide.
-static TURN: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
 #[tokio::test]
 async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text() {
-    let _turn = TURN.lock().await;
     let Some(server) = Stalwart::find().await else {
         return;
     };
@@ -116,7 +99,7 @@ async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text
     // The first sync of an account never notifies.
     assert!(recorder.alerts().is_empty());
 
-    let _unfocused = Unfocused::on();
+    background(&run);
     let subjects = ["Alpha 1", "Alpha 2", "Alpha 3"];
     let raw: Vec<_> = subjects.iter().map(|s| from_alice(s)).collect();
     deliver(&server, "grace", &raw).await;
@@ -161,7 +144,6 @@ async fn three_messages_in_a_second_give_alerts_that_count_to_three_without_text
 
 #[tokio::test]
 async fn mail_the_account_sent_to_itself_does_not_notify() {
-    let _turn = TURN.lock().await;
     let Some(server) = Stalwart::find().await else {
         return;
     };
@@ -173,7 +155,7 @@ async fn mail_the_account_sent_to_itself_does_not_notify() {
     let idle = idle_entered(&account);
     idle.recv_timeout(NET).expect("IDLE was never entered");
 
-    let _unfocused = Unfocused::on();
+    background(&run);
     // The next IDLE after the wake the note causes.
     let idle = idle_entered(&account);
     deliver(&server, "heidi", &[from_self("heidi", "Note to self")]).await;
