@@ -207,11 +207,11 @@ Item {
                     text: qsTr("Ubuntu Touch suspends apps that are not on screen, so Envio stops checking. To keep it running, either:")
                 }
                 Help {
-                    textFormat: Text.StyledText
+                    textFormat: Text.RichText
                     text: qsTr("<b>UT Tweak Tool:</b> Apps, Envio, then turn on Prevent app suspension.")
                 }
                 Help {
-                    textFormat: Text.StyledText
+                    textFormat: Text.RichText
                     text: qsTr("<b>Terminal:</b> run these. The second keeps the apps already in the list.")
                 }
                 Rectangle {
