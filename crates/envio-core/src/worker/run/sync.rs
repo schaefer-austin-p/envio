@@ -65,7 +65,8 @@ pub(super) async fn folder(
     }
     // Also after a window change: this sync dropped the rows past the window.
     if worker.reset_pending.remove(&id) || reset {
-        worker.emit(Event::OlderReset { folder: id });
+        let event = worker.older_reset(id);
+        worker.emit(event);
     }
     folder_synced(worker, account, (id, synced.more));
     if synced.fetched + synced.removed + synced.flags_changed > 0 {

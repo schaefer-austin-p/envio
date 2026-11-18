@@ -64,6 +64,9 @@ pub struct Ui {
     /// Rows Load older cached are to be paged in: asked as soon as the
     /// list can take a page.
     older_paging: bool,
+    /// A reset reached the shown list while its batch loaded: that batch's
+    /// "exhausted" may stem from before it, so it does not end at Done.
+    older_reset_while_loading: bool,
     /// Lists whose last Load older failed or found nothing, for the session:
     /// scrolling does not load them again (no retry loop, no toast nobody
     /// asked for on reopen), the row is tapped. A batch that brings rows or
@@ -168,7 +171,7 @@ impl Ui {
                 fetched,
                 exhausted,
             } => self.older_loaded(list, fetched, exhausted),
-            Event::OlderReset { folder } => self.older_dropped(folder),
+            Event::OlderReset { folder, inbox } => self.older_dropped(folder, inbox),
             Event::OlderFailed { list, text } => self.older_failed(list, text),
             Event::MessagesFailed { list, after } => self.messages_failed((list, after)),
             Event::SearchResults {

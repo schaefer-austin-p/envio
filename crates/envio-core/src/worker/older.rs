@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use envio_net::NetError;
 use envio_net::imap::ImapSession;
-use envio_store::{FolderId, ListRef};
+use envio_store::{FolderId, FolderRole, ListRef};
 use envio_sync::SyncError;
 use envio_sync::driver;
 
@@ -130,6 +130,12 @@ impl Worker<'_> {
     /// A step of `account` failed: every `LoadOlder` waiting for it gives
     /// up (nobody retries it; pressing the row again does).
     pub(super) fn older_account_failed(&mut self, account: &str) {
+        self.older_account_gone(account, false);
+    }
+
+    /// `account` answers no more: with `removed` it is also left out of
+    /// what the loads report, else it is named as one that failed.
+    fn older_account_gone(&mut self, account: &str, removed: bool) {
         let mine: Vec<FolderId> = self
             .loads
             .values()
@@ -148,8 +154,13 @@ impl Worker<'_> {
         for (list, load) in &mut self.loads {
             let before = load.waiting.len();
             load.waiting.retain(|folder| !mine.contains(folder));
+            if removed {
+                load.failed.remove(account);
+            }
             if load.waiting.len() != before {
-                load.failed.insert(account.to_owned());
+                if !removed {
+                    load.failed.insert(account.to_owned());
+                }
                 lists.push(*list);
             }
         }
@@ -161,7 +172,7 @@ impl Worker<'_> {
     /// `account` is being removed: its folders' floors go, and a load
     /// waiting for it gives up. Called before its rows are deleted.
     pub(super) fn older_account_removed(&mut self, account: &str) {
-        self.older_account_failed(account);
+        self.older_account_gone(account, true);
         for folder in self.store.db.folders(account).unwrap_or_default() {
             self.floors.remove(&folder.id);
         }
@@ -185,12 +196,9 @@ impl Worker<'_> {
         if self.loads.get(&list).is_none_or(|l| !l.waiting.is_empty()) {
             return;
         }
-        let Some(mut load) = self.loads.remove(&list) else {
+        let Some(load) = self.loads.remove(&list) else {
             return;
         };
-        // An account removed meanwhile is nothing to report or wait for.
-        load.failed
-            .retain(|key| self.store.accounts.get(key).is_some());
         if !load.answered {
             self.emit(Event::OlderFailed {
                 list,
@@ -223,6 +231,16 @@ impl Worker<'_> {
         }
     }
 
+    /// The `OlderReset` for `folder`.
+    pub(super) fn older_reset(&self, folder: FolderId) -> Event {
+        let inbox = self
+            .store
+            .db
+            .folder(folder)
+            .is_ok_and(|f| f.role == FolderRole::Inbox);
+        Event::OlderReset { folder, inbox }
+    }
+
     /// The sync window changed: what Load older reached no longer applies,
     /// and every account syncs again under the new window.
     pub(super) fn window_changed(&mut self) {
@@ -245,5 +263,49 @@ impl Worker<'_> {
         for live in self.live.values_mut() {
             live.wants.full = true;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::worker::testing::{Sink, open, seed};
+
+    /// The removed account is the last one a load waits for (the others
+    /// answered first): it is neither named nor held against "exhausted".
+    #[test]
+    fn removing_the_last_awaited_account_is_not_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let list = ListRef::Inboxes;
+        worker.loads.insert(
+            list,
+            Load {
+                waiting: BTreeSet::from([seeded.folder]),
+                fetched: 9,
+                exhausted: true,
+                answered: true,
+                failed: BTreeSet::new(),
+                changed: vec![FolderId(99)],
+            },
+        );
+        worker.remove_account(&seeded.account, true);
+        let events = sink.events();
+        let loaded = events
+            .iter()
+            .find_map(|e| match e {
+                Event::OlderLoaded {
+                    fetched, exhausted, ..
+                } => Some((*fetched, *exhausted)),
+                _ => None,
+            })
+            .expect("the load is answered");
+        assert_eq!(loaded, (9, true));
+        assert!(
+            !events.iter().any(|e| matches!(e, Event::Notice { .. })),
+            "{events:?}"
+        );
     }
 }

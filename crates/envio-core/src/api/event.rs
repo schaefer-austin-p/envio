@@ -150,9 +150,11 @@ pub enum Event {
     /// What Load older reached in `folder` is dropped (the sync window
     /// changed, or the folder was reset) and its sync has removed those rows,
     /// so a list showing the folder that said "no older messages" can load
-    /// older again. The unified Inbox counts for every folder.
+    /// older again. The unified Inbox shows the accounts' Inboxes only:
+    /// `inbox` says `folder` is one.
     OlderReset {
         folder: FolderId,
+        inbox: bool,
     },
     /// `LoadOlder` could not; `text` says why. Pressing it again retries.
     OlderFailed {

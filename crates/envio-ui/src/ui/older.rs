@@ -15,6 +15,7 @@ impl Ui {
             return None;
         }
         let list = self.current.as_ref()?.list;
+        self.older_reset_while_loading = false;
         let outs = self.set_older(OlderRow::Loading);
         Some((Command::LoadOlder { list }, outs))
     }
@@ -49,10 +50,12 @@ impl Ui {
     }
 
     /// What Load older reached in `folder` is dropped: "no older messages"
-    /// no longer holds for a list showing it (the unified inbox shows every
-    /// folder), so the row can be pressed again.
-    pub(super) fn older_dropped(&mut self, folder: FolderId) -> Vec<Output> {
+    /// no longer holds for a list showing it (the unified inbox shows the
+    /// accounts' inboxes, `inbox` says it is one), so the row can be
+    /// pressed again.
+    pub(super) fn older_dropped(&mut self, folder: FolderId, inbox: bool) -> Vec<Output> {
         let lists = [ListRef::Folder(folder), ListRef::Inboxes];
+        let lists = if inbox { &lists[..] } else { &lists[..1] };
         self.older_auto_blocked.retain(|l| !lists.contains(l));
         if !self
             .current
@@ -62,6 +65,7 @@ impl Ui {
             return Vec::new();
         }
         self.older_done = false;
+        self.older_reset_while_loading = self.older == OlderRow::Loading;
         if self.older == OlderRow::Done {
             return self.set_older(OlderRow::Ready);
         }
@@ -124,6 +128,7 @@ impl Ui {
         if self.older != OlderRow::Loading {
             return Vec::new();
         }
+        let exhausted = exhausted && !self.older_reset_while_loading;
         self.older_done = exhausted;
         // Nothing more to find (or nothing found): scrolling stops asking.
         if exhausted || fetched == 0 {

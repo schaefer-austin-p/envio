@@ -148,7 +148,9 @@ fn changing_the_window_announces_that_load_older_was_dropped() {
         sync_window_days: 7,
         ..Settings::default()
     }));
-    h.wait(|e| matches!(e, Event::OlderReset { folder } if *folder == inbox).then_some(()));
+    h.wait(|e| {
+        matches!(e, Event::OlderReset { folder, inbox: true } if *folder == inbox).then_some(())
+    });
     // Announced after the resync dropped the rows, not before: a Load older
     // answered in between would leave the list at "no older messages" (#95).
     assert!(lines(&server, "UID SEARCH SINCE") > before);
