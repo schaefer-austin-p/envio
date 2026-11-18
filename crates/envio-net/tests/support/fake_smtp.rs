@@ -26,6 +26,10 @@ pub struct Script {
     /// The reply after the message's final dot; None closes the
     /// connection instead (the message is in, its fate unknown).
     pub data_reply: Option<&'static str>,
+    /// Replaces the EHLO reply sent over TLS (whole reply, CRLF included).
+    pub ehlo_reply: Option<&'static str>,
+    /// The reply to DATA.
+    pub data_go: &'static str,
 }
 
 impl Default for Script {
@@ -39,6 +43,8 @@ impl Default for Script {
             mail_reply: Some("250 ok"),
             rcpt_reply: "250 ok",
             data_reply: Some("250 queued"),
+            ehlo_reply: None,
+            data_go: "354 go",
         }
     }
 }
@@ -137,7 +143,10 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     while let Some(command) = line(io, true, log).await {
         let verb = command.split(' ').next().unwrap_or("").to_ascii_uppercase();
         let reply: String = match verb.as_str() {
-            "EHLO" => "250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n".into(),
+            "EHLO" => script.ehlo_reply.map_or_else(
+                || "250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n".to_owned(),
+                str::to_owned,
+            ),
             "AUTH" => format!("{}\r\n", script.auth_reply),
             "MAIL" => match script.mail_reply {
                 Some(reply) => format!("{reply}\r\n"),
@@ -145,7 +154,9 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
             },
             "RCPT" => format!("{}\r\n", script.rcpt_reply),
             "DATA" => {
-                io.write_all(b"354 go\r\n").await.unwrap();
+                io.write_all(format!("{}\r\n", script.data_go).as_bytes())
+                    .await
+                    .unwrap();
                 while let Some(body) = line(io, true, log).await {
                     if body == "." {
                         break;
