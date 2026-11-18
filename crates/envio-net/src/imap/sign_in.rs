@@ -1,5 +1,5 @@
 //! Signing in: LOGIN for ASCII credentials, AUTHENTICATE PLAIN (RFC 4616)
-//! for the rest. LOGIN sends quoted strings, which are 7-bit in IMAP4rev1,
+//! for the rest, AUTHENTICATE XOAUTH2 for an OAuth access token. LOGIN sends quoted strings, which are 7-bit in IMAP4rev1,
 //! so a password like `pässwort` would be refused or reach the server in
 //! some other encoding. PLAIN carries UTF-8 in base64.
 
@@ -17,6 +17,7 @@ use crate::server::Credentials;
 pub(crate) enum Method {
     Login,
     Plain,
+    Xoauth2,
     /// Credentials LOGIN cannot carry and the server has no PLAIN for.
     Refuse(&'static str),
 }
@@ -38,6 +39,15 @@ pub(crate) fn choose(ascii: bool, has_nul: bool, auth_plain: bool) -> Method {
     }
 }
 
+/// A bearer credential always uses XOAUTH2, never LOGIN or PLAIN.
+pub(crate) fn choose_bearer(offers_xoauth2: bool) -> Method {
+    if offers_xoauth2 {
+        Method::Xoauth2
+    } else {
+        Method::Refuse("the server does not offer AUTH=XOAUTH2")
+    }
+}
+
 /// The RFC 4616 initial response: `\0username\0password`, UTF-8.
 fn plain_response(username: &str, password: &str) -> Vec<u8> {
     let mut out = Vec::with_capacity(username.len() + password.len() + 2);
@@ -46,6 +56,33 @@ fn plain_response(username: &str, password: &str) -> Vec<u8> {
     out.push(0);
     out.extend_from_slice(password.as_bytes());
     out
+}
+
+/// The de facto XOAUTH2 initial response (not base64; async-imap encodes):
+/// `user=` u `\x01auth=Bearer ` t `\x01\x01`.
+fn xoauth2_response(username: &str, token: &str) -> Vec<u8> {
+    format!("user={username}\x01auth=Bearer {token}\x01\x01").into_bytes()
+}
+
+/// Sends the response once; any later challenge is the server's failure
+/// report (`+ <base64 json>`), which RFC-style gets an empty answer so the
+/// tagged NO follows. Deliberately no `Debug`: it holds the token.
+struct Xoauth2<'a> {
+    username: &'a str,
+    token: &'a str,
+    sent: bool,
+}
+
+impl Authenticator for Xoauth2<'_> {
+    type Response = Vec<u8>;
+
+    fn process(&mut self, _challenge: &[u8]) -> Vec<u8> {
+        if std::mem::replace(&mut self.sent, true) {
+            Vec::new()
+        } else {
+            xoauth2_response(self.username, self.token)
+        }
+    }
 }
 
 /// Answers the server's (empty) challenge. Deliberately no `Debug`: it
@@ -69,20 +106,37 @@ pub(crate) async fn run(
 ) -> Result<Session<Stream>> {
     let username = credentials.username.as_str();
     let password = credentials.password.expose_secret();
-    let ascii = username.is_ascii() && password.is_ascii();
-    let has_nul = username.contains('\0') || password.contains('\0');
-    // Only the unusual path needs the list, so ASCII sign-in is unchanged.
-    let auth_plain = if ascii {
-        false
+    let method = if credentials.is_bearer() {
+        choose_bearer(offers(&mut client, "XOAUTH2").await?)
     } else {
-        offers_plain(&mut client).await?
+        let ascii = username.is_ascii() && password.is_ascii();
+        let has_nul = username.contains('\0') || password.contains('\0');
+        // Only the unusual path needs the list, so ASCII sign-in is unchanged.
+        let auth_plain = if ascii {
+            false
+        } else {
+            offers(&mut client, "PLAIN").await?
+        };
+        choose(ascii, has_nul, auth_plain)
     };
-    match choose(ascii, has_nul, auth_plain) {
+    match method {
         // async-imap refuses CR and LF here and sends both as quoted strings.
         Method::Login => client.login(username, password).await,
         Method::Plain => {
             client
                 .authenticate("PLAIN", Plain { username, password })
+                .await
+        }
+        Method::Xoauth2 => {
+            client
+                .authenticate(
+                    "XOAUTH2",
+                    Xoauth2 {
+                        username,
+                        token: password,
+                        sent: false,
+                    },
+                )
                 .await
         }
         Method::Refuse(reason) => return Err(NetError::SignIn(reason.into())),
@@ -94,8 +148,8 @@ pub(crate) async fn run(
     })
 }
 
-/// Asks CAPABILITY before sign-in and looks for AUTH=PLAIN.
-async fn offers_plain(client: &mut Client<Stream>) -> Result<bool> {
+/// Asks CAPABILITY before sign-in and looks for `AUTH=<mechanism>`.
+async fn offers(client: &mut Client<Stream>, mechanism: &str) -> Result<bool> {
     // `Client` has no public way to send a command and read the untagged
     // data, so write the line on the stream; the tag cannot collide with
     // async-imap's own (`A0001`...).
@@ -105,7 +159,7 @@ async fn offers_plain(client: &mut Client<Stream>) -> Result<bool> {
         .write_all(format!("{TAG} CAPABILITY\r\n").as_bytes())
         .await?;
     stream.flush().await?;
-    let mut plain = false;
+    let mut found = false;
     loop {
         let response = client
             .read_response()
@@ -113,11 +167,11 @@ async fn offers_plain(client: &mut Client<Stream>) -> Result<bool> {
             .ok_or(NetError::Io(std::io::ErrorKind::UnexpectedEof.into()))?;
         match response.parsed() {
             Response::Capabilities(caps) => {
-                plain |= caps
+                found |= caps
                     .iter()
-                    .any(|c| matches!(c, Capability::Auth(s) if s.eq_ignore_ascii_case("PLAIN")));
+                    .any(|c| matches!(c, Capability::Auth(s) if s.eq_ignore_ascii_case(mechanism)));
             }
-            Response::Done { tag, .. } if tag.0 == TAG => return Ok(plain),
+            Response::Done { tag, .. } if tag.0 == TAG => return Ok(found),
             _ => {}
         }
     }
@@ -148,6 +202,20 @@ mod tests {
     fn a_nul_is_refused_even_in_ascii_credentials() {
         assert!(matches!(choose(true, true, false), Method::Refuse(_)));
         assert!(matches!(choose(true, true, true), Method::Refuse(_)));
+    }
+
+    #[test]
+    fn the_xoauth2_response_is_user_bearer_token_with_control_a() {
+        assert_eq!(
+            xoauth2_response("a@outlook.example", "tok"),
+            b"user=a@outlook.example\x01auth=Bearer tok\x01\x01"
+        );
+    }
+
+    #[test]
+    fn a_bearer_credential_needs_xoauth2_from_the_server() {
+        assert_eq!(choose_bearer(true), Method::Xoauth2);
+        assert!(matches!(choose_bearer(false), Method::Refuse(_)));
     }
 
     #[test]

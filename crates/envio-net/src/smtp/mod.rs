@@ -51,16 +51,22 @@ impl SmtpSession {
         Ok(Self { conn })
     }
 
-    /// Signs in with PLAIN, or LOGIN if that's all the server offers.
+    /// Signs in with PLAIN, or LOGIN if that's all the server offers; a
+    /// bearer credential uses XOAUTH2 and nothing else.
     pub async fn login(&mut self, credentials: &Credentials) -> Result<()> {
         // lettre keeps a plain String copy until this returns.
         let lettre = LettreCredentials::new(
             credentials.username.clone(),
             credentials.password.expose_secret().to_owned(),
         );
+        let mechanisms: &[Mechanism] = if credentials.is_bearer() {
+            &[Mechanism::Xoauth2]
+        } else {
+            &[Mechanism::Plain, Mechanism::Login]
+        };
         connect::within(async {
             self.conn
-                .auth(&[Mechanism::Plain, Mechanism::Login], &lettre)
+                .auth(mechanisms, &lettre)
                 .await
                 .map(drop)
                 .map_err(|e| map_error(e, true))
@@ -114,7 +120,10 @@ fn map_error(error: lettre::transport::smtp::Error, signing_in: bool) -> NetErro
 /// mechanisms" (it is a plain client error with this text), but for the
 /// user it is a sign-in problem, not a broken protocol.
 fn client_error(text: String) -> NetError {
-    if text.contains("No compatible authentication mechanism") {
+    // The second is XOAUTH2's failure: the server's 334 error challenge.
+    if text.contains("No compatible authentication mechanism")
+        || text.contains("does not expect a challenge")
+    {
         NetError::SignIn(text)
     } else {
         NetError::Protocol(text)
@@ -133,6 +142,12 @@ mod tests {
             client_error("internal client error: response too long".into()),
             NetError::Protocol(_)
         ));
+    }
+
+    #[test]
+    fn a_xoauth2_challenge_is_a_sign_in_problem() {
+        let text = "internal client error: This mechanism does not expect a challenge";
+        assert!(matches!(client_error(text.into()), NetError::SignIn(_)));
     }
 
     #[test]

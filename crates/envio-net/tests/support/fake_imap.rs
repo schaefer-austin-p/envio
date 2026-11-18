@@ -30,6 +30,12 @@ pub struct Script {
     pub signed_out_capabilities: &'static str,
     /// The decoded AUTHENTICATE PLAIN answer the server accepts.
     pub plain_accepts: &'static str,
+    /// The decoded AUTHENTICATE XOAUTH2 answer the server accepts; when
+    /// not empty, `AUTH=XOAUTH2` is advertised while signed out.
+    pub xoauth2_accepts: &'static str,
+    /// A refused XOAUTH2 first sends `+ <base64 {"status":"401"}>` (and
+    /// reads the client's answer) before the tagged NO.
+    pub xoauth2_challenge: bool,
     /// IDLE is answered with `+ idling` and then `* OK Still here` every
     /// 100 ms until DONE.
     pub keepalive: bool,
@@ -87,6 +93,8 @@ impl Default for Script {
             before_append_ok: "",
             signed_out_capabilities: "",
             plain_accepts: "\0alice\0pässwort",
+            xoauth2_accepts: "",
+            xoauth2_challenge: false,
             keepalive: false,
             before_idle_ok: "",
             fetch_flags: false,
@@ -188,6 +196,63 @@ async fn literal<S: AsyncRead + AsyncWrite + Unpin>(io: &mut BufReader<S>, comma
     io.read_exact(&mut body).await.is_ok()
 }
 
+/// The mechanism of an `AUTHENTICATE` this server speaks.
+fn sasl_mechanism(command: &str) -> Option<&'static str> {
+    let upper = command.to_ascii_uppercase();
+    ["PLAIN", "XOAUTH2"]
+        .into_iter()
+        .find(|m| upper.ends_with(&format!(" {m}")))
+}
+
+/// Runs an AUTHENTICATE PLAIN or XOAUTH2 exchange: whether it signed in
+/// and the tagged status line, or `None` when the connection went away.
+async fn authenticate<S: AsyncRead + AsyncWrite + Unpin>(
+    io: &mut BufReader<S>,
+    log: &Transcript,
+    script: &Script,
+    command: &str,
+) -> Option<(bool, String)> {
+    let (tag, _) = split(command);
+    let xoauth2 = sasl_mechanism(command) == Some("XOAUTH2");
+    io.write_all(b"+ \r\n").await.ok()?;
+    let answer = line(io, true, log).await?;
+    // PLAIN (RFC 4616): NUL, user name, NUL, password, in UTF-8.
+    let expected = if xoauth2 {
+        script.xoauth2_accepts
+    } else {
+        script.plain_accepts
+    };
+    let ok = !expected.is_empty() && base64_decode(&answer) == Some(expected.as_bytes().to_vec());
+    if !ok && xoauth2 && script.xoauth2_challenge {
+        let json = base64_encode(br#"{"status":"401"}"#);
+        io.write_all(format!("+ {json}\r\n").as_bytes())
+            .await
+            .ok()?;
+        // The client's (empty) acknowledgement.
+        line(io, true, log).await?;
+    }
+    let reply = match (ok, xoauth2) {
+        (true, _) => format!("{tag} OK signed in\r\n"),
+        (false, true) => format!("{tag} NO AUTHENTICATE failed.\r\n"),
+        (false, false) => format!("{tag} NO [AUTHENTICATIONFAILED] invalid credentials\r\n"),
+    };
+    Some((ok, reply))
+}
+
+/// The CAPABILITY words after IMAP4rev1; the signed-out ones advertise
+/// XOAUTH2 when the script accepts it.
+fn capability_words(script: &Script, signed_in: bool) -> String {
+    if signed_in {
+        script.capabilities.to_owned()
+    } else if script.xoauth2_accepts.is_empty() {
+        script.signed_out_capabilities.to_owned()
+    } else {
+        format!("{} AUTH=XOAUTH2", script.signed_out_capabilities)
+            .trim()
+            .to_owned()
+    }
+}
+
 async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     io: &mut BufReader<S>,
     script: Script,
@@ -205,29 +270,16 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
                 signed_in = script.login.starts_with("OK");
                 format!("{tag} {}\r\n", script.login)
             }
-            "AUTHENTICATE" if command.to_ascii_uppercase().ends_with(" PLAIN") => {
-                if io.write_all(b"+ \r\n").await.is_err() {
-                    return;
-                }
-                let Some(answer) = line(io, true, log).await else {
+            "AUTHENTICATE" if sasl_mechanism(&command).is_some() => {
+                let Some((ok, reply)) = authenticate(io, log, &script, &command).await else {
                     return;
                 };
-                // RFC 4616: NUL, user name, NUL, password, in UTF-8.
-                signed_in =
-                    base64_decode(&answer) == Some(script.plain_accepts.as_bytes().to_vec());
-                if signed_in {
-                    format!("{tag} OK signed in\r\n")
-                } else {
-                    format!("{tag} NO [AUTHENTICATIONFAILED] invalid credentials\r\n")
-                }
+                signed_in = ok;
+                reply
             }
             "CAPABILITY" => format!(
                 "* CAPABILITY IMAP4rev1 {}\r\n{tag} OK done\r\n",
-                if signed_in {
-                    script.capabilities
-                } else {
-                    script.signed_out_capabilities
-                }
+                capability_words(&script, signed_in)
             ),
             "UID" | "FETCH" | "SELECT" if answers(&script, &verb, &sub_verb) => {
                 let Some(reply) =
@@ -410,7 +462,7 @@ async fn keepalives_until_done<S: AsyncRead + AsyncWrite + Unpin>(
 }
 
 /// Standard base64, enough to read one AUTHENTICATE answer.
-fn base64_decode(text: &str) -> Option<Vec<u8>> {
+pub fn base64_decode(text: &str) -> Option<Vec<u8>> {
     let mut out = Vec::new();
     let (mut bits, mut have) = (0u32, 0);
     for c in text.trim_end_matches('=').bytes() {
@@ -431,4 +483,22 @@ fn base64_decode(text: &str) -> Option<Vec<u8>> {
         }
     }
     Some(out)
+}
+
+/// Standard base64 with padding.
+pub fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let b = |i: usize| u32::from(*chunk.get(i).unwrap_or(&0));
+        let n = (b(0) << 16) | (b(1) << 8) | b(2);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
 }
