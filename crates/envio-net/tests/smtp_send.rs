@@ -67,6 +67,17 @@ async fn an_ehlo_reply_line_of_white_space_does_not_panic() {
     joined.expect("the connect task panicked");
 }
 
+/// A reply to DATA that is not 354 fails the send, so a reply read out of
+/// turn cannot have the content read as commands.
+#[tokio::test]
+async fn a_wrong_class_reply_to_data_fails_the_send() {
+    let script = Script {
+        data_go: "250 not a go-ahead",
+        ..Script::default()
+    };
+    assert!(send_with(script).await.is_err());
+}
+
 #[tokio::test]
 async fn a_cut_after_the_final_dot_may_have_sent_the_message() {
     let err = send_with(Script {
