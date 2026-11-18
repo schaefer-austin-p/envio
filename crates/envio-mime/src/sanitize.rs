@@ -237,6 +237,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     let mut rendered = crate::images::fit(&clean, options, &mut images);
     rendered.html = crate::linear::linearise(&rendered.html, &images);
     rendered.html = crate::backgrounds::fill(&rendered.html);
+    rendered.html = crate::fontsize::fit(&rendered.html);
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }

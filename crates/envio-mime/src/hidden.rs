@@ -8,7 +8,7 @@ use crate::sanitize::TAGS;
 
 /// Elements html5ever 0.40.1's serializer writes without an end tag (its
 /// `serialize/mod.rs`, `ignore_children`).
-const VOID: &[&str] = &[
+pub(crate) const VOID: &[&str] = &[
     "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img", "input",
     "keygen", "link", "meta", "param", "source", "track", "wbr",
 ];

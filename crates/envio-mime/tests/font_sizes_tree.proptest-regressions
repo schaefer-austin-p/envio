@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc be86d5371ec3a6d054a5e2f587264712a733ae48aa5d16f626039196d556bb2c # shrinks to html = "<div style=\"font-size:larger\">t</div>"
+cc f9fa3e80c080818b9e12f38f54f115eda1750ce1e0f49e2238c557449e9a0a88 # shrinks to html = "<font size=\"+2147483647\">t</font>"
+cc bcf99e57008a6282030a13d200b0fcaf28864d241a2730aa96f257af26d5bbe9 # shrinks to html = "<h1><section><h1>t</h1></section></h1>"
