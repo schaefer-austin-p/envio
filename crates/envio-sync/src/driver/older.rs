@@ -13,6 +13,9 @@ use crate::plan::pending::Pending;
 use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
 
+/// Most batches one call fetches while none holds mail below the tail.
+const MAX_BATCHES: usize = 10;
+
 /// One batch of older mail.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Older {
@@ -73,11 +76,20 @@ pub async fn load_older(
         }
         None => Vec::new(),
     };
-    let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
-    let plan = plan_older(&all, &cached, kept.as_ref());
-    let planned = kept.unwrap_or_default().with(&plan.fetch);
+    let floor = local.db.oldest_date(folder)?;
+    let mut planned = kept.unwrap_or_default();
     let mut fetched = Vec::new();
-    if !plan.fetch.is_empty() {
+    let mut exhausted = false;
+    // UID order is not date order (#254): a batch dated all above the list's
+    // tail shows the user nothing new there, so go on, up to MAX_BATCHES.
+    for _ in 0..MAX_BATCHES {
+        let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
+        let plan = plan_older(&all, &cached, Some(&planned));
+        planned = planned.with(&plan.fetch);
+        exhausted = plan.exhausted;
+        if plan.fetch.is_empty() {
+            break;
+        }
         let pending = Pending::of(
             local.journal.pending(),
             &row.account,
@@ -85,11 +97,16 @@ pub async fn load_older(
             state.uid_validity,
         );
         let summaries = server.fetch_summaries(&plan.fetch).await?;
-        fetched = store_summaries(local, folder, &summaries, &pending)?;
+        let stored = store_summaries(local, folder, &summaries, &pending)?;
+        let below = stored.is_empty() || floor.is_none() || local.db.oldest_date(folder)? < floor;
+        fetched.extend(stored);
+        if exhausted || below {
+            break;
+        }
     }
     Ok(Older {
         fetched,
         planned,
-        exhausted: plan.exhausted,
+        exhausted,
     })
 }

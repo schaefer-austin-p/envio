@@ -324,6 +324,15 @@ impl Db {
         Ok(uids)
     }
 
+    /// The date of the folder's oldest cached message, if any.
+    pub fn oldest_date(&self, folder: FolderId) -> Result<Option<i64>> {
+        Ok(self.conn().query_row(
+            "SELECT MIN(date) FROM messages WHERE folder_id = ?1",
+            [folder.0],
+            |row| row.get(0),
+        )?)
+    }
+
     /// The cached messages of a folder with `from <= uid < below`, by UID.
     pub fn messages_in_uid_range(
         &self,

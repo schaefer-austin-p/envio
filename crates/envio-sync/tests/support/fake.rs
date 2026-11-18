@@ -256,6 +256,15 @@ pub fn eml(id: &str) -> Vec<u8> {
     .into_bytes()
 }
 
+/// A message without a Date header: its date is the server's arrival time.
+pub fn eml_undated(id: &str) -> Vec<u8> {
+    format!(
+        "From: Ada <ada@example.org>\r\nTo: bob@example.org\r\nSubject: About {id}\r\n\
+         Message-ID: <{id}@example.org>\r\n\r\nHello about {id}.\r\n"
+    )
+    .into_bytes()
+}
+
 /// What envio-net makes of a big message: its headers, a short text, and
 /// its attachment left on the server as a stub (section 2, the message's
 /// size).

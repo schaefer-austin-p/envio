@@ -12,6 +12,16 @@ use support::stalwart::{Stalwart, message, message_id};
 use support::{Store, User, now_ms};
 
 const DAY: i64 = 86_400;
+
+/// `message` without its Date header, so the message's date is the day it
+/// arrived (what `append_at` sets), not the header's fixed one.
+fn undated(message_id: &str, subject: &str, body_len: usize) -> Vec<u8> {
+    let eml = message(message_id, subject, body_len);
+    let text = String::from_utf8(eml).unwrap();
+    let start = text.find("Date: ").unwrap();
+    let end = start + text[start..].find("\r\n").unwrap() + 2;
+    format!("{}{}", &text[..start], &text[end..]).into_bytes()
+}
 /// Messages dated over 30 days ago, and within them.
 const OUTSIDE: usize = 80;
 const INSIDE: usize = 40;
@@ -38,7 +48,7 @@ async fn seeded(server: &Stalwart, user: &User) -> (ImapSession, Store, envio_st
             .append_at(
                 "INBOX",
                 now - days_ago(i) * DAY,
-                &message(&message_id(), &format!("Mail {i}"), 200),
+                &undated(&message_id(), &format!("Mail {i}"), 200),
             )
             .await
             .unwrap();
@@ -203,7 +213,7 @@ async fn load_older_reaches_old_mail_appended_after_recent_mail() {
                 .append_at(
                     "INBOX",
                     now - days * DAY,
-                    &message(&message_id(), &format!("Mail {days} {i}"), 200),
+                    &undated(&message_id(), &format!("Mail {days} {i}"), 200),
                 )
                 .await
                 .unwrap();

@@ -19,6 +19,10 @@ All notable changes to Envio are listed here. The format follows
 
 ### Fixed
 
+- Load older no longer comes back with nothing new under your scroll
+  position when a batch held only mail dated newer than the last row
+  shown (mail imported out of date order): it fetches on to the next
+  batch, up to 500 messages at a time (#254).
 - New mail on an account that is not in the foreground could wait up to
   29 minutes to show up when it arrived at the moment Envio began
   listening for mail; it now shows within 5 minutes (#48).

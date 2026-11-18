@@ -5,14 +5,18 @@ mod support;
 use envio_net::imap::{Flag, MessageFlags};
 use envio_sync::ErrorKind;
 use envio_sync::driver::{load_older, sync_folder, sync_folders};
-use support::fake::{FakeServer, NOW_MS, NOW_SECS, eml};
+use support::fake::{FakeServer, NOW_MS, NOW_SECS, eml_undated};
 use support::local::{ACCOUNT, Store};
 
 /// 100 messages from 40 days ago (UIDs 1..=100), then 20 from now.
 fn server_with_history() -> FakeServer {
     let mut server = FakeServer::new();
     for n in 0..100 {
-        server.deliver("INBOX", &eml(&format!("old{n}")), NOW_SECS - 40 * 86_400);
+        server.deliver(
+            "INBOX",
+            &eml_undated(&format!("old{n}")),
+            NOW_SECS - 40 * 86_400 + n,
+        );
     }
     for n in 0..20 {
         server.deliver_id("INBOX", &format!("new{n}"));
@@ -209,7 +213,11 @@ fn server_with_old_mail_appended_last() -> FakeServer {
         server.deliver_id("INBOX", &format!("new{n}"));
     }
     for n in 0..100 {
-        server.deliver("INBOX", &eml(&format!("old{n}")), NOW_SECS - 40 * 86_400);
+        server.deliver(
+            "INBOX",
+            &eml_undated(&format!("old{n}")),
+            NOW_SECS - 40 * 86_400 + n,
+        );
     }
     server
 }
@@ -333,4 +341,51 @@ async fn mail_arriving_between_load_olders_two_searches_is_left_to_the_sync() {
     .await
     .unwrap();
     assert!(!store.uids("INBOX").contains(&121));
+}
+
+/// A batch dated above the list's tail shows nothing new below it: Load
+/// older goes on to the next batch (#254).
+#[tokio::test]
+async fn load_older_goes_on_past_a_batch_dated_above_the_tail() {
+    let day = 86_400;
+    let mut server = FakeServer::new();
+    for n in 0..20 {
+        server.deliver_id("INBOX", &format!("new{n}"));
+    }
+    // By UID: 21..=70 are the oldest, 71..=120 newer, 121..=170 in between.
+    for (count, age) in [(50, 60), (50, 35), (50, 40)] {
+        for n in 0..count {
+            server.deliver(
+                "INBOX",
+                &eml_undated(&format!("m{age}-{n}")),
+                NOW_SECS - age * day + n,
+            );
+        }
+    }
+    let mut store = Store::new();
+    first_sync(&mut server, &mut store, Some(30)).await;
+    let inbox = store.folder("INBOX").id;
+    let first = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(first.fetched.len(), 50);
+    // The next batch (UIDs 71..=120) is dated above the 40-day tail: the
+    // call also fetches the one below it.
+    let second = load_older(
+        &mut server,
+        &mut store.local(),
+        inbox,
+        (NOW_MS, Some(30)),
+        Some(first.kept()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(second.fetched.len(), 100);
+    assert!(second.exhausted);
 }
