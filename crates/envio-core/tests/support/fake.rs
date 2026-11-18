@@ -212,6 +212,15 @@ fn message_reply(line: &str) -> (String, bool) {
             "* 1 FETCH (UID 1 BODY[] {{{}}}\r\n{MESSAGE})\r\n{tag} OK done\r\n",
             MESSAGE.len()
         )
+    } else if upper.starts_with("UID FETCH") && upper.contains("BODY.PEEK[HEADER]") {
+        // The summary items envio-net sends: UID FLAGS RFC822.SIZE
+        // INTERNALDATE [MODSEQ] BODY.PEEK[HEADER]. The header is MESSAGE's.
+        let header = &MESSAGE[..MESSAGE.find("\r\n\r\n").unwrap() + 4];
+        format!(
+            "* 1 FETCH (UID 1 FLAGS () RFC822.SIZE {} INTERNALDATE \"01-Jan-2020 00:00:00 +0000\" BODY[HEADER] {{{}}}\r\n{header})\r\n{tag} OK done\r\n",
+            MESSAGE.len(),
+            header.len()
+        )
     } else if upper.starts_with("UID FETCH") {
         format!("* 1 FETCH (UID 1 FLAGS ())\r\n{tag} OK done\r\n")
     } else {

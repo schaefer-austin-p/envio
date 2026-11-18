@@ -60,7 +60,7 @@ pub(super) fn write_attachment_of(raw: &[u8], index: usize, dir: &Path) -> io::R
             Mime::Raw(_) => None,
         };
         let name = safe_file_name(filename.as_deref().unwrap_or(""), index);
-        std::fs::create_dir_all(dir)?;
+        envio_store::create_private_dir(dir)?;
         write_new(dir, &name, &bytes)
     }
 }
@@ -101,7 +101,7 @@ impl Worker<'_> {
             stem
         };
         let name = format!("{stem}.ics");
-        std::fs::create_dir_all(dir)?;
+        envio_store::create_private_dir(dir)?;
         write_new(dir, &name, ics.as_bytes())
     }
 
@@ -152,7 +152,7 @@ impl Worker<'_> {
             .and_then(envio_mime::decode_part)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "part gone"))
             .and_then(|bytes| {
-                std::fs::create_dir_all(&want.dir)?;
+                envio_store::create_private_dir(&want.dir)?;
                 write_new(&want.dir, &want.name, &bytes)
             });
         match written {
@@ -187,5 +187,36 @@ impl Worker<'_> {
         self.emit(Event::Notice {
             text: text::read::attachment_not_saved(),
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::*;
+
+    const MAIL: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=XX\r\n\r\n\
+--XX\r\nContent-Type: text/plain\r\n\r\nhi\r\n\
+--XX\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n\r\nPDFDATA\r\n\
+--XX--\r\n";
+
+    fn mode(path: &Path) -> u32 {
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn a_saved_attachment_is_private_in_a_private_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("attachments").join("1");
+        let index = match envio_mime::parse(MAIL) {
+            Mime::Parsed { attachments, .. } => attachments[0].index,
+            Mime::Raw(_) => panic!("parses"),
+        };
+        let path = write_attachment_of(MAIL, index, &target).unwrap();
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(&target), 0o700);
+        assert_eq!(mode(target.parent().unwrap()), 0o700);
     }
 }

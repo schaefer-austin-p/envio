@@ -186,3 +186,16 @@ fn tighten_once_walks_only_until_it_has_succeeded() {
     envio_store::tighten_once(&root).unwrap();
     assert_eq!(mode(&file), 0o644);
 }
+
+#[test]
+fn bytes_and_reader_copies_are_private() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(&dir.path().join("drafts")).unwrap();
+    let id = drafts.create(&Draft::default()).unwrap();
+    // keep_bytes goes through keep_reader, as does keep_attachment.
+    let copy = drafts.keep_bytes(&id, "a.pdf", b"secret").unwrap();
+    assert_eq!(mode(&copy), 0o600);
+    assert_eq!(mode(copy.parent().unwrap()), 0o700);
+    let second = drafts.keep_bytes(&id, "a.pdf", b"again").unwrap();
+    assert_eq!(mode(&second), 0o600);
+}

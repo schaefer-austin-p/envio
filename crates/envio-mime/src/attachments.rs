@@ -27,6 +27,9 @@ pub struct AttachmentInfo {
     /// message is stored without its attachments): its bytes are not here,
     /// [`attachment_bytes`] gives none, and `size` is the server's figure.
     pub section: Option<String>,
+    /// The `method` parameter of the part's Content-Type, upper case (an
+    /// iMIP part has one, e.g. `REPLY`).
+    pub method: Option<String>,
 }
 
 /// Names of the headers envio-net writes on a part it left out.
@@ -139,5 +142,9 @@ fn info(index: usize, part: &MessagePart<'_>) -> AttachmentInfo {
         content_id,
         inline,
         section,
+        method: part
+            .content_type()
+            .and_then(|ct| ct.attribute("method"))
+            .map(str::to_ascii_uppercase),
     }
 }

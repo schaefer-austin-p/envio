@@ -141,13 +141,9 @@ impl Worker<'_> {
         let envio_mime::Message::Parsed { attachments, .. } = envio_mime::parse(raw) else {
             return;
         };
-        let stage = self
-            .store
-            .paths
-            .bodies()
-            .with_file_name(format!("forward-{}", compose.0));
+        let stage = stage_path(&self.store.paths.bodies(), compose);
         for info in attachments.iter().filter(|a| !a.inline) {
-            let staged = envio_store::create_private_dir(&stage)
+            let staged = make_stage(&stage)
                 .and_then(|()| super::attachment::write_attachment_of(raw, info.index, &stage));
             match staged {
                 Ok(path) => {
@@ -261,9 +257,31 @@ fn notice_name(filename: Option<&str>, index: usize) -> String {
     super::read::safe_file_name(filename.unwrap_or(""), index)
 }
 
+/// Where a forward's attachments are staged: beside the bodies cache.
+fn stage_path(bodies: &std::path::Path, compose: ComposeId) -> std::path::PathBuf {
+    bodies.with_file_name(format!("forward-{}", compose.0))
+}
+
+/// Makes the staging folder; the originals' bytes are mail, so 0700.
+fn make_stage(stage: &std::path::Path) -> std::io::Result<()> {
+    envio_store::create_private_dir(stage)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::notice_name;
+    use super::{ComposeId, make_stage, notice_name, stage_path};
+
+    #[test]
+    fn the_forward_staging_folder_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let stage = stage_path(&dir.path().join("cache").join("bodies"), ComposeId(7));
+        assert_eq!(stage, dir.path().join("cache").join("forward-7"));
+        make_stage(&stage).unwrap();
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&stage), 0o700);
+        assert_eq!(mode(stage.parent().unwrap()), 0o700);
+    }
 
     #[test]
     fn a_failed_forward_names_the_file_safely() {
