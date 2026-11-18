@@ -1,7 +1,8 @@
 //! Replacing a file so a crash leaves the old content or the new, never half.
 
-use std::fs::{self, File};
+use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Write};
+use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -16,7 +17,7 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "no file name"));
     };
-    fs::create_dir_all(dir)?;
+    create_private_dir(dir)?;
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let temp = dir.join(format!(
         ".{}.{}-{n}.tmp",
@@ -32,11 +33,31 @@ pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 }
 
 fn write_and_rename(temp: &Path, path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut file = File::create(temp)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(temp)?;
     file.write_all(bytes)?;
     file.sync_all()?;
     drop(file);
     fs::rename(temp, path)
+}
+
+/// Creates `dir` and any missing parents with mode 0700 (mail is private to
+/// the user). Folders that already exist keep their mode.
+pub(crate) fn create_private_dir(dir: &Path) -> io::Result<()> {
+    DirBuilder::new().recursive(true).mode(0o700).create(dir)
+}
+
+/// Opens `path` for appending, creating it with mode 0600.
+pub(crate) fn open_private_append(path: &Path) -> io::Result<File> {
+    OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .open(path)
 }
 
 /// A temp file `write_atomic` left behind when it was interrupted.
@@ -67,6 +88,24 @@ mod tests {
         fs::write(target.join("inside"), b"x").unwrap();
         assert!(write_atomic(&target, b"data").is_err());
         assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    fn mode(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt;
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn files_and_new_folders_are_private() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a").join("b").join("a.json");
+        write_atomic(&path, b"x").unwrap();
+        assert_eq!(mode(&path), 0o600);
+        assert_eq!(mode(path.parent().unwrap()), 0o700);
+        assert_eq!(mode(path.parent().unwrap().parent().unwrap()), 0o700);
+        let log = dir.path().join("a").join("log");
+        drop(open_private_append(&log).unwrap());
+        assert_eq!(mode(&log), 0o600);
     }
 
     #[test]

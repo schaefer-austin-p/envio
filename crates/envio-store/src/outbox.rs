@@ -11,7 +11,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
-use crate::atomic::{is_temp, write_atomic};
+use crate::atomic::{create_private_dir, is_temp, write_atomic};
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
 
@@ -76,7 +76,7 @@ impl Outbox {
     /// Opens the Outbox; call once at startup. An item left `Sending` means
     /// envio stopped mid-send, so it becomes `MayHaveBeenSent`.
     pub fn open(dir: &Path) -> Result<Self> {
-        fs::create_dir_all(dir)?;
+        create_private_dir(dir)?;
         let outbox = Self {
             dir: dir.to_owned(),
             unwritten: Mutex::new(HashSet::new()),

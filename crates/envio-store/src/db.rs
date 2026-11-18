@@ -18,7 +18,7 @@ impl Db {
     /// Opens (or creates) the cache at `path` and migrates it.
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
-            std::fs::create_dir_all(dir)?;
+            crate::atomic::create_private_dir(dir)?;
         }
         let conn = Connection::open(path)?;
         conn.busy_timeout(Duration::from_secs(5))?;
