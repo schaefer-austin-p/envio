@@ -184,6 +184,9 @@ impl Worker<'_> {
         let Some(eml) = eml else {
             return self.notice(text::outbox::not_now());
         };
+        if outbox::is_invite_reply(&eml) {
+            return self.notice(text::outbox::edit_invite_reply());
+        }
         let draft = outbox::draft_from_eml(&item.meta.account, &eml, &item.meta.recipients);
         let Some(mut draft) = draft else {
             return self.notice(text::outbox::not_now());
@@ -419,6 +422,24 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         assert_eq!(state(&w, &id), Some(failed()));
         assert!(w.book.id_of(C).is_none());
         assert_eq!(notices(&t), 1);
+    }
+
+    #[test]
+    fn edit_refuses_a_failed_invite_reply() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let reply: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\nSubject: Accepted\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=b\r\n\r\n--b\r\n\
+Content-Type: text/plain\r\n\r\nAccepted\r\n--b\r\n\
+Content-Type: text/calendar; method=REPLY; charset=utf-8\r\n\r\n\
+BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
+        let id = item(&w, &t, reply, failed());
+        w.edit_outbox(&id, C);
+        // The item stays (it holds the answer), and no draft is made.
+        assert!(state(&w, &id).is_some());
+        assert_eq!(notices(&t), 1);
+        assert!(w.book.id_of(C).is_none());
+        assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
     #[test]

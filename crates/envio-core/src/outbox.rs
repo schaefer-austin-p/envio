@@ -50,6 +50,17 @@ fn shown(list: &[Address]) -> Vec<String> {
     list.iter().map(Address::display).collect()
 }
 
+/// The message is an answer to an invitation (it carries a calendar part).
+/// Edit refuses it: a draft has no calendar part, and removing the item
+/// forgets the remembered answer, so the answer would be lost.
+pub fn is_invite_reply(eml: &[u8]) -> bool {
+    matches!(
+        envio_mime::parse(eml),
+        Message::Parsed { attachments, .. }
+            if attachments.iter().any(|a| a.content_type == "text/calendar")
+    )
+}
+
 /// The draft a queued message was made from. Bcc is not in the `.eml`, so it
 /// is every recipient of the envelope not shown in To or Cc. `None` for
 /// mail that can not be read as a message.
