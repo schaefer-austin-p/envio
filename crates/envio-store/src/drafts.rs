@@ -55,10 +55,51 @@ impl Drafts {
                 fs::remove_file(entry.path())?;
             }
         }
-        Ok(Self {
+        let drafts = Self {
             dir: dir.to_owned(),
             lock: Mutex::new(()),
-        })
+        };
+        // For `delete`'s markers, made now so a folder that turns read-only
+        // later still takes them. Interrupted marker writes go too.
+        create_private_dir(&dir.join(GONE))?;
+        for entry in fs::read_dir(dir.join(GONE))? {
+            let entry = entry?;
+            if entry.file_name().to_str().is_some_and(is_temp) {
+                fs::remove_file(entry.path())?;
+            }
+        }
+        drafts.finish_deletes();
+        Ok(drafts)
+    }
+
+    /// Finishes deletes that failed or were cut short (see `delete`). What
+    /// still fails stays marked, and hidden, for the next start.
+    fn finish_deletes(&self) {
+        let Ok(entries) = fs::read_dir(self.dir.join(GONE)) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(id) = name.to_str().filter(|id| is_key(id)) else {
+                continue;
+            };
+            let _held = self.held();
+            let removed = match fs::remove_file(self.path(id)) {
+                Err(e) if e.kind() != io::ErrorKind::NotFound => Err(StoreError::from(e)),
+                _ => Ok(()),
+            };
+            match removed.and_then(|()| remove_dir_if_there(&self.files_dir(id))) {
+                Ok(()) => {
+                    let _ = fs::remove_file(entry.path());
+                }
+                Err(error) => log::warn!("finishing the delete of draft {id}: {error}"),
+            }
+        }
+    }
+
+    /// Deleted drafts that are still on disk: never listed.
+    fn is_gone(&self, id: &str) -> bool {
+        self.dir.join(GONE).join(id).exists()
     }
 
     /// Saves a new draft and returns its id.
@@ -176,7 +217,7 @@ impl Drafts {
             let Some(id) = name.to_str().and_then(|name| name.strip_suffix(".json")) else {
                 continue;
             };
-            if is_key(id) {
+            if is_key(id) && !self.is_gone(id) {
                 match self.load(id) {
                     Ok(draft) => drafts.push((id.to_owned(), draft)),
                     Err(_) => damaged.push(id.to_owned()),
@@ -196,13 +237,27 @@ impl Drafts {
         check(id)?;
         let _held = self.held();
         self.note_server_copy(id)?;
+        // A marker first: when the file can't be removed (a disk or
+        // permission error), the draft stays hidden and the next start
+        // removes it, so a sent draft never comes back. Best effort.
+        let marker = self.dir.join(GONE).join(id);
+        if write_atomic(&marker, b"").is_err() {
+            log::warn!("draft {id}: could not mark it deleted");
+        }
         let removed = fs::remove_file(self.path(id)).map_err(StoreError::missing_or_io);
         // Also when the draft file is already gone: a retry after a partial
         // failure still clears the folder.
-        remove_dir_if_there(&self.files_dir(id))?;
+        let files = remove_dir_if_there(&self.files_dir(id));
+        if matches!(removed, Err(StoreError::NotFound)) && files.is_ok() {
+            // Nothing left to bring back.
+            let _ = fs::remove_file(&marker);
+        }
+        files?;
         removed?;
         // Without this a power loss can bring a sent draft back.
-        Ok(fs::File::open(&self.dir)?.sync_all()?)
+        fs::File::open(&self.dir)?.sync_all()?;
+        let _ = fs::remove_file(&marker);
+        Ok(())
     }
 
     /// Copies `source` into `files/<draft id>/` and returns the path of the
@@ -302,6 +357,9 @@ impl Drafts {
 
 /// The folder of attachment copies inside the drafts folder.
 const FILES: &str = "files";
+
+/// One empty marker per draft whose delete is not finished.
+const GONE: &str = "gone";
 
 fn remove_dir_if_there(dir: &Path) -> Result<()> {
     match fs::remove_dir_all(dir) {

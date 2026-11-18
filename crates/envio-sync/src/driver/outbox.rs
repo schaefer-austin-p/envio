@@ -186,6 +186,11 @@ async fn settle(
     append: Option<&[u8]>,
     path: &str,
 ) -> Result<bool> {
+    // Known limit (#159): a relay that rewrites the Message-ID leaves
+    // nothing to match, so Sent gets Envio's copy next to the relay's. The
+    // mail itself is never sent twice. Subject, Date or recipients are no
+    // safe stand-in: a false match would drop the only Sent copy, a
+    // duplicate costs nothing.
     // Without a usable id there is nothing to look for: a substring search
     // for "" would match any message.
     let found = match search_id(&item.meta.message_id) {
