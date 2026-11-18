@@ -11,6 +11,7 @@ use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::smtp::SmtpSession;
 use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
+use futures::future::AbortHandle;
 use futures::stream::FuturesUnordered;
 use tokio::sync::Notify;
 
@@ -29,6 +30,9 @@ pub(crate) enum Conn {
     Ready(ImapSession),
     /// The session is inside the IDLE future; the Notify ends it.
     Idling(Rc<Notify>),
+    /// The connect and the Inbox SELECT run in a future (`open.rs`); the
+    /// handle cancels it, which drops the session it owns.
+    Opening(AbortHandle),
 }
 
 /// What the worker knows about one account while it runs.
@@ -116,7 +120,7 @@ pub(crate) async fn connect_smtp(
 
 /// A bad stored pin never connects (it would trust anything); a missing
 /// password is a sign-in problem.
-fn login(
+pub(super) fn login(
     account: &Account,
     secrets: &Secrets,
     service: Service,
@@ -206,55 +210,23 @@ impl Worker<'_> {
                 live.conn = Conn::Idling(notify);
                 Err(Problem::Temporary)
             }
+            Conn::Opening(handle) => {
+                // A command needs the session now: the background connect
+                // gives way and this one connects itself.
+                handle.abort();
+                let Some(settings) = self.store.accounts.get(account) else {
+                    return Err(Problem::Local);
+                };
+                let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
+                if let Some(live) = self.live.get_mut(account) {
+                    live.idle_capable = Some(session.caps().idle);
+                }
+                Ok(session)
+            }
         }
     }
 
-    /// Takes the account into IDLE on its Inbox.
-    pub(crate) async fn begin_idle(&mut self, account: &str, until_ms: i64) -> Result<(), Problem> {
-        let Some(inbox) = self.inbox(account)? else {
-            return Ok(());
-        };
-        let mut session = self.imap(account).await?;
-        if !session.caps().idle {
-            // Learned just now: the planner stops asking for IDLE.
-            let disk_full = self.disk_full(now_ms());
-            if let Some(live) = self.live.get_mut(account) {
-                // It did connect: a connect failure is over.
-                live.health.connected(disk_full);
-                live.conn = Conn::Ready(session);
-            }
-            return Ok(());
-        }
-        #[cfg(feature = "test-hooks")]
-        crate::hooks::reached(crate::hooks::Point::IdleSelect, account);
-        let state = prepare_idle(&mut session, &inbox.path)
-            .await
-            .map_err(|e| problem::from_net(&e, Service::Imap))?;
-        let behind = changed_since_sync(inbox.sync, &state);
-        let disk_full = self.disk_full(now_ms());
-        if let Some(live) = self.live.get_mut(account) {
-            let failed = live.health.failures > 0;
-            live.health.connected(disk_full);
-            if sync_first(failed, behind && !disk_full, live.idle_synced_first) {
-                // Back after a failure, or the Inbox changed after its sync:
-                // sync it first; IDLE starts on the next turn. The failures
-                // stay: only an IDLE that ran clears them.
-                live.idle_synced_first = true;
-                live.wants.folders.insert(inbox.id);
-                live.conn = Conn::Ready(session);
-                return Ok(());
-            }
-            live.idle_synced_first = false;
-        }
-        let (future, notify) = start_idle(account.to_owned(), session, until_ms, now_ms());
-        self.idles.push(future);
-        if let Some(live) = self.live.get_mut(account) {
-            live.conn = Conn::Idling(notify);
-        }
-        Ok(())
-    }
-
-    fn inbox(&self, account: &str) -> Result<Option<envio_store::Folder>, Problem> {
+    pub(super) fn inbox(&self, account: &str) -> Result<Option<envio_store::Folder>, Problem> {
         let folders = self
             .store
             .db
@@ -324,14 +296,21 @@ impl Worker<'_> {
                 }
                 match &live.conn {
                     Conn::Idling(notify) => notify.notify_one(),
+                    Conn::Opening(handle) => {
+                        handle.abort();
+                        live.conn = Conn::Closed;
+                    }
                     Conn::Ready(_) => live.conn = Conn::Closed,
                     Conn::Closed => {}
                 }
             }
             return;
         }
-        // The phone may have slept through any connection's death.
+        // The phone may have slept through any connection's death. A connect
+        // in flight is dropped (nothing failed: no backoff), so the
+        // foreground connects at once.
         self.idles = FuturesUnordered::new();
+        self.opens = FuturesUnordered::new();
         for live in self.live.values_mut() {
             live.conn = Conn::Closed;
             live.idle_synced_first = false;

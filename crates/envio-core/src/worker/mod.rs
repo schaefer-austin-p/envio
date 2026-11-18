@@ -10,6 +10,7 @@ mod folder_order;
 mod inline;
 mod invite;
 mod older;
+mod open;
 mod outbox;
 mod plan;
 mod prefetch;
@@ -64,6 +65,8 @@ pub(crate) struct Worker<'s> {
     foreground: bool,
     live: BTreeMap<String, Live>,
     idles: FuturesUnordered<IdleFuture>,
+    /// Background connects and Inbox SELECTs in flight.
+    opens: FuturesUnordered<open::OpenFuture>,
     /// Downloads are stopped until then (storage was full).
     disk_full_until: Option<i64>,
     /// Outbox items the user must decide on (filled by `file_sent`).
@@ -220,6 +223,7 @@ impl<'s> Worker<'s> {
             foreground: poster.foreground().unwrap_or(config.foreground),
             live,
             idles: FuturesUnordered::new(),
+            opens: FuturesUnordered::new(),
             disk_full_until: None,
             asked: BTreeSet::new(),
             unfiled: BTreeSet::new(),
@@ -321,11 +325,22 @@ impl<'s> Worker<'s> {
                 },
                 None => Flow::Stop,
             },
+            () = self.ended() => Flow::Continue,
+            () = sleep => Flow::Continue,
+        }
+    }
+
+    /// An IDLE or a connect ended (never, with none in flight): its result
+    /// is handled here, with no await after it.
+    async fn ended(&mut self) {
+        tokio::select! {
             Some((account, result)) = self.idles.next(), if !self.idles.is_empty() => {
                 self.idle_done(&account, result);
-                Flow::Continue
             }
-            () = sleep => Flow::Continue,
+            Some((account, result)) = self.opens.next(), if !self.opens.is_empty() => {
+                self.open_done(&account, result);
+            }
+            else => std::future::pending().await,
         }
     }
 
