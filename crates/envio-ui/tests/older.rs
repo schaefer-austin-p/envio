@@ -72,7 +72,7 @@ fn load_older_shows_loading_then_done_when_exhausted() {
     let mut ui = Ui::new();
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     let (command, outs) = ui.load_older().unwrap();
-    assert!(matches!(command, Command::LoadOlder { list } if list == F1));
+    assert!(matches!(command, Command::LoadOlder { list, .. } if list == F1));
     assert_eq!(rows(&outs), [OlderRow::Loading]);
     // Pressed again while loading: nothing.
     assert!(ui.load_older().is_none());
@@ -243,7 +243,7 @@ fn reaching_the_end_loads_one_older_page() {
     assert_eq!(rows(&feed(&mut ui, last)), [OlderRow::Ready]);
     // One scroll can fire several times (a fling): exactly one page is asked.
     let (command, outs) = ui.load_older_near_end().unwrap();
-    assert!(matches!(command, Command::LoadOlder { list } if list == F1));
+    assert!(matches!(command, Command::LoadOlder { list, .. } if list == F1));
     assert_eq!(rows(&outs), [OlderRow::Loading]);
     assert!(ui.load_older_near_end().is_none());
     assert!(ui.load_older_near_end().is_none());
@@ -345,4 +345,15 @@ fn a_dropped_older_window_allows_auto_loading_again() {
     assert!(ui.load_older_near_end().is_none());
     let _ = feed(&mut ui, reset(1));
     assert!(ui.load_older_near_end().is_some());
+}
+
+#[test]
+fn load_older_names_the_date_of_the_last_shown_row() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], true);
+    let (command, _) = ui.load_older().unwrap();
+    assert!(matches!(
+        command,
+        Command::LoadOlder { list, tail: Some(10) } if list == F1
+    ));
 }

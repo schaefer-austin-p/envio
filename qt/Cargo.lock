@@ -661,6 +661,7 @@ dependencies = [
  "envio-mime",
  "envio-net",
  "envio-store",
+ "log",
  "thiserror 2.0.21",
 ]
 

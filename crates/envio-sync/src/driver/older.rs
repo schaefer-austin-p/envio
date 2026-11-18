@@ -13,6 +13,12 @@ use crate::plan::pending::Pending;
 use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
 
+/// Most batches one call fetches while they show nothing below the tail.
+const MAX_BATCHES: usize = 10;
+/// Rows dated below the tail that end the call: a lone outlier-dated
+/// message in a batch of newer mail must not.
+const MIN_BELOW: u32 = 10;
+
 /// One batch of older mail.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Older {
@@ -34,12 +40,21 @@ impl Older {
 
 /// Fetches the next batch (of [`crate::plan::sync::BATCH`]) of messages the
 /// folder's cache lacks outside the sync window (`window_days`, `None` = all
-/// mail, so nothing is older), newest UID first, in one transaction. Paged by UID
+/// mail, so nothing is older), newest UID first, one transaction per batch.
+/// Paged by UID
 /// among the missing, not below the oldest cached UID: old mail may have
 /// been appended after new mail (#94). The caller remembers `kept()` (and
 /// passes it to the next call and to `sync_folder`) so the next sync keeps
 /// these rows and a batch that stored nothing (all \Deleted or hidden) is
 /// not planned again.
+///
+/// UID order is not date order (#254): a batch dated above `tail` (the date
+/// of the list's last shown row) puts its rows above what the user sees. So
+/// with a `tail` the call goes on to the next batch, up to [`MAX_BATCHES`],
+/// until [`MIN_BELOW`] rows are dated strictly before it (the unified Inbox
+/// passes its global tail to each folder); a batch that stores nothing counts
+/// for none. Without a tail it fetches one batch, stored or not.
+/// A failure after the first batch returns what was stored.
 ///
 /// A folder whose UIDVALIDITY changed since its last sync is refused (as
 /// `search_server` does): the cached UIDs name other messages, and the
@@ -51,6 +66,7 @@ pub async fn load_older(
     folder: FolderId,
     (now_ms, window_days): (i64, Option<u32>),
     kept: Option<Kept>,
+    tail: Option<i64>,
 ) -> Result<Older> {
     let row = local.db.folder(folder)?;
     let state = server.select(&row.path).await?;
@@ -73,23 +89,121 @@ pub async fn load_older(
         }
         None => Vec::new(),
     };
-    let cached: BTreeSet<u32> = local.db.uids(folder)?.into_iter().collect();
-    let plan = plan_older(&all, &cached, kept.as_ref());
-    let planned = kept.unwrap_or_default().with(&plan.fetch);
+    let base = match tail {
+        Some(tail) => local.db.count_dated_before(folder, tail)?,
+        None => 0,
+    };
+    let mut planned = kept.unwrap_or_default();
     let mut fetched = Vec::new();
+    let mut exhausted = false;
+    for _ in 0..(if tail.is_some() { MAX_BATCHES } else { 1 }) {
+        let step = batch(
+            server,
+            local,
+            &Ctx::new(&row, state.uid_validity, &all, &planned),
+        )
+        .await;
+        let step = match step {
+            Ok(step) => step,
+            // Earlier batches are committed: report them, and let the next
+            // press find the failure again.
+            Err(error) if !fetched.is_empty() => {
+                log::warn!("load older: stopped after a failure ({:?})", error.kind());
+                exhausted = false;
+                break;
+            }
+            Err(error) => return Err(error),
+        };
+        exhausted = step.exhausted;
+        planned = planned.with(&step.fetch);
+        let empty = step.stored.is_empty();
+        fetched.extend(step.stored);
+        // A batch that stored nothing (all \Deleted or hidden) shows
+        // nothing below the tail either: the call goes on.
+        let shown = match tail {
+            Some(_) if empty => 0,
+            Some(tail) => below(local, folder, tail, base),
+            None => MIN_BELOW,
+        };
+        if exhausted || shown >= MIN_BELOW {
+            break;
+        }
+    }
+    Ok(Older {
+        fetched,
+        planned,
+        exhausted,
+    })
+}
+
+/// How many rows dated before `tail` the call has stored since `base`; a
+/// failed count ends the call (`MIN_BELOW`).
+fn below(local: &Local<'_>, folder: FolderId, tail: i64, base: u32) -> u32 {
+    match local.db.count_dated_before(folder, tail) {
+        Ok(count) => count.saturating_sub(base),
+        Err(error) => {
+            log::warn!("load older: counting rows failed ({error})");
+            MIN_BELOW
+        }
+    }
+}
+
+/// What `batch` plans from.
+struct Ctx<'a> {
+    row: &'a envio_store::Folder,
+    uid_validity: u32,
+    all: &'a [u32],
+    planned: &'a Kept,
+}
+
+impl<'a> Ctx<'a> {
+    fn new(
+        row: &'a envio_store::Folder,
+        uid_validity: u32,
+        all: &'a [u32],
+        planned: &'a Kept,
+    ) -> Self {
+        Self {
+            row,
+            uid_validity,
+            all,
+            planned,
+        }
+    }
+}
+
+/// One planned and stored batch.
+struct Step {
+    /// The UIDs planned, stored or not.
+    fetch: Vec<u32>,
+    stored: Vec<MessageRowId>,
+    exhausted: bool,
+}
+
+/// Plans the next batch from the cache, fetches and stores it.
+async fn batch(server: &mut impl MailServer, local: &mut Local<'_>, ctx: &Ctx<'_>) -> Result<Step> {
+    let Ctx {
+        row,
+        uid_validity,
+        all,
+        planned,
+    } = *ctx;
+    let cached: BTreeSet<u32> = local.db.uids(row.id)?.into_iter().collect();
+    let plan = plan_older(all, &cached, Some(planned));
+    let mut stored = Vec::new();
     if !plan.fetch.is_empty() {
         let pending = Pending::of(
             local.journal.pending(),
             &row.account,
             &row.path,
-            state.uid_validity,
+            uid_validity,
         );
         let summaries = server.fetch_summaries(&plan.fetch).await?;
-        fetched = store_summaries(local, folder, &summaries, &pending)?;
+        stored = store_summaries(local, row.id, &summaries, &pending)?;
     }
-    Ok(Older {
-        fetched,
-        planned,
+    Ok(Step {
+        fetch: plan.fetch,
+        stored,
         exhausted: plan.exhausted,
     })
 }

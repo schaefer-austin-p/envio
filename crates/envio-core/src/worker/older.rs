@@ -1,5 +1,5 @@
-//! Load older: one batch of mail below the oldest cached message, a step per
-//! folder. For the unified Inbox the accounts' answers are gathered into one
+//! Load older: mail below the list's tail (a batch, or several while they
+//! show nothing below it), a step per folder. For the unified Inbox the accounts' answers are gathered into one
 //! `OlderLoaded`. A folder's floor (the lowest UID reached) is remembered for
 //! the session so the next sync keeps these rows and the next batch starts
 //! below them.
@@ -22,6 +22,8 @@ use crate::text;
 /// A `LoadOlder` in progress: the folders that have not answered yet and
 /// what the others fetched.
 pub(crate) struct Load {
+    /// The date of the list's last shown row.
+    tail: Option<i64>,
     waiting: BTreeSet<FolderId>,
     fetched: usize,
     /// Every folder that answered has nothing older (and none failed).
@@ -34,9 +36,10 @@ pub(crate) struct Load {
 }
 
 impl Worker<'_> {
-    pub(super) fn load_older(&mut self, list: ListRef) {
+    pub(super) fn load_older(&mut self, list: ListRef, tail: Option<i64>) {
         let targets = self.older_targets(list);
         let mut load = Load {
+            tail,
             waiting: targets.iter().map(|(_, folder)| *folder).collect(),
             fetched: 0,
             exhausted: true,
@@ -63,7 +66,7 @@ impl Worker<'_> {
         self.older_check(list);
     }
 
-    /// The (account, folder) pairs `list` loads one batch for.
+    /// The (account, folder) pairs `list` loads older mail for.
     fn older_targets(&self, list: ListRef) -> Vec<(String, FolderId)> {
         match list {
             ListRef::Folder(folder) => match self.store.db.folder(folder) {
@@ -83,15 +86,36 @@ impl Worker<'_> {
         }
     }
 
-    /// The step: one batch for `folder`.
+    /// The tail a step for `folder` uses, serving every list waiting for
+    /// it: the oldest of their tails (a list with a newer one still gets
+    /// rows below its own), `None` only if none has a tail.
+    fn waiting_tail(&self, folder: FolderId) -> Option<i64> {
+        self.loads
+            .values()
+            .filter(|load| load.waiting.contains(&folder))
+            .filter_map(|load| load.tail)
+            .min()
+    }
+
+    /// The step: older mail for `folder`.
     pub(super) async fn older_step(
         &mut self,
         session: &mut ImapSession,
         folder: FolderId,
     ) -> Result<(), Problem> {
         let floor = self.floors.get(&folder).cloned();
+        let tail = self.waiting_tail(folder);
         let window = (now_ms(), self.store.settings.sync_window());
-        match driver::load_older(session, &mut self.store.local(), folder, window, floor).await {
+        match driver::load_older(
+            session,
+            &mut self.store.local(),
+            folder,
+            window,
+            floor,
+            tail,
+        )
+        .await
+        {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());
                 self.older_done(folder, older.fetched.len(), older.exhausted);
@@ -283,6 +307,7 @@ mod tests {
         worker.loads.insert(
             list,
             Load {
+                tail: None,
                 waiting: BTreeSet::from([seeded.folder]),
                 fetched: 9,
                 exhausted: true,
@@ -307,5 +332,43 @@ mod tests {
             !events.iter().any(|e| matches!(e, Event::Notice { .. })),
             "{events:?}"
         );
+    }
+
+    /// Two lists wait on one folder: the step uses the older tail, whatever
+    /// the order they were added in.
+    #[test]
+    fn two_waiting_loads_share_the_oldest_tail() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let load = |tail| Load {
+            tail,
+            waiting: BTreeSet::from([seeded.folder]),
+            fetched: 0,
+            exhausted: true,
+            answered: false,
+            failed: BTreeSet::new(),
+            changed: Vec::new(),
+        };
+        let (newer, older) = (Some(2_000), Some(1_000));
+        // The inserts go both ways, and with and without a tail-less list.
+        for lists in [
+            [newer, older, None],
+            [older, newer, None],
+            [None, older, newer],
+        ] {
+            let mut worker = open(&config, &sink);
+            worker.loads.insert(ListRef::Inboxes, load(lists[0]));
+            worker
+                .loads
+                .insert(ListRef::Folder(seeded.folder), load(lists[1]));
+            worker
+                .loads
+                .insert(ListRef::Folder(FolderId(99)), load(lists[2]));
+            assert_eq!(worker.waiting_tail(seeded.folder), older);
+        }
+        let mut worker = open(&config, &sink);
+        worker.loads.insert(ListRef::Inboxes, load(None));
+        assert_eq!(worker.waiting_tail(seeded.folder), None);
     }
 }
