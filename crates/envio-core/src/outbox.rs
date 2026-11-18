@@ -59,8 +59,11 @@ pub fn is_invite_reply(eml: &[u8]) -> bool {
     matches!(
         envio_mime::parse(eml),
         Message::Parsed { attachments, .. }
-            if attachments.iter().any(|a| a.content_type == "text/calendar" && a.filename.is_none())
-                && String::from_utf8_lossy(eml).to_ascii_lowercase().replace('"', "").contains("method=reply")
+            if attachments.iter().any(|a| {
+                a.content_type == "text/calendar"
+                    && a.filename.is_none()
+                    && a.method.as_deref() == Some("REPLY")
+            })
     )
 }
 

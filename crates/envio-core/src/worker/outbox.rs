@@ -447,6 +447,21 @@ BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n--b--\r\n";
     }
 
     #[test]
+    fn edit_keeps_a_forwarded_invite_that_quotes_method_reply() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let eml: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\nSubject: Fwd\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=b\r\n\r\n--b\r\n\
+Content-Type: text/plain\r\n\r\nthe header said method=reply once\r\n--b\r\n\
+Content-Type: text/calendar; method=REQUEST; charset=utf-8\r\n\r\n\
+BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nEND:VCALENDAR\r\n--b--\r\n";
+        let id = item(&w, &t, eml, failed());
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), None);
+        assert_eq!(w.store.drafts.list().unwrap().len(), 1);
+    }
+
+    #[test]
     fn edit_refuses_a_failed_invite_reply() {
         let t = setup();
         let mut w = open(&t.config, t.sink);
