@@ -7,6 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 
@@ -69,6 +70,24 @@ fn parse(qrc: &str) -> Listing {
             Ok(Event::Text(t)) => {
                 if let Some(buf) = text.as_mut() {
                     buf.push_str(&t.xml10_content());
+                }
+            }
+            Ok(Event::CData(c)) => {
+                if let Some(buf) = text.as_mut() {
+                    buf.push_str(&c.xml10_content());
+                }
+            }
+            Ok(Event::GeneralRef(r)) => {
+                if let Some(buf) = text.as_mut() {
+                    match r.resolve_char_ref().ok().flatten() {
+                        Some(c) => buf.push(c),
+                        None => match resolve_predefined_entity(&r) {
+                            Some(t) => buf.push_str(t),
+                            None => out
+                                .problems
+                                .push(format!("bindle.qrc: unknown entity &{};", &*r)),
+                        },
+                    }
                 }
             }
             Ok(Event::End(e)) if e.local_name().as_ref() == "file" => {
@@ -295,6 +314,43 @@ mod tests {
         assert_eq!(got.len(), 2, "{got:?}");
         assert!(
             got[0].contains("alias") && got[0].contains("Platform/Other.qml"),
+            "{got:?}"
+        );
+    }
+
+    fn one(files: &[&str], entry: &str) -> Vec<String> {
+        let qrc = format!(r#"<RCC><qresource prefix="/qml/bindle">{entry}</qresource></RCC>"#);
+        problems(&s(files), &qrc)
+    }
+
+    #[test]
+    fn a_cdata_entry_is_listed() {
+        let got = one(
+            &["Platform/Uri.qml"],
+            "<file><![CDATA[Platform/Uri.qml]]></file>",
+        );
+        assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn a_predefined_entity_is_resolved() {
+        let got = one(&["Platform/A&B.qml"], "<file>Platform/A&amp;B.qml</file>");
+        assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn a_numeric_char_ref_is_resolved() {
+        let got = one(&["Platform/Uri.qml"], "<file>Platform/U&#114;i.qml</file>");
+        assert!(got.is_empty(), "{got:?}");
+        let got = one(&["Platform/Uri.qml"], "<file>Platform/U&#x72;i.qml</file>");
+        assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn an_unknown_entity_is_a_problem() {
+        let got = one(&["Platform/Uri.qml"], "<file>Platform/&nope;Uri.qml</file>");
+        assert!(
+            got.iter().any(|p| p.contains("unknown entity &nope;")),
             "{got:?}"
         );
     }
