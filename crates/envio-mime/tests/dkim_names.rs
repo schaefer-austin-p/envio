@@ -130,13 +130,13 @@ const AFTER: &[&[u8]] = &[
 /// Bytes put before the name.
 const BEFORE: &[&[u8]] = &[b"", b"\x0c", b"\r", b"\x0b", b"\0", b"\x01"];
 
-fn junk_line(before: &[u8], name: &str, upper: bool, after: &[u8], eol: &[u8]) -> Vec<u8> {
+fn junk_line(before: &[u8], name: &str, upper: bool, after: &[u8]) -> Vec<u8> {
     let name = if upper {
         name.to_ascii_uppercase()
     } else {
         name.to_owned()
     };
-    [before, name.as_bytes(), after, b": evil", eol].concat()
+    [before, name.as_bytes(), after, b": evil"].concat()
 }
 
 fn inserted(raw: &[u8], at: usize, line: &[u8]) -> Vec<u8> {
@@ -154,7 +154,11 @@ fn a_control_byte_in_a_signed_name_added_below_does_not_pass() {
     for name in ["Subject", "To", "Date", "Message-ID"] {
         for pad in ["\x0c", "\x0b", "\0", "\r"] {
             for eol in ["\r\n", "\n"] {
-                let line = junk_line(b"", name, false, pad.as_bytes(), eol.as_bytes());
+                let line = [
+                    junk_line(b"", name, false, pad.as_bytes()),
+                    eol.as_bytes().to_vec(),
+                ]
+                .concat();
                 let bad = inserted(&raw, end, &line);
                 assert_ne!(
                     check(&bad, &keys),
@@ -191,7 +195,8 @@ fn every_junk_line_at_every_line_start_of_every_fixture_leaves_a_pass_unchanged(
                 for before in BEFORE {
                     for after in AFTER {
                         for (upper, eol) in [(false, &b"\r\n"[..]), (true, &b"\n"[..])] {
-                            let line = junk_line(before, name, upper, after, eol);
+                            let line =
+                                [junk_line(before, name, upper, after), eol.to_vec()].concat();
                             let bad = inserted(&raw, at, &line);
                             inserts += 1;
                             if check(&bad, &keys) == DkimVerdict::Pass {
@@ -229,7 +234,7 @@ proptest! {
         let starts = line_starts(&raw);
         let at = starts[pick.index(starts.len())];
         let eol: &[u8] = if lf { b"\n" } else { b"\r\n" };
-        let line = junk_line(before, name, upper, after, eol);
+        let line = [junk_line(before, name, upper, after), eol.to_vec()].concat();
         let bad = inserted(&raw, at, &line);
         prop_assert!(
             check(&bad, &keys) != DkimVerdict::Pass
