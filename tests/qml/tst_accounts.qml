@@ -28,6 +28,7 @@ Item {
     }
     SignalSpy { id: updateClosed; target: update; signalName: "closed" }
     SignalSpy { id: wantsPassword; target: page; signalName: "updatePasswordRequested" }
+    SignalSpy { id: wantsSignIn; target: page; signalName: "signInAgainRequested" }
 
     TestCase {
         name: "Accounts"
@@ -56,9 +57,10 @@ Item {
             tryVerify(function() { return !sheet.visible })
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
-                                   status: "Up to date", state: "ok", unread: 0, unreadText: "",
+                                   status: "Up to date", state: "ok", oauth: false, unread: 0, unreadText: "",
                                    pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
             wantsPassword.clear()
+            wantsSignIn.clear()
             updateClosed.clear()
         }
         // A dialog's buttons start stacked until its column is laid out.
@@ -175,6 +177,31 @@ Item {
             mouseClick(find("updatePasswordRow", page))
             compare(wantsPassword.count, 1)
             compare(wantsPassword.signalArguments[0][0], "ann")
+        }
+
+        function test_sign_in_again_shows_only_for_a_microsoft_account_in_auth_state() {
+            // A password account that failed to sign in: no such row.
+            core.accounts.setProperty(0, "state", "auth")
+            openActions()
+            verify(!find("signInAgainRow", page).visible)
+            verify(find("updatePasswordRow", page).visible)
+            find("actionSheet", page).close()
+            tryVerify(function() { return !find("actionSheet", page).visible })
+            // A Microsoft account that is fine: none either.
+            core.accounts.setProperty(0, "oauth", true)
+            core.accounts.setProperty(0, "state", "ok")
+            openActions()
+            verify(!find("signInAgainRow", page).visible)
+            verify(!find("updatePasswordRow", page).visible)
+            find("actionSheet", page).close()
+            tryVerify(function() { return !find("actionSheet", page).visible })
+            // A Microsoft account that must sign in again: the row asks for the page.
+            core.accounts.setProperty(0, "state", "auth")
+            openActions()
+            verify(find("signInAgainRow", page).visible)
+            mouseClick(find("signInAgainRow", page))
+            compare(wantsSignIn.count, 1)
+            compare(wantsSignIn.signalArguments[0][0], "ann")
         }
 
         function test_update_password_back_clears_the_field() {

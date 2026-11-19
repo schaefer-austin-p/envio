@@ -54,6 +54,10 @@ Item {
             tryVerify(function() { return !find("confirmHosts").visible && !find("trustDialog").visible })
             core.reset()
             wizard.clearPasswords()
+            wizard.oauthSession.reset()
+            wizard.oauthProvider = ""
+            opened = []
+            wizard.oauthSession.uri.opener = function(u) { opened.push(String(u)); return true }
             wizard.step = "email"
             wizard.error = ""
             wizard.busy = false
@@ -582,6 +586,114 @@ Item {
         function test_signin_step_shows_busy_exactly_while_busy() {
             toSignIn(plainJson, false)
             busyShows("signInContinue", "Signing in…")
+        }
+
+        // Microsoft sign-in (#219 T8)
+        property var opened: []
+        readonly property string link: "https://login.example.org/authorize?x=1"
+        function toMicrosoft() {
+            typeEmail()
+            mouseClick(find("continueButton"))
+            core.detected("ann@example.org", "", false, plainJson, "", "Microsoft")
+            compare(wizard.step, "signin")
+        }
+        function startMicrosoft() {
+            toMicrosoft()
+            mouseClick(find("oauthButton"))
+            compare(wizard.step, "browser")
+            core.oauthBrowser("ann@example.org", link)
+        }
+
+        function test_without_oauth_there_is_a_password_and_no_microsoft_button() {
+            toSignIn(plainJson, false)
+            verify(!find("oauthButton").visible)
+            verify(find("signInContinue").visible)
+            verify(find("passwordField").visible)
+            verify(!find("browserStep").visible)
+        }
+        function test_with_oauth_there_is_a_button_and_no_password_field() {
+            toMicrosoft()
+            verify(find("oauthButton").visible)
+            compare(find("oauthButton").text, "Sign in with Microsoft")
+            verify(!find("passwordField").visible)
+            verify(!find("signInContinue").visible)
+            verify(!find("editServers").visible)
+        }
+        function test_the_button_starts_the_attempt_and_shows_the_browser_step() {
+            toMicrosoft()
+            mouseClick(find("oauthButton"))
+            compare(core.called("startOAuth").length, 1)
+            compare(core.called("startOAuth")[0].args[0], "ann@example.org")
+            compare(core.called("startOAuth")[0].args[1], "")
+            compare(wizard.step, "browser")
+            verify(find("browserStep").visible)
+            verify(find("cancelSignIn").visible)
+        }
+        function test_the_browser_is_opened_once_with_the_events_url() {
+            startMicrosoft()
+            compare(opened.length, 1)
+            compare(opened[0], link)
+            // The same event for another address is not ours.
+            core.oauthBrowser("other@example.org", "https://login.example.org/other")
+            compare(opened.length, 1)
+        }
+        function test_cancel_calls_cancelOAuth_and_says_nothing_was_added() {
+            startMicrosoft()
+            mouseClick(find("cancelSignIn"))
+            compare(core.called("cancelOAuth").length, 1)
+            compare(wizard.step, "signin")
+            compare(find("oauthNotice").title, "Sign-in cancelled")
+        }
+        function test_back_while_waiting_is_cancel() {
+            startMicrosoft()
+            wizard.back()
+            compare(core.called("cancelOAuth").length, 1)
+            compare(wizard.step, "signin")
+        }
+        function test_each_failure_shows_its_card() {
+            const texts = ["Microsoft took too long.", "No connection.", "Microsoft refused.", "Something went wrong."]
+            for (let i = 0; i < texts.length; i++) {
+                init()
+                startMicrosoft()
+                core.oauthDone("ann@example.org", "failed", texts[i])
+                compare(wizard.step, "signin")
+                const card = find("oauthNotice")
+                verify(card.visible)
+                compare(card.kind, "warning")
+                compare(card.text, texts[i])
+                verify(find("oauthButton").visible)
+            }
+        }
+        function test_the_identity_question_has_use_and_back_buttons() {
+            startMicrosoft()
+            core.oauthConfirm("ann@example.org", "bob@example.org", "x")
+            const card = find("oauthNotice")
+            verify(card.visible)
+            compare(card.title, "You signed in as bob@example.org")
+            compare(card.text, "Use this account for ann@example.org?")
+            verify(find("useAccount").visible)
+            verify(!find("oauthButton").visible)
+            mouseClick(find("useAccount"))
+            compare(core.called("confirmOAuth").length, 1)
+            compare(core.called("confirmOAuth")[0].args[0], true)
+        }
+        function test_back_on_the_identity_question_declines() {
+            startMicrosoft()
+            core.oauthConfirm("ann@example.org", "bob@example.org", "x")
+            wizard.back()
+            compare(core.called("confirmOAuth").length, 1)
+            compare(core.called("confirmOAuth")[0].args[0], false)
+            compare(core.called("cancelOAuth").length, 0)
+            compare(wizard.step, "signin")
+        }
+        function test_account_added_moves_on_and_done_added_only_clears_the_browser_step() {
+            startMicrosoft()
+            core.accountAdded("ann", "ann@example.org")
+            compare(wizard.step, "options")
+            core.oauthDone("ann@example.org", "added", "")
+            compare(wizard.step, "options")
+            compare(wizard.oauthSession.state, "idle")
+            compare(wizard.oauthSession.noticeKind, "")
         }
     }
 }

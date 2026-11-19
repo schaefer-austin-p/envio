@@ -20,6 +20,7 @@ Item {
     SignalSpy { id: composing; target: page; signalName: "composeOpened" }
     SignalSpy { id: backed; target: page; signalName: "backRequested" }
     SignalSpy { id: checking; target: page; signalName: "accountsRequested" }
+    SignalSpy { id: signingIn; target: page; signalName: "signInAgainRequested" }
 
     TestCase {
         name: "Outbox"
@@ -48,7 +49,8 @@ Item {
         function item(id, status, text, reason, action) {
             return { id: id, account: "ann", subject: "Invoice " + id, to: "ana@example.org",
                      status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason,
-                     reasonAction: reason === undefined ? "" : (action === undefined ? "Check certificate" : action) }
+                     reasonAction: reason === undefined ? "" : (action === undefined ? "Check certificate" : action),
+                     signInAgain: false }
         }
         function init() {
             core.reset()
@@ -56,12 +58,33 @@ Item {
             composing.clear()
             backed.clear()
             checking.clear()
+            signingIn.clear()
         }
         function laidOut(dlg, action) {
             const p = find("primaryAction", dlg.contentItem)
             const q = find("secondaryAction", dlg.contentItem)
             tryVerify(function() { return q.mapToItem(null, 0, 0).y > p.mapToItem(null, 0, 0).y }, 2000)
             return find(action, dlg.contentItem)
+        }
+
+        function test_a_message_held_for_a_microsoft_sign_in_offers_sign_in_again() {
+            const held = item("h", "waiting", "Waiting to send", "Sign in again", "Open accounts")
+            held.signInAgain = true
+            core.outbox.append(held)
+            const plain = item("p", "waiting", "Waiting to send", "The certificate changed", "Check certificate")
+            plain.signInAgain = false
+            core.outbox.append(plain)
+            waitForRendering(page)
+            compare(find("reason-h", page).text, "Waiting for sign-in. It goes out after you sign in again.")
+            verify(shown("signInAgain-h"))
+            verify(!shown("checkCertificate-h"))
+            verify(shown("delete-h"))
+            compare(find("reason-p", page).text, "The certificate changed")
+            verify(!shown("signInAgain-p"))
+            verify(shown("checkCertificate-p"))
+            mouseClick(find("signInAgain-h", page))
+            compare(signingIn.count, 1)
+            compare(signingIn.signalArguments[0][0], "ann")
         }
 
         function test_outbox_actions_follow_status() {

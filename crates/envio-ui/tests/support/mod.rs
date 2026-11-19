@@ -89,6 +89,7 @@ pub fn info(key: &str) -> AccountInfo {
         status: AccountStatus::Ready,
         unread: 0,
         broken: false,
+        oauth: false,
     }
 }
 

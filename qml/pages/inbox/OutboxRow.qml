@@ -18,6 +18,7 @@ ListRow {
     signal editRequested(string item)
     signal deleteRequested(string item)
     signal accountsRequested()
+    signal signInAgainRequested(string account)
 
     objectName: "outbox-" + model.id
 
@@ -62,7 +63,7 @@ ListRow {
             objectName: "reason-" + root.model.id
             visible: !!root.model.reason
             width: parent.width
-            text: root.model.reason
+            text: !!root.model.signInAgain ? qsTr("Waiting for sign-in. It goes out after you sign in again.") : root.model.reason
             wrapMode: Text.WordWrap
             color: root.theme.accent
             font.family: root.theme.fontUi
@@ -74,10 +75,17 @@ ListRow {
             topPadding: root.theme.gu(0.5)
             AppButton {
                 objectName: "checkCertificate-" + root.model.id
-                visible: !!root.model.reason
+                visible: !!root.model.reason && !root.model.signInAgain
                 theme: root.theme
                 text: root.model.reasonAction
                 onClicked: root.accountsRequested()
+            }
+            AppButton {
+                objectName: "signInAgain-" + root.model.id
+                visible: !!root.model.signInAgain
+                theme: root.theme
+                text: qsTr("Sign in again")
+                onClicked: root.signInAgainRequested(root.model.account)
             }
             AppButton {
                 objectName: "sendAgain-" + root.model.id

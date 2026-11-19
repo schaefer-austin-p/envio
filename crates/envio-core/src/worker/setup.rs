@@ -123,7 +123,7 @@ fn refusal_text(refusal: &Refusal) -> String {
 }
 
 /// The account as the app first hears of it.
-fn new_info(key: String, name: String, email: String) -> AccountInfo {
+fn new_info(key: String, name: String, email: String, oauth: bool) -> AccountInfo {
     AccountInfo {
         key,
         name,
@@ -132,6 +132,7 @@ fn new_info(key: String, name: String, email: String) -> AccountInfo {
         status: AccountStatus::Ready,
         unread: 0,
         broken: false,
+        oauth,
     }
 }
 
@@ -292,7 +293,7 @@ impl Worker<'_> {
             }
             return Err(text::setup::not_saved());
         }
-        Ok(new_info(key, name, email))
+        Ok(new_info(key, name, email, false))
     }
 
     /// An OAuth account: settings first (that makes the key), then its refresh
@@ -330,7 +331,7 @@ impl Worker<'_> {
             }
             return Err(text::setup::not_saved());
         }
-        Ok(new_info(key, name, email))
+        Ok(new_info(key, name, email, true))
     }
 }
 

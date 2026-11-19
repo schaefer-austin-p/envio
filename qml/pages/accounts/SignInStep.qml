@@ -16,8 +16,22 @@ Item {
     property string error: ""
     property bool busy: false
     property alias password: passwordField.text
+    // Set when the address can sign in with its provider ("Microsoft"): the
+    // step then has no password. `oauthEmail` is the address that goes to the
+    // provider as a hint; the notice is the session's (cancelled, failed, or
+    // the question after a sign-in as another address).
+    property string oauthProvider: ""
+    readonly property bool oauth: oauthProvider !== ""
+    property string oauthEmail: ""
+    property string noticeKind: ""
+    property string noticeTitle: ""
+    property string noticeText: ""
+    // The user is asked whether this account is the right one.
+    property bool confirming: false
     signal continued()
     signal editServersRequested()
+    signal oauthRequested()
+    signal oauthAnswered(bool accept)
 
     Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
@@ -36,6 +50,7 @@ Item {
             spacing: theme.gu(2)
 
             Rectangle {
+                visible: !root.oauth
                 width: parent.width
                 height: found.implicitHeight + root.theme.gu(3)
                 radius: root.theme.cardRadius
@@ -60,7 +75,7 @@ Item {
                 textFormat: Text.PlainText
                 objectName: "serversText"
                 width: parent.width
-                visible: root.serversText !== ""
+                visible: !root.oauth && root.serversText !== ""
                 text: root.serversText
                 wrapMode: Text.WordWrap
                 color: root.theme.secondary
@@ -70,6 +85,7 @@ Item {
             }
             AppButton {
                 objectName: "editServers"
+                visible: !root.oauth
                 width: parent.width
                 theme: root.theme
                 text: qsTr("Edit servers")
@@ -80,7 +96,7 @@ Item {
                 textFormat: Text.PlainText
                 objectName: "appPasswordHint"
                 width: parent.width
-                visible: root.appPassword
+                visible: !root.oauth && root.appPassword
                 text: qsTr("This provider needs an app password for Envio, not your usual one. Create one in your account settings.")
                 wrapMode: Text.WordWrap
                 color: root.theme.text
@@ -91,11 +107,78 @@ Item {
             Field {
                 id: passwordField
                 objectName: "passwordField"
+                visible: !root.oauth
                 width: parent.width
                 theme: root.theme
                 password: true
                 label: root.appPassword ? qsTr("App password") : qsTr("Password")
                 onAccepted: if (continueButton.enabled) root.continued()
+            }
+            // The Microsoft variant: the address, why no password is typed,
+            // and what Envio keeps.
+            Field {
+                objectName: "oauthEmail"
+                visible: root.oauth
+                width: parent.width
+                theme: root.theme
+                label: qsTr("Email address")
+                text: root.oauthEmail
+                readOnly: true
+            }
+            NoticeCard {
+                objectName: "oauthNotice"
+                visible: root.oauth && root.noticeKind !== ""
+                width: parent.width
+                theme: root.theme
+                kind: root.noticeKind
+                title: root.noticeTitle
+                text: root.noticeText
+            }
+            Text {
+                textFormat: Text.PlainText
+                objectName: "oauthExplain"
+                visible: root.oauth
+                width: parent.width
+                text: root.noticeKind === ""
+                    ? qsTr("Microsoft signs you in on its own page in the browser. Your password never passes through Envio, and you come back here when it is done.")
+                    : qsTr("Microsoft signs you in on its own page in the browser. Your password never passes through Envio.")
+                wrapMode: Text.WordWrap
+                color: root.theme.text
+                font.family: root.theme.fontUi
+                font.pixelSize: root.noticeKind === "" ? 15 : 14
+                lineHeight: 1.3
+            }
+            Rectangle {
+                objectName: "oauthPrivacy"
+                visible: root.oauth && root.noticeKind === ""
+                width: parent.width
+                height: privacy.implicitHeight + root.theme.gu(3)
+                radius: root.theme.cardRadius
+                color: root.theme.surface
+                border.width: 1
+                border.color: root.theme.hairline
+                Icon {
+                    id: lock
+                    theme: root.theme
+                    name: "lock"
+                    size: 20
+                    color: root.theme.text
+                    x: root.theme.gu(1.75)
+                    y: root.theme.gu(1.5)
+                }
+                Text {
+                    textFormat: Text.PlainText
+                    id: privacy
+                    x: lock.x + lock.width + root.theme.gu(1.25)
+                    y: root.theme.gu(1.5)
+                    width: parent.width - x - root.theme.gu(1.75)
+                    text: qsTr("Envio keeps only a sign-in token, on this phone. Remove the account and the token goes with it.")
+                    wrapMode: Text.WordWrap
+                    color: root.theme.text
+                    font.family: root.theme.fontUi
+                    font.pixelSize: 14
+                    lineHeight: 1.3
+                }
             }
             Text {
                 textFormat: Text.PlainText
@@ -119,12 +202,32 @@ Item {
     AppButton {
         id: continueButton
         objectName: "signInContinue"
+        visible: !root.oauth
         width: parent.width
         theme: root.theme
         primary: true
         text: qsTr("Continue")
         enabled: !root.busy && passwordField.text !== ""
         onClicked: root.continued()
+    }
+    AppButton {
+        objectName: "oauthButton"
+        visible: root.oauth && !root.confirming
+        width: parent.width
+        theme: root.theme
+        primary: true
+        iconName: "external"
+        text: qsTr("Sign in with Microsoft")
+        onClicked: root.oauthRequested()
+    }
+    AppButton {
+        objectName: "useAccount"
+        visible: root.oauth && root.confirming
+        width: parent.width
+        theme: root.theme
+        primary: true
+        text: qsTr("Use this account")
+        onClicked: root.oauthAnswered(true)
     }
     }
 }

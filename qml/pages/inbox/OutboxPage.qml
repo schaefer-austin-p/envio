@@ -15,6 +15,8 @@ Item {
     signal backRequested()
     // The way to the Accounts page, where the certificate is checked.
     signal accountsRequested()
+    // A message waits for a Microsoft sign-in: the way to Sign in again.
+    signal signInAgainRequested(string account)
 
     property string asking: ""
 
@@ -37,6 +39,7 @@ Item {
             theme: root.theme
             width: list.width
             onAccountsRequested: root.accountsRequested()
+            onSignInAgainRequested: function(account) { root.signInAgainRequested(account) }
             onDecided: root.core.decideOutbox(item, decision)
             onEditRequested: root.composeOpened(root.core.editOutbox(item))
             onDeleteRequested: { root.asking = item; deleteAsk.open() }
