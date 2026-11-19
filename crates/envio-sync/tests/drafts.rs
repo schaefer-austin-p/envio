@@ -472,7 +472,7 @@ async fn a_refusal_stored_before_a_lost_connection_still_reports_the_change() {
         now_ms: NOW_MS,
     };
     let mut done = DraftsSynced::default();
-    let result = sync_drafts_into(&mut server, &store.db, &store.drafts, &run, &mut done).await;
+    let result = sync_drafts_into(&mut server, (&store.db, &store.drafts), &run, &mut done).await;
     assert!(result.is_err());
     assert_eq!(done.refused.len(), 1, "{done:?}");
     assert!(done.reasons_changed, "the stored reason must be reported");

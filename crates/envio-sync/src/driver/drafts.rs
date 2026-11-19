@@ -68,7 +68,7 @@ pub async fn sync_drafts(
     run: &DraftRun<'_>,
 ) -> Result<DraftsSynced> {
     let mut done = DraftsSynced::default();
-    sync_drafts_into(server, db, drafts, run, &mut done).await?;
+    sync_drafts_into(server, (db, drafts), run, &mut done).await?;
     Ok(done)
 }
 
@@ -78,13 +78,12 @@ pub async fn sync_drafts(
 /// still reach the Drafts list).
 pub async fn sync_drafts_into(
     server: &mut impl MailServer,
-    db: &Db,
-    drafts: &Drafts,
+    (db, drafts): (&Db, &Drafts),
     run: &DraftRun<'_>,
     done: &mut DraftsSynced,
 ) -> Result<()> {
     let before = account_reasons(drafts, run.account)?;
-    let result = run_drafts(server, db, drafts, run, done).await;
+    let result = run_drafts(server, (db, drafts), run, done).await;
     // Judged even when the run failed; a store error here adds nothing to
     // the one already in hand.
     match account_reasons(drafts, run.account) {
@@ -97,8 +96,7 @@ pub async fn sync_drafts_into(
 
 async fn run_drafts(
     server: &mut impl MailServer,
-    db: &Db,
-    drafts: &Drafts,
+    (db, drafts): (&Db, &Drafts),
     run: &DraftRun<'_>,
     done: &mut DraftsSynced,
 ) -> Result<()> {
