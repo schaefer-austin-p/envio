@@ -226,6 +226,10 @@ pub struct MessageHeader {
     /// `envio_mime::sender_verified`); "always load from this sender" only
     /// works for such mail.
     pub sender_verified: bool,
+    /// The message carries a DKIM signature that could verify the From
+    /// address, so "always load from this sender" is worth offering even
+    /// before it is verified (verified mail is always checkable).
+    pub sender_checkable: bool,
 }
 
 /// One address offered while typing a recipient.

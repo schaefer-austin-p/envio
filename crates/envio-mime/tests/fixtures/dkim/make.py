@@ -176,6 +176,16 @@ def main():
         "example.com",
         headers=HEADERS + ["content-type"],
     )
+    # An HTML message with a remote image (the core's sender-trust tests).
+    out["html"] = sign(
+        message(
+            body=b'<p>Look</p><img src="http://images.example.net/a.png" alt="a">\r\n',
+            ctype=b"text/html; charset=utf-8",
+        ),
+        rsa,
+        "test",
+        "example.com",
+    )
     for name, data in out.items():
         open(path(name + ".eml"), "wb").write(data)
     spki = rsa_spki_b64("rsa2048.pem")

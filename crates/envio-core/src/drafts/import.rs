@@ -406,9 +406,9 @@ Content-Disposition: attachment\r\n\r\nBEGIN:VCALENDAR\r\n";
         got.draft.updated_at_ms = 5_000;
         got.draft.server.message_id = got.link.clone();
         got.draft.server.uploaded_ms = 5_000;
-        assert!(!needs_upload(&got.draft), "unchanged: never uploaded");
+        assert!(!needs_upload(&got.draft, 0), "unchanged: never uploaded");
         got.draft.updated_at_ms = 6_000;
-        assert!(needs_upload(&got.draft));
+        assert!(needs_upload(&got.draft, 0));
         assert_eq!(replaced(&got.draft.server, "<new@x>"), Some(MID));
     }
 
@@ -416,7 +416,7 @@ Content-Disposition: attachment\r\n\r\nBEGIN:VCALENDAR\r\n";
     fn a_detached_import_uploads_new_and_replaces_nothing() {
         use envio_sync::plan::drafts::{needs_upload, replaced};
         let got = import(&plain("Content-Type: text/html\r\n"));
-        assert!(needs_upload(&got.draft));
+        assert!(needs_upload(&got.draft, 0));
         assert_eq!(replaced(&got.draft.server, "<new@x>"), None);
     }
 }

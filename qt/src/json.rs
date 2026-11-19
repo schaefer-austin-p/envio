@@ -210,6 +210,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "account": h.account,
         "senderKnown": h.sender_known,
         "senderVerified": h.sender_verified,
+        "senderCheckable": h.sender_checkable,
         "attachments": attachments,
         "isDraft": view.is_draft,
     });
@@ -336,6 +337,7 @@ mod tests {
                 account: "a".into(),
                 sender_known: false,
                 sender_verified: false,
+                sender_checkable: false,
             },
             html: String::new(),
             raw: false,
@@ -363,6 +365,7 @@ mod tests {
                 account: "a".into(),
                 sender_known: false,
                 sender_verified: false,
+                sender_checkable: false,
             },
             html: String::new(),
             raw: false,
@@ -376,6 +379,9 @@ mod tests {
         assert_eq!(message_view_value(1, &view)["senderVerified"], false);
         view.header.sender_verified = true;
         assert_eq!(message_view_value(1, &view)["senderVerified"], true);
+        assert_eq!(message_view_value(1, &view)["senderCheckable"], false);
+        view.header.sender_checkable = true;
+        assert_eq!(message_view_value(1, &view)["senderCheckable"], true);
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
         assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
         view.remote_images = vec!["https://example.org/a.png".into()];
@@ -404,6 +410,7 @@ mod tests {
                 account: "a".into(),
                 sender_known: false,
                 sender_verified: false,
+                sender_checkable: false,
             },
             html: String::new(),
             raw: false,

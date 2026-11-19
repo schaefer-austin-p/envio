@@ -50,6 +50,7 @@ impl qobject::EnvioCore {
             data_dir,
             roots: roots.clone(),
             oauth: envio_core::default_oauth_providers(),
+            dns: None,
             log_level: log::LevelFilter::Info,
             foreground: true,
         };

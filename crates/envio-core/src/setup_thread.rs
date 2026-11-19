@@ -121,6 +121,9 @@ fn enqueue(queue: &mut VecDeque<SetupJob>, job: SetupJob) {
 
 pub(crate) struct SetupThread {
     jobs: Sender<SetupJob>,
+    /// The worker's input channel, for what else must reach the worker from
+    /// a task of its own (DKIM key lookups).
+    inputs: UnboundedSender<Input>,
 }
 
 impl SetupThread {
@@ -128,10 +131,16 @@ impl SetupThread {
     /// ends when this handle is dropped or the worker's channel is gone.
     pub fn start(roots: Roots, results: UnboundedSender<Input>) -> io::Result<Self> {
         let (jobs, queue) = channel();
+        let inputs = results.clone();
         thread::Builder::new()
             .name("envio-setup".into())
             .spawn(move || run(&roots, &queue, &results))?;
-        Ok(Self { jobs })
+        Ok(Self { jobs, inputs })
+    }
+
+    /// A sender into the worker's queue.
+    pub fn inputs(&self) -> UnboundedSender<Input> {
+        self.inputs.clone()
     }
 
     pub fn send(&self, job: SetupJob) {

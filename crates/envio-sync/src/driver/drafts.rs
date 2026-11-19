@@ -6,17 +6,19 @@
 //! which removes a draft whose server copy the user deleted. A failure
 //! leaves everything to be retried. Copies are found by Message-ID, so no UID is kept.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use envio_mime::{Address, new_message_id};
+use envio_net::NetError;
 use envio_net::imap::Flag;
 use envio_store::{Db, Draft, Drafts, FolderRole, Journal, RefusalKind, StoreError};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
-use crate::error::{ErrorKind, Result};
+use crate::error::{ErrorKind, Result, SyncError};
 use crate::plan::drafts::{can_judge, cut_copy, drafts_to_forget, needs_upload, replaced};
 use crate::plan::message_id::search_id;
+use crate::plan::refusal::classify;
 use crate::server::MailServer;
 
 /// What one account's draft run needs besides the server and the store.
@@ -36,13 +38,16 @@ pub struct DraftsSynced {
     /// Server copies of sent or discarded drafts that are gone now.
     pub deleted: Vec<String>,
     /// The server refused this one (a NO: quota, a busy mailbox): it is
-    /// tried again on later runs, and left alone after `GIVE_UP` refusals
-    /// of the same save.
+    /// tried again on later runs, after a growing wait.
     pub refused: Vec<String>,
     /// The server answered this one with nonsense (a BAD): the run went on
-    /// with the others; the draft is tried again, a few times, then left
-    /// until it changes.
+    /// with the others; the draft is tried again after the same growing
+    /// wait.
     pub failed: Vec<String>,
+    /// Some draft's `(refusal, failed_at_ms)` differs after the run: what
+    /// its row shows may have changed (the kind alone would miss a second
+    /// refusal of the same kind after a newer save).
+    pub reasons_changed: bool,
     /// The account has no Drafts folder: nothing is uploaded (core logs it).
     pub no_folder: bool,
     /// Drafts could not be selected: the cached folder list may be stale.
@@ -54,7 +59,8 @@ pub struct DraftsSynced {
 /// list comes first in a run). A failure of one draft's upload is recorded
 /// on that draft and the run goes on; only a lost connection (or a local
 /// or sign-in problem) ends it and is returned. What was done before is
-/// kept.
+/// kept. For the change signal to survive such an error, use
+/// `sync_drafts_into`.
 pub async fn sync_drafts(
     server: &mut impl MailServer,
     db: &Db,
@@ -62,9 +68,41 @@ pub async fn sync_drafts(
     run: &DraftRun<'_>,
 ) -> Result<DraftsSynced> {
     let mut done = DraftsSynced::default();
+    sync_drafts_into(server, (db, drafts), run, &mut done).await?;
+    Ok(done)
+}
+
+/// `sync_drafts` that writes what it did into `done` as it goes, so a run
+/// that ends in an error still reports the drafts it uploaded or refused
+/// and `reasons_changed` (a refusal stored before a lost connection must
+/// still reach the Drafts list).
+pub async fn sync_drafts_into(
+    server: &mut impl MailServer,
+    (db, drafts): (&Db, &Drafts),
+    run: &DraftRun<'_>,
+    done: &mut DraftsSynced,
+) -> Result<()> {
+    let before = account_reasons(drafts, run.account)?;
+    let result = run_drafts(server, (db, drafts), run, done).await;
+    // Judged even when the run failed; a store error here adds nothing to
+    // the one already in hand.
+    match account_reasons(drafts, run.account) {
+        Ok(after) => done.reasons_changed = after != before,
+        Err(error) if result.is_ok() => return Err(error),
+        Err(_) => {}
+    }
+    result
+}
+
+async fn run_drafts(
+    server: &mut impl MailServer,
+    (db, drafts): (&Db, &Drafts),
+    run: &DraftRun<'_>,
+    done: &mut DraftsSynced,
+) -> Result<()> {
     let folders = db.folders(run.account)?;
     if folders.is_empty() {
-        return Ok(done);
+        return Ok(());
     }
     let notes: Vec<_> = drafts
         .deletes()?
@@ -77,26 +115,28 @@ pub async fn sync_drafts(
             drafts.deleted_on_server(&note.id)?;
         }
         done.no_folder = true;
-        return Ok(done);
+        return Ok(());
     };
     let mut due: Vec<(String, Draft)> = drafts
         .list()?
         .into_iter()
         .filter(|(id, draft)| {
-            draft.account == run.account && !run.open.contains(id) && needs_upload(draft)
+            draft.account == run.account
+                && !run.open.contains(id)
+                && needs_upload(draft, run.now_ms)
         })
         .collect();
     // The least recently tried first: a draft whose upload drops the
     // connection goes to the back, and cannot starve the others.
     due.sort_by_key(|(_, draft)| draft.server.tried_ms);
     if due.is_empty() && notes.is_empty() {
-        return Ok(done);
+        return Ok(());
     }
     match server.select(&folder.path).await {
         Ok(_) => {}
         Err(envio_net::NetError::Refused(_)) => {
             done.relist = true;
-            return Ok(done);
+            return Ok(());
         }
         Err(error) => return Err(error.into()),
     }
@@ -106,7 +146,10 @@ pub async fn sync_drafts(
             Ok(false) => {}
             Err(error) => match error.kind() {
                 ErrorKind::Refused => {
-                    let kind = RefusalKind::Other;
+                    let kind = match &error {
+                        SyncError::Net(NetError::Refused(text)) => classify(text),
+                        _ => RefusalKind::Other,
+                    };
                     drafts.mark_failed(&id, draft.updated_at_ms, 1, kind, run.now_ms)?;
                     done.refused.push(id);
                 }
@@ -139,7 +182,21 @@ pub async fn sync_drafts(
             Err(error) => return Err(error),
         }
     }
-    Ok(done)
+    Ok(())
+}
+
+/// What the account's draft rows show of a refusal: the kind and when it
+/// happened, by draft id.
+fn account_reasons(
+    drafts: &Drafts,
+    account: &str,
+) -> Result<BTreeMap<String, (Option<RefusalKind>, i64)>> {
+    Ok(drafts
+        .list()?
+        .into_iter()
+        .filter(|(_, d)| d.account == account)
+        .map(|(id, d)| (id, (d.server.refusal, d.server.failed_at_ms)))
+        .collect())
 }
 
 /// Appends the draft's text, then deletes what it replaces. The draft file

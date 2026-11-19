@@ -9,9 +9,8 @@ use std::collections::BTreeSet;
 use envio_mime::Address;
 use envio_net::NetError;
 use envio_net::imap::{Caps, Role};
-use envio_store::Draft;
-use envio_sync::driver::{DraftRun, DraftsSynced, sync_drafts, sync_folders};
-use envio_sync::plan::drafts::GIVE_UP;
+use envio_store::{Draft, RefusalKind};
+use envio_sync::driver::{DraftRun, DraftsSynced, sync_drafts, sync_drafts_into, sync_folders};
 use support::fake::{FakeServer, NOW_MS};
 use support::local::{ACCOUNT, Store};
 
@@ -42,20 +41,29 @@ async fn run_with(
     server: &mut FakeServer,
     store: &Store,
     open: &BTreeSet<String>,
+    now_ms: i64,
 ) -> envio_sync::Result<DraftsSynced> {
     let from = Address::new(Some("Carol"), "carol@example.org");
     let run = DraftRun {
         account: ACCOUNT,
         from: &from,
         open,
-        now_ms: NOW_MS,
+        now_ms,
     };
     sync_drafts(server, &store.db, &store.drafts, &run).await
 }
 
 async fn run(server: &mut FakeServer, store: &Store) -> DraftsSynced {
-    run_with(server, store, &BTreeSet::new()).await.unwrap()
+    run_at(server, store, NOW_MS).await
 }
+
+async fn run_at(server: &mut FakeServer, store: &Store, now_ms: i64) -> DraftsSynced {
+    run_with(server, store, &BTreeSet::new(), now_ms)
+        .await
+        .unwrap()
+}
+
+const MIN: i64 = 60_000;
 
 /// The live messages in Drafts: body text, \Draft and \Seen set.
 fn copies(server: &FakeServer) -> Vec<(String, bool, bool)> {
@@ -133,7 +141,7 @@ async fn a_draft_in_an_open_window_waits_for_the_close() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
     let open = BTreeSet::from([id]);
-    let done = run_with(&mut server, &store, &open).await.unwrap();
+    let done = run_with(&mut server, &store, &open, NOW_MS).await.unwrap();
     assert_eq!(done, DraftsSynced::default());
     assert!(copies(&server).is_empty());
 }
@@ -153,7 +161,7 @@ async fn a_failed_upload_keeps_the_local_draft_and_the_next_run_uploads_once() {
     let id = store.drafts.create(&draft("text", 1)).unwrap();
     server.fail_on("append", NetError::Timeout);
     assert!(
-        run_with(&mut server, &store, &BTreeSet::new())
+        run_with(&mut server, &store, &BTreeSet::new(), NOW_MS)
             .await
             .is_err()
     );
@@ -180,42 +188,133 @@ async fn a_draft_the_server_answers_badly_does_not_stop_the_others() {
     assert!(bad != good);
 }
 
+fn refuse(server: &mut FakeServer, text: &str) {
+    server.fail_on("append", NetError::Refused(text.into()));
+}
+
 #[tokio::test]
-async fn a_refused_draft_is_retried_then_left_alone_until_it_changes() {
+async fn a_refused_draft_is_retried_with_growing_waits_and_a_success_clears_it() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
-    for _ in 0..GIVE_UP {
-        server.fail_on("append", NetError::Refused("NO [UNAVAILABLE]".into()));
-        let done = run(&mut server, &store).await;
-        assert_eq!(done.refused, std::slice::from_ref(&id));
+    let ids = std::slice::from_ref(&id);
+    // Each refusal doubles the wait: 5, 10, 20 minutes.
+    let mut at = NOW_MS;
+    for (failures, wait) in [(1, 5), (2, 10), (3, 20)] {
+        refuse(&mut server, "NO [OVERQUOTA]");
+        assert_eq!(run_at(&mut server, &store, at).await.refused, ids);
+        let server_copy = store.drafts.load(&id).unwrap().server;
+        assert_eq!(
+            (server_copy.failures, server_copy.failed_at_ms),
+            (failures, at)
+        );
+        assert_eq!(server_copy.refusal, Some(RefusalKind::OverQuota));
+        // Inside the wait nothing is tried, even though the server would accept.
+        let early = run_at(&mut server, &store, at + wait * MIN - 1).await;
+        assert_eq!(early, DraftsSynced::default());
+        assert!(copies(&server).is_empty());
+        at += wait * MIN;
     }
-    // Given up: no further attempt, even though the server would accept now.
-    assert_eq!(run(&mut server, &store).await, DraftsSynced::default());
-    assert!(copies(&server).is_empty());
+    // The wait is over and the server accepts: uploaded, the reason is gone.
+    let done = run_at(&mut server, &store, at).await;
+    assert_eq!(done.uploaded, ids);
+    assert!(done.reasons_changed);
+    let server_copy = store.drafts.load(&id).unwrap().server;
+    assert_eq!((server_copy.refusal, server_copy.failed_at_ms), (None, 0));
+    assert_eq!(copies(&server).len(), 1);
+}
+
+#[tokio::test]
+async fn a_new_save_ends_the_wait() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    refuse(&mut server, "NO");
+    run(&mut server, &store).await;
     store.drafts.save(&id, &draft("changed", 2)).unwrap();
-    assert_eq!(run(&mut server, &store).await.uploaded, [id]);
+    assert_eq!(
+        run_at(&mut server, &store, NOW_MS + MIN).await.uploaded,
+        [id]
+    );
 }
 
 #[tokio::test]
 async fn a_refusal_that_clears_is_uploaded_on_a_later_run() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
-    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
+    refuse(&mut server, "NO [OVERQUOTA]");
     assert_eq!(
         run(&mut server, &store).await.refused,
         std::slice::from_ref(&id)
     );
-    assert_eq!(run(&mut server, &store).await.uploaded, [id]);
+    // The retry falls after the first wait.
+    let later = run_at(&mut server, &store, NOW_MS + 5 * MIN).await;
+    assert_eq!(later.uploaded, [id]);
+}
+
+#[tokio::test]
+async fn a_refusal_and_a_bad_answer_store_their_kind_and_time() {
+    let (mut server, store) = setup(true).await;
+    let refused = store.drafts.create(&draft("refused text", 1)).unwrap();
+    refuse(&mut server, "NO [TOOBIG] message too large");
+    run(&mut server, &store).await;
+    let copy = store.drafts.load(&refused).unwrap().server;
+    assert_eq!(copy.refusal, Some(RefusalKind::TooLarge));
+    assert_eq!(copy.failed_at_ms, NOW_MS);
+
+    let (mut server, store) = setup(true).await;
+    let bad = store.drafts.create(&draft("bad text", 1)).unwrap();
+    server.fail_on("append", NetError::Protocol("BAD oversized".into()));
+    let done = run_at(&mut server, &store, NOW_MS + 7).await;
+    assert_eq!(done.failed, std::slice::from_ref(&bad));
+    let copy = store.drafts.load(&bad).unwrap().server;
+    assert_eq!(copy.refusal, Some(RefusalKind::Other));
+    assert_eq!(copy.failed_at_ms, NOW_MS + 7);
+    // A BAD retries after the wait like a refusal.
+    assert_eq!(
+        run_at(&mut server, &store, NOW_MS + 7 + 5 * MIN)
+            .await
+            .uploaded,
+        [bad]
+    );
+}
+
+#[tokio::test]
+async fn a_clock_that_stepped_back_does_not_stall_a_failed_draft() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    refuse(&mut server, "NO");
+    run(&mut server, &store).await;
+    // Now is before the failure's stamp: due at once, not after an hour.
+    refuse(&mut server, "NO");
+    let done = run_at(&mut server, &store, NOW_MS - 3_600_000).await;
+    assert_eq!(done.refused, [id]);
+}
+
+#[tokio::test]
+async fn reasons_changed_follows_the_kind_and_the_time() {
+    let (mut server, store) = setup(true).await;
+    let id = store.drafts.create(&draft("text", 1)).unwrap();
+    refuse(&mut server, "NO [OVERQUOTA]");
+    assert!(run(&mut server, &store).await.reasons_changed);
+    // The user saves again (the row says "Not uploaded"); the same refusal
+    // leaves the kind alone but the row changes back.
+    store.drafts.save(&id, &draft("changed", 2)).unwrap();
+    refuse(&mut server, "NO [OVERQUOTA]");
+    let again = run_at(&mut server, &store, NOW_MS + 1_000).await;
+    assert_eq!(again.refused.len(), 1);
+    assert!(again.reasons_changed);
+    // Inside the wait nothing changes.
+    let quiet = run_at(&mut server, &store, NOW_MS + 2_000).await;
+    assert!(!quiet.reasons_changed);
 }
 
 #[tokio::test]
 async fn a_lost_connection_is_not_counted_against_the_draft() {
     let (mut server, store) = setup(true).await;
     let id = store.drafts.create(&draft("text", 1)).unwrap();
-    for _ in 0..GIVE_UP + 1 {
+    for _ in 0..6 {
         server.fail_on("append", NetError::Timeout);
         assert!(
-            run_with(&mut server, &store, &BTreeSet::new())
+            run_with(&mut server, &store, &BTreeSet::new(), NOW_MS)
                 .await
                 .is_err()
         );
@@ -243,7 +342,7 @@ async fn a_draft_that_drops_the_connection_does_not_starve_the_others() {
     server.poison_appends_with("zzbad");
     for _ in 0..2 {
         // The run that meets the bad draft ends in an error.
-        let _ = run_with(&mut server, &store, &BTreeSet::new()).await;
+        let _ = run_with(&mut server, &store, &BTreeSet::new(), NOW_MS).await;
     }
     let found = copies(&server);
     assert_eq!(found.len(), 1, "{found:?}");
@@ -273,7 +372,7 @@ async fn a_cut_after_the_append_never_leaves_two_copies() {
     // The new copy is appended, then deleting the old one is cut.
     server.fail_on("delete", NetError::Timeout);
     assert!(
-        run_with(&mut server, &store, &BTreeSet::new())
+        run_with(&mut server, &store, &BTreeSet::new(), NOW_MS)
             .await
             .is_err()
     );
@@ -327,7 +426,7 @@ async fn a_deleted_draft_takes_its_server_copy_with_it_and_a_cut_waits() {
     store.drafts.delete(&id).unwrap();
     server.fail_on("delete", NetError::Timeout);
     assert!(
-        run_with(&mut server, &store, &BTreeSet::new())
+        run_with(&mut server, &store, &BTreeSet::new(), NOW_MS)
             .await
             .is_err()
     );
@@ -354,4 +453,27 @@ async fn a_draft_deleted_during_its_upload_leaves_no_copy_behind() {
     let done = run(&mut server, &store).await;
     assert_eq!(done.deleted, [id]);
     assert!(copies(&server).is_empty());
+}
+
+#[tokio::test]
+async fn a_refusal_stored_before_a_lost_connection_still_reports_the_change() {
+    let (mut server, store) = setup(true).await;
+    store.drafts.create(&draft("first", 1)).unwrap();
+    store.drafts.create(&draft("second", 2)).unwrap();
+    // The first upload is refused, the second drops the connection.
+    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
+    server.fail_on("append", NetError::Timeout);
+    let from = Address::new(Some("Carol"), "carol@example.org");
+    let open = BTreeSet::new();
+    let run = DraftRun {
+        account: ACCOUNT,
+        from: &from,
+        open: &open,
+        now_ms: NOW_MS,
+    };
+    let mut done = DraftsSynced::default();
+    let result = sync_drafts_into(&mut server, (&store.db, &store.drafts), &run, &mut done).await;
+    assert!(result.is_err());
+    assert_eq!(done.refused.len(), 1, "{done:?}");
+    assert!(done.reasons_changed, "the stored reason must be reported");
 }
