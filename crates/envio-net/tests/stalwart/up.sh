@@ -96,10 +96,17 @@ domain=$(curl -fsS -u "$admin" -H 'content-type: application/json' --data \
 # with "peer closed connection without sending TLS close_notify" and the
 # wizard says "Could not reach the server" (#105). The limit of 25 mails an
 # hour per recipient stays.
-ip_throttle=$(curl -fsS -u "$admin" -H 'content-type: application/json' --data \
+throttles=$(curl -fsS -u "$admin" -H 'content-type: application/json' --data \
   '{'"$using"',"methodCalls":[["x:MtaInboundThrottle/get",{"accountId":"d333333"},"t"]]}' \
-  "$api" | grep -o '"description":"Sender IP throttle"[^]]*' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
-[ -n "$ip_throttle" ] || { log "no Sender IP throttle to relax"; exit 1; }
+  "$api")
+# One list object a line, so the id is the one of the object that carries the
+# description, whatever the order of its fields; two ids or none is no match.
+# `|| true`: a miss ends at the message below, not silently in pipefail.
+ip_throttle=$(sed 's/},{/}\n{/g' <<<"$throttles" | grep '"description":"Sender IP throttle"' \
+  | grep -o '"id":"[^"]*"' | cut -d'"' -f4 || true)
+case "$ip_throttle" in
+  "" | *[!a-z0-9]*) log "no single Sender IP throttle to relax in: $throttles"; exit 1 ;;
+esac
 user() {
   printf '"%s":{"@type":"User","name":"%s","domainId":"%s","credentials":{"0":{"@type":"Password","secret":"%s"}}}' \
     "$1" "$1" "$domain" "$2"
