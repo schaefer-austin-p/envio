@@ -36,6 +36,9 @@ pub struct Script {
     pub xoauth2_accepts: &'static str,
     /// A refused XOAUTH2 first sends `334 <base64 json>`, then `535 5.7.3`.
     pub xoauth2_challenge: bool,
+    /// The reply after the client's answer to the 334 challenge (whole
+    /// line, no CRLF); `None` is the usual `535 5.7.3`.
+    pub xoauth2_final: Option<&'static str>,
 }
 
 impl Default for Script {
@@ -53,6 +56,7 @@ impl Default for Script {
             data_go: "354 go",
             xoauth2_accepts: "",
             xoauth2_challenge: false,
+            xoauth2_final: None,
         }
     }
 }
@@ -165,7 +169,11 @@ async fn xoauth2_reply<S: AsyncRead + AsyncWrite + Unpin>(
             .ok()?;
         line(io, true, log).await?;
     }
-    Some("535 5.7.3 Authentication unsuccessful\r\n".to_owned())
+    let last = script
+        .xoauth2_final
+        .filter(|_| script.xoauth2_challenge)
+        .unwrap_or("535 5.7.3 Authentication unsuccessful");
+    Some(format!("{last}\r\n"))
 }
 
 async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
