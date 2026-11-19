@@ -314,7 +314,18 @@ impl Worker<'_> {
             })?;
         if let Err(error) = self.store.tokens.borrow_mut().set(&key, refresh) {
             log::error!("saving the sign-in: {error}");
-            if let Err(error) = self.store.accounts.remove(&key) {
+            // If the removal fails too, the entry stays without a token; a
+            // retry for the same address replaces it (`drop_stranded`) and
+            // a restart lists it as "Sign in again".
+            #[cfg(feature = "test-hooks")]
+            let removed = if crate::hooks::take_account_removal_failure(&email) {
+                Err(envio_store::StoreError::NotFound)
+            } else {
+                self.store.accounts.remove(&key)
+            };
+            #[cfg(not(feature = "test-hooks"))]
+            let removed = self.store.accounts.remove(&key);
+            if let Err(error) = removed {
                 log::error!("taking the account back out: {error}");
             }
             return Err(text::setup::not_saved());

@@ -100,7 +100,7 @@ impl Flow {
 
     fn redirect(&self, query: &str) {
         self.h.send(Command::OAuthRedirect {
-            url: format!("envio-oauth://callback?{query}"),
+            url: secrecy::SecretString::from(format!("envio-oauth://callback?{query}")),
         });
     }
 
@@ -636,7 +636,10 @@ fn signing_in_again_resumes_the_account_and_the_outbox_drains() {
         _ => None,
     });
     r.h.send(Command::OAuthRedirect {
-        url: format!("envio-oauth://callback?code=c&state={}", state_of(&url)),
+        url: secrecy::SecretString::from(format!(
+            "envio-oauth://callback?code=c&state={}",
+            state_of(&url)
+        )),
     });
     let outcome = r.h.wait(|e| match e {
         Event::OAuthDone { outcome, .. } => Some(*outcome),
@@ -675,4 +678,147 @@ fn removing_the_account_deletes_its_token() {
     });
     f.wait(|e| matches!(e, Event::AccountRemoved { .. }).then_some(()));
     assert_eq!(refresh_of(&f.h, &key), None);
+}
+
+// ---- Review 1218 ----
+
+#[test]
+fn the_redirect_command_does_not_print_its_code() {
+    let command = Command::OAuthRedirect {
+        url: secrecy::SecretString::from("envio-oauth://callback?code=code-dbg&state=s".to_owned()),
+    };
+    let shown = format!("{command:?}");
+    assert!(!shown.contains("code-dbg"), "{shown}");
+    assert!(!shown.contains("callback"), "{shown}");
+}
+
+#[test]
+fn an_account_that_could_not_be_taken_back_out_does_not_block_a_retry() {
+    const WHO: &str = "stranded@outlook.com";
+    let mut f = flow(&["at-1"], Duration::ZERO, plain(WHO));
+    let _ = outbox_rows(&f.h);
+    // The token cannot be written and the cleanup fails as well.
+    let blocker = f.h.data_dir().join("oauth.json");
+    std::fs::create_dir_all(&blocker).unwrap();
+    envio_core::hooks::fail_next_account_removal(WHO);
+    let state = f.begin(WHO);
+    f.redirect(&format!("code=c&state={state}"));
+    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::Other));
+    assert_eq!(f.saved().len(), 1, "the entry is on disk without a token");
+    assert_eq!(f.count("AccountAdded"), 0);
+    // The disk is fine again: the same address can sign in, with no
+    // "already added" and no second entry.
+    std::fs::remove_dir_all(&blocker).unwrap();
+    let state = f.begin(WHO);
+    f.redirect(&format!("code=c&state={state}"));
+    let key = f.account_added();
+    assert_eq!(f.outcome(), OAuthOutcome::Added);
+    let accounts = f.saved();
+    assert_eq!(accounts.len(), 1, "{accounts:?}");
+    assert_eq!(accounts[0].key, key);
+    assert_eq!(refresh_of(&f.h, &key).as_deref(), Some("rt-new"));
+}
+
+#[test]
+fn the_sign_in_times_out_while_the_code_is_being_traded() {
+    const WHO: &str = "slow-trade@outlook.com";
+    set_oauth_timeout(WHO, 300);
+    let mut f = flow(&["at-1"], Duration::from_millis(900), plain(WHO));
+    let state = f.begin(WHO);
+    f.redirect(&format!("code=c&state={state}"));
+    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::Timeout));
+    // The trade finishes afterwards; its answer is dropped.
+    std::thread::sleep(Duration::from_millis(1200));
+    f.drain();
+    assert_eq!(f.count("AccountAdded"), 0);
+    assert!(f.saved().is_empty());
+    assert_eq!(f.count("OAuthDone"), 1);
+}
+
+#[test]
+fn the_sign_in_times_out_while_the_question_is_open() {
+    const WHO: &str = "slow-answer@outlook.com";
+    set_oauth_timeout(WHO, 600);
+    let mut f = flow(&["at-1"], Duration::ZERO, |_, _| {
+        tokens_reply_for("at-1", "rt-new", Some("someone@outlook.example"), None)
+    });
+    let state = f.begin(WHO);
+    f.redirect(&format!("code=c&state={state}"));
+    f.wait(|e| matches!(e, Event::OAuthConfirm { .. }).then_some(()));
+    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::Timeout));
+    // A late "yes" has nothing to accept, and nothing was stored.
+    f.h.send(Command::ConfirmOAuth { accept: true });
+    assert!(f.notice().contains("no sign-in waiting"));
+    f.drain();
+    assert!(f.saved().is_empty());
+    assert!(!f.h.data_dir().join("oauth.json").exists());
+}
+
+#[test]
+fn a_token_write_failure_on_sign_in_again_keeps_the_account_paused() {
+    let mut r = rig(&["at-2"], Duration::ZERO, |_, form| {
+        if form.contains("grant_type=authorization_code") {
+            tokens_reply_for("at-2", "rt-3", Some(ME), None)
+        } else if refresh_token_of(form).as_deref() == Some("rt-1") {
+            support::bearer::revoked_reply()
+        } else {
+            tokens_reply("at-2", "rt-3")
+        }
+    });
+    queue(&r.h, &r.key);
+    r.start();
+    r.h.wait(|e| status_of(e, &r.key).filter(|(s, _)| *s == AccountStatus::SignInFailed));
+    // The token file cannot be replaced: a directory sits where it is.
+    let file = r.h.data_dir().join("oauth.json");
+    std::fs::remove_file(&file).unwrap();
+    std::fs::create_dir_all(&file).unwrap();
+    let (outcome, mut events) = sign_in_again(&r);
+    assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::Other));
+    settle();
+    events.extend(r.h.events.try_iter());
+    assert!(
+        events.iter().any(|e| matches!(e, Event::Notice { .. })),
+        "{events:?}"
+    );
+    assert!(
+        events
+            .iter()
+            .filter_map(|e| status_of(e, &r.key))
+            .all(|(s, _)| s == AccountStatus::SignInFailed),
+        "the account was resumed: {events:?}"
+    );
+    assert_eq!(*r.peers.sent.lock().unwrap(), 0);
+    // Once the file can be written again, signing in again works.
+    std::fs::remove_dir_all(&file).unwrap();
+    assert_eq!(sign_in_again(&r).0, OAuthOutcome::Resumed);
+    wait_until("the held message went out", || {
+        *r.peers.sent.lock().unwrap() == 1
+    });
+}
+
+/// Signs in again and returns the outcome with the events seen on the way.
+fn sign_in_again(r: &Rig) -> (OAuthOutcome, Vec<Event>) {
+    r.h.send(Command::StartOAuth {
+        email: String::new(),
+        account: Some(r.key.clone()),
+    });
+    let url = r.h.wait(|e| match e {
+        Event::OAuthBrowser { url, .. } => Some(url.clone()),
+        _ => None,
+    });
+    r.h.send(Command::OAuthRedirect {
+        url: secrecy::SecretString::from(format!(
+            "envio-oauth://callback?code=c&state={}",
+            state_of(&url)
+        )),
+    });
+    let seen = std::cell::RefCell::new(Vec::new());
+    let outcome = r.h.wait(|e| {
+        seen.borrow_mut().push(e.clone());
+        match e {
+            Event::OAuthDone { outcome, .. } => Some(*outcome),
+            _ => None,
+        }
+    });
+    (outcome, seen.into_inner())
 }

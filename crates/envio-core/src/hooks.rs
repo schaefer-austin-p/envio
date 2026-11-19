@@ -133,6 +133,24 @@ pub(crate) fn oauth_timeout(email: &str) -> Option<i64> {
         .and_then(|t| t.iter().find(|(e, _)| e == email).map(|(_, ms)| *ms))
 }
 
+static ACCOUNT_REMOVALS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// The next removal of an unfinished OAuth account for `email` fails, as if
+/// the data directory could not be written.
+pub fn fail_next_account_removal(email: &str) {
+    if let Ok(mut fails) = ACCOUNT_REMOVALS.lock() {
+        fails.push(email.to_owned());
+    }
+}
+
+pub(crate) fn take_account_removal_failure(email: &str) -> bool {
+    ACCOUNT_REMOVALS.lock().is_ok_and(|mut fails| {
+        let before = fails.len();
+        fails.retain(|e| e != email);
+        fails.len() != before
+    })
+}
+
 static JOURNAL_FAILS: Mutex<Vec<std::path::PathBuf>> = Mutex::new(Vec::new());
 
 /// The next journal write of the store whose journal is at `journal` fails

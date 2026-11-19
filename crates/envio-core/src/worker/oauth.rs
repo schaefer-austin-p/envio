@@ -145,11 +145,7 @@ impl Worker<'_> {
                 let Some(kind) = provider_kind_for(&email) else {
                     return self.notice(text::oauth::no_provider());
                 };
-                let taken =
-                    self.store.accounts.list().iter().any(|a| {
-                        a.broken.is_none() && a.settings.email.eq_ignore_ascii_case(&email)
-                    });
-                if taken {
+                if self.email_taken(&email) {
                     return self.notice(text::setup::duplicate());
                 }
                 (email, kind)
@@ -304,18 +300,52 @@ impl Worker<'_> {
         self.finish_oauth(outcome);
     }
 
-    fn add_oauth_account(&mut self, email: &str, refresh: SecretString) -> OAuthOutcome {
-        let Some(provider) = self.oauth.as_ref().map(|a| a.provider.clone()) else {
-            return OAuthOutcome::Failed(OAuthFailure::Other);
-        };
-        let taken = self
+    /// A token account this session saved but could not finish: its token
+    /// was not written and taking it back out failed too. It is not live, so
+    /// it is not a real account yet; after a restart it shows as "Sign in
+    /// again".
+    fn stranded(&self, account: &envio_store::Account) -> bool {
+        account.settings.is_oauth()
+            && !self.live.contains_key(&account.key)
+            && self.store.tokens.borrow().get(&account.key).is_none()
+    }
+
+    fn email_taken(&self, email: &str) -> bool {
+        self.store.accounts.list().iter().any(|a| {
+            a.broken.is_none() && a.settings.email.eq_ignore_ascii_case(email) && !self.stranded(a)
+        })
+    }
+
+    /// Removes the stranded entries for `email`, so a retry does not leave
+    /// two. `false` if one could not be removed.
+    fn drop_stranded(&mut self, email: &str) -> bool {
+        let keys: Vec<String> = self
             .store
             .accounts
             .list()
             .iter()
-            .any(|a| a.broken.is_none() && a.settings.email.eq_ignore_ascii_case(email));
-        if taken {
+            .filter(|a| a.settings.email.eq_ignore_ascii_case(email) && self.stranded(a))
+            .map(|a| a.key.clone())
+            .collect();
+        keys.iter().all(|key| {
+            self.store
+                .accounts
+                .remove(key)
+                .map_err(|error| log::error!("removing an unfinished account: {error}"))
+                .is_ok()
+        })
+    }
+
+    fn add_oauth_account(&mut self, email: &str, refresh: SecretString) -> OAuthOutcome {
+        let Some(provider) = self.oauth.as_ref().map(|a| a.provider.clone()) else {
+            return OAuthOutcome::Failed(OAuthFailure::Other);
+        };
+        if self.email_taken(email) {
             self.notice(text::setup::duplicate());
+            return OAuthOutcome::Failed(OAuthFailure::Other);
+        }
+        if !self.drop_stranded(email) {
+            self.notice(text::setup::not_saved());
             return OAuthOutcome::Failed(OAuthFailure::Other);
         }
         let addr = |e: &envio_net::Endpoint| {

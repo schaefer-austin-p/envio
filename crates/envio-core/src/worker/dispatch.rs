@@ -34,7 +34,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             Flow::Continue
         }
         Command::OAuthRedirect { url } => {
-            worker.oauth_redirect(&url);
+            worker.oauth_redirect(secrecy::ExposeSecret::expose_secret(&url));
             Flow::Continue
         }
         Command::ConfirmOAuth { accept } => {

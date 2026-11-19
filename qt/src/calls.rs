@@ -71,7 +71,9 @@ impl qobject::EnvioCore {
 
     /// The link the browser handed back; it is not logged.
     pub fn oauth_redirect(self: Pin<&mut Self>, url: &QString) {
-        self.send_command(Command::OAuthRedirect { url: s(url) });
+        self.send_command(Command::OAuthRedirect {
+            url: SecretString::from(s(url)),
+        });
     }
 
     pub fn confirm_oauth(self: Pin<&mut Self>, accept: bool) {
