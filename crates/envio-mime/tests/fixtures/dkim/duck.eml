@@ -1,0 +1,19 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=evil.duckdns.org;
+ i=@evil.duckdns.org; q=dns/txt; s=test; t=1795101874; h=from : to :
+ subject : date : message-id : content-type;
+ bh=UU85U+2y98k1mC8bEAfI4q2Z7Zu/RdUAQkwysGedf3o=;
+ b=HHoBuAlu9bFZ3Z74DIJBzki9vARpOZ6CoGFq5l3jOZPjKk5Elox4kFFxOR105jmSOgnRX
+ oMSNh4wdCceRg7v/44jF0eogRXpqDVhT6KAXC8r4hDMamHLOvOy/8Y0yghU1F046Z+Wex0P
+ 4S/3K5EqBVhvxO7jRB0m5oeKpYfb+aeYmzb3h+a9reV8B+vwX5hW9HMasCdakgkC8tLdJFu
+ 9TqY6UJsRmjCHQNPmqxPcH/s1NZkouZYORNPsSSgGuzkUpjESHbdkI8xZxMsNlCbLop3iKI
+ iM8F/eweTN2jv1duImWDTVcPf+4pbnAYybTBFfAsVcKiCd2S1cCwl6OfZbRQ==
+From: Bob <bob@victim.duckdns.org>
+To: Alice <alice@example.org>
+Subject: Hello
+Date: Thu, 19 Nov 2026 10:00:00 +0000
+Message-ID: <fixture@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hello there.
+Second line.
