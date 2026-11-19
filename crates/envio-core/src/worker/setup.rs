@@ -122,9 +122,25 @@ fn refusal_text(refusal: &Refusal) -> String {
     }
 }
 
+/// The account as the app first hears of it.
+fn new_info(key: String, name: String, email: String) -> AccountInfo {
+    AccountInfo {
+        key,
+        name,
+        label: String::new(),
+        email,
+        status: AccountStatus::Ready,
+        unread: 0,
+        broken: false,
+    }
+}
+
 impl Worker<'_> {
     /// Has the setup thread look the servers up (only the domain goes out).
     pub(crate) fn detect(&mut self, email: String) {
+        if self.detect_with_provider(&email) {
+            return;
+        }
         let ticket = next_ticket();
         self.detecting.insert(email.clone(), ticket);
         self.setup.send(SetupJob::Detect { email, ticket });
@@ -136,6 +152,7 @@ impl Worker<'_> {
         match done {
             SetupDone::Detected(done) => self.detected(*done),
             SetupDone::Probed(done) => self.probed(*done),
+            SetupDone::Exchanged(done) => self.oauth_exchanged(*done),
         }
     }
 
@@ -171,6 +188,7 @@ impl Worker<'_> {
                     setup,
                     text,
                     servers,
+                    oauth: None,
                 });
             }
             Err(_) => self.emit(Event::SetupProblem {
@@ -274,15 +292,45 @@ impl Worker<'_> {
             }
             return Err(text::setup::not_saved());
         }
-        Ok(AccountInfo {
-            key,
-            name,
-            label: String::new(),
-            email,
-            status: AccountStatus::Ready,
-            unread: 0,
-            broken: false,
-        })
+        Ok(new_info(key, name, email))
+    }
+
+    /// An OAuth account: settings first (that makes the key), then its refresh
+    /// token. If the token cannot be written the account is taken back out, so
+    /// nothing is left that could never sign in. `passwords.json` is not touched.
+    pub(super) fn save_oauth_account(
+        &mut self,
+        settings: AccountSettings,
+        refresh: SecretString,
+    ) -> Result<AccountInfo, String> {
+        let (name, email) = (settings.name.clone(), settings.email.clone());
+        let key = self
+            .store
+            .accounts
+            .add(settings, now_ms())
+            .map_err(|error| {
+                log::error!("saving the account: {error}");
+                text::setup::not_saved()
+            })?;
+        if let Err(error) = self.store.tokens.borrow_mut().set(&key, refresh) {
+            log::error!("saving the sign-in: {error}");
+            // If the removal fails too, the entry stays without a token; a
+            // retry for the same address replaces it (`drop_stranded`) and
+            // a restart lists it as "Sign in again".
+            #[cfg(feature = "test-hooks")]
+            let removed = if crate::hooks::take_account_removal_failure(&email) {
+                Err(envio_store::StoreError::NotFound)
+            } else {
+                self.store.accounts.remove(&key)
+            };
+            #[cfg(not(feature = "test-hooks"))]
+            let removed = self.store.accounts.remove(&key);
+            if let Err(error) = removed {
+                log::error!("taking the account back out: {error}");
+            }
+            return Err(text::setup::not_saved());
+        }
+        Ok(new_info(key, name, email))
     }
 }
 

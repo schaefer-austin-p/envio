@@ -29,6 +29,22 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.connect(*request);
             Flow::Continue
         }
+        Command::StartOAuth { email, account } => {
+            worker.start_oauth(&email, account);
+            Flow::Continue
+        }
+        Command::OAuthRedirect { url } => {
+            worker.oauth_redirect(secrecy::ExposeSecret::expose_secret(&url));
+            Flow::Continue
+        }
+        Command::ConfirmOAuth { accept } => {
+            worker.confirm_oauth(accept);
+            Flow::Continue
+        }
+        Command::CancelOAuth => {
+            worker.cancel_oauth();
+            Flow::Continue
+        }
         Command::UpdatePassword { account, password } => {
             worker.update_password(&account, password);
             Flow::Continue

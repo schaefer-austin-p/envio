@@ -16,7 +16,7 @@ use crate::outbox::{self, Decided};
 use crate::text;
 
 impl Worker<'_> {
-    fn notice(&self, text: String) {
+    pub(super) fn notice(&self, text: String) {
         self.emit(Event::Notice { text });
     }
 

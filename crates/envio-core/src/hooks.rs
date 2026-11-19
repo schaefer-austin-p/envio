@@ -116,6 +116,41 @@ pub fn setup_runs(email: &str) -> usize {
     })
 }
 
+static OAUTH_TIMEOUTS: Mutex<Vec<(String, i64)>> = Mutex::new(Vec::new());
+
+/// From now on, a sign-in for `email` times out after `ms` instead of 5 minutes.
+pub fn set_oauth_timeout(email: &str, ms: i64) {
+    if let Ok(mut timeouts) = OAUTH_TIMEOUTS.lock() {
+        timeouts.retain(|(e, _)| e != email);
+        timeouts.push((email.to_owned(), ms));
+    }
+}
+
+pub(crate) fn oauth_timeout(email: &str) -> Option<i64> {
+    OAUTH_TIMEOUTS
+        .lock()
+        .ok()
+        .and_then(|t| t.iter().find(|(e, _)| e == email).map(|(_, ms)| *ms))
+}
+
+static ACCOUNT_REMOVALS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// The next removal of an unfinished OAuth account for `email` fails, as if
+/// the data directory could not be written.
+pub fn fail_next_account_removal(email: &str) {
+    if let Ok(mut fails) = ACCOUNT_REMOVALS.lock() {
+        fails.push(email.to_owned());
+    }
+}
+
+pub(crate) fn take_account_removal_failure(email: &str) -> bool {
+    ACCOUNT_REMOVALS.lock().is_ok_and(|mut fails| {
+        let before = fails.len();
+        fails.retain(|e| e != email);
+        fails.len() != before
+    })
+}
+
 static JOURNAL_FAILS: Mutex<Vec<std::path::PathBuf>> = Mutex::new(Vec::new());
 
 /// The next journal write of the store whose journal is at `journal` fails
