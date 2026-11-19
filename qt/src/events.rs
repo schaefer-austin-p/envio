@@ -189,9 +189,10 @@ impl qobject::EnvioCore {
                 compose,
                 draft,
                 quoted,
+                note,
             } => {
                 let map = map_of(&json::draft_value(&draft));
-                self.compose_ready(compose_num(compose), &map, &q(&quoted));
+                self.compose_ready(compose_num(compose), &map, &q(&quoted), &q(&note));
             }
             Signal::DraftSaved { compose } => self.draft_saved(compose_num(compose)),
             Signal::ComposeRefused { compose, text } => {

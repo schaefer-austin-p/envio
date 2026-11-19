@@ -501,6 +501,18 @@ Item {
             b.shell.destroy()
         }
 
+        function test_retapping_the_shown_folder_keeps_open() {
+            const b = bootWide(100)
+            b.shell.currentPage.showFolder(3, "Archive")
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            b.shell.currentPage.showFolder(3, "Archive")
+            compare(b.core.called("openList").length, 2)
+            compare(b.core.openMessage, 7)
+            verify(find(b.shell, "readerPage") !== null, "the reader closed")
+            b.shell.destroy()
+        }
+
         function test_pane_shows_compose_while_paneCompose_set() {
             const b = bootWide(100)
             b.shell.currentPage.messageRequested(7)

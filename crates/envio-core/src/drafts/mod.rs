@@ -3,6 +3,7 @@
 //! a worker panic.
 
 mod book;
+pub(crate) mod import;
 mod keeper;
 pub(crate) mod lookup;
 

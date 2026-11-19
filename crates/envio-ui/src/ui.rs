@@ -22,7 +22,7 @@ use crate::mirror::Mirror;
 use crate::models::{Model, ModelChange, Op};
 use crate::rows::AccountRow;
 use crate::signals::{OlderRow, Signal};
-use messages::Current;
+use messages::{Current, First};
 use search::SearchState;
 
 /// What `Ui::apply` hands the glue, in order.
@@ -222,10 +222,23 @@ impl Ui {
         outs
     }
 
-    /// Show a list: its first page replaces what is shown when it arrives.
-    /// The outputs clear the selection marks of the rows being left.
+    /// Show a list: its first page replaces what is shown when it arrives (for
+    /// the list already shown it is merged in, like a refresh).
+    /// The outputs clear the selection marks of the rows being left, and the
+    /// open message unless the same list is shown again.
     pub fn open_list(&mut self, list: ListRef) -> (Command, Vec<Output>) {
         let mut outs = self.clear_marks();
+        // Re-selecting the list that is already shown keeps the rows and the
+        // open message; the first page is read again as a refresh (when one
+        // is already on its way, its answer does the same).
+        if let Some(cur) = self.current.as_mut().filter(|c| c.list == list) {
+            if cur.first == First::Idle {
+                cur.first = First::Refresh;
+            }
+            // The older row and a Load older batch in flight stay as they are.
+            self.mirror.track(&outs);
+            return (Command::ListMessages { list, after: None }, outs);
+        }
         outs.extend(self.clear_open());
         outs.extend(self.older_reset());
         self.mirror.track(&outs);
