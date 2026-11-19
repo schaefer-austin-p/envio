@@ -65,6 +65,14 @@ impl Ui {
         Some((Command::Act { ids, action }, outs))
     }
 
+    /// The selection holds a pseudo-row (a local draft with no server
+    /// copy): it offers only Delete.
+    pub fn selection_has_local(&self) -> bool {
+        self.current
+            .as_ref()
+            .is_some_and(|c| c.shown.has_local(&self.selection))
+    }
+
     pub(super) fn shows(&self, id: i64) -> bool {
         self.found.contains(id) || self.current.as_ref().is_some_and(|c| c.shown.contains(id))
     }
