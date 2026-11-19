@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use futures::future::BoxFuture;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{ResolveHosts, ResolverOpts};
+use hickory_resolver::lookup::Lookup;
 use hickory_resolver::net::{DnsError, NetError, NoRecords};
 use hickory_resolver::proto::op::ResponseCode;
 use hickory_resolver::proto::rr::{Name, RData, Record};
@@ -88,6 +89,8 @@ pub struct SystemTxt {
 struct Pool<R> {
     build: Box<dyn Fn() -> Option<R> + Send + Sync>,
     clock: Box<dyn Fn() -> Instant + Send + Sync>,
+    /// How long one query may take in all.
+    limit: Duration,
     slot: Mutex<Slot<R>>,
 }
 
@@ -113,10 +116,12 @@ impl<R: Clone> Pool<R> {
     fn new(
         build: impl Fn() -> Option<R> + Send + Sync + 'static,
         clock: impl Fn() -> Instant + Send + Sync + 'static,
+        limit: Duration,
     ) -> Self {
         Self {
             build: Box::new(build),
             clock: Box::new(clock),
+            limit,
             slot: Mutex::new(Slot {
                 resolver: None,
                 built_at: None,
@@ -148,16 +153,21 @@ impl<R: Clone> Pool<R> {
     }
 
     /// One TXT lookup: the current resolver (none is `Unavailable`), the
-    /// query, and a mark for a rebuild when the answer is `Unavailable`.
+    /// query under the time limit (running out of time is `Unavailable`),
+    /// and a mark for a rebuild when the answer is `Unavailable`.
     async fn lookup<F, Fut>(&self, name: &str, query: F) -> TxtAnswer
     where
         F: FnOnce(R, Name) -> Fut,
-        Fut: Future<Output = Option<Result<Vec<Record>, NetError>>>,
+        Fut: Future<Output = Result<Vec<Record>, NetError>>,
     {
         let Some(resolver) = self.current() else {
             return TxtAnswer::Unavailable;
         };
-        let answer = txt_with(name, |name| query(resolver, name)).await;
+        let limit = self.limit;
+        let answer = txt_with(name, |name| async move {
+            tokio::time::timeout(limit, query(resolver, name)).await.ok()
+        })
+        .await;
         if answer == TxtAnswer::Unavailable {
             self.mark_failed();
         }
@@ -168,7 +178,7 @@ impl<R: Clone> Pool<R> {
 impl SystemTxt {
     pub fn new() -> Self {
         Self {
-            pool: Pool::new(resolver, Instant::now),
+            pool: Pool::new(resolver, Instant::now, TXT_TIMEOUT),
         }
     }
 }
@@ -182,12 +192,14 @@ impl Default for SystemTxt {
 impl TxtLookup for SystemTxt {
     fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
         Box::pin(self.pool.lookup(name, |resolver, query| async move {
-            tokio::time::timeout(TXT_TIMEOUT, resolver.txt_lookup(query))
-                .await
-                .ok()
-                .map(|result| result.map(|lookup| lookup.answers().to_vec()))
+            resolver.txt_lookup(query).await.map(|lookup| records_of(&lookup))
         }))
     }
+}
+
+/// The records of a lookup's answer section, CNAMEs of the chain included.
+fn records_of(lookup: &Lookup) -> Vec<Record> {
+    lookup.answers().to_vec()
 }
 
 /// The lookup around a query function: `query` gets the fully qualified
@@ -597,6 +609,9 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    /// The time limit of the pool under test: real time, kept short.
+    const RIG_LIMIT: Duration = Duration::from_millis(30);
+
     struct Rig {
         pool: Pool<usize>,
         builds: Arc<AtomicUsize>,
@@ -616,6 +631,7 @@ mod tests {
                     builds_ok.then_some(n)
                 },
                 move || *c.lock().unwrap(),
+                RIG_LIMIT,
             );
             Self {
                 pool,
@@ -640,7 +656,11 @@ mod tests {
             self.pool
                 .lookup("a.example.com", |resolver, _| async move {
                     queries.lock().unwrap().push(resolver);
-                    result
+                    match result {
+                        Some(result) => result,
+                        // A query that never completes.
+                        None => std::future::pending().await,
+                    }
                 })
                 .await
         }
@@ -731,5 +751,39 @@ mod tests {
         rig.advance(MIN_REBUILD_GAP);
         assert!(matches!(rig.ok().await, TxtAnswer::Records { .. }));
         assert_eq!(rig.builds(), 2);
+    }
+
+    #[tokio::test]
+    async fn a_query_that_never_completes_is_unavailable_after_the_limit() {
+        let rig = Rig::new(true);
+        let started = Instant::now();
+        let answer = tokio::time::timeout(Duration::from_secs(5), rig.timeout())
+            .await
+            .expect("the query limit did not apply");
+        assert_eq!(answer, TxtAnswer::Unavailable);
+        assert!(started.elapsed() >= RIG_LIMIT, "gave up early");
+        // And it does not wait much longer than that.
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn the_system_lookup_is_wired_with_the_10_s_limit_and_the_real_clock() {
+        assert_eq!(TXT_TIMEOUT, Duration::from_secs(10));
+        let txt = SystemTxt::new();
+        assert_eq!(txt.pool.limit, TXT_TIMEOUT);
+        let before = Instant::now();
+        let clock = (txt.pool.clock)();
+        let skew = clock
+            .saturating_duration_since(before)
+            .max(before.saturating_duration_since(clock));
+        assert!(skew < Duration::from_secs(1), "clock is off by {skew:?}");
+    }
+
+    #[test]
+    fn the_answer_section_of_a_lookup_is_passed_through() {
+        let records = vec![cname_record(), txt_record("v=DKIM1; p=AB", 120)];
+        let query = Query::query(Name::from_ascii("sel.example.com.").unwrap(), RecordType::TXT);
+        let lookup = Lookup::new_with_max_ttl(query, records.clone());
+        assert_eq!(records_of(&lookup), records);
     }
 }
