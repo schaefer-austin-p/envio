@@ -3,7 +3,7 @@
 
 use std::fs;
 
-use envio_store::{Draft, Drafts, ServerCopy};
+use envio_store::{Draft, Drafts, RefusalKind, ServerCopy};
 
 fn draft(subject: &str, updated_at_ms: i64) -> Draft {
     Draft {
@@ -170,4 +170,113 @@ fn forgetting_rechecks_the_message_id_and_that_nothing_was_saved_since() {
     drafts.save(&id, &draft("Two", 2)).unwrap();
     assert!(!drafts.forget_if_uploaded(&id, "<a@x>").unwrap());
     assert_eq!(drafts.load(&id).unwrap().subject, "Two");
+}
+
+#[test]
+fn a_draft_file_from_before_refusals_loads_with_no_reason() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("Old", 1)).unwrap();
+    let old = r#"{"account":"1700","to":[],"subject":"Old","body":"x","updated_at_ms":1,
+        "server":{"failed_ms":1,"failures":3}}"#;
+    fs::write(dir.path().join(format!("{id}.json")), old).unwrap();
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.refusal, None);
+    assert_eq!(server.failed_at_ms, 0);
+    assert_eq!(server.failures, 3);
+}
+
+#[test]
+fn mark_failed_stores_the_kind_and_the_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 5)).unwrap();
+    assert!(
+        drafts
+            .mark_failed(&id, 5, 1, RefusalKind::OverQuota, 900)
+            .unwrap()
+    );
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.refusal, Some(RefusalKind::OverQuota));
+    assert_eq!(server.failed_at_ms, 900);
+    assert_eq!((server.failed_ms, server.failures), (5, 1));
+    // The same save fails again: the count grows, the kind is replaced.
+    drafts
+        .mark_failed(&id, 5, 1, RefusalKind::ReadOnly, 950)
+        .unwrap();
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.refusal, Some(RefusalKind::ReadOnly));
+    assert_eq!(server.failed_at_ms, 950);
+    assert_eq!(server.failures, 2);
+    // A gone draft is reported.
+    drafts.delete(&id).unwrap();
+    assert!(
+        !drafts
+            .mark_failed(&id, 5, 1, RefusalKind::Other, 1)
+            .unwrap()
+    );
+}
+
+#[test]
+fn a_new_save_resets_the_count_and_replaces_the_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 5)).unwrap();
+    drafts
+        .mark_failed(&id, 5, 1, RefusalKind::OverQuota, 900)
+        .unwrap();
+    drafts
+        .mark_failed(&id, 5, 1, RefusalKind::OverQuota, 910)
+        .unwrap();
+    drafts
+        .mark_failed(&id, 8, 1, RefusalKind::TooLarge, 1000)
+        .unwrap();
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!((server.failed_ms, server.failures), (8, 1));
+    assert_eq!(server.refusal, Some(RefusalKind::TooLarge));
+    assert_eq!(server.failed_at_ms, 1000);
+}
+
+#[test]
+fn an_upload_clears_the_reason_and_a_try_keeps_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 5)).unwrap();
+    drafts
+        .mark_failed(&id, 5, 1, RefusalKind::OverQuota, 900)
+        .unwrap();
+    drafts.mark_tried(&id, 999).unwrap();
+    drafts.mark_uploading(&id, "<p@x>").unwrap();
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.refusal, Some(RefusalKind::OverQuota));
+    assert_eq!(server.failed_at_ms, 900);
+    assert!(drafts.mark_uploaded(&id, "<a@x>", 5).unwrap());
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.refusal, None);
+    assert_eq!(server.failed_at_ms, 0);
+}
+
+#[test]
+fn clear_backoff_zeroes_the_time_of_one_account_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let mine = drafts.create(&draft("Mine", 5)).unwrap();
+    let mut other = draft("Other", 6);
+    other.account = "1800".into();
+    let theirs = drafts.create(&other).unwrap();
+    drafts
+        .mark_failed(&mine, 5, 2, RefusalKind::OverQuota, 900)
+        .unwrap();
+    drafts
+        .mark_failed(&theirs, 6, 1, RefusalKind::Other, 800)
+        .unwrap();
+    assert_eq!(drafts.clear_backoff("1700").unwrap(), 1);
+    let server = drafts.load(&mine).unwrap().server;
+    assert_eq!(server.failed_at_ms, 0);
+    assert_eq!(server.failures, 2);
+    assert_eq!(server.refusal, Some(RefusalKind::OverQuota));
+    let server = drafts.load(&theirs).unwrap().server;
+    assert_eq!(server.failed_at_ms, 800);
+    // Nothing to clear the second time.
+    assert_eq!(drafts.clear_backoff("1700").unwrap(), 0);
 }
