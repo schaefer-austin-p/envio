@@ -15,6 +15,7 @@ Item {
         theme: thm
         core: core
         outbox: core.outbox
+        accounts: core.accounts
         anchors.fill: parent
     }
     SignalSpy { id: composing; target: page; signalName: "composeOpened" }
@@ -55,6 +56,8 @@ Item {
         function init() {
             core.reset()
             core.outbox.clear()
+            core.accounts.clear()
+            core.accounts.append({ key: "ann", name: "Ann", display: "Outlook", label: "", email: "ann@outlook.example", status: "", state: "auth", oauth: true })
             composing.clear()
             backed.clear()
             checking.clear()
@@ -76,6 +79,9 @@ Item {
             core.outbox.append(plain)
             waitForRendering(page)
             compare(find("reason-h", page).text, "Waiting for sign-in. It goes out after you sign in again.")
+            // The second line names the account (two accounts may be held).
+            tryCompare(find("to-h", page), "text", "To ana@example.org · Outlook")
+            compare(find("to-p", page).text, "ana@example.org")
             verify(shown("signInAgain-h"))
             verify(!shown("checkCertificate-h"))
             verify(shown("delete-h"))

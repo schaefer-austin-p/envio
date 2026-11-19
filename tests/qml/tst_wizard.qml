@@ -672,6 +672,8 @@ Item {
             compare(card.title, "You signed in as bob@example.org")
             compare(card.text, "Use this account for ann@example.org?")
             verify(find("useAccount").visible)
+            // As drawn, the button carries the external-link icon.
+            compare(find("useAccount").iconName, "external")
             verify(!find("oauthButton").visible)
             mouseClick(find("useAccount"))
             compare(core.called("confirmOAuth").length, 1)

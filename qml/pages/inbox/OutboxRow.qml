@@ -17,6 +17,8 @@ ListRow {
     signal decided(string item, string decision)
     signal editRequested(string item)
     signal deleteRequested(string item)
+    // The account's name, for the row held for a sign-in (two accounts).
+    property string accountName: ""
     signal accountsRequested()
     signal signInAgainRequested(string account)
 
@@ -40,7 +42,8 @@ ListRow {
         Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: root.model.to
+            objectName: "to-" + root.model.id
+            text: root.model.signInAgain && root.accountName !== "" ? qsTr("To %1 · %2").arg(root.model.to).arg(root.accountName) : root.model.to
             elide: Text.ElideRight
             color: root.theme.text
             font.family: root.theme.fontUi

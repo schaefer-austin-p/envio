@@ -226,6 +226,7 @@ Item {
         width: parent.width
         theme: root.theme
         primary: true
+        iconName: "external"
         text: qsTr("Use this account")
         onClicked: root.oauthAnswered(true)
     }

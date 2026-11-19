@@ -470,6 +470,7 @@ Item {
             theme: root.theme
             core: root.core
             outbox: root.outbox
+            accounts: root.accounts
             onAccountsRequested: stack.push(accountsPage)
             onSignInAgainRequested: function(account) { stack.push(signInAgainPage, { account: account }) }
             onBackRequested: stack.pop()

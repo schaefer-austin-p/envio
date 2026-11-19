@@ -19,6 +19,29 @@ Item {
     signal signInAgainRequested(string account)
 
     property string asking: ""
+    // The accounts model (roles key, display), for the name of the account
+    // a message is held for.
+    property var accounts: null
+    property var names: ({})
+    function setName(key, name) {
+        if (names[key] === name) return
+        const copy = Object.assign({}, names)
+        copy[key] = name
+        names = copy
+    }
+    Repeater {
+        model: root.accounts
+        delegate: Item {
+            id: acc
+            required property var model
+            visible: false
+            readonly property string key: acc.model.key
+            readonly property string label: acc.model.display
+            onKeyChanged: root.setName(key, label)
+            onLabelChanged: root.setName(key, label)
+            Component.onCompleted: root.setName(key, label)
+        }
+    }
 
     TopBar {
         id: bar
@@ -38,6 +61,7 @@ Item {
         delegate: OutboxRow {
             theme: root.theme
             width: list.width
+            accountName: root.names[model.account] || ""
             onAccountsRequested: root.accountsRequested()
             onSignInAgainRequested: function(account) { root.signInAgainRequested(account) }
             onDecided: root.core.decideOutbox(item, decision)
