@@ -3,6 +3,7 @@
 //! handlers live in the submodules, one concern each.
 
 mod accounts;
+mod act;
 mod folder_counts;
 mod messages;
 mod notify;

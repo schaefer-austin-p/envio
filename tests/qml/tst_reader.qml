@@ -706,14 +706,40 @@ Item {
             compare(composing.count, 1)
         }
 
-        function test_archive_acts_on_this_message() {
+        function checkRows() {
+            mock.messages.clear()
+            mock.messages.append({ id: 2, account: "ann", selected: true })
+            mock.messages.append({ id: 3, account: "ann", selected: true })
+        }
+        function checked() {
+            const out = []
+            for (let i = 0; i < mock.messages.count; i++)
+                if (mock.messages.get(i).selected) out.push(mock.messages.get(i).id)
+            return out
+        }
+        function untouched() {
+            return mock.called("select").length === 0 && mock.called("clearSelection").length === 0
+                && mock.called("act").length === 0
+        }
+
+        function test_reader_archive_calls_act_on_with_its_message_id() {
             open(view([], 0))
             mock.reset()
             mouseClick(find("act-archive"))
-            compare(mock.calls.map(function(c) { return c.name }), ["select", "act"])
-            compare(mock.called("select")[0].args, [5, true])
-            compare(mock.called("act")[0].args, ["archive", 0])
+            compare(mock.calls.map(function(c) { return c.name }), ["actOn"])
+            compare(mock.called("actOn")[0].args, [[5], "archive", 0])
             compare(backed.count, 1)
+        }
+
+        function test_reader_action_keeps_checked_rows() {
+            open(view([], 0))
+            checkRows()
+            mock.reset()
+            mouseClick(find("act-archive"))
+            compare(mock.called("actOn")[0].args, [[5], "archive", 0])
+            verify(untouched())
+            compare(checked(), [2, 3])
+            mock.messages.clear()
         }
 
         function test_an_action_on_a_pruned_row_does_not_leave() {
@@ -730,17 +756,41 @@ Item {
             compare(find("unavailableText").text, "That message is gone.")
         }
 
-        function test_move_cancel_leaves_no_selection() {
+        function test_reader_move_passes_folder_and_keeps_checked_rows() {
             open(view([], 0))
+            checkRows()
+            mock.folders.clear()
+            mock.folders.append({ id: 8, account: "ann", name: "Trips 2026", role: "", unread: 0, depth: 0 })
             mock.reset()
             mouseClick(find("act-more"))
             tryVerify(function() { return find("readerMore").opened })
             wait(100) // the sheet lays its rows out on the next frame
             mouseClick(find("moreMove"))
             tryVerify(function() { return find("moveSheet").opened })
-            compare(mock.called("select")[0].args, [5, true])
+            wait(100)
+            mouseClick(find("folder-8"))
+            compare(mock.called("actOn")[0].args, [[5], "move", 8])
+            verify(untouched())
+            compare(checked(), [2, 3])
+            mock.messages.clear()
+            mock.folders.clear()
+        }
+
+        function test_reader_move_cancel_touches_nothing() {
+            open(view([], 0))
+            checkRows()
+            mock.reset()
+            mouseClick(find("act-more"))
+            tryVerify(function() { return find("readerMore").opened })
+            wait(100)
+            mouseClick(find("moreMove"))
+            tryVerify(function() { return find("moveSheet").opened })
             find("moveSheet").close()
-            tryVerify(function() { return mock.called("clearSelection").length === 1 })
+            wait(100)
+            verify(untouched())
+            compare(mock.called("actOn").length, 0)
+            compare(checked(), [2, 3])
+            mock.messages.clear()
         }
 
         function test_add_sender_to_contacts() {

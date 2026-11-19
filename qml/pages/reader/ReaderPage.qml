@@ -31,7 +31,6 @@ Item {
     property bool calendarPending: false
     property int undoId: -1
     property bool started: false
-    property bool moved: false
     readonly property var noView: ({ from: "", to: [], cc: [], subject: "", date: 0, account: "" })
     // The platform's way to open a link and to export a file; the tests
     // replace them (neither has a visible effect on the desktop).
@@ -99,13 +98,12 @@ Item {
     Component.onCompleted: { if (settled) everSettled = true; start() }
 
     // Archive and Delete leave the page (the inbox offers the Undo); the
-    // other actions go to the core the way the inbox's selection bar does:
-    // this message is the selection. When sync has pruned the row the
-    // action does not run: the page asks again, and the core answers with
-    // its unavailable notice if the message is gone.
+    // other actions go to the core for this message alone; the selection is
+    // not touched. When sync has pruned the row the action does not run: the
+    // page asks again, and the core answers with its unavailable notice if
+    // the message is gone.
     function act(action, leave) {
-        core.select(messageId, true)
-        if (!core.act(action, 0)) {
+        if (!core.actOn([messageId], action, 0)) {
             load(false)
             return
         }
@@ -428,8 +426,6 @@ Item {
         theme: root.theme
         onReplyAllRequested: root.compose("replyall")
         onMoveRequested: {
-            root.moved = false
-            root.core.select(root.messageId, true)
             moveSheet.openFor(root.view.account)
         }
         onFlagRequested: root.act(flagged ? "flag" : "unflag", false)
@@ -440,10 +436,9 @@ Item {
         theme: root.theme
         core: root.core
         folders: root.folders
-        // The sheet acts on the selection itself. Closed without a choice,
-        // nothing may stay selected in the inbox below.
-        onChosen: { root.moved = true; root.backRequested() }
-        onClosed: Qt.callLater(function() { if (!root.moved) root.core.clearSelection() })
+        // The sheet moves this message itself, not the selection.
+        targets: [root.messageId]
+        onChosen: root.backRequested()
     }
     LinkSheet {
         id: linkSheet
