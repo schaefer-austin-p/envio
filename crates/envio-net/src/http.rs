@@ -1,9 +1,14 @@
-//! Just enough HTTPS to fetch an autoconfig file: a GET over HTTP/1.0 with
-//! no cookies and no User-Agent. This file is the pure part: URLs, the
-//! request, how a reply is framed and read, and which redirect hosts are
-//! allowed. The network side is in `fetch`.
+//! Just enough HTTPS for the small fetches envio-net makes: a request over
+//! HTTP/1.0 with no cookies and no User-Agent, and how a reply is framed and
+//! read. This file is the pure part: URLs, the request, reply framing, and
+//! which redirect hosts autoconfig allows. The network side is in
+//! `autoconfig::fetch`.
 
+use std::io;
 use std::net::IpAddr;
+
+use tokio::io::{AsyncRead, AsyncReadExt};
+use zeroize::Zeroizing;
 
 /// Autoconfig files are a few KiB; a body over this is not one.
 pub const MAX_BODY: usize = 256 * 1024;
@@ -29,6 +34,21 @@ pub enum Reply {
     Nothing,
 }
 
+/// Letters, digits and '-' in labels separated by single dots. A label
+/// may not be empty or start or end with '-'.
+pub fn is_hostname(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 253
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+}
+
 /// `https://host[:port]/path`; anything else (http, user info) is None.
 pub fn parse_url(url: &str) -> Option<Url> {
     let rest = url.strip_prefix("https://")?;
@@ -41,7 +61,7 @@ pub fn parse_url(url: &str) -> Option<Url> {
         None => (authority, 443),
     };
     let ok_path = path.bytes().all(|b| b.is_ascii_graphic());
-    (super::plan::is_hostname(host) && ok_path).then(|| Url {
+    (is_hostname(host) && ok_path).then(|| Url {
         host: host.to_ascii_lowercase(),
         port,
         path: path.to_owned(),
@@ -166,6 +186,29 @@ pub fn reply_complete(raw: &[u8]) -> bool {
         }
 }
 
+/// Why a reply has no usable body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BadReply {
+    /// A body over `MAX_BODY`, declared or read: the server is sending
+    /// something that is not what was asked for.
+    TooBig,
+    /// Cut short, chunked, a bad length, or not HTTP: a bad connection.
+    Unreadable,
+}
+
+/// The body of a reply, framed by its Content-Length or the cap.
+fn body_of<'a>(head: &Head, raw: &'a [u8]) -> Result<&'a [u8], BadReply> {
+    let rest = &raw[head.body_start..];
+    match head.length {
+        Length::Invalid => Err(BadReply::Unreadable),
+        Length::Known(n) if n > MAX_BODY => Err(BadReply::TooBig),
+        Length::Known(n) if rest.len() < n => Err(BadReply::Unreadable),
+        Length::Known(n) => Ok(&rest[..n]),
+        Length::None if rest.len() > MAX_BODY => Err(BadReply::TooBig),
+        Length::None => Ok(rest),
+    }
+}
+
 /// The reply in `raw` (the bytes read so far, up to its end).
 pub fn parse_reply(raw: &[u8]) -> Reply {
     let Some(head) = head(raw) else {
@@ -173,19 +216,29 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
     };
     match head.status {
         200 if head.chunked => Reply::Chunked,
-        200 => {
-            let rest = &raw[head.body_start..];
-            let body = match head.length {
-                Length::Invalid => return Reply::Nothing,
-                Length::Known(n) if n > MAX_BODY || rest.len() < n => return Reply::Nothing,
-                Length::Known(n) => &rest[..n],
-                Length::None if rest.len() > MAX_BODY => return Reply::Nothing,
-                Length::None => rest,
-            };
-            String::from_utf8(body.to_vec()).map_or(Reply::Nothing, Reply::Body)
-        }
+        200 => body_of(&head, raw)
+            .ok()
+            .and_then(|body| String::from_utf8(body.to_vec()).ok())
+            .map_or(Reply::Nothing, Reply::Body),
         301 | 302 | 303 | 307 | 308 => head.location.map_or(Reply::Nothing, Reply::Redirect),
         _ => Reply::Nothing,
+    }
+}
+
+/// The status and body of a reply with any status (a token endpoint answers
+/// errors with a JSON body). The body cap is the same as `parse_reply`'s.
+/// `clean` is as for [`finish_reply`].
+pub fn parse_response(raw: &[u8], clean: bool) -> Result<(u16, Vec<u8>), BadReply> {
+    let head = head(raw).ok_or(BadReply::Unreadable)?;
+    if head.chunked || head.status == 0 {
+        return Err(BadReply::Unreadable);
+    }
+    // An over-cap body is reported even if the stream was cut: the size
+    // is what is wrong with it.
+    match body_of(&head, raw) {
+        Err(BadReply::TooBig) => Err(BadReply::TooBig),
+        _ if !(clean || reply_complete(raw)) => Err(BadReply::Unreadable),
+        body => body.map(|body| (head.status, body.to_vec())),
     }
 }
 
@@ -201,9 +254,52 @@ pub fn finish_reply(raw: &[u8], clean: bool) -> Reply {
     }
 }
 
+const CHUNK: usize = 8192;
+/// The most `read_reply` can hold: it stops once the buffer passes
+/// `MAX_HEAD + MAX_BODY`, and the last read adds at most one chunk.
+const READ_CAPACITY: usize = MAX_HEAD + MAX_BODY + CHUNK;
+
+/// Reads until the reply is complete, the peer closes, or the reply is
+/// over the cap. The flag is false when the peer dropped TCP without
+/// close_notify (rustls reports that as `UnexpectedEof`): what was read may
+/// be cut short.
+///
+/// The reply may hold tokens, so the buffer is zeroed on drop (including on
+/// an early error) and is allocated once at its largest size: growing it
+/// would free the old copy without zeroing it.
+pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
+    stream: &mut R,
+) -> io::Result<(Zeroizing<Vec<u8>>, bool)> {
+    let mut raw = Zeroizing::new(Vec::with_capacity(READ_CAPACITY));
+    let mut chunk = Zeroizing::new([0u8; CHUNK]);
+    while !reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
+        match stream.read(&mut chunk[..]).await {
+            Ok(0) => break,
+            Ok(n) => raw.extend_from_slice(&chunk[..n]),
+            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok((raw, false)),
+            Err(e) => return Err(e),
+        }
+    }
+    Ok((raw, true))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_reply_at_the_cap_never_reallocates_the_buffer() {
+        // No Content-Length and more than the cap: read until it stops.
+        let mut wire = b"HTTP/1.0 200 OK\r\n\r\n".to_vec();
+        wire.resize(MAX_HEAD + MAX_BODY + 3 * CHUNK, b'a');
+        let (raw, clean) = read_reply(&mut &wire[..]).await.unwrap();
+        assert!(clean);
+        assert!(raw.len() > MAX_BODY);
+        assert_eq!(
+            raw.capacity(),
+            Vec::<u8>::with_capacity(READ_CAPACITY).capacity()
+        );
+    }
 
     #[test]
     fn an_unclean_end_refuses_a_reply_without_a_length() {
@@ -213,6 +309,31 @@ mod tests {
         // A body whole by its Content-Length doesn't depend on the close.
         let whole = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nhi";
         assert_eq!(finish_reply(whole, false), Reply::Body("hi".into()));
+    }
+
+    #[test]
+    fn a_response_keeps_its_status_and_body() {
+        let raw = b"HTTP/1.0 400 Bad Request\r\nContent-Length: 2\r\n\r\n{}";
+        assert_eq!(parse_response(raw, false), Ok((400, b"{}".to_vec())));
+        assert_eq!(
+            parse_response(b"HTTP/1.0 503 X\r\n\r\nhi", true).unwrap().0,
+            503
+        );
+        // Cut short without a length, chunked, no status: nothing.
+        assert_eq!(
+            parse_response(b"HTTP/1.0 200 OK\r\n\r\nhi", false),
+            Err(BadReply::Unreadable)
+        );
+        assert_eq!(
+            parse_response(
+                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
+                true
+            ),
+            Err(BadReply::Unreadable)
+        );
+        assert_eq!(parse_response(b"junk", true), Err(BadReply::Unreadable));
+        let big = format!("HTTP/1.0 400 X\r\n\r\n{}", "a".repeat(MAX_BODY + 1));
+        assert_eq!(parse_response(big.as_bytes(), true), Err(BadReply::TooBig));
     }
 
     #[test]

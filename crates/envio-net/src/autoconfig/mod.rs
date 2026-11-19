@@ -4,7 +4,6 @@
 //! lookups sit behind [`Lookups`] so tests run without a network.
 
 mod fetch;
-mod http;
 pub mod plan;
 mod srv;
 pub mod xml;

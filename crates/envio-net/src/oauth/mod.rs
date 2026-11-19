@@ -3,6 +3,7 @@
 //! identity check and the provider table. No I/O here; the token client
 //! is a separate, thin layer. Nothing secret reaches `Debug`, errors or logs.
 
+mod client;
 pub mod client_ids;
 mod pkce;
 mod provider;
@@ -10,6 +11,9 @@ mod redirect;
 mod token;
 mod urlenc;
 
+#[doc(hidden)]
+pub use client::refresh_within;
+pub use client::{exchange_code, refresh};
 pub use pkce::Pkce;
 pub use provider::{Provider, ProviderKind, provider_kind_for};
 pub use redirect::{Redirect, RedirectError, authorize_url, parse_redirect};
