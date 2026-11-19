@@ -126,6 +126,7 @@ Item {
         title: root.currentName
         ListRow {
             objectName: "renameRow"
+            iconName: "pencil"
             // A broken entry is kept as read; it cannot take a label.
             visible: root.currentState !== "broken"
             theme: root.theme
@@ -148,6 +149,8 @@ Item {
         // action, in place of Update password (it has no password).
         ListRow {
             objectName: "signInAgainRow"
+            iconName: "log-in"
+            iconColor: root.theme.accent
             visible: root.currentOAuth && root.currentState === "auth"
             theme: root.theme
             width: parent.width
@@ -168,6 +171,7 @@ Item {
         }
         ListRow {
             objectName: "updatePasswordRow"
+            iconName: "key-round"
             visible: !root.currentOAuth
             theme: root.theme
             width: parent.width
@@ -187,6 +191,8 @@ Item {
         }
         ListRow {
             objectName: "removeRow"
+            iconName: "trash-2"
+            iconColor: root.theme.accent
             theme: root.theme
             width: parent.width
             separator: false

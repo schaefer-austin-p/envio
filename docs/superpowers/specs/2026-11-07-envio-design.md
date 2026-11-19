@@ -63,8 +63,8 @@ Design: `2026-11-14-envio-invites-design.md`.
 
 ### Later
 
-Microsoft OAuth (browser plus url-dispatcher; implemented behind the client
-ID, off until the owner registers the app, #219), Google OAuth (needs a
+Microsoft OAuth (browser plus url-dispatcher; implemented; the client
+ID is set, phone test pending, #219), Google OAuth (needs a
 verification audit), push relay, "Open full view" in a locked-down
 QtWebEngine, system address book, export as PDF, signatures and aliases,
 two-pane layout for tablets and desktop, OpenPGP, JMAP.

@@ -7,7 +7,11 @@ import "../platform"
 // launcher and the app switcher. Row content goes in as children. A row that
 // opens a page or a picker sets `chevron` (pointing `chevronDirection`,
 // "forward" or "down") and keeps its content clear of the trailing
-// `chevronSpace`.
+// `chevronSpace`. A row with `iconName` (see Icon.qml) shows that icon at its
+// left inset, centred on the row, and shifts its content right by the icon
+// and the gap (60 px in a sheet); the row's height still comes from the
+// content, with the 48 px minimum. `iconColor` is the text colour, or
+// secondary on a disabled row; a destructive row sets it to accent.
 AbstractButton {
     id: root
     required property Theme theme
@@ -16,10 +20,21 @@ AbstractButton {
     readonly property real chevronSpace: theme.gu(6)
     property bool selected: false
     property bool separator: true
+    property string iconName: ""
+    property real iconSize: theme.iconSize
+    property real iconGap: theme.gu(2)
+    property real iconInset: theme.gu(2.5)
+    property color iconColor: enabled ? theme.text : theme.secondary
+    // The icon item, or null for a row without one.
+    readonly property Item iconItem: iconLoader.item
     default property alias content: holder.data
 
     implicitHeight: Math.max(theme.touch, holder.childrenRect.height + theme.gu(3.5))
     implicitWidth: parent ? parent.width : theme.gu(40)
+    // Callers place content at the usual 20 px inset (x: gu(2.5)); the
+    // padding moves it to 60 px (icon at 20, 24 wide, 16 gap) minus that
+    // inset, so no caller does the sum.
+    leftPadding: iconName !== "" ? iconSize + iconGap : 0
 
     background: Rectangle {
         color: root.selected || root.down ? root.theme.selected : "transparent"
@@ -34,6 +49,19 @@ AbstractButton {
     contentItem: Item {
         id: holder
         implicitHeight: childrenRect.height
+    }
+    // Built only for a row that has an icon.
+    Loader {
+        id: iconLoader
+        active: root.iconName !== ""
+        x: root.iconInset
+        anchors.verticalCenter: parent.verticalCenter
+        sourceComponent: Icon {
+            theme: root.theme
+            name: root.iconName
+            size: root.iconSize
+            color: root.iconColor
+        }
     }
     // A sideways drag is not a tap. A horizontal-only DragHandler with no
     // target moves nothing; once the finger travels past the drag distance it

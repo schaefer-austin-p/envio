@@ -66,19 +66,34 @@ Menu {
         background: Rectangle {
             color: row.down || row.highlighted ? root.theme.selected : "transparent"
         }
-        contentItem: Text {
-            textFormat: Text.PlainText
-            text: row.text
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-            color: row.enabled ? root.theme.text : root.theme.secondary
-            font.family: root.theme.fontUi
-            font.pixelSize: 16
+        property string iconName: ""
+        readonly property color tint: row.enabled ? root.theme.text : root.theme.secondary
+        contentItem: Row {
+            spacing: root.theme.gu(1.5)
+            Icon {
+                visible: row.iconName !== ""
+                theme: root.theme
+                name: row.iconName
+                size: root.theme.iconButton
+                color: row.tint
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                textFormat: Text.PlainText
+                text: row.text
+                height: parent.height
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                color: row.tint
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+            }
         }
     }
 
     EditRow {
         objectName: "editCut"
+        iconName: "scissors"
         text: qsTr("Cut")
         visible: !root.password && !root.copyOnly
         enabled: root.hasSelection
@@ -86,6 +101,7 @@ Menu {
     }
     EditRow {
         objectName: "editCopy"
+        iconName: "copy"
         text: qsTr("Copy")
         visible: !root.password
         enabled: root.hasSelection
@@ -93,6 +109,7 @@ Menu {
     }
     EditRow {
         objectName: "editPaste"
+        iconName: "clipboard-paste"
         text: qsTr("Paste")
         visible: !root.copyOnly
         enabled: root.pasteable
@@ -100,6 +117,7 @@ Menu {
     }
     EditRow {
         objectName: "editSelectAll"
+        iconName: "text-select"
         text: qsTr("Select all")
         visible: !root.password
         enabled: root.hasText

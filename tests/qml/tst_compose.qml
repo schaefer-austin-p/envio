@@ -545,7 +545,8 @@ Item {
             waitForRendering(page)
             const row = find("account-work")
             const text = find("accountText-work")
-            compare(text.mapToItem(row, 0, 0).x, thm.gu(2.5))
+            // The row has an icon: text from 60 px (icon 24 at 20, gap 16).
+            compare(text.mapToItem(row, 0, 0).x, thm.gu(7.5))
             verify(text.mapToItem(row, 0, 0).x + text.width <= row.width - thm.gu(2.5))
             const top = text.mapToItem(row, 0, 0).y
             const bottom = row.height - top - text.height

@@ -37,7 +37,7 @@ pub struct Config {
 }
 
 /// The OAuth providers the app offers: Microsoft once its client ID is set
-/// (`client_ids::MICROSOFT`), none before. The app's `Config` takes this.
+/// (`client_ids::MICROSOFT`), none if it is empty. The app's `Config` takes this.
 pub fn default_oauth_providers() -> Vec<envio_net::oauth::Provider> {
     providers_from(envio_net::oauth::Provider::microsoft())
 }
@@ -194,8 +194,11 @@ mod provider_tests {
     use envio_net::oauth::Provider;
 
     #[test]
-    fn the_empty_client_id_offers_no_provider() {
-        assert!(default_oauth_providers().is_empty());
+    fn the_registered_client_id_offers_microsoft() {
+        let list = default_oauth_providers();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].kind, envio_net::oauth::ProviderKind::Microsoft);
+        assert!(!list[0].client_id.is_empty());
     }
 
     #[test]
