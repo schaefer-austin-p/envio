@@ -27,6 +27,9 @@ section "lint: bindle.qrc lists every bindle QML file (#229)"
 section "lint: QML formats no counts (#3)"
 "$root/tools/ci/no-qml-plurals.sh" --self-test
 
+section "lint: the app's Config uses the OAuth providers (#219)"
+"$root/tools/ci/oauth-wired.sh" --self-test
+
 section "lint: qt/ Rust"
 cargo clippy --manifest-path "$root/qt/Cargo.toml" --all-targets --locked -- -D warnings
 
