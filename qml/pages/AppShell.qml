@@ -255,7 +255,12 @@ Item {
         anchors.fill: parent
         StackView {
             id: stack
-            anchors.fill: parent
+            objectName: "stack"
+            // Beside the pane the stack is the list's 50 gu and ends at the
+            // hairline; pages above the inbox hide the pane and get it all.
+            anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
+            width: pane.visible ? root.theme.gu(50) : parent.width
+            clip: pane.visible
             readonly property int enterMs: 150
             readonly property int enterShift: 24
 
@@ -299,6 +304,14 @@ Item {
             active: root.wide
             anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
             width: parent.width - root.theme.gu(50)
+            // Opaque: the pages are transparent, so without it the list
+            // shows through.
+            Rectangle {
+                objectName: "paneBackground"
+                anchors.fill: parent
+                z: -1
+                color: root.theme.ground
+            }
             sourceComponent: root.paneCompose > 0 ? paneComposeC : root.core.openMessage > 0 ? paneReaderC : emptyC
         }
 
@@ -327,7 +340,9 @@ Item {
             core: root.core
             accounts: root.accounts
             folders: root.folders
-            messageId: root.core.openMessage
+            // openMessage is a qlonglong in the glue; a real property does
+            // not take it unconverted.
+            messageId: Number(root.core.openMessage)
             onBackRequested: root.core.setOpenMessage(0)
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }
