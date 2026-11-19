@@ -7,9 +7,9 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
-use super::http::{self, MAX_BODY, MAX_HEAD, MAX_REDIRECTS, Reply, Url};
 use crate::connect;
 use crate::error::{NetError, Result};
+use crate::http::{self, MAX_BODY, MAX_HEAD, MAX_REDIRECTS, Reply, Url};
 use crate::server::{Endpoint, Security};
 use crate::tls::{self, Roots};
 

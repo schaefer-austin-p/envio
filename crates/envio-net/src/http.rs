@@ -1,7 +1,8 @@
-//! Just enough HTTPS to fetch an autoconfig file: a GET over HTTP/1.0 with
-//! no cookies and no User-Agent. This file is the pure part: URLs, the
-//! request, how a reply is framed and read, and which redirect hosts are
-//! allowed. The network side is in `fetch`.
+//! Just enough HTTPS for the small fetches envio-net makes: a request over
+//! HTTP/1.0 with no cookies and no User-Agent, and how a reply is framed and
+//! read. This file is the pure part: URLs, the request, reply framing, and
+//! which redirect hosts autoconfig allows. The network side is in
+//! `autoconfig::fetch`.
 
 use std::net::IpAddr;
 
@@ -41,7 +42,7 @@ pub fn parse_url(url: &str) -> Option<Url> {
         None => (authority, 443),
     };
     let ok_path = path.bytes().all(|b| b.is_ascii_graphic());
-    (super::plan::is_hostname(host) && ok_path).then(|| Url {
+    (crate::autoconfig::plan::is_hostname(host) && ok_path).then(|| Url {
         host: host.to_ascii_lowercase(),
         port,
         path: path.to_owned(),

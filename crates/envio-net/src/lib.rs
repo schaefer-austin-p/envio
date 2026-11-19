@@ -6,6 +6,7 @@
 pub mod autoconfig;
 mod connect;
 pub mod error;
+mod http;
 pub mod imap;
 pub mod oauth;
 pub mod server;
