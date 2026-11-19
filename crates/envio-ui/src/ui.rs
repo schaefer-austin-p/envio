@@ -172,6 +172,7 @@ impl Ui {
                 outs.extend(self.folders_stale(&folders));
                 outs
             }
+            Event::LocalDraftsChanged { account } => self.local_drafts_changed(&account),
             Event::Messages {
                 list,
                 after,
