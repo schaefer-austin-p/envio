@@ -278,3 +278,20 @@ fn a_change_stamped_in_the_millisecond_of_the_stored_draft_is_still_newer() {
     drafts.save(&id, &edited).unwrap();
     assert_eq!(drafts.load(&id).unwrap().updated_at_ms, saved.updated_at_ms);
 }
+
+#[test]
+fn an_identical_save_with_a_later_stamp_keeps_the_stamp_and_stays_uploaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create_imported(&draft("Copy", 500)).unwrap();
+    assert!(drafts.mark_uploaded(&id, "<o@x>", 500).unwrap());
+
+    // The same content, saved later (an autosave of an unchanged window).
+    drafts.save(&id, &draft("Copy", 900)).unwrap();
+    let saved = drafts.load(&id).unwrap();
+    assert_eq!(
+        saved.updated_at_ms, 500,
+        "an identical save keeps the stamp"
+    );
+    assert_eq!(saved.server.uploaded_ms, saved.updated_at_ms);
+}

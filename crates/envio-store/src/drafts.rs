@@ -47,7 +47,7 @@ fn stamp_after(old: &Draft, new: &Draft) -> i64 {
         ..new.clone()
     } == *old;
     if same {
-        old.updated_at_ms.max(new.updated_at_ms)
+        old.updated_at_ms
     } else {
         new.updated_at_ms.max(old.updated_at_ms.saturating_add(1))
     }

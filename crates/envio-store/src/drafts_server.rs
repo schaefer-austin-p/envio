@@ -277,7 +277,9 @@ impl Drafts {
             let mut filled = draft.clone();
             add_files(self, &id, &mut filled)?;
             if filled.attachments != draft.attachments {
-                // `save` keeps the server copy and `updated_at_ms` as written.
+                // `save` keeps the server copy; it stamps the changed
+                // draft after the stored one (`finish_imported` links at
+                // whatever stamp that leaves).
                 self.save(&id, &filled)?;
             }
             self.finish_imported(&id, link)
