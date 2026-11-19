@@ -25,11 +25,12 @@ const PROVIDER_STAMPS: &[(&str, &[&str])] = &[
 const SECOND_LEVEL: &[&str] = &["co", "com", "org", "net", "gov", "edu", "ac", "ne", "or"];
 
 /// The sender's domain was authenticated by the account's own server: the
-/// topmost `Authentication-Results` header whose authserv-id belongs to the
-/// provider of `imap_host` (lower ones, and any from other hosts, may come
-/// from the sender) holds a `dmarc=pass`, or a `dkim=pass` or `spf=pass` for
-/// a domain that matches the `from` address's domain. A message with no
-/// such header is not verified.
+/// topmost `Authentication-Results` header, and only when its authserv-id
+/// belongs to the provider of `imap_host`, holds a `dmarc=pass`, or a
+/// `dkim=pass` or `spf=pass` for a domain that matches the `from` address's
+/// domain. Headers below it may come from the sender and are never read, so
+/// a topmost header with an untrusted or missing id leaves the message
+/// unverified.
 pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
     let Some(domain) = from.trim().rsplit_once('@').map(|(_, d)| d.to_lowercase()) else {
         return false;
@@ -72,16 +73,17 @@ fn trusted_id(id: &str, imap_host: &str) -> bool {
         .any(|(host, stamps)| *host == host_reg && stamps.contains(&id_reg.as_str()))
 }
 
-/// The comment-free value of the topmost `Authentication-Results` header
-/// whose authserv-id is trusted for `imap_host`.
+/// The comment-free value of the topmost `Authentication-Results` header,
+/// when its authserv-id is trusted for `imap_host`. Fail closed: if the
+/// topmost header has an untrusted or missing id (Exchange Online and
+/// Outlook.com write none), there is no result, and the headers below it
+/// are never read, since the sender may have written them.
 fn results_of(raw: &[u8], imap_host: &str) -> Option<String> {
-    headers(raw).into_iter().find_map(|value| {
-        let value = strip_comments(&value);
-        let id = split_outside_quotes(&value, |c| c == ';')
-            .first()
-            .and_then(|first| first.split_whitespace().next().map(str::to_owned))?;
-        trusted_id(&id, imap_host).then_some(value)
-    })
+    let value = strip_comments(&headers(raw).into_iter().next()?);
+    let id = split_outside_quotes(&value, |c| c == ';')
+        .first()
+        .and_then(|first| first.split_whitespace().next().map(str::to_owned))?;
+    trusted_id(&id, imap_host).then_some(value)
 }
 
 /// The unfolded values of every `Authentication-Results` header, topmost
@@ -338,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    fn a_header_above_the_servers_matching_one_is_ignored() {
+    fn an_untrusted_topmost_header_hides_the_ones_below_it() {
         let m = mail(
             "Authentication-Results: evil.net; dkim=pass header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=none\r\n",
         );
@@ -346,7 +348,23 @@ mod tests {
         let m = mail(
             "Authentication-Results: evil.net; dkim=fail header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
         );
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+    }
+
+    #[test]
+    fn an_id_less_exchange_header_on_top_hides_a_forged_trusted_one_below() {
+        let m = mail(
+            "Authentication-Results: spf=pass (sender IP is 1.2.3.4) smtp.mailfrom=corp.com; dkim=pass header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+    }
+
+    #[test]
+    fn a_trusted_failing_header_on_top_is_not_overridden_by_a_forged_pass_below() {
+        let m = mail(
+            "Authentication-Results: mx.me.org; dkim=fail header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
     }
 
     #[test]
