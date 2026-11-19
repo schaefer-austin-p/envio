@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 12:05+0100\n"
+"POT-Creation-Date: 2026-11-19 13:47+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1290,22 +1290,26 @@ msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:119
-msgid "Could not save the account settings. Check the free storage"
+msgid "The server closed the connection. Try again in a moment"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:123
-msgid "There is no certificate waiting to be accepted for this account"
+msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:127
+msgid "There is no certificate waiting to be accepted for this account"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:131
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:135
+#: crates/envio-core/src/text/setup.rs:139
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:154
+#: crates/envio-core/src/text/setup.rs:158
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."
