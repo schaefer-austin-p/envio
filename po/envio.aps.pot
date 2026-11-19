@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:411
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:415
 msgid "Try again"
 msgstr ""
 
@@ -480,7 +480,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:481
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:485
 msgid "Undo"
 msgstr ""
 
@@ -680,7 +680,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:389
+#: qml/pages/reader/ReaderPage.qml:393
 msgid "Loading…"
 msgstr ""
 
