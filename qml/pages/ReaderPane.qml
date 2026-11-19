@@ -30,7 +30,7 @@ Item {
             objectName: "emptyTitle"
             anchors.horizontalCenter: parent.horizontalCenter
             textFormat: Text.PlainText
-            text: qsTr("Select a message to read it.")
+            text: qsTr("Select a message to read it")
             color: root.theme.heading
             font.family: root.theme.fontUi
             font.pixelSize: 18

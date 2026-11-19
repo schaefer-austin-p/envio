@@ -468,7 +468,7 @@ Item {
             const title = find(empty, "emptyTitle")
             compare(title.font.pixelSize, 18)
             compare(title.font.family, thm.fontUi)
-            verify(title.text.endsWith("."), "the title has no full stop")
+            verify(!title.text.endsWith("."), "the title has a full stop")
             verify(empty.shortcutHint.endsWith("."), "the hint has no full stop")
             let keys = []
             ;(function walk(it) {
@@ -520,6 +520,21 @@ Item {
             compare(b.core.called("closeCompose").length, 0)
             b.shell.paneCompose = 0
             compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
+        function test_second_compose_while_narrowed_keeps_its_page() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, true)
+            b.core.reset()
+            b.shell.composeOpened(2)
+            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[1, false]])
+            compare(b.shell.paneCompose, 2)
+            const page = find(b.shell, "composePage")
+            verify(page !== null && page.visible, "compose 2 has no page")
+            compare(page.compose, 2)
             b.shell.destroy()
         }
 

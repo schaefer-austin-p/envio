@@ -96,7 +96,7 @@ Item {
         const on = width >= theme.gu(90)
         // A compose in the pane keeps the layout (nothing moves it to the
         // stack yet: reparenting is T4).
-        const off = width < theme.gu(86) && paneCompose === 0
+        const off = width < theme.gu(86) && paneCompose === 0 && !swappingCompose
         if (!_wide && on) _wide = true
         else if (_wide && off) {
             _wide = false
@@ -114,6 +114,8 @@ Item {
     // The compose the pane shows (an id), 0 for none. `core` has no compose
     // id of its own.
     property int paneCompose: 0
+    // Set while one pane compose closes for the next (the layout must not flip between).
+    property bool swappingCompose: false
 
     // Compose pages: the core made the compose, the page follows it. Wide,
     // over the list (nothing on top of it), it opens in the pane.
@@ -121,7 +123,11 @@ Item {
         if (wide && stack.depth === 1 && rootKind === "inbox") {
             // One compose in the pane: the one that was there closes first
             // (its draft stays in Drafts), and its page goes with it.
-            if (paneCompose > 0 && paneCompose !== compose && pane.item !== null) pane.item.leave()
+            if (paneCompose > 0 && paneCompose !== compose && pane.item !== null) {
+                swappingCompose = true
+                pane.item.leave()
+                swappingCompose = false
+            }
             paneCompose = compose
         } else stack.push(composePage, { compose: compose })
     }
