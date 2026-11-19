@@ -125,7 +125,11 @@ Item {
         }
         function init() {
             core.reset()
+            // Detach the list while its rows go: a ListModel hands a row being
+            // removed undefined roles, which only a mock does.
+            page.messages = null
             core.messages.clear()
+            page.messages = core.messages
             core.accounts.clear()
             core.folders.clear()
             core.listIsDrafts = false
