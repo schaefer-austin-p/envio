@@ -10,7 +10,7 @@ use envio_mime::Address;
 use envio_net::NetError;
 use envio_net::imap::{Caps, Role};
 use envio_store::{Draft, RefusalKind};
-use envio_sync::driver::{DraftRun, DraftsSynced, sync_drafts, sync_folders};
+use envio_sync::driver::{DraftRun, DraftsSynced, sync_drafts, sync_drafts_into, sync_folders};
 use support::fake::{FakeServer, NOW_MS};
 use support::local::{ACCOUNT, Store};
 
@@ -453,4 +453,27 @@ async fn a_draft_deleted_during_its_upload_leaves_no_copy_behind() {
     let done = run(&mut server, &store).await;
     assert_eq!(done.deleted, [id]);
     assert!(copies(&server).is_empty());
+}
+
+#[tokio::test]
+async fn a_refusal_stored_before_a_lost_connection_still_reports_the_change() {
+    let (mut server, store) = setup(true).await;
+    store.drafts.create(&draft("first", 1)).unwrap();
+    store.drafts.create(&draft("second", 2)).unwrap();
+    // The first upload is refused, the second drops the connection.
+    server.fail_on("append", NetError::Refused("NO [OVERQUOTA]".into()));
+    server.fail_on("append", NetError::Timeout);
+    let from = Address::new(Some("Carol"), "carol@example.org");
+    let open = BTreeSet::new();
+    let run = DraftRun {
+        account: ACCOUNT,
+        from: &from,
+        open: &open,
+        now_ms: NOW_MS,
+    };
+    let mut done = DraftsSynced::default();
+    let result = sync_drafts_into(&mut server, &store.db, &store.drafts, &run, &mut done).await;
+    assert!(result.is_err());
+    assert_eq!(done.refused.len(), 1, "{done:?}");
+    assert!(done.reasons_changed, "the stored reason must be reported");
 }

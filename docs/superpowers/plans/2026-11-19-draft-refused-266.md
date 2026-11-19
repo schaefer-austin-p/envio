@@ -103,7 +103,7 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 
 **Tier:** trunk (`envio-core`). **Testing:** unit plus core integration (existing fake-server support).
 
-**Files:** new `crates/envio-core/src/text/draft_chip.rs` (one function per label, with a translator comment: keep to about 20 characters); `api/view.rs:56-80` (`MessageRow.not_uploaded_text: String`); `worker/local_rows.rs:99-112` (fill it); `worker/run/mail.rs:~121-129` (emit `LocalDraftsChanged` when `done.reasons_changed`, not on every refused id); the `Command::Refresh` arm of `worker/dispatch.rs:20` (Decision 10), and not `Worker::refresh` (`conn.rs:471`).
+**Files:** new `crates/envio-core/src/text/draft_chip.rs` (one function per label, with a translator comment: keep to about 20 characters); `api/view.rs:56-80` (`MessageRow.not_uploaded_text: String`); `worker/local_rows.rs:99-112` (fill it); `worker/run/mail.rs:~121-129` (emit `LocalDraftsChanged` when `done.reasons_changed`, not on every refused id; call `driver::sync_drafts_into` with a `DraftsSynced` of its own and emit before returning the error, so a refusal stored before a lost connection still reaches the list); the `Command::Refresh` arm of `worker/dispatch.rs:20` (Decision 10), and not `Worker::refresh` (`conn.rs:471`).
 
 **MessageRow literal sites** (add `not_uploaded_text: String::new()`): `worker/rows.rs:67`, `local_rows/tests.rs:163`, `envio-ui/tests/support/mod.rs:15`, `envio-ui/tests/drafts.rs:9`, `envio-e2e/tests/support/core_run.rs:~255`.
 
