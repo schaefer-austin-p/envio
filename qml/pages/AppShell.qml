@@ -42,6 +42,7 @@ Item {
         const want = accountCount === 0 ? "wizard" : "inbox"
         if (rootKind === want && stack.depth > 0) return
         rootKind = want
+        dropItems()
         stack.replace(null, want === "wizard" ? wizardPage : inboxPage)
     }
     // Back from the wizard: where it came from, or the inbox once the first
@@ -51,6 +52,7 @@ Item {
         if (stack.depth > 1) stack.pop()
         else {
             rootKind = "inbox"
+            dropItems()
             stack.replace(null, inboxPage)
             startPendingMailto()
             startPendingShare()
@@ -162,6 +164,12 @@ Item {
         readerItem = null
         retire(item)
     }
+    // The stack is about to be replaced: the items that were on it (or in the
+    // pane) go, and a later wide `syncPane` makes them again.
+    function dropItems() {
+        retireReader()
+        retireCompose()
+    }
     function retireCompose() {
         if (composeItem === null) return
         const item = composeItem
@@ -200,7 +208,10 @@ Item {
     // The state is read before `_wide` flips: the layout change moves and
     // hides the items (focus and scroll go with it).
     function toNarrow() {
-        const reader = readerItem !== null && readerItem.parent === pane && core.openMessage > 0 ? readerItem : null
+        // Another page above the list (Settings, Search) covers the window:
+        // the reader stays in the pane, hidden, and keeps the open message,
+        // rather than being pushed over that page.
+        const reader = stack.depth === 1 && readerItem !== null && readerItem.parent === pane && core.openMessage > 0 ? readerItem : null
         const compose = paneCompose > 0 && composeItem !== null && composeItem.parent === pane ? composeItem : null
         const view = compose !== null ? compose.viewState() : null
         if (reader !== null) reader.holdScroll()
@@ -266,7 +277,11 @@ Item {
                 stack.push(readerItem)
             } else stack.push(readerPage, { messageId: message })
         } else if (paneCompose > 0 && composeItem !== null) {
-            composeItem.flush()
+            // A message on its way out is in the Outbox: closing it here
+            // would put a second copy in Drafts. Leave the click alone.
+            if (composeItem.sending) return
+            // leave() hands the core the fields (a typed address included)
+            // and the core's close saves the draft at once.
             composeItem.leave()
             core.setOpenMessage(message)
             sentToast.show(qsTr("Draft saved"))

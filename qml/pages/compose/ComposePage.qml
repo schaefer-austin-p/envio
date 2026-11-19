@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Window 2.15
 import "../../platform"
 import "../../components"
 import "../../bindle/Platform" as Platform
@@ -150,20 +151,14 @@ Item {
         sending = state.sending
         error = state.error
     }
-    // Hands the core the fields as they are now, at once, without waiting for
-    // an edit (the shell calls it before it closes this compose for a row
-    // click). The core's SaveThrottle does the throttling; this is a plain
-    // draftChanged.
-    function flush() {
-        if (!filled) return
-        commitAll()
-        core.draftChanged(compose, draftJson())
-    }
     // The focused field, its cursor and the scroll position, for a move of
     // this page to another parent (the window narrowed or widened). The page
     // itself moves, so the text and the chips stay; focus is lost on the
     // move and has to be given back.
     function viewState() {
+        // Moved again before the last restore landed: what that one wanted is
+        // still the truth (focus is lost on a move, the scroll is not settled).
+        if (viewWanted !== null) return viewWanted
         const fields = { body: body.input, subject: subject.input, to: to.input, cc: cc.input, bcc: bcc.input }
         let focus = ""
         for (const k in fields) if (fields[k].activeFocus) focus = k
@@ -196,6 +191,18 @@ Item {
         flick.contentY = Math.min(state.contentY, Math.max(0, flick.contentHeight - flick.height))
     }
     Timer { id: viewTimer; interval: 300; onTriggered: root.viewWanted = null }
+    // The user's own tap or scroll ends the restore: it must not snap back.
+    function userTookOver() {
+        viewWanted = null
+        viewTimer.stop()
+    }
+    readonly property Item focusNow: Window.activeFocusItem
+    onFocusNowChanged: {
+        const state = viewWanted
+        if (state === null || focusNow === null) return
+        const fields = { body: body.input, subject: subject.input, to: to.input, cc: cc.input, bcc: bcc.input }
+        for (const k in fields) if (fields[k] === focusNow && k !== state.focus) userTookOver()
+    }
     // Any edit: the core keeps the draft.
     function edited() {
         if (filling || !filled) return
@@ -283,6 +290,7 @@ Item {
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
         onWidthChanged: resizeTimer.restart()
+        onMovementStarted: root.userTookOver()
         onContentHeightChanged: if (root.viewWanted !== null) root.applyView()
         // Giving focus back scrolls the cursor line into view (KeyboardAvoider);
         // until the page is still, the saved scroll wins.

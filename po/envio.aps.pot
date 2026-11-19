@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 20:37+0100\n"
+"POT-Creation-Date: 2026-11-19 20:54+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -88,7 +88,7 @@ msgstr ""
 msgid "%1 GB"
 msgstr ""
 
-#: qml/pages/AppShell.qml:272
+#: qml/pages/AppShell.qml:287
 msgid "Draft saved"
 msgstr ""
 
@@ -438,52 +438,52 @@ msgstr ""
 msgid "Remove attachment"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/FromRow.qml:59
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/FromRow.qml:59
 #: qml/pages/reader/HeaderBlock.qml:17 crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:316
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:324
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:333
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:341
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:347
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:355
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/SubjectRow.qml:27
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/SubjectRow.qml:27
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:233
+#: qml/pages/compose/ComposePage.qml:240
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:241
+#: qml/pages/compose/ComposePage.qml:248
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:249 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:256 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:290
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:260
+#: qml/pages/compose/ComposePage.qml:267
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:317
+#: qml/pages/compose/ComposePage.qml:325
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:375
+#: qml/pages/compose/ComposePage.qml:383
 msgid "Write your message"
 msgstr ""
 

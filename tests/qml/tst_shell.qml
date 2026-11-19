@@ -975,10 +975,9 @@ Item {
             compare(b.core.messages.get(0).open, false)
             compare(b.core.messages.get(1).open, false)
             b.shell.openMessageFromRow(8)
-            compare(b.core.calls.map(function(c) { return c.name }).filter(function(n) { return n === "draftChanged" || n === "closeCompose" || n === "setOpenMessage" }),
-                    ["draftChanged", "closeCompose", "setOpenMessage"])
+            compare(b.core.calls.map(function(c) { return c.name }).filter(function(n) { return n === "closeCompose" || n === "setOpenMessage" }),
+                    ["closeCompose", "setOpenMessage"])
             compare(b.core.called("closeCompose")[0].args, [4, false])
-            compare(JSON.parse(b.core.called("draftChanged")[0].args[1]).subject, "Plans, edited")
             compare(b.shell.paneCompose, 0)
             compare(b.shell.composeItem, null)
             compare(b.core.openMessage, 8)
@@ -1066,18 +1065,18 @@ Item {
             input.cursorPosition = 12
             const flick = find(page, "composeFlick")
             tryVerify(function() { return flick.contentHeight > flick.height + 300 })
-            wait(300)
+            tryVerify(function() { return !page.resizing })
             flick.contentY = 250
             b.shell.width = thm.gu(70)
             verify(b.shell.composeItem === page)
             tryVerify(function() { return find(page, "bodyField").input.activeFocus }, 2000, "the body lost focus")
             compare(find(page, "bodyField").input.cursorPosition, 12)
-            wait(500)
+            tryVerify(function() { return page.viewWanted === null && !page.resizing })
             fuzzyCompare(flick.contentY, 250, 2)
             b.shell.width = thm.gu(100)
             tryVerify(function() { return find(page, "bodyField").input.activeFocus }, 2000, "the body lost focus on widening")
             compare(find(page, "bodyField").input.cursorPosition, 12)
-            wait(500)
+            tryVerify(function() { return page.viewWanted === null && !page.resizing })
             fuzzyCompare(flick.contentY, 250, 2)
             b.shell.destroy()
         }
@@ -1091,6 +1090,56 @@ Item {
             tryVerify(function() { return find(page, "subjectField").input.activeFocus })
             compare(find(page, "subjectField").input.cursorPosition, 3)
             verify(!find(page, "bodyField").input.activeFocus)
+            b.shell.destroy()
+        }
+
+        // Review 1281, 1: a message on its way out (Outbox) must not also be
+        // saved as a draft by a row click.
+        function test_row_click_while_sending_leaves_the_compose_alone() {
+            const b = wideCompose()
+            b.shell.composeItem.sending = true
+            b.core.reset()
+            b.shell.openMessageFromRow(8)
+            compare(b.core.called("closeCompose").length, 0)
+            compare(b.core.called("draftChanged").length, 0)
+            compare(b.core.called("setOpenMessage").length, 0)
+            compare(b.shell.paneCompose, 4)
+            verify(b.shell.composeItem !== null)
+            verify(findByName(b.shell, "sentToast").text !== qsTr("Draft saved"), "the toast says the draft is saved")
+            b.shell.destroy()
+        }
+
+        // Review 1281, 2: with Settings on top the reader is not pushed over
+        // it, and Back from Settings leaves the open message alone.
+        function test_narrowing_with_a_page_on_top_does_not_push_the_reader() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            const reader = b.shell.readerItem
+            b.shell.currentPage.settingsRequested()
+            tryVerify(function() { return b.shell.currentPage.objectName === "settingsPage" })
+            const depth = b.shell.depth
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            compare(b.shell.depth, depth)
+            compare(b.shell.currentPage.objectName, "settingsPage")
+            verify(reader.parent === pane(b), "the reader was moved onto the stack")
+            b.shell.currentPage.backRequested()
+            tryCompare(b.shell, "depth", 1)
+            compare(b.core.openMessage, 7)
+            compare(b.core.called("setOpenMessage").filter(function(c) { return c.args[0] === 0 }).length, 0)
+            b.shell.destroy()
+        }
+
+        // Review 1281, 4: the stack is replaced (last account removed): the
+        // reader and compose items go with it.
+        function test_route_drops_the_reader_and_compose_items() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            verify(b.shell.readerItem !== null)
+            b.core.accounts.clear()
+            tryVerify(function() { return b.shell.rootKind === "wizard" })
+            compare(b.shell.readerItem, null)
+            compare(b.shell.composeItem, null)
             b.shell.destroy()
         }
     }
