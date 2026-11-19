@@ -6,6 +6,7 @@ pub mod count;
 pub mod invite;
 pub mod link;
 pub mod notice;
+pub mod oauth;
 pub mod outbox;
 pub mod read;
 pub mod setup;

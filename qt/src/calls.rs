@@ -60,6 +60,30 @@ impl qobject::EnvioCore {
         self.send_command(Command::Detect { email: s(email) });
     }
 
+    /// `account` is empty for a new account, else the key to sign in again.
+    pub fn start_oauth(self: Pin<&mut Self>, email: &QString, account: &QString) {
+        let account = s(account);
+        self.send_command(Command::StartOAuth {
+            email: s(email),
+            account: (!account.is_empty()).then_some(account),
+        });
+    }
+
+    /// The link the browser handed back; it is not logged.
+    pub fn oauth_redirect(self: Pin<&mut Self>, url: &QString) {
+        self.send_command(Command::OAuthRedirect {
+            url: SecretString::from(s(url)),
+        });
+    }
+
+    pub fn confirm_oauth(self: Pin<&mut Self>, accept: bool) {
+        self.send_command(Command::ConfirmOAuth { accept });
+    }
+
+    pub fn cancel_oauth(self: Pin<&mut Self>) {
+        self.send_command(Command::CancelOAuth);
+    }
+
     /// `setup_json` is what `detected` carried; the password is not logged.
     pub fn connect(
         mut self: Pin<&mut Self>,

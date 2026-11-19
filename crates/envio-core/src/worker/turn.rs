@@ -22,6 +22,7 @@ impl Worker<'_> {
         // Undo expiry has its own clock: it must not share the retry
         // watermark.
         self.expire_undos(now);
+        self.oauth_timer(now);
         if let Some(at) = self.next_release().filter(|at| *at <= now) {
             // A held message may go now.
             self.handled_release_ms = at;
@@ -205,10 +206,16 @@ impl Worker<'_> {
                     .values()
                     .any(|live| !live.wants.folders.is_empty())
         });
-        let mut wake = [disk, retry, self.next_release(), self.undo.next_expiry()]
-            .into_iter()
-            .flatten()
-            .min();
+        let mut wake = [
+            disk,
+            retry,
+            self.next_release(),
+            self.undo.next_expiry(),
+            self.oauth_deadline(),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
         for (account, live) in &self.live {
             let at = account_wake(
                 needs_timer(self.foreground, self.notifies(account), &live.conn),

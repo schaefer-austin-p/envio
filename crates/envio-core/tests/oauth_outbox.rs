@@ -6,9 +6,11 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use envio_core::{AccountStatus, Command, Event, OutboxDecision, OutboxStatus};
+use envio_core::{AccountStatus, Command, Event, OAuthOutcome, OutboxDecision, OutboxStatus};
 use envio_store::{FolderRole, Outbox, SendState};
-use support::bearer::{Ca, Peers, imap_server, revoked_reply, smtp_server, tokens_reply};
+use support::bearer::{
+    Ca, Peers, imap_server, revoked_reply, smtp_server, tokens_reply, tokens_reply_for,
+};
 use support::rig::*;
 
 const BARE_535: &str = "535 5.7.3 Authentication unsuccessful";
@@ -73,17 +75,30 @@ fn failed_reason(r: &Rig) -> String {
     reason.clone()
 }
 
-/// "Sign in again" completed.
-///
-/// TODO(#219 T7): replace this helper. T7 refuses `UpdatePassword` for an
-/// OAuth account (a Notice) and adds the redirect path; until then
-/// `UpdatePassword` is the one command that runs the worker's `resume`, and
-/// (c) would hang, loudly, once T7 lands.
+/// "Sign in again" completed: the browser step and the redirect, as in the
+/// app. Returns once the attempt has ended.
 fn resume(r: &Rig) {
-    r.h.send(Command::UpdatePassword {
-        account: r.key.clone(),
-        password: "unused".to_owned().into(),
+    r.h.send(Command::StartOAuth {
+        email: String::new(),
+        account: Some(r.key.clone()),
     });
+    let url = r.h.wait(|e| match e {
+        Event::OAuthBrowser { url, .. } => Some(url.clone()),
+        _ => None,
+    });
+    let state = url
+        .split(['?', '&'])
+        .find_map(|part| part.strip_prefix("state="))
+        .expect("a state in the sign-in link")
+        .to_owned();
+    r.h.send(Command::OAuthRedirect {
+        url: format!("envio-oauth://callback?code=c&state={state}").into(),
+    });
+    let outcome = r.h.wait(|e| match e {
+        Event::OAuthDone { outcome, .. } => Some(*outcome),
+        _ => None,
+    });
+    assert_eq!(outcome, OAuthOutcome::Resumed);
 }
 
 fn wait_paused(r: &Rig) {
@@ -226,18 +241,15 @@ fn signing_in_again_sends_the_held_item() {
     // (c) The refresh is revoked once: paused with the item Queued and no
     // refresh while paused. After "Sign in again" it goes out.
     //
-    // The plan has the sign-in store its new refresh token with
-    // `OAuthTokens::set` before `resume`. The worker keeps the tokens in
-    // memory (read at start), so a file written from the test is not seen
-    // by it: here the token endpoint answers differently the second time
-    // instead, and the request is checked to carry the stored token.
-    // TODO(#219 T7): store the new token through the redirect path and
-    // assert the second request carries it.
-    let mut r = rig(&["at-2"], Duration::ZERO, |n, _| {
+    // "Sign in again" runs the real redirect path: the code exchange is the
+    // second token request and stores `rt-3`; the refresh after it carries it.
+    let mut r = rig(&["at-2"], Duration::ZERO, |n, form| {
         if n == 0 {
             revoked_reply()
+        } else if form.contains("grant_type=authorization_code") {
+            tokens_reply_for("at-2", "rt-3", Some(support::rig::ME), None)
         } else {
-            tokens_reply("at-2", "rt-3")
+            tokens_reply("at-2", "rt-4")
         }
     });
     let item = queue(&r.h, &r.key);
@@ -256,10 +268,11 @@ fn signing_in_again_sends_the_held_item() {
     wait_until("the held item is sent", || sent(&r) == 1);
     assert_eq!(*r.peers.smtp_tokens.lock().unwrap(), ["at-2"]);
     let requests = r.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 3, "{requests:?}");
+    assert!(requests[1].contains("grant_type=authorization_code"));
     assert_eq!(
-        support::bearer::refresh_token_of(&requests[1]).as_deref(),
-        Some("rt-1")
+        support::bearer::refresh_token_of(&requests[2]).as_deref(),
+        Some("rt-3")
     );
 }
 

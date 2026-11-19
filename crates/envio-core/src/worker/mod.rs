@@ -13,6 +13,7 @@ mod invite;
 mod label;
 mod local_list;
 mod local_rows;
+mod oauth;
 mod older;
 mod open;
 mod outbox;
@@ -125,6 +126,10 @@ pub(crate) struct Worker<'s> {
     reset_pending: BTreeSet<FolderId>,
     /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
     local_ids: RefCell<local_rows::LocalIds>,
+    /// The providers a user can sign in with (`Config.oauth`).
+    providers: Vec<envio_net::oauth::Provider>,
+    /// The sign-in that waits for the browser, if any.
+    oauth: Option<oauth::Attempt>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -258,6 +263,8 @@ impl<'s> Worker<'s> {
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
             local_ids: RefCell::default(),
+            providers: config.oauth.clone(),
+            oauth: None,
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

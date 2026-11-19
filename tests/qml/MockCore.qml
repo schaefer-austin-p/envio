@@ -45,8 +45,11 @@ Item {
     signal notice(string text)
     signal storeProblem(string text)
     signal workerRestarted(string text)
-    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers)
+    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers, string oauthProvider)
     signal setupProblem(string email, string text)
+    signal oauthBrowser(string email, string url)
+    signal oauthConfirm(string email, string signedInAs, string text)
+    signal oauthDone(string email, string outcome, string text)
     signal trustPrompt(string email, string service, string host, string title, string fingerprint, string hex, string text)
     signal accountAdded(string account, string email)
     signal confirmRemove(string account, string text)
@@ -75,6 +78,10 @@ Item {
     function refresh(account) { record("refresh", [account]) }
     function ispdbNote() { record("ispdbNote", []); return note }
     function detect(email) { record("detect", [email]) }
+    function startOAuth(email, account) { record("startOAuth", [email, account]) }
+    function oauthRedirect(url) { record("oauthRedirect", [url]) }
+    function confirmOAuth(accept) { record("confirmOAuth", [accept]) }
+    function cancelOAuth() { record("cancelOAuth", []) }
     function connect(setupJson, password, serversConfirmed) {
         record("connect", [setupJson, password, serversConfirmed])
     }

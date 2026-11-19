@@ -16,6 +16,18 @@ impl Worker<'_> {
             log::warn!("password for unknown account {account}");
             return;
         }
+        // A token account has no password to update.
+        if self
+            .store
+            .accounts
+            .get(account)
+            .is_some_and(|a| a.settings.is_oauth())
+        {
+            self.emit(Event::Notice {
+                text: text::oauth::no_password(),
+            });
+            return;
+        }
         // A broken entry takes no password: say why, write nothing.
         if let AccountStatus::Broken(reason) = self.status_of(account) {
             self.emit(Event::Notice {
@@ -78,7 +90,7 @@ impl Worker<'_> {
     }
 
     /// The user fixed what paused the account: sync again now.
-    fn resume(&mut self, account: &str) {
+    pub(super) fn resume(&mut self, account: &str) {
         let before = self.status_of(account);
         // A broken entry is cleared only by repairing it or removing it.
         if matches!(before, AccountStatus::Broken(_)) {
