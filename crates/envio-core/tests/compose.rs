@@ -220,14 +220,16 @@ fn reply_quotes_flowed_text_unflowed() {
         draft_id: None,
         mailto: None,
     });
-    let (draft, quoted) = s.h.wait(|e| match e {
+    let (draft, quoted, note) = s.h.wait(|e| match e {
         Event::ComposeReady {
             compose,
             draft,
             quoted,
-        } if *compose == C => Some((draft.clone(), quoted.clone())),
+            note,
+        } if *compose == C => Some((draft.clone(), quoted.clone(), note.clone())),
         _ => None,
     });
+    assert_eq!(note, "", "a reply carries no note");
     assert!(quoted.contains("> hello world again"), "{quoted}");
     assert_eq!(draft.to, vec!["Ada <ada@example.org>".to_owned()]);
     assert_eq!(draft.subject, "Re: hi");

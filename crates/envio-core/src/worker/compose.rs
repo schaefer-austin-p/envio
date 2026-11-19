@@ -54,9 +54,9 @@ impl Worker<'_> {
                     account,
                     ..DraftInput::default()
                 };
-                self.compose_ready(compose, draft, String::new());
+                self.compose_ready(compose, draft, (String::new(), String::new()));
             }
-            StartFrom::Draft => self.start_from_draft(compose, draft_id),
+            StartFrom::Draft => self.start_from_draft(compose, draft_id, String::new()),
             StartFrom::Edit { id } => self.start_edit(compose, id),
             StartFrom::Mailto => self.start_from_mailto(compose, mailto),
             StartFrom::Reply { id, .. } | StartFrom::Forward { id } => {
@@ -65,16 +65,28 @@ impl Worker<'_> {
         }
     }
 
-    pub(super) fn compose_ready(&self, compose: ComposeId, draft: DraftInput, quoted: String) {
+    pub(super) fn compose_ready(
+        &self,
+        compose: ComposeId,
+        draft: DraftInput,
+        (quoted, note): (String, String),
+    ) {
         self.book.opened(compose, &draft.account);
         self.emit(Event::ComposeReady {
             compose,
             draft,
             quoted,
+            note,
         });
     }
 
-    pub(super) fn start_from_draft(&mut self, compose: ComposeId, draft_id: Option<&str>) {
+    /// Opens the stored draft `draft_id`; `note` is what Compose shows with it.
+    pub(super) fn start_from_draft(
+        &mut self,
+        compose: ComposeId,
+        draft_id: Option<&str>,
+        note: String,
+    ) {
         let loaded = draft_id.and_then(|id| match self.store.drafts.load(id) {
             Ok(draft) => Some(compose::from_store(id, &draft)),
             Err(e) => {
@@ -85,7 +97,7 @@ impl Worker<'_> {
         match (draft_id, loaded) {
             (Some(id), Some(draft)) => {
                 self.book.adopt(compose, id.to_owned());
-                self.compose_ready(compose, draft, String::new());
+                self.compose_ready(compose, draft, (String::new(), note));
             }
             _ => self.compose_refused(compose, text::compose::draft_unavailable()),
         }
@@ -114,7 +126,7 @@ impl Worker<'_> {
             in_reply_to: parsed.in_reply_to,
             ..DraftInput::default()
         };
-        self.compose_ready(compose, draft, String::new());
+        self.compose_ready(compose, draft, (String::new(), String::new()));
     }
 
     /// The window closed: a reply still waiting for its body is forgotten.

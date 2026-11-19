@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::atomic::write_atomic;
 use crate::drafts::{Draft, Drafts};
 use crate::error::{Result, StoreError};
-use crate::ids::is_key;
+use crate::ids::{fresh_key, is_key};
 
 /// Kept in the draft file. Old files without it load as "never uploaded".
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -175,13 +175,57 @@ impl Drafts {
     /// False when the draft is gone meanwhile (the caller deletes the copy).
     pub fn mark_uploaded(&self, id: &str, message_id: &str, uploaded_ms: i64) -> Result<bool> {
         self.edit(id, |draft| {
+            // `imported_from` stays: the original has still one local copy.
             draft.server = ServerCopy {
                 message_id: Some(message_id.to_owned()),
                 pending_id: None,
                 uploaded_ms,
+                imported_from: draft.server.imported_from.take(),
                 ..ServerCopy::default()
             };
         })
+    }
+
+    /// Like `create`, but writes `draft.server` as given instead of the
+    /// "never uploaded" default. For a draft imported from the server.
+    pub fn create_imported(&self, draft: &Draft) -> Result<String> {
+        let _held = self.held();
+        let id = fresh_key(draft.updated_at_ms, |id| self.path(id).exists());
+        self.write(&id, draft)?;
+        Ok(id)
+    }
+
+    /// Takes back a draft `create_imported` just made, when the import
+    /// fails halfway. Unlike `delete` it leaves no note: the server copy
+    /// the draft names is the original message, which must stay.
+    pub fn remove_imported(&self, id: &str) -> Result<()> {
+        if !is_key(id) {
+            return Err(StoreError::NotFound);
+        }
+        let _held = self.held();
+        self.remove_locked(id)
+    }
+
+    /// The id of a damaged draft file that still names `message_id` as its
+    /// server copy (or its origin), in `account`. Such a file cannot be
+    /// opened, but it is unsent work, so a second copy of the same message
+    /// must not be made beside it.
+    pub fn damaged_naming(&self, account: &str, message_id: &str) -> Result<Option<String>> {
+        let names =
+            |id: &Option<String>| id.as_deref().is_some_and(|i| i.trim() == message_id.trim());
+        for id in self.damaged()? {
+            let Some((owner, server)) = self.salvage_fields(&id) else {
+                continue;
+            };
+            if owner == account
+                && (names(&server.message_id)
+                    || names(&server.pending_id)
+                    || names(&server.imported_from))
+            {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
     }
 
     /// The upload of the save stamped `saved_ms` failed: counts `weight`
