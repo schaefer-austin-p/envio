@@ -89,11 +89,23 @@ domain=$(curl -fsS -u "$admin" -H 'content-type: application/json' --data \
   '{'"$using"',"methodCalls":[["x:Domain/query",{"accountId":"d333333","filter":{"name":"envio.test"}},"d"]]}' \
   "$api" | sed -n 's/.*"ids":\["\([^"]*\)".*/\1/p')
 [ -n "$domain" ] || { log "no envio.test domain after bootstrap"; exit 1; }
+# Stalwart's default "Sender IP throttle" lets one IP open 5 SMTP sessions a
+# second, and every session of these tests comes from the one Docker gateway
+# IP. Adding two accounts takes four (each probe opens SMTP once to be asked
+# about the certificate and once to log in), so a busy second gets one dropped
+# with "peer closed connection without sending TLS close_notify" and the
+# wizard says "Could not reach the server" (#105). The limit of 25 mails an
+# hour per recipient stays.
+ip_throttle=$(curl -fsS -u "$admin" -H 'content-type: application/json' --data \
+  '{'"$using"',"methodCalls":[["x:MtaInboundThrottle/get",{"accountId":"d333333"},"t"]]}' \
+  "$api" | grep -o '"description":"Sender IP throttle"[^]]*' | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
+[ -n "$ip_throttle" ] || { log "no Sender IP throttle to relax"; exit 1; }
 user() {
   printf '"%s":{"@type":"User","name":"%s","domainId":"%s","credentials":{"0":{"@type":"Password","secret":"%s"}}}' \
     "$1" "$1" "$domain" "$2"
 }
 jmap '{'"$using"',"methodCalls":[
+ ["x:MtaInboundThrottle/set",{"accountId":"d333333","update":{"'"$ip_throttle"'":{"rate":{"count":1000,"period":1000}}}},"t"],
  ["x:NetworkListener/set",{"accountId":"d333333","create":{
    "imap":{"name":"imap","bind":{"[::]:143":true},"protocol":"imap","useTls":true,"implicitTls":false},
    "submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","useTls":true,"implicitTls":false}}},"l"],
