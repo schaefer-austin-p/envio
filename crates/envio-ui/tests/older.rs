@@ -318,14 +318,15 @@ fn a_reopened_list_the_server_has_no_more_for_is_not_auto_loaded_again() {
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     let _ = ui.load_older_near_end().unwrap();
     assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
-    // Back to the list: the row is Ready again, but scrolling asks nothing.
+    // Another list is not affected.
+    opened(&mut ui, other(), vec![msg(5, 50)], true);
+    assert!(ui.load_older_near_end().is_some());
+    // Back to the list (it was left): the row is Ready again, but
+    // scrolling asks nothing.
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     assert!(ui.load_older_near_end().is_none());
     // The row still works when tapped.
     assert!(ui.load_older().is_some());
-    // Another list is not affected.
-    opened(&mut ui, other(), vec![msg(5, 50)], true);
-    assert!(ui.load_older_near_end().is_some());
 }
 
 #[test]
