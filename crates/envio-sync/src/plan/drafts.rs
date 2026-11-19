@@ -1,6 +1,8 @@
 //! Which drafts need their server copy written, replaced or deleted. Pure.
 
-use envio_store::{Draft, ServerCopy};
+use std::collections::BTreeSet;
+
+use envio_store::{Action, ActionKind, Draft, Folder, FolderRole, ServerCopy};
 
 /// Nothing typed, nothing attached: not worth a server copy.
 pub fn is_blank(draft: &Draft) -> bool {
@@ -37,6 +39,48 @@ pub fn cut_copy(server: &ServerCopy) -> Option<&str> {
 /// The copy `new` replaces, once `new` is on the server.
 pub fn replaced<'a>(server: &'a ServerCopy, new: &str) -> Option<&'a str> {
     server.message_id.as_deref().filter(|old| *old != new)
+}
+
+/// Ids of the local drafts whose server copy the user has just deleted (or
+/// moved to Trash) in the Drafts folder: their files must go, or Upload or
+/// Edit would bring the draft back. `done` are actions the server has now
+/// taken, so an Undo is over. A draft stays when its window is open, or
+/// when it has a save the server copy lacks (unsent work wins; it is then
+/// uploaded again).
+pub fn drafts_to_forget(
+    done: &[Action],
+    folders: &[Folder],
+    drafts: &[(String, Draft)],
+    open: &BTreeSet<String>,
+) -> Vec<String> {
+    let role_of = |path: &str| folders.iter().find(|f| f.path == path).map(|f| f.role);
+    let mut ids = Vec::new();
+    for action in done {
+        let leaves = match &action.kind {
+            ActionKind::Delete => true,
+            ActionKind::Move { to } => role_of(to) == Some(FolderRole::Trash),
+            ActionKind::SetFlags { .. } => false,
+        };
+        let target = &action.target;
+        let Some(message_id) = target.message_id.as_deref() else {
+            continue;
+        };
+        if !leaves || role_of(&target.folder) != Some(FolderRole::Drafts) {
+            continue;
+        }
+        for (id, draft) in drafts {
+            let server = &draft.server;
+            if draft.account == target.account
+                && server.message_id.as_deref() == Some(message_id)
+                && server.uploaded_ms == draft.updated_at_ms
+                && !open.contains(id)
+                && !ids.contains(id)
+            {
+                ids.push(id.clone());
+            }
+        }
+    }
+    ids
 }
 
 #[cfg(test)]
@@ -114,5 +158,91 @@ mod tests {
         assert_eq!(replaced(&server, "<new@x>"), Some("<old@x>"));
         assert_eq!(replaced(&server, "<old@x>"), None);
         assert_eq!(cut_copy(&server), Some("<cut@x>"));
+    }
+    fn folder(path: &str, role: FolderRole) -> Folder {
+        Folder {
+            id: envio_store::FolderId(1),
+            account: "a".into(),
+            path: path.into(),
+            role,
+            sync: None,
+        }
+    }
+
+    fn folders() -> Vec<Folder> {
+        vec![
+            folder("Drafts", FolderRole::Drafts),
+            folder("Trash", FolderRole::Trash),
+            folder("Archive", FolderRole::Archive),
+            folder("INBOX", FolderRole::Inbox),
+        ]
+    }
+
+    fn action(folder: &str, message_id: Option<&str>, kind: ActionKind) -> Action {
+        Action {
+            seq: 1,
+            at_ms: 0,
+            target: envio_store::MessageRef {
+                account: "a".into(),
+                folder: folder.into(),
+                uidvalidity: 1,
+                uid: 1,
+                message_id: message_id.map(str::to_owned),
+            },
+            kind,
+        }
+    }
+
+    fn mine(updated: i64, uploaded: i64) -> Vec<(String, Draft)> {
+        let mut d = draft(updated, Some("<m@x>"), uploaded);
+        d.account = "a".into();
+        vec![("d1".into(), d)]
+    }
+
+    fn forget(done: &[Action], drafts: &[(String, Draft)]) -> Vec<String> {
+        drafts_to_forget(done, &folders(), drafts, &BTreeSet::new())
+    }
+
+    #[test]
+    fn a_delete_in_drafts_forgets_the_draft_with_that_message_id() {
+        let done = [action("Drafts", Some("<m@x>"), ActionKind::Delete)];
+        assert_eq!(forget(&done, &mine(5, 5)), ["d1"]);
+    }
+
+    #[test]
+    fn a_move_to_trash_forgets_it_but_a_move_elsewhere_does_not() {
+        let to = |p: &str| ActionKind::Move { to: p.into() };
+        let trash = [action("Drafts", Some("<m@x>"), to("Trash"))];
+        assert_eq!(forget(&trash, &mine(5, 5)), ["d1"]);
+        let archive = [action("Drafts", Some("<m@x>"), to("Archive"))];
+        assert!(forget(&archive, &mine(5, 5)).is_empty());
+    }
+
+    #[test]
+    fn only_a_drafts_folder_message_with_a_matching_id_counts() {
+        let elsewhere = [action("INBOX", Some("<m@x>"), ActionKind::Delete)];
+        assert!(forget(&elsewhere, &mine(5, 5)).is_empty());
+        let other = [action("Drafts", Some("<o@x>"), ActionKind::Delete)];
+        assert!(forget(&other, &mine(5, 5)).is_empty());
+        let none = [action("Drafts", None, ActionKind::Delete)];
+        assert!(forget(&none, &mine(5, 5)).is_empty());
+        let flag = ActionKind::SetFlags {
+            add: envio_store::Flags::SEEN,
+            remove: envio_store::Flags::empty(),
+        };
+        assert!(forget(&[action("Drafts", Some("<m@x>"), flag)], &mine(5, 5)).is_empty());
+    }
+
+    #[test]
+    fn a_draft_with_newer_unsent_edits_is_kept() {
+        let done = [action("Drafts", Some("<m@x>"), ActionKind::Delete)];
+        assert!(forget(&done, &mine(6, 5)).is_empty());
+    }
+
+    #[test]
+    fn a_draft_in_an_open_window_is_kept() {
+        let done = [action("Drafts", Some("<m@x>"), ActionKind::Delete)];
+        let open = BTreeSet::from(["d1".to_owned()]);
+        assert!(drafts_to_forget(&done, &folders(), &mine(5, 5), &open).is_empty());
     }
 }

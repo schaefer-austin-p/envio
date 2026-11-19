@@ -222,6 +222,15 @@ pub(super) async fn replay(
         .await
         .map_err(|e| imap_error(&e))?;
     worker.report_replayed(account, &replayed);
+    let open = worker.book.open_drafts();
+    if let Err(error) = driver::forget_deleted_drafts(
+        (&worker.store.db, &worker.store.drafts),
+        account,
+        &replayed.committed,
+        &open,
+    ) {
+        log::warn!("account {account}: removing drafts deleted on the server: {error}");
+    }
     // A replay that stopped, Local included, is the account's problem.
     match replayed.stopped {
         Some(kind) => Err(problem::from_kind(kind)),

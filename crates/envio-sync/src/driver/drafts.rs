@@ -9,12 +9,12 @@ use std::collections::BTreeSet;
 
 use envio_mime::{Address, new_message_id};
 use envio_net::imap::Flag;
-use envio_store::{Db, Draft, Drafts, FolderRole};
+use envio_store::{Action, Db, Draft, Drafts, FolderRole};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
 use crate::error::{ErrorKind, Result};
-use crate::plan::drafts::{cut_copy, needs_upload, replaced};
+use crate::plan::drafts::{cut_copy, drafts_to_forget, needs_upload, replaced};
 use crate::plan::message_id::search_id;
 use crate::server::MailServer;
 
@@ -179,4 +179,29 @@ async fn remove_copies(server: &mut impl MailServer, ids: &[String]) -> Result<(
         }
     }
     Ok(())
+}
+
+/// Deletes the local drafts whose Drafts-folder copy the replayed
+/// `committed` actions have deleted or moved to Trash (see
+/// `drafts_to_forget`). Returns the ids removed.
+pub fn forget_deleted_drafts(
+    (db, drafts): (&Db, &Drafts),
+    account: &str,
+    committed: &[Action],
+    open: &BTreeSet<String>,
+) -> Result<Vec<String>> {
+    let committed: Vec<Action> = committed
+        .iter()
+        .filter(|a| a.target.account == account)
+        .cloned()
+        .collect();
+    if committed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let folders = db.folders(account)?;
+    let ids = drafts_to_forget(&committed, &folders, &drafts.list()?, open);
+    for id in &ids {
+        drafts.delete(id)?;
+    }
+    Ok(ids)
 }
