@@ -565,6 +565,8 @@ dependencies = [
  "envio-store",
  "envio-sync",
  "log",
+ "rcgen",
+ "rustls",
  "secrecy",
  "serde_json",
  "tempfile",
