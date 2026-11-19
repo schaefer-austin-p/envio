@@ -31,6 +31,31 @@ Item {
 
         readonly property var ann: ({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
 
+        function message(id) {
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
+                     preview: "I found a train", date: 0, dateBucket: "time", unread: true,
+                     flagged: false, hasAttachments: false, selected: false, open: false }
+        }
+        function find(item, name) {
+            if (item.objectName === name) return item
+            const kids = item.children || []
+            for (let i = 0; i < kids.length; i++) {
+                const hit = find(kids[i], name)
+                if (hit !== null) return hit
+            }
+            if (item.contentItem && item.contentItem !== item) return find(item.contentItem, name)
+            return null
+        }
+        // A booted shell of the given width (gu) with three messages.
+        function bootWide(gu) {
+            const b = boot()
+            b.core.messages.append(message(7))
+            b.core.messages.append(message(8))
+            b.shell.width = thm.gu(gu)
+            tryVerify(function() { return b.shell.depth === 1 })
+            return b
+        }
+
         // A shell on its own core, with an account unless told otherwise.
         function boot(withAccount) {
             const c = coreComponent.createObject(root)
@@ -337,6 +362,108 @@ Item {
             tryVerify(function() { return b.shell.currentPage.objectName === "settingsPage" })
             b.shell.currentPage.accountsRequested()
             compare(b.shell.depth, 3)
+            b.shell.destroy()
+        }
+
+        function test_narrow_shows_the_stack() {
+            const b = bootWide(70)
+            compare(b.shell.wide, false)
+            compare(b.shell.depth, 1)
+            b.shell.destroy()
+        }
+
+        function test_wide_shows_list_and_empty_pane() {
+            const b = bootWide(100)
+            compare(b.shell.wide, true)
+            const empty = find(b.shell, "emptyReader")
+            verify(empty !== null, "no empty pane")
+            tryVerify(function() { return empty.visible })
+            compare(empty.shortcutHint, qsTr("Or press %1 to write one").arg("Ctrl+N"))
+            b.shell.destroy()
+        }
+
+        function test_tap_row_opens_in_pane_without_push() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.shell.depth, 1)
+            compare(b.core.openMessage, 7)
+            compare(b.core.messages.get(0).open, true)
+            compare(b.core.messages.get(1).open, false)
+            compare(find(b.shell, "readerPage") !== null, true)
+            b.shell.destroy()
+        }
+
+        function test_narrow_tap_row_still_pushes() {
+            const b = bootWide(70)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.shell.depth, 2)
+            compare(b.core.called("setOpenMessage").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_hysteresis() {
+            const b = bootWide(80)
+            compare(b.shell.wide, false)
+            b.shell.width = thm.gu(90)
+            compare(b.shell.wide, true)
+            b.shell.width = thm.gu(88)
+            compare(b.shell.wide, true)
+            b.shell.width = thm.gu(85)
+            compare(b.shell.wide, false)
+            b.shell.width = thm.gu(88)
+            compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
+        function test_close_clears_the_open_message() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            find(b.shell, "readerPage").backRequested()
+            compare(b.core.openMessage, 0)
+            compare(b.core.called("setOpenMessage").pop().args, [0])
+            b.shell.destroy()
+        }
+
+        function test_settings_covers_both_panes() {
+            const b = bootWide(100)
+            b.shell.currentPage.settingsRequested()
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.objectName, "settingsPage")
+            tryCompare(b.shell.currentPage, "width", b.shell.frameArea.width)
+            verify(!find(b.shell, "emptyReader").visible, "the pane shows over the settings page")
+            b.shell.destroy()
+        }
+
+        function test_folder_change_clears_open() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            b.shell.currentPage.showFolder(3, "Archive")
+            compare(b.core.openMessage, 0)
+            tryVerify(function() { return find(b.shell, "emptyReader").visible })
+            b.shell.destroy()
+        }
+
+        function test_pane_shows_compose_while_paneCompose_set() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            b.shell.paneCompose = 4
+            compare(find(b.shell, "readerPage"), null)
+            const page = find(b.shell, "composePage")
+            verify(page !== null, "no compose in the pane")
+            compare(page.compose, 4)
+            b.shell.paneCompose = 0
+            verify(find(b.shell, "readerPage") !== null, "the reader does not return")
+            b.shell.currentPage.showFolder(3, "Archive")
+            verify(find(b.shell, "emptyReader") !== null)
+            b.shell.destroy()
+        }
+
+        function test_compose_opens_in_the_pane_when_wide() {
+            const b = bootWide(100)
+            b.shell.composeOpened(5)
+            compare(b.shell.depth, 1)
+            compare(b.shell.paneCompose, 5)
             b.shell.destroy()
         }
     }

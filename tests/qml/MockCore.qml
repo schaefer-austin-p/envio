@@ -93,7 +93,11 @@ Item {
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
     function select(id, on) { record("select", [id, on]) }
-    function setOpenMessage(id) { record("setOpenMessage", [id]); openMessage = id }
+    function setOpenMessage(id) {
+        record("setOpenMessage", [id])
+        openMessage = id
+        for (let i = 0; i < messages.count; i++) messages.setProperty(i, "open", messages.get(i).id === id)
+    }
     function clearSelection() { record("clearSelection", []) }
     // False: the selected row is gone, nothing was acted on.
     property bool actRuns: true

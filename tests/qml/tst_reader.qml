@@ -715,6 +715,34 @@ Item {
             compare(composing.count, 1)
         }
 
+        // The wide layout: the pane is wider than the text measure.
+        function wideReader() {
+            root.page.destroy()
+            root.page = readerComponent.createObject(root, { messageId: 5, wide: true, width: 1000, height: 700 })
+            open(view([], 0))
+        }
+        function test_reader_measure_caps_at_80_gu() {
+            wideReader()
+            compare(find("bodyCard").width, thm.gu(80))
+            compare(root.page.bodyWidth, thm.gu(80) - thm.gu(3))
+            root.page.width = thm.gu(60)
+            compare(find("bodyCard").width, thm.gu(60) - thm.gu(4))
+        }
+        function test_narrow_reader_keeps_its_full_width() {
+            open(view([], 0))
+            compare(find("bodyCard").width, 400 - thm.gu(4))
+        }
+        function test_reply_forward_are_20_gu_wide() {
+            wideReader()
+            compare(find("reply").width, thm.gu(20))
+            compare(find("forward").width, thm.gu(20))
+        }
+        function test_wide_reader_has_close_in_place_of_back() {
+            wideReader()
+            compare(find("backButton").text, qsTr("Close"))
+            compare(find("backButton").iconName, "close")
+        }
+
         function checkRows() {
             mock.messages.clear()
             mock.messages.append({ id: 2, account: "ann", selected: true })

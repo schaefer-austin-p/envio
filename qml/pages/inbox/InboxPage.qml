@@ -25,6 +25,8 @@ Item {
     property int undoId: 0
 
     signal messageRequested(var message)
+    // The list switched to another folder or account tab (the open message goes).
+    signal listChanged()
     signal composeRequested()
     // The folder the list shows, -1 for a unified or not yet opened one.
     property int folderId: -1
@@ -45,6 +47,7 @@ Item {
         folderId = -1
         pendingInbox = ""
         core.openList("inboxes", 0)
+        listChanged()
     }
     function showFolder(id, name) {
         tab = "folder"
@@ -53,6 +56,7 @@ Item {
         folderId = id
         pendingInbox = ""
         core.openList("folder", id)
+        listChanged()
     }
     // The Inbox's id is among the account's folders: ask, then open it
     // when they arrive.
@@ -63,6 +67,7 @@ Item {
         folderId = -1
         pendingInbox = key
         core.listFolders(key)
+        listChanged()
     }
 
     Repeater {
@@ -83,6 +88,7 @@ Item {
             root.pendingInbox = ""
             root.folderId = item.model.id
             root.core.openList("folder", item.model.id)
+            root.listChanged()
         }
     }
     // A Folders reply that has no Inbox row for the account the tab waits on:

@@ -86,8 +86,34 @@ Item {
     // The ring's inside, where pages, sheets, dialogs and the problem page lie.
     readonly property Item frameArea: frame.area
 
-    // Compose pages: the core made the compose, the page follows it.
-    function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
+    // Wide layout: the list and a pane side by side from 90 gu, back to the
+    // page stack only below 86 gu, so a window dragged around the edge does
+    // not flap.
+    readonly property bool wide: _wide
+    property bool _wide: false
+    function checkWide() {
+        if (!theme) return
+        const on = width >= theme.gu(90), off = width < theme.gu(86)
+        if (!_wide && on) _wide = true
+        else if (_wide && off) _wide = false
+    }
+    onWidthChanged: checkWide()
+    onThemeChanged: checkWide()
+    // The compose the pane shows (an id), 0 for none. `core` has no compose
+    // id of its own.
+    property int paneCompose: 0
+
+    // Compose pages: the core made the compose, the page follows it. Wide,
+    // over the list (nothing on top of it), it opens in the pane.
+    function composeOpened(compose) {
+        if (wide && stack.depth === 1 && rootKind === "inbox") paneCompose = compose
+        else stack.push(composePage, { compose: compose })
+    }
+    // A tap on a row: the pane when wide, else the reader page.
+    function openMessageFromRow(message) {
+        if (wide) core.setOpenMessage(message)
+        else stack.push(readerPage, { messageId: message })
+    }
     function newMessage() {
         const id = core.startCompose("new", 0, composeAccount, "")
         if (id > 0) composeOpened(id)
@@ -203,6 +229,19 @@ Item {
             replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
         }
 
+        // The right pane of the wide layout, beside the inbox at the root.
+        // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
+        // the whole window, so the pane is not shown over them.
+        Loader {
+            id: pane
+            objectName: "pane"
+            visible: root.wide && stack.depth === 1 && root.rootKind === "inbox"
+            active: root.wide
+            anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+            width: parent.width - root.theme.gu(50)
+            sourceComponent: root.paneCompose > 0 ? paneComposeC : root.core.openMessage > 0 ? paneReaderC : emptyC
+        }
+
         ProblemPage {
             anchors.fill: parent
             z: 10
@@ -219,16 +258,48 @@ Item {
         }
     }
 
+    Component { id: emptyC; ReaderPane { theme: root.theme } }
+    Component {
+        id: paneReaderC
+        ReaderPage {
+            wide: true
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            folders: root.folders
+            messageId: root.core.openMessage
+            onBackRequested: root.core.setOpenMessage(0)
+            onComposeOpened: function(compose) { root.composeOpened(compose) }
+        }
+    }
+    Component {
+        id: paneComposeC
+        ComposePage {
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            suggestions: root.suggestions
+            compose: root.paneCompose
+            onClosed: { root.dropShare(compose); root.paneCompose = 0 }
+            onAttachStarted: function(count) { shareIn.expect(compose, count) }
+            onSent: function(text) { root.paneCompose = 0; sentToast.show(text) }
+        }
+    }
     Component {
         id: inboxPage
         InboxPage {
+            // The list pane when wide, else the whole page (the stack does
+            // not resize an item that sets its own size).
+            width: root.wide ? root.theme.gu(50) : stack.width
+            height: stack.height
             theme: root.theme
             core: root.core
             accounts: root.accounts
             folders: root.folders
             messages: root.messages
             outbox: root.outbox
-            onMessageRequested: stack.push(readerPage, { messageId: message })
+            onMessageRequested: root.openMessageFromRow(message)
+            onListChanged: if (root.core.openMessage > 0) root.core.setOpenMessage(0)
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
             onComposeRequested: root.newMessage()
@@ -399,5 +470,5 @@ Item {
         target: Qt.application
         function onStateChanged() { root.core.setActive(Qt.application.state === Qt.ApplicationActive) }
     }
-    Component.onCompleted: if (core.ready) route()
+    Component.onCompleted: { checkWide(); if (core.ready) route() }
 }
