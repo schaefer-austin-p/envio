@@ -116,6 +116,23 @@ pub fn setup_runs(email: &str) -> usize {
     })
 }
 
+static OAUTH_TIMEOUTS: Mutex<Vec<(String, i64)>> = Mutex::new(Vec::new());
+
+/// From now on, a sign-in for `email` times out after `ms` instead of 5 minutes.
+pub fn set_oauth_timeout(email: &str, ms: i64) {
+    if let Ok(mut timeouts) = OAUTH_TIMEOUTS.lock() {
+        timeouts.retain(|(e, _)| e != email);
+        timeouts.push((email.to_owned(), ms));
+    }
+}
+
+pub(crate) fn oauth_timeout(email: &str) -> Option<i64> {
+    OAUTH_TIMEOUTS
+        .lock()
+        .ok()
+        .and_then(|t| t.iter().find(|(e, _)| e == email).map(|(_, ms)| *ms))
+}
+
 static JOURNAL_FAILS: Mutex<Vec<std::path::PathBuf>> = Mutex::new(Vec::new());
 
 /// The next journal write of the store whose journal is at `journal` fails

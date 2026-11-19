@@ -89,6 +89,7 @@ fn detected_signal_carries_servers() {
             setup: setup(false),
             text: "t".into(),
             servers: "Incoming (IMAP): a:993, TLS".into(),
+            oauth: None,
         },
     );
     assert!(matches!(
@@ -109,6 +110,7 @@ fn one_shot_events_become_signals() {
             setup: setup(true),
             text: "t".into(),
             servers: "s".into(),
+            oauth: None,
         },
         Event::UndoOffer {
             undo: UndoId(1),

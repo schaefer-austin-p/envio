@@ -3,7 +3,8 @@
 use std::path::PathBuf;
 
 use envio_core::{
-    AccountSetup, ComposeId, DraftInput, MessageView, Service, Settings, UndoId, UndoScope,
+    AccountSetup, ComposeId, DraftInput, MessageView, OAuthOffer, OAuthOutcome, Service, Settings,
+    UndoId, UndoScope,
 };
 
 /// The "Load older messages" row at the foot of a list.
@@ -33,10 +34,26 @@ pub enum Signal {
         setup: AccountSetup,
         /// The two guessed servers, one per line.
         servers: String,
+        /// Signing in with a provider is possible.
+        oauth: Option<OAuthOffer>,
     },
     SetupProblem {
         email: String,
         text: String,
+    },
+    OAuthBrowser {
+        email: String,
+        url: String,
+        user_code: Option<String>,
+    },
+    OAuthConfirm {
+        email: String,
+        signed_in_as: Option<String>,
+        text: String,
+    },
+    OAuthDone {
+        email: String,
+        outcome: OAuthOutcome,
     },
     TrustPrompt {
         email: String,

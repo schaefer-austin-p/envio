@@ -189,14 +189,35 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             setup,
             text,
             servers,
+            oauth,
         } => Signal::Detected {
             email,
             text,
             needs_confirm: setup.needs_confirm,
             setup,
             servers,
+            oauth,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
+        Event::OAuthBrowser {
+            email,
+            url,
+            user_code,
+        } => Signal::OAuthBrowser {
+            email,
+            url,
+            user_code,
+        },
+        Event::OAuthConfirm {
+            email,
+            signed_in_as,
+            text,
+        } => Signal::OAuthConfirm {
+            email,
+            signed_in_as,
+            text,
+        },
+        Event::OAuthDone { email, outcome } => Signal::OAuthDone { email, outcome },
         Event::TrustPrompt {
             email,
             service,

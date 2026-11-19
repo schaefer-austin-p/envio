@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 12:53+0100\n"
+"POT-Creation-Date: 2026-11-19 14:13+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1102,6 +1102,56 @@ msgid "{n} pending change could not be read and was skipped"
 msgid_plural "{n} pending changes could not be read and were skipped"
 msgstr[0] ""
 msgstr[1] ""
+
+#: crates/envio-core/src/text/oauth.rs:8
+msgid "Sign in with {provider} to add this account"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:17
+msgid "You signed in as {who}. Use this account for {typed}?"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:21
+msgid "You signed in to a Microsoft account. Use it for {typed}?"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:28
+msgid "The sign-in took too long and was stopped. Start again"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:32
+msgid "Could not reach Microsoft. Check the connection and start again"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:36
+msgid "Microsoft or your organisation did not allow this sign-in"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:40
+msgid "The sign-in did not work. Start again"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:44
+msgid "That sign-in link is no longer valid. Start again"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:48
+msgid "Signing in with Microsoft is not available in this version"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:52
+msgid "This account does not sign in with Microsoft"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:56
+msgid "There is no sign-in waiting for an answer"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:60
+msgid ""
+"This account signs in with Microsoft and has no password. Sign in again "
+"instead"
+msgstr ""
 
 #: crates/envio-core/src/text/outbox.rs:8
 msgid "Waiting to be sent"
