@@ -10,6 +10,9 @@ Item {
     required property Item edit
     // The Flickable to freeze while a handle is dragged, if any.
     property Item flick: null
+    // A handle drag began / ended (the page hides and re-opens its menu).
+    signal dragStarted()
+    signal dragFinished()
 
     readonly property bool active: edit.selectionStart !== edit.selectionEnd
     anchors.fill: edit
@@ -66,8 +69,14 @@ Item {
             width: root.theme.touch
             height: root.theme.touch
             preventStealing: true
-            onPressed: if (root.flick) root.flick.interactive = false
-            onReleased: if (root.flick) root.flick.interactive = true
+            onPressed: {
+                if (root.flick) root.flick.interactive = false
+                root.dragStarted()
+            }
+            onReleased: {
+                if (root.flick) root.flick.interactive = true
+                root.dragFinished()
+            }
             onCanceled: if (root.flick) root.flick.interactive = true
             onPositionChanged: root.dragTo(knob.atStart, mapToItem(root.edit, mouse.x, mouse.y))
         }
