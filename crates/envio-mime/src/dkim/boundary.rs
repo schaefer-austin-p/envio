@@ -13,20 +13,16 @@ pub(crate) fn reader_body_start(raw: &[u8]) -> Option<usize> {
     Some(message.root_part().offset_body as usize)
 }
 
-/// Every header line is a field the two parsers read alike: it starts with
-/// a printable name followed by a colon (WSP may precede the colon), or is a
-/// continuation of the one before. A line without a colon, or one that starts
-/// with CR, FF or a control byte, is read differently by mail-parser (it
-/// skips such lines or bytes), so the message is not trusted.
+/// Every header line is a field the two parsers read alike: a name that
+/// [`header_name`] accepts (printable bytes, only SP or TAB before the
+/// colon), or a continuation of the one before. A line without a colon, or
+/// with a control byte in its name or starting with CR or FF, is read
+/// differently by mail-parser (it skips such bytes), so the message is not
+/// trusted.
 pub(crate) fn well_formed(raw: &[u8]) -> bool {
-    super::canon::header_fields(raw).into_iter().all(|field| {
-        let line = field.split(|&b| b == b'\n').next().unwrap_or(field);
-        let Some(colon) = line.iter().position(|&b| b == b':') else {
-            return false;
-        };
-        let name = line[..colon].trim_ascii_end();
-        !name.is_empty() && name.iter().all(|b| (33..=126).contains(b))
-    })
+    super::canon::header_fields(raw)
+        .into_iter()
+        .all(|field| super::canon::header_name(field).is_some())
 }
 
 /// The header block is well formed and DKIM's body start (the end when no

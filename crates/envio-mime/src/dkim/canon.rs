@@ -62,13 +62,10 @@ pub(crate) fn header_fields(raw: &[u8]) -> Vec<&[u8]> {
     ranges.into_iter().map(|(s, e)| &raw[s..e]).collect()
 }
 
-/// Whether `field` is named `name` (lowercase), case-insensitively, with
-/// optional space before the colon.
+/// Whether `field` is named `name` (lowercase), case-insensitively, by
+/// [`header_name`].
 pub(crate) fn field_named(field: &[u8], name: &[u8]) -> bool {
-    let Some(colon) = field.iter().position(|&b| b == b':') else {
-        return false;
-    };
-    field[..colon].trim_ascii_end().eq_ignore_ascii_case(name)
+    header_name(field).is_some_and(|n| n.eq_ignore_ascii_case(name))
 }
 
 /// The body after the blank line, LF normalised to CRLF.
@@ -192,12 +189,18 @@ fn without_terminator(field: &[u8]) -> &[u8] {
     f.strip_suffix(b"\r").unwrap_or(f)
 }
 
-/// The field name: the bytes before the first colon, trailing WSP removed.
-fn field_name(field: &[u8]) -> Option<&[u8]> {
+/// The field name, the one rule every name lookup uses (header selection for
+/// `h=`, From and Content-Type counting, the well-formed guard): the bytes
+/// before the first colon with trailing SP and TAB removed, and only when
+/// every remaining byte is printable ASCII (33 to 126). A control byte (FF,
+/// VT, CR, NUL), a space inside the name or an empty name gives None:
+/// mail-parser skips such bytes and would read a different name than DKIM.
+pub(crate) fn header_name(field: &[u8]) -> Option<&[u8]> {
     let colon = field.iter().position(|&b| b == b':')?;
     let name = &field[..colon];
     let end = name.iter().rposition(|&b| !is_wsp(b)).map_or(0, |i| i + 1);
-    Some(&name[..end])
+    let name = &name[..end];
+    (!name.is_empty() && name.iter().all(|b| (33..=126).contains(b))).then_some(name)
 }
 
 /// RFC 6376 3.4.1 and 3.4.2 for one field, ending in CRLF.
@@ -272,7 +275,7 @@ pub(crate) fn signed_data(fields: &[&[u8]], sig_index: usize, sig: &Signature) -
         if i == sig_index {
             continue;
         }
-        if let Some(name) = field_name(f) {
+        if let Some(name) = header_name(f) {
             by_name
                 .entry(name.to_ascii_lowercase())
                 .or_default()
