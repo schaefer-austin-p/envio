@@ -11,6 +11,8 @@ Sheet {
     required property var core
     required property var folders
     property string account: ""
+    // Message ids to move; empty moves the selection.
+    property var targets: []
     signal chosen(var folder)
 
     title: qsTr("Move to folder")
@@ -34,7 +36,10 @@ Sheet {
             onClicked: {
                 root.close()
                 root.chosen(row.model.id)
-                root.core.act("move", row.model.id)
+                if (root.targets.length > 0)
+                    root.core.actOn(root.targets, "move", row.model.id)
+                else
+                    root.core.act("move", row.model.id)
             }
             FolderLabel {
                 x: root.theme.gu(2.5) + row.model.depth * root.theme.gu(2)

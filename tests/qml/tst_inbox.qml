@@ -541,6 +541,22 @@ Item {
             core.messages.clear()
         }
 
+        function test_movesheet_without_targets_uses_selection_act() {
+            core.messages.append(message(11, true))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            core.reset()
+            mouseClick(find("act-move", page))
+            const sheet = find("moveSheet", page)
+            tryVerify(function() { return sheet.opened })
+            compare(sheet.targets, [])
+            core.folders.append({ id: 8, account: "ann", name: "Trips 2026", role: "", unread: 0, depth: 0 })
+            mouseClick(find("folder-8", sheet.contentItem))
+            compare(core.called("act").pop().args, ["move", 8])
+            compare(core.called("actOn").length, 0)
+            core.folders.clear()
+            core.messages.clear()
+        }
+
         function test_undo_toast_calls_undo() {
             const toast = find("undoToast", page)
             core.undoOffer(5, "Archived “Plans”", "list")
