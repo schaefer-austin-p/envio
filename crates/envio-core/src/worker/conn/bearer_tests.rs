@@ -30,6 +30,7 @@ struct Rig {
     imap: u16,
     smtp: u16,
     handle: TokenHandle,
+    cells: TokenCells,
     /// Refreshes made so far.
     calls: Rc<Cell<u32>>,
     now: Rc<Cell<i64>>,
@@ -76,6 +77,7 @@ async fn rig(valid: &[&str]) -> Rig {
         imap,
         smtp,
         handle,
+        cells,
         calls,
         now,
         _dir: dir,
@@ -212,4 +214,46 @@ async fn smtp_disabled_by_the_mailbox_is_refused_at_once_even_with_an_old_token(
     ));
     assert_eq!(r.smtp_seen(), ["acc-1"]);
     assert_eq!(r.calls.get(), 1, "no refresh for a disabled mailbox");
+}
+
+#[tokio::test]
+async fn an_imap_refusal_after_smtp_refreshed_retries_once_with_the_new_token() {
+    // Both used the old token; SMTP is refused first and refreshes, so by the
+    // time IMAP's refusal arrives the cached token is young. IMAP's token was
+    // old, so it still gets its one retry (with the token SMTP fetched).
+    let r = rig(&["acc-2"]).await;
+    *r.peers.imap_delay_ms.lock().unwrap() = 400;
+    r.age();
+    let (imap, smtp) = futures::join!(r.imap(), r.smtp());
+    assert!(imap.is_ok(), "{imap:?}");
+    assert!(smtp.is_ok());
+    assert_eq!(r.imap_seen(), ["acc-1", "acc-2"]);
+    assert_eq!(r.smtp_seen(), ["acc-1", "acc-2"]);
+    assert_eq!(r.calls.get(), 2, "one refresh served both");
+}
+
+#[tokio::test]
+async fn an_smtp_refusal_after_imap_refreshed_retries_once_with_the_new_token() {
+    let r = rig(&["acc-2"]).await;
+    *r.peers.smtp_delay_ms.lock().unwrap() = 400;
+    r.age();
+    let (imap, smtp) = futures::join!(r.imap(), r.smtp());
+    assert!(imap.is_ok());
+    assert!(smtp.is_ok(), "{:?}", smtp.err().map(|_| "smtp failed"));
+    assert_eq!(r.smtp_seen(), ["acc-1", "acc-2"]);
+    assert_eq!(r.calls.get(), 2, "one refresh served both");
+}
+
+#[tokio::test]
+async fn a_pause_that_lands_mid_connect_stops_the_forced_refresh() {
+    let r = rig(&["acc-2"]).await;
+    *r.peers.imap_delay_ms.lock().unwrap() = 400;
+    r.age();
+    let pause = async {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        r.cells.set_paused("a", Some(Problem::Certificate(None)));
+    };
+    let (imap, ()) = futures::join!(r.imap(), pause);
+    assert!(matches!(imap, Err(Problem::Certificate(None))), "{imap:?}");
+    assert_eq!(r.calls.get(), 1, "no refresh for a paused account");
 }

@@ -20,7 +20,7 @@ use tokio::sync::Notify;
 
 use super::Worker;
 use super::plan::Wants;
-use super::token::{FRESH_MS, TokenCells, TokenHandle, bearer_send_error};
+use super::token::{FRESH_MS, Granted, TokenCells, TokenHandle, bearer_send_error};
 use crate::clock::now_ms;
 use crate::health::{AccountStatus, Health};
 use crate::problem::{self, Problem};
@@ -156,17 +156,25 @@ pub(crate) async fn connect_imap(login: &Login, roots: &Roots) -> Result<ImapSes
         }
         LoginSource::Token(handle) => handle,
     };
-    let mut forced = false;
+    let mut refused: Option<Granted> = None;
     loop {
-        let token = handle.access(forced).await?;
-        let credentials = envio_net::Credentials::bearer(&login.username, token.expose_secret());
+        let granted = match &refused {
+            None => handle.access(false).await?,
+            Some(used) => handle.renew(used).await?,
+        };
+        let credentials =
+            envio_net::Credentials::bearer(&login.username, granted.token.expose_secret());
         match ImapSession::open(&login.endpoint, roots, &credentials).await {
             Ok(session) => {
                 handle.set_imap_ok();
                 return Ok(session);
             }
             // Only a sign-in refusal means the token may have expired; once.
-            Err(envio_net::NetError::SignIn(_)) if !forced && is_old(handle) => forced = true,
+            Err(envio_net::NetError::SignIn(_))
+                if refused.is_none() && is_old(handle, granted.at_ms) =>
+            {
+                refused = Some(granted);
+            }
             Err(error) => return Err(to_problem(error)),
         }
     }
@@ -187,10 +195,14 @@ pub(crate) async fn connect_smtp(
         }
         LoginSource::Token(handle) => handle,
     };
-    let mut forced = false;
+    let mut refused: Option<Granted> = None;
     loop {
-        let token = handle.access(forced).await?;
-        let credentials = envio_net::Credentials::bearer(&login.username, token.expose_secret());
+        let granted = match &refused {
+            None => handle.access(false).await?,
+            Some(used) => handle.renew(used).await?,
+        };
+        let credentials =
+            envio_net::Credentials::bearer(&login.username, granted.token.expose_secret());
         let mut session = SmtpSession::connect(&login.endpoint, roots)
             .await
             .map_err(to_problem)?;
@@ -198,21 +210,21 @@ pub(crate) async fn connect_smtp(
             Ok(()) => return Ok(session),
             Err(error) => error,
         };
-        let old = is_old(handle);
+        let old = is_old(handle, granted.at_ms);
         let error = bearer_send_error(error, !old, handle.imap_ok());
         match error {
             envio_net::NetError::Refused(text) if is_send_refusal(&text) => {
                 return Err(SmtpConnectError::SendRefused(text));
             }
-            envio_net::NetError::SignIn(_) if !forced && old => forced = true,
+            envio_net::NetError::SignIn(_) if refused.is_none() && old => refused = Some(granted),
             error => return Err(to_problem(error).into()),
         }
     }
 }
 
-/// The token was obtained more than `FRESH_MS` ago (or not at all).
-fn is_old(handle: &TokenHandle) -> bool {
-    handle.age_ms().is_none_or(|age| age > FRESH_MS)
+/// The token the attempt used was obtained more than `FRESH_MS` ago.
+fn is_old(handle: &TokenHandle, at_ms: i64) -> bool {
+    handle.age_of(at_ms) > FRESH_MS
 }
 
 /// Whether `bearer_send_error` made this refusal (its text ends in the hint).
@@ -252,7 +264,7 @@ pub(super) fn login(
 
 /// What a paused account's status says, again: asking it for a login changes
 /// nothing about it.
-fn paused_problem(status: &AccountStatus) -> Option<Problem> {
+pub(super) fn paused_problem(status: &AccountStatus) -> Option<Problem> {
     match status {
         AccountStatus::SignInFailed => Some(Problem::SignIn),
         AccountStatus::Certificate(details) => Some(Problem::Certificate(details.clone())),
@@ -637,6 +649,61 @@ mod tests {
         ));
         worker.live.get_mut(key).unwrap().health.status = AccountStatus::Ready;
         assert!(worker.login_for(key, Service::Imap).is_ok());
+    }
+
+    /// The token cell of a worker with a Microsoft account, and the worker.
+    fn token_worker<'s>(
+        config: &mut crate::Config,
+        sink: &'s crate::worker::testing::Sink,
+        key: &str,
+    ) -> (Worker<'s>, TokenHandle) {
+        use envio_net::oauth::Provider;
+        config.oauth = vec![Provider::microsoft_template()];
+        let worker = crate::worker::testing::open(config, sink);
+        let handle = worker
+            .store
+            .token_cells
+            .handle(key, ProviderKind::Microsoft)
+            .unwrap();
+        (worker, handle)
+    }
+
+    #[test]
+    fn a_failed_step_that_pauses_the_account_stops_its_token_refreshes() {
+        use crate::worker::testing::{Sink, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let key = &seeded.account;
+        let (mut worker, handle) = token_worker(&mut config, &sink, key);
+        crate::worker::run::failed(&mut worker, key, "test", &Problem::Certificate(None));
+        // A refresh would end in SignIn (no stored token): this is the pause.
+        let reply = handle.access(true).now_or_never();
+        assert!(
+            matches!(reply, Some(Err(Problem::Certificate(None)))),
+            "{reply:?}"
+        );
+    }
+
+    #[test]
+    fn reporting_a_paused_account_stops_its_token_refreshes() {
+        use crate::worker::testing::{Sink, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let key = &seeded.account;
+        let (mut worker, handle) = token_worker(&mut config, &sink, key);
+        worker.live.get_mut(key).unwrap().health.status = AccountStatus::Certificate(None);
+        worker.report(key, &AccountStatus::Ready);
+        let reply = handle.access(true).now_or_never();
+        assert!(
+            matches!(reply, Some(Err(Problem::Certificate(None)))),
+            "{reply:?}"
+        );
     }
 
     /// Whether going to the background woke the account's IDLE, and whether

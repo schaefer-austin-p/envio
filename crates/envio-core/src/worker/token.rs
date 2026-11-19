@@ -24,7 +24,15 @@ pub(crate) const REFRESH_MARGIN_MS: i64 = 5 * 60 * 1000;
 /// arrives with it is not an expired token.
 pub(crate) const FRESH_MS: i64 = 60_000;
 
-type Reply = Result<SecretString, TokenError>;
+/// An access token and when it was obtained: a refusal is judged by the age
+/// of the token the attempt used, not of whatever is cached by then.
+#[derive(Clone, Debug)]
+pub(crate) struct Granted {
+    pub(crate) token: SecretString,
+    pub(crate) at_ms: i64,
+}
+
+type Reply = Result<Granted, TokenError>;
 type Flight = Shared<LocalBoxFuture<'static, Reply>>;
 /// Trades a refresh token for new tokens (the network call, replaceable in tests).
 pub(crate) type Refresher =
@@ -43,6 +51,8 @@ struct State {
     flight: Option<(u64, Flight)>,
     next_flight: u64,
     imap_ok: bool,
+    /// Why the account is paused: no refresh is made for it.
+    paused: Option<Problem>,
 }
 
 struct Cell {
@@ -62,9 +72,14 @@ impl TokenHandle {
     /// A usable access token: the cached one if it has more than
     /// `REFRESH_MARGIN_MS` left (and `force` is not set), else one refresh.
     /// A second caller during a refresh awaits the first one's result.
-    pub(crate) async fn access(&self, force: bool) -> Result<SecretString, Problem> {
-        if !force && let Some(token) = self.0.cached() {
-            return Ok(token);
+    pub(crate) async fn access(&self, force: bool) -> Result<Granted, Problem> {
+        if !force && let Some(granted) = self.0.cached() {
+            return Ok(granted);
+        }
+        // A paused account makes no request, whoever asks (an attempt that
+        // began before the pause included).
+        if let Some(problem) = self.0.state.borrow().paused.clone() {
+            return Err(problem);
         }
         let (id, flight) = self.0.join_or_start();
         let reply = flight.await;
@@ -72,11 +87,27 @@ impl TokenHandle {
         reply.map_err(|e| token_problem(&e))
     }
 
+    /// A token after `used` was refused: the cached one if it is newer than
+    /// `used` (another connection already refreshed), else a forced refresh.
+    pub(crate) async fn renew(&self, used: &Granted) -> Result<Granted, Problem> {
+        if let Some(granted) = self.0.cached()
+            && granted.at_ms > used.at_ms
+        {
+            return Ok(granted);
+        }
+        self.access(true).await
+    }
+
+    /// Milliseconds since a token obtained at `at_ms`.
+    pub(crate) fn age_of(&self, at_ms: i64) -> i64 {
+        (self.0.clock)().saturating_sub(at_ms)
+    }
+
     /// Milliseconds since the cached access token was obtained.
+    #[cfg(test)]
     pub(crate) fn age_ms(&self) -> Option<i64> {
-        let state = self.0.state.borrow();
-        let at = state.access.as_ref()?.at_ms;
-        Some((self.0.clock)().saturating_sub(at))
+        let at = self.0.state.borrow().access.as_ref()?.at_ms;
+        Some(self.age_of(at))
     }
 
     /// A bearer IMAP login succeeded since the last sign-in.
@@ -90,11 +121,14 @@ impl TokenHandle {
 }
 
 impl Cell {
-    fn cached(&self) -> Option<SecretString> {
+    fn cached(&self) -> Option<Granted> {
         let state = self.state.borrow();
         let access = state.access.as_ref()?;
         let left = access.expires_ms.saturating_sub((self.clock)());
-        (left > REFRESH_MARGIN_MS).then(|| access.token.clone())
+        (left > REFRESH_MARGIN_MS).then(|| Granted {
+            token: access.token.clone(),
+            at_ms: access.at_ms,
+        })
     }
 
     fn join_or_start(self: &Rc<Self>) -> (u64, Flight) {
@@ -159,7 +193,10 @@ impl Cell {
             at_ms: at,
             expires_ms: at.saturating_add(ttl),
         });
-        Ok(tokens.access)
+        Ok(Granted {
+            token: tokens.access,
+            at_ms: at,
+        })
     }
 }
 
@@ -197,6 +234,13 @@ impl TokenCells {
             clock,
             tokens,
             cells: RefCell::new(BTreeMap::new()),
+        }
+    }
+
+    /// Sets or clears why the account is paused; while set, no refresh is made.
+    pub(crate) fn set_paused(&self, account: &str, problem: Option<Problem>) {
+        if let Some(cell) = self.cells.borrow().get(account) {
+            cell.state.borrow_mut().paused = problem;
         }
     }
 

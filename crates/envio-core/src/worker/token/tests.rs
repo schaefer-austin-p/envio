@@ -100,8 +100,8 @@ fn handle(s: &Setup, key: &str) -> TokenHandle {
     s.cells.handle(key, ProviderKind::Microsoft).unwrap()
 }
 
-fn text(r: Result<SecretString, Problem>) -> String {
-    r.unwrap().expose_secret().to_owned()
+fn text(r: Result<super::Granted, Problem>) -> String {
+    r.unwrap().token.expose_secret().to_owned()
 }
 
 #[tokio::test]
@@ -489,4 +489,18 @@ fn bearer_send_error_leaves_other_errors_alone() {
 fn constants_match_the_plan() {
     assert_eq!(REFRESH_MARGIN_MS, 300_000);
     assert_eq!(FRESH_MS, 60_000);
+}
+
+#[tokio::test]
+async fn a_paused_token_account_makes_no_refresh_request() {
+    let s = setup(vec![Ok(("acc-1", None, 3600))]);
+    let h = handle(&s, "a");
+    s.cells.set_paused("a", Some(Problem::SignIn));
+    assert_eq!(h.access(false).await.unwrap_err(), Problem::SignIn);
+    assert_eq!(h.access(true).await.unwrap_err(), Problem::SignIn);
+    assert_eq!(s.fake.calls.get(), 0);
+    // Resumed, it refreshes again.
+    s.cells.set_paused("a", None);
+    assert_eq!(text(h.access(false).await), "acc-1");
+    assert_eq!(s.fake.calls.get(), 1);
 }

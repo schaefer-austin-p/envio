@@ -64,6 +64,9 @@ pub struct Peers {
     pub smtp_denied: Mutex<bool>,
     /// The final reply of a refused SMTP AUTH.
     pub smtp_refusal: Mutex<String>,
+    /// Milliseconds IMAP and SMTP wait before answering a sign-in.
+    pub imap_delay_ms: Mutex<u64>,
+    pub smtp_delay_ms: Mutex<u64>,
     /// Messages SMTP accepted.
     pub sent: Mutex<usize>,
 }
@@ -210,6 +213,8 @@ fn imap_talk(tls: Stream, peers: &Peers) -> std::io::Result<()> {
                 io.read_line(&mut line)?;
                 let (user, token) = sign_in_of(line.trim_end());
                 peers.imap_tokens.lock().unwrap().push(token.clone());
+                let delay = *peers.imap_delay_ms.lock().unwrap();
+                std::thread::sleep(std::time::Duration::from_millis(delay));
                 if peers.accepts(&user, &token) {
                     signed_in = true;
                     format!("{tag} OK signed in\r\n")
@@ -268,6 +273,8 @@ fn smtp_talk(tls: Stream, peers: &Peers) -> std::io::Result<()> {
             "AUTH" => {
                 let (user, token) = sign_in_of(text.split(' ').nth(2).unwrap_or(""));
                 peers.smtp_tokens.lock().unwrap().push(token.clone());
+                let delay = *peers.smtp_delay_ms.lock().unwrap();
+                std::thread::sleep(std::time::Duration::from_millis(delay));
                 if peers.accepts(&user, &token) && !*peers.smtp_denied.lock().unwrap() {
                     "235 2.7.0 Authentication successful\r\n".to_owned()
                 } else {
