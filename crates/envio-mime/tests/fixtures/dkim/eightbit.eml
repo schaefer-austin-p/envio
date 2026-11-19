@@ -1,0 +1,18 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=simple/simple; d=example.com;
+ i=@example.com; q=dns/txt; s=test; t=1795101874; h=from : to : subject
+ : date : message-id : content-type;
+ bh=oiJ0Fr+hWWcSFZZZ1F6/kTQgzVGp7ZDwPNTDGRibX7A=;
+ b=LrK1qk8guEQ7ifgNyc3+b/r+R7MJevkafSwniG+t45q7Lu3PZvKhDk4e/92qQR2VVoLw8
+ hMN7wEflRinWqgVRRYkhL59eAJLByucwZ7Tal/hW8y+1pZoFi9pXEUuZb3mx1T2vI9Qhp00
+ bSLIatey7UtqAYc+CN0lIXkeNtrTg+7vwREo5SdPdI+KCLfx9TMvDOr259YVtL3hFPY0fHD
+ JGvxG/e6UG7NrAYyNESw7tYTAGs8XjnTOOz3/iF0GdtYcWMwtANrh8jr+oFjOvAIqzBca+s
+ xy8X35DGnGWoUxdaFa1vn5YTSfwki2L1iSm22t8eE6MOWCEq3qfiPxEjftqA==
+From: Bob <bob@example.com>
+To: Alice <alice@example.org>
+Subject: Hello
+Date: Thu, 19 Nov 2026 10:00:00 +0000
+Message-ID: <fixture@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Grüße aus München ✓

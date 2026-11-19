@@ -38,13 +38,6 @@ pub(crate) struct Signature {
     pub expires: Option<u64>,
 }
 
-impl Signature {
-    /// `content-type` is in `h=` (decision 9; checked by T5, not here).
-    pub fn signs_content_type(&self) -> bool {
-        self.signed_headers.iter().any(|h| h == "content-type")
-    }
-}
-
 /// Digits only, as RFC 6376 writes `l=`, `x=` and `t=`.
 fn number(value: &str) -> Option<u64> {
     if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
@@ -203,7 +196,7 @@ mod tests {
         assert_eq!(ed.signature.len(), 64);
         assert_eq!(ed.agent.as_deref(), Some("@football.example.com"));
         assert_eq!((ed.body_length, ed.expires), (None, None));
-        assert!(!ed.signs_content_type());
+        assert!(!ed.signed_headers.iter().any(|h| h == "content-type"));
 
         let rsa = signature(RSA).unwrap();
         assert_eq!(rsa.algorithm, Algorithm::RsaSha256);
@@ -267,9 +260,9 @@ mod tests {
         let h = "h=from : to : subject :\r\n date : message-id : from : subject : date";
         assert!(signature(&with(h, "h=subject:date")).is_none());
         let sig = signature(&with(h, "h=from:subject")).unwrap();
-        assert!(!sig.signs_content_type());
+        assert!(!sig.signed_headers.iter().any(|h| h == "content-type"));
         let sig = signature(&with(h, "h=From : Content-Type")).unwrap();
-        assert!(sig.signs_content_type());
+        assert!(sig.signed_headers.iter().any(|h| h == "content-type"));
         assert_eq!(sig.signed_headers, ["from", "content-type"]);
     }
 
