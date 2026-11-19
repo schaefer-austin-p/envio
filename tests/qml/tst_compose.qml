@@ -404,6 +404,7 @@ Item {
             compare(find("primaryAction", dlg.contentItem).text, "Keep editing")
             mouseClick(laidOut(dlg, "primaryAction"))
             tryVerify(function() { return !dlg.opened })
+            wait(50)  // the deferred signal would have arrived by now
             compare(mock.called("closeCompose").length, 0)
             mouseClick(find("moreButton"))
             tryVerify(function() { return shown("discardRow") })

@@ -280,6 +280,7 @@ Item {
             const dlg = find("trustDialog", page)
             tryVerify(function() { return dlg.visible })
             mouseClick(laidOut(dlg, "primaryAction"))
+            wait(50)  // the deferred signal would have arrived by now
             compare(core.called("acceptCertificate").length, 0)
         }
     }

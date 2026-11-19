@@ -219,6 +219,7 @@ Item {
             compare(fp.font.family, thm.fontMono)
             mouseClick(primary)
             tryVerify(function() { return !dlg.visible })
+            wait(50)  // the deferred signal would have arrived by now
             compare(core.called("acceptSetupCertificate").length, 0)
             compare(connectCalls().length, 1)
         }

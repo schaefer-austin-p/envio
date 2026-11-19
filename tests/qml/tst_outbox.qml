@@ -103,6 +103,7 @@ Item {
             compare(find("primaryAction", dlg.contentItem).text, "Cancel")
             mouseClick(laidOut(dlg, "primaryAction"))
             tryVerify(function() { return !dlg.opened })
+            wait(50)  // the deferred signal would have arrived by now
             compare(core.called("decideOutbox").length, 0)
             mouseClick(find("delete-f", page))
             tryVerify(function() { return dlg.opened })
