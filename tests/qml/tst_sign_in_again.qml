@@ -77,7 +77,18 @@ Item {
             mouseClick(find("cancelSignIn"))
             compare(core.called("cancelOAuth").length, 1)
             compare(closed.count, 0)
+            // The card waits for the core's answer.
+            verify(find("signInAgainNotice").title !== "Sign-in cancelled")
+            core.oauthDone("ann@example.org", "cancelled", "")
             compare(find("signInAgainNotice").title, "Sign-in cancelled")
+        }
+        function test_a_refused_start_shows_the_cores_reason() {
+            mouseClick(find("signInAgainButton"))
+            verify(find("browserStep").visible)
+            core.oauthDone("ann@example.org", "failed", "This account does not sign in with Microsoft")
+            verify(!find("browserStep").visible)
+            compare(find("signInAgainNotice").text, "This account does not sign in with Microsoft")
+            verify(find("signInAgainButton").visible)
         }
         function test_a_failure_replaces_the_expired_card() {
             mouseClick(find("signInAgainButton"))

@@ -637,18 +637,55 @@ Item {
             core.oauthBrowser("other@example.org", "https://login.example.org/other")
             compare(opened.length, 1)
         }
-        function test_cancel_calls_cancelOAuth_and_says_nothing_was_added() {
+        function test_cancel_calls_cancelOAuth_and_the_card_waits_for_the_core() {
             startMicrosoft()
             mouseClick(find("cancelSignIn"))
             compare(core.called("cancelOAuth").length, 1)
+            // Nothing is claimed until the core says the attempt ended.
+            compare(wizard.oauthSession.noticeKind, "")
+            compare(wizard.step, "browser")
+            core.oauthDone("ann@example.org", "cancelled", "")
             compare(wizard.step, "signin")
             compare(find("oauthNotice").title, "Sign-in cancelled")
+        }
+        function test_an_account_added_before_the_cancel_arrived_is_not_called_cancelled() {
+            startMicrosoft()
+            mouseClick(find("cancelSignIn"))
+            core.accountAdded("ann", "ann@example.org")
+            core.oauthDone("ann@example.org", "added", "")
+            compare(wizard.step, "options")
+            compare(wizard.oauthSession.noticeKind, "")
         }
         function test_back_while_waiting_is_cancel() {
             startMicrosoft()
             wizard.back()
             compare(core.called("cancelOAuth").length, 1)
+            core.oauthDone("ann@example.org", "cancelled", "")
             compare(wizard.step, "signin")
+        }
+        function test_a_refused_start_shows_the_cores_reason() {
+            toMicrosoft()
+            mouseClick(find("oauthButton"))
+            compare(wizard.step, "browser")
+            core.oauthDone("ann@example.org", "failed", "This account is already added")
+            compare(wizard.step, "signin")
+            const card = find("oauthNotice")
+            verify(card.visible)
+            compare(card.kind, "warning")
+            compare(card.text, "This account is already added")
+            verify(find("oauthButton").visible)
+            verify(!wizard.busy)
+        }
+        function test_back_while_the_core_saves_the_account_keeps_waiting_for_it() {
+            startMicrosoft()
+            core.oauthConfirm("ann@example.org", "bob@example.org", "x")
+            mouseClick(find("useAccount"))
+            compare(wizard.oauthSession.state, "saving")
+            wizard.back()
+            compare(wizard.oauthSession.state, "saving")
+            compare(core.called("cancelOAuth").length, 0)
+            core.accountAdded("ann", "ann@example.org")
+            compare(wizard.step, "options")
         }
         function test_each_failure_shows_its_card() {
             const texts = ["Microsoft took too long.", "No connection.", "Microsoft refused.", "Something went wrong."]
@@ -686,6 +723,7 @@ Item {
             compare(core.called("confirmOAuth").length, 1)
             compare(core.called("confirmOAuth")[0].args[0], false)
             compare(core.called("cancelOAuth").length, 0)
+            core.oauthDone("ann@example.org", "cancelled", "")
             compare(wizard.step, "signin")
         }
         function test_account_added_moves_on_and_done_added_only_clears_the_browser_step() {

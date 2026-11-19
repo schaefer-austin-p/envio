@@ -60,6 +60,8 @@ Item {
         error = ""
     }
     function back() {
+        // The core is storing the account: Back would drop its AccountAdded.
+        if (session.state === "saving") return
         // The provider's page is open or the user is asked: Back is Cancel
         // and the page stays on the sign-in step.
         if (step === "browser" || session.state === "confirm") {

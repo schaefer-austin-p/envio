@@ -18,6 +18,9 @@ Item {
     property string email: ""
     property string account: ""
     property string state: "idle"
+    // Cancel was sent and the core has not answered yet: the state stays as it
+    // was, and the core's answer decides (it may have finished first).
+    property bool ending: false
     // The page's card: kind "" (none), "info" or "warning".
     property string noticeKind: ""
     property string noticeTitle: ""
@@ -49,6 +52,7 @@ Item {
     }
     // Forget a finished or abandoned attempt (the page was left); tells no one.
     function reset() {
+        ending = false
         state = "idle"
         url = ""
         clearNotice()
@@ -56,19 +60,21 @@ Item {
     function start() {
         clearNotice()
         url = ""
+        ending = false
         state = "waiting"
         core.startOAuth(email, account)
     }
     // Cancel, or Back while waiting or being asked.
+    // The "cancelled" card waits for the core's OAuthDone, so it never says
+    // "no account was added" about an account that was.
     function cancel() {
-        if (state === "idle") return
+        if (state === "idle" || state === "saving" || ending) return
+        ending = true
         if (state === "confirm") core.confirmOAuth(false)
         else core.cancelOAuth()
-        state = "idle"
-        cancelledNotice()
     }
     function answer(accept) {
-        if (state !== "confirm") return
+        if (state !== "confirm" || ending) return
         core.confirmOAuth(accept)
         clearNotice()
         if (accept) {
@@ -108,6 +114,7 @@ Item {
         }
         function onOauthDone(address, outcome, text) {
             if (!root.mine(address)) return
+            root.ending = false
             root.state = "idle"
             root.url = ""
             if (outcome === "added") {
