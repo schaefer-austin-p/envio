@@ -61,7 +61,7 @@ impl Internet {
 
     /// The resolver, built on the first call and the same one after.
     fn resolver(&self) -> Option<&TokioResolver> {
-        self.resolver.get_or_init(srv::resolver).as_ref()
+        self.resolver.get_or_init(crate::dns::resolver).as_ref()
     }
 }
 
