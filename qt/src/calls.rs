@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 
 use cxx_qt::CxxQtType;
-use cxx_qt_lib::{QMap, QMapPair_QString_QVariant, QString};
+use cxx_qt_lib::{QList, QMap, QMapPair_QString_QVariant, QString, QVariant};
 use envio_core::{
     Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
 };
@@ -16,6 +16,12 @@ use crate::convert as cv;
 use crate::core_object::qobject;
 use crate::lifecycle::clock;
 use crate::variant::map_of;
+
+/// A message id from a JS number in a QVariantList.
+#[allow(clippy::cast_possible_truncation)]
+fn variant_id(v: &QVariant) -> Option<i64> {
+    v.value::<f64>().map(|n| n as i64)
+}
 
 fn s(q: &QString) -> String {
     String::from(q)
@@ -188,6 +194,26 @@ impl qobject::EnvioCore {
             return false;
         };
         let Some((command, outs)) = self.as_mut().rust_mut().ui.act_on_selection(action) else {
+            return false;
+        };
+        self.as_mut().run(outs);
+        self.send_command(command);
+        true
+    }
+
+    /// Act on exactly these messages (ids as JS numbers), leaving the
+    /// selection alone; false when none of them is shown any more.
+    pub fn act_on(
+        mut self: Pin<&mut Self>,
+        ids: &QList<QVariant>,
+        action: &QString,
+        folder: i64,
+    ) -> bool {
+        let Some(action) = cv::user_action(&s(action), folder) else {
+            return false;
+        };
+        let ids: Vec<i64> = ids.iter().filter_map(variant_id).collect();
+        let Some((command, outs)) = self.as_mut().rust_mut().ui.act_on(ids, action) else {
             return false;
         };
         self.as_mut().run(outs);

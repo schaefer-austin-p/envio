@@ -17,6 +17,9 @@ pub mod qobject {
         include!("cxx-qt-lib/qstringlist.h");
         type QStringList = cxx_qt_lib::QStringList;
 
+        include!("cxx-qt-lib/qlist.h");
+        type QList_QVariant = cxx_qt_lib::QList<cxx_qt_lib::QVariant>;
+
         include!("cxx-qt-lib/qmap.h");
         type QMap_QString_QVariant = cxx_qt_lib::QMap<cxx_qt_lib::QMapPair_QString_QVariant>;
     }
@@ -230,6 +233,14 @@ pub mod qobject {
         fn clear_selection(self: Pin<&mut EnvioCore>);
         #[qinvokable]
         fn act(self: Pin<&mut EnvioCore>, action: &QString, folder: i64) -> bool;
+        #[qinvokable]
+        #[cxx_name = "actOn"]
+        fn act_on(
+            self: Pin<&mut EnvioCore>,
+            ids: &QList_QVariant,
+            action: &QString,
+            folder: i64,
+        ) -> bool;
         #[qinvokable]
         fn undo(self: Pin<&mut EnvioCore>, id: i64);
         #[qinvokable]
