@@ -114,6 +114,33 @@ fn older_failure_returns_to_ready() {
     assert!(ui.load_older().is_some());
 }
 
+#[test]
+fn reopening_the_same_list_keeps_a_loading_older_batch() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    let (_, outs) = ui.open_list(F1);
+    assert!(rows(&outs).is_empty(), "{:?}", rows(&outs));
+    feed(&mut ui, page(F1, None, vec![msg(1, 10)], true));
+    // The batch still lands and its rows are paged in.
+    assert_eq!(rows(&feed(&mut ui, loaded(9, false))), [OlderRow::Hidden]);
+    let last = page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true);
+    assert_eq!(rows(&feed(&mut ui, last)), [OlderRow::Ready]);
+}
+
+#[test]
+fn reopening_the_same_list_keeps_done() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(1, 10)], true);
+    let _ = ui.load_older().unwrap();
+    assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
+    let (_, outs) = ui.open_list(F1);
+    assert!(rows(&outs).is_empty(), "{:?}", rows(&outs));
+    let first = feed(&mut ui, page(F1, None, vec![msg(1, 10)], true));
+    assert!(rows(&first).is_empty(), "{:?}", rows(&first));
+    assert!(ui.load_older().is_none());
+}
+
 fn changed() -> Event {
     Event::MessagesChanged {
         folders: vec![envio_core::FolderId(1)],
@@ -291,14 +318,15 @@ fn a_reopened_list_the_server_has_no_more_for_is_not_auto_loaded_again() {
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     let _ = ui.load_older_near_end().unwrap();
     assert_eq!(rows(&feed(&mut ui, loaded(0, true))), [OlderRow::Done]);
-    // Back to the list: the row is Ready again, but scrolling asks nothing.
+    // Another list is not affected.
+    opened(&mut ui, other(), vec![msg(5, 50)], true);
+    assert!(ui.load_older_near_end().is_some());
+    // Back to the list (it was left): the row is Ready again, but
+    // scrolling asks nothing.
     opened(&mut ui, F1, vec![msg(1, 10)], true);
     assert!(ui.load_older_near_end().is_none());
     // The row still works when tapped.
     assert!(ui.load_older().is_some());
-    // Another list is not affected.
-    opened(&mut ui, other(), vec![msg(5, 50)], true);
-    assert!(ui.load_older_near_end().is_some());
 }
 
 #[test]

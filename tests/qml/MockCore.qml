@@ -85,8 +85,15 @@ Item {
     function setAccountLabel(account, label) { record("setAccountLabel", [account, label]) }
     function listFolders(account) { record("listFolders", [account]) }
     function drawerAccount(account) { record("drawerAccount", [account]) }
-    // Like Rust's open_list: the open message goes with the old list.
-    function openList(kind, id) { record("openList", [kind, id]); clearOpen() }
+    // Like Rust's open_list: the open message goes with the old list, but
+    // re-selecting the list already shown keeps it.
+    property var shownList: null
+    function openList(kind, id) {
+        record("openList", [kind, id])
+        const same = shownList !== null && shownList[0] === kind && shownList[1] === id
+        shownList = [kind, id]
+        if (!same) clearOpen()
+    }
     function more() { record("more", []) }
     function loadOlder() { record("loadOlder", []) }
     function loadOlderNearEnd() { record("loadOlderNearEnd", []) }
