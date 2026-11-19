@@ -27,7 +27,7 @@ Item {
         name: "AirmailFrame"
         when: windowShown
 
-        function init() { thm.name = "carbon"; thm.darkMode = "light" }
+        function init() { thm.name = "carbon"; thm.darkMode = "light"; thm.roundedDisplay = true }
         function cleanup() { sheet.close(); dialog.close() }
 
         function alpha(canvas, x, y) {
@@ -37,7 +37,9 @@ Item {
             compare(thm.frameInset, 0)
             thm.name = "airmail"
             compare(thm.frameInset, 10)
-            compare(thm.frameOuterRadius, 30)
+            compare(thm.frameOuterRadius, 30)   // roundedDisplay, set by init()
+            thm.roundedDisplay = false
+            compare(thm.frameOuterRadius, 0)
             compare(thm.frameTopOuterRadius, 0)
             compare(thm.frameInnerRadius, 20)
         }
@@ -105,6 +107,39 @@ Item {
             compare(alpha(c, 197, 2), 255)
             compare(alpha(c, 2, 297), 0)
             compare(alpha(c, 197, 297), 0)
+        }
+
+        // #343: in a square window (desktop) the stripes reach the bottom
+        // corners; the display's rounded corners are the phone's only.
+        function test_square_display_band_reaches_bottom_corners() {
+            thm.name = "airmail"
+            thm.roundedDisplay = false
+            compare(thm.frameOuterRadius, 0)
+            compare(thm.frameInnerRadius, 20)
+            const c = frame.ring
+            tryVerify(function() { return c.available })
+            c.requestPaint()
+            wait(100)
+            tryVerify(function() { return alpha(c, 100, 4) === 255 }, 2000)
+            compare(alpha(c, 0, 299), 255)
+            compare(alpha(c, 1, 298), 255)
+            compare(alpha(c, 199, 299), 255)
+            compare(alpha(c, 198, 298), 255)
+            compare(alpha(c, 100, 150), 0)
+        }
+
+        function test_rounded_display_keeps_the_bottom_radius() {
+            thm.name = "airmail"
+            thm.roundedDisplay = true
+            compare(thm.frameOuterRadius, 30)
+            const c = frame.ring
+            tryVerify(function() { return c.available })
+            c.requestPaint()
+            wait(100)
+            tryVerify(function() { return alpha(c, 100, 4) === 255 }, 2000)
+            compare(alpha(c, 1, 298), 0)
+            compare(alpha(c, 198, 298), 0)
+            compare(alpha(c, 110, 295), 255)   // mid-stripe: a stripe seam is antialiased
         }
 
         function test_shell_page_width() {
