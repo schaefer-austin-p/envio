@@ -34,6 +34,7 @@ mail-parser = { version = "0.11.9", features = ["full_encoding"] }
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"] }
 psl = "2.1"
 base64 = "0.23"
+ring = "0.17"
 
 [dev-dependencies]
 insta = "1.49"
