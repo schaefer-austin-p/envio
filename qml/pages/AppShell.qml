@@ -314,7 +314,7 @@ Item {
             suggestions: root.suggestions
             compose: root.paneCompose
             onClosed: { root.dropShare(compose); root.paneCompose = 0 }
-            onAttachStarted: function(count) { shareIn.expect(compose, count) }
+            onAttachStarted: function(count, transfer) { shareIn.expectPick(compose, count, transfer) }
             onSent: function(text) { root.paneCompose = 0; sentToast.show(text) }
         }
     }

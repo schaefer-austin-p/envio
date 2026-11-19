@@ -630,6 +630,31 @@ Item {
             b.shell.destroy()
         }
 
+        function test_the_pane_composes_picker_transfer_is_finalized() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "")
+            const t = newTransfer()
+            find(b.shell, "composePage").pick(["/p/a.pdf", "/p/b.png"], t)
+            compare(t.finalized, 0, "the copies are not made yet")
+            b.core.attached(1, "/d/a.pdf", "a.pdf", 3)
+            compare(t.finalized, 0, "one file is still being copied")
+            b.core.attachFailed(1, "unreadable")
+            compare(t.finalized, 1)
+            b.shell.destroy()
+        }
+
+        function test_an_expanded_quote_stays_expanded_after_narrowing() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "On Monday Bob wrote:\n> hi")
+            find(find(b.shell, "composePage"), "quoteShow").clicked()
+            verify(find(find(b.shell, "composePage"), "quoteText").visible)
+            b.shell.width = thm.gu(70)
+            verify(find(b.shell.currentPage, "quoteText").visible, "the quote folded again")
+            b.shell.destroy()
+        }
+
         function test_back_from_the_moved_compose_returns_to_the_list() {
             const b = wideCompose()
             b.shell.width = thm.gu(70)
