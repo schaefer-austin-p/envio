@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 21:46+0100\n"
+"POT-Creation-Date: 2026-11-19 22:16+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/EditMenu.qml:82
+#: qml/components/EditMenu.qml:97
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:89 qml/pages/reader/LinkSheet.qml:120
+#: qml/components/EditMenu.qml:105 qml/pages/reader/LinkSheet.qml:122
 msgid "Copy"
 msgstr ""
 
-#: qml/components/EditMenu.qml:96
+#: qml/components/EditMenu.qml:113
 msgid "Paste"
 msgstr ""
 
-#: qml/components/EditMenu.qml:103
+#: qml/components/EditMenu.qml:121
 msgid "Select all"
 msgstr ""
 
@@ -126,32 +126,32 @@ msgstr ""
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:141
+#: qml/pages/accounts/AccountsPage.qml:142
 msgid "Rename"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:162
+#: qml/pages/accounts/AccountsPage.qml:165
 #: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:90
 #: crates/envio-core/src/text/status.rs:28
 msgid "Sign in again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:182
+#: qml/pages/accounts/AccountsPage.qml:186
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:201
-#: qml/pages/accounts/AccountsPage.qml:222
+#: qml/pages/accounts/AccountsPage.qml:207
+#: qml/pages/accounts/AccountsPage.qml:228
 #: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:220
+#: qml/pages/accounts/AccountsPage.qml:226
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:221
+#: qml/pages/accounts/AccountsPage.qml:227
 msgid "Keep account"
 msgstr ""
 
@@ -176,8 +176,8 @@ msgstr ""
 #: qml/pages/accounts/BrowserStep.qml:115
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/RenameSheet.qml:68 qml/pages/accounts/TrustDialog.qml:21
-#: qml/pages/inbox/OutboxPage.qml:88 qml/pages/reader/AttachmentsSheet.qml:79
-#: qml/pages/reader/LinkSheet.qml:132 qml/pages/search/SearchPage.qml:193
+#: qml/pages/inbox/OutboxPage.qml:88 qml/pages/reader/AttachmentsSheet.qml:80
+#: qml/pages/reader/LinkSheet.qml:134 qml/pages/search/SearchPage.qml:193
 msgid "Cancel"
 msgstr ""
 
@@ -487,27 +487,27 @@ msgstr ""
 msgid "Write your message"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:36
+#: qml/pages/compose/DiscardActions.qml:37
 msgid "Save draft"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:53
+#: qml/pages/compose/DiscardActions.qml:56
 msgid "Discard draft"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:65
+#: qml/pages/compose/DiscardActions.qml:68
 msgid "Discard this message?"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:66
+#: qml/pages/compose/DiscardActions.qml:69
 msgid "The draft is deleted and cannot be brought back."
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:67
+#: qml/pages/compose/DiscardActions.qml:70
 msgid "Keep editing"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:68
+#: qml/pages/compose/DiscardActions.qml:71
 msgid "Discard"
 msgstr ""
 
@@ -674,7 +674,7 @@ msgstr ""
 msgid "Attachments"
 msgstr ""
 
-#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:113
+#: qml/pages/reader/AttachmentsSheet.qml:37 qml/pages/reader/LinkSheet.qml:114
 msgid "Open"
 msgstr ""
 

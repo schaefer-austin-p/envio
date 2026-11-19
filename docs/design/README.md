@@ -36,3 +36,7 @@ Also added (0.2.0, notifications): Settings → Notifications, at the foot of
 Sync, the page (a switch per account, "Show sender and subject", and the
 "Keep checking in the background" help with the Terminal command) and the
 all-accounts-off state. The command text is a TODO until confirmed on the phone.
+
+Also (#356): the archive, trash, send, pencil, check and external-link glyphs in
+`carbon-` and `airmail-` inbox, compose and reading are Lucide 0.460.0 now, as in
+the app; `*-menu-icons` has the mapping for every sheet and menu item.

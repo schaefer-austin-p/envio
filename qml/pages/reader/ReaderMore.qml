@@ -15,16 +15,17 @@ Sheet {
 
     Repeater {
         model: [
-            { name: "moreReplyAll", label: qsTr("Reply all"), pick: 0 },
-            { name: "moreMove", label: qsTr("Move to folder"), pick: 1 },
-            { name: "moreFlag", label: qsTr("Flag"), pick: 2 },
-            { name: "moreUnflag", label: qsTr("Remove flag"), pick: 3 },
-            { name: "moreContact", label: qsTr("Add sender to Contacts"), pick: 4 }
+            { name: "moreReplyAll", label: qsTr("Reply all"), pick: 0, icon: "reply-all" },
+            { name: "moreMove", label: qsTr("Move to folder"), pick: 1, icon: "folder-input" },
+            { name: "moreFlag", label: qsTr("Flag"), pick: 2, icon: "flag" },
+            { name: "moreUnflag", label: qsTr("Remove flag"), pick: 3, icon: "flag-off" },
+            { name: "moreContact", label: qsTr("Add sender to Contacts"), pick: 4, icon: "user-plus" }
         ]
         delegate: ListRow {
             id: row
             required property var modelData
             objectName: modelData.name
+            iconName: modelData.icon
             theme: root.theme
             width: root.width
             onClicked: {

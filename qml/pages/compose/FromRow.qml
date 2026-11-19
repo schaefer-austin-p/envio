@@ -86,6 +86,7 @@ Item {
                 id: pick
                 required property var model
                 objectName: "account-" + model.key
+                iconName: "circle-user-round"
                 theme: root.theme
                 width: sheet.width
                 onClicked: { sheet.close(); root.chosen(model.key) }

@@ -106,6 +106,7 @@ Sheet {
         }
         AppButton {
             objectName: "linkOpen"
+            iconName: "external-link"
             width: parent.width
             theme: root.theme
             primary: true
@@ -115,6 +116,7 @@ Sheet {
         }
         AppButton {
             objectName: "linkCopy"
+            iconName: "copy"
             width: parent.width
             theme: root.theme
             text: qsTr("Copy")
