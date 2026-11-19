@@ -77,19 +77,8 @@ fn deleting_an_uploaded_draft_in_drafts_removes_its_local_file_once_replayed() {
     assert!(drafts.deletes().unwrap().is_empty(), "no note either");
 }
 
-/// Restores a folder's mode when dropped.
-struct Mode(std::path::PathBuf);
-
-impl Drop for Mode {
-    fn drop(&mut self) {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o755));
-    }
-}
-
 #[test]
 fn a_replay_that_fails_after_the_commit_still_forgets_the_draft() {
-    use std::os::unix::fs::PermissionsExt;
     let (mut h, _server, folder, drafts, id) = seeded();
     // An intent that stays (its folder is unknown) makes the sidecar exist,
     // so the commit below needs no new file in the data folder.
@@ -112,12 +101,9 @@ fn a_replay_that_fails_after_the_commit_still_forgets_the_draft() {
         Event::Messages { rows, .. } => Some(rows.clone()),
         _ => None,
     });
-    // The data folder turns read-only: the replay commits the delete
-    // (appends to files that exist) but cannot rewrite the journal after
-    // it, so `driver::replay` returns an error.
-    let data = h.data_dir();
-    let _restore = Mode(data.clone());
-    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // The journal's compact fails once: the replay commits the delete and
+    // then returns an error.
+    envio_core::hooks::fail_next_journal_compact(h.paths().journal());
     h.send(Command::Act {
         ids: vec![rows[0].id],
         action: UserAction::Delete,

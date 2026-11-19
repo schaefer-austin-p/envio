@@ -86,6 +86,8 @@ pub struct Journal {
     skipped: Vec<Skipped>,
     /// Test seam: the next sync fails after the line is written.
     fail_next_sync: bool,
+    /// Test seam: the next compact fails before it writes.
+    fail_next_compact: bool,
     /// Committed Delete and Move actions whose draft is still to be forgotten.
     intents: Intents,
 }
@@ -109,6 +111,7 @@ impl Journal {
             needs_compact: replay.torn,
             skipped: replay.skipped,
             fail_next_sync: false,
+            fail_next_compact: false,
             intents: Intents::open(path)?,
         };
         if !existed && let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
@@ -200,8 +203,17 @@ impl Journal {
         self.fail_next_sync = true;
     }
 
+    /// Test seam: makes the next compact fail before it writes.
+    #[doc(hidden)]
+    pub fn fail_next_compact(&mut self) {
+        self.fail_next_compact = true;
+    }
+
     /// Rewrites the file with only the pending actions (e.g. at startup).
     pub fn compact(&mut self) -> Result<()> {
+        if std::mem::take(&mut self.fail_next_compact) {
+            return Err(io::Error::other("injected compact failure").into());
+        }
         let mut bytes = encode(&Record::Next { seq: self.next_seq });
         // Skipped lines and pending adds in sequence order, as they were.
         let mut lines: Vec<(u64, Vec<u8>)> = self
