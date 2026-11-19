@@ -128,7 +128,11 @@ Item {
         error = ""
         core.draftChanged(compose, draftJson())
     }
+    // Files were handed to the core to attach: each answers with Attached
+    // or AttachFailed. (The shell counts them with the shared files'.)
+    signal attachStarted(int count)
     function pick(paths) {
+        attachStarted(paths.length)
         for (const p of paths) core.attach(compose, p)
     }
     function leave() {

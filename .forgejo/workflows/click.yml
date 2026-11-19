@@ -12,6 +12,7 @@ on:
       - clickable.yaml
       - manifest.json
       - envio.desktop
+      - envio.content-hub
       - envio.url-dispatcher
       - "assets/**"
       - envio.apparmor
