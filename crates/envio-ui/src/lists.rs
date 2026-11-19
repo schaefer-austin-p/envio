@@ -33,6 +33,13 @@ impl ShownList {
         self.rows.iter().any(|s| s.row.id == id)
     }
 
+    /// A shown row with a local draft behind it is among these ids.
+    pub fn has_local(&self, ids: &std::collections::BTreeSet<i64>) -> bool {
+        self.rows
+            .iter()
+            .any(|s| !s.row.draft_id.is_empty() && ids.contains(&s.row.id))
+    }
+
     /// Where the next page starts: after the last row shown.
     pub fn last_cursor(&self) -> Option<Cursor> {
         self.rows.last().map(|s| s.cursor)
