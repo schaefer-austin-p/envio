@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 14:30+0100\n"
+"POT-Creation-Date: 2026-11-19 15:37+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -914,10 +914,14 @@ msgid "This draft is already open."
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:61
-msgid "This draft can not be opened"
+msgid "Editing a copy. The original stays in Drafts."
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:65
+msgid "This draft can not be opened"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:69
 msgid "Could not save your draft"
 msgstr ""
 
