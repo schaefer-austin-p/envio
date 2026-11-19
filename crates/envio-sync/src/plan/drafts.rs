@@ -52,6 +52,24 @@ pub fn can_judge(action: &Action, folders: &[Folder]) -> bool {
         }
 }
 
+/// The Message-ID of the Drafts-folder message an action removes for good
+/// (a Delete, or a Move to Trash), or `None` for any other action. The one
+/// test `drafts_to_forget` and the Drafts list's "leaving" rule share.
+pub fn leaves_drafts<'a>(action: &'a Action, folders: &[Folder]) -> Option<&'a str> {
+    let role_of = |path: &str| folders.iter().find(|f| f.path == path).map(|f| f.role);
+    let leaves = match &action.kind {
+        ActionKind::Delete => true,
+        ActionKind::Move { to } => role_of(to) == Some(FolderRole::Trash),
+        ActionKind::SetFlags { .. } => false,
+    };
+    let target = &action.target;
+    if leaves && role_of(&target.folder) == Some(FolderRole::Drafts) {
+        target.message_id.as_deref()
+    } else {
+        None
+    }
+}
+
 /// Ids (with the Message-ID of the deleted copy) of the local drafts whose server copy the user has just deleted (or
 /// moved to Trash) in the Drafts folder: their files must go, or Upload or
 /// Edit would bring the draft back. `done` are actions the server has now
@@ -64,21 +82,12 @@ pub fn drafts_to_forget(
     drafts: &[(String, Draft)],
     open: &BTreeSet<String>,
 ) -> Vec<(String, String)> {
-    let role_of = |path: &str| folders.iter().find(|f| f.path == path).map(|f| f.role);
     let mut ids = Vec::new();
     for action in done {
-        let leaves = match &action.kind {
-            ActionKind::Delete => true,
-            ActionKind::Move { to } => role_of(to) == Some(FolderRole::Trash),
-            ActionKind::SetFlags { .. } => false,
+        let Some(message_id) = leaves_drafts(action, folders) else {
+            continue;
         };
         let target = &action.target;
-        let Some(message_id) = target.message_id.as_deref() else {
-            continue;
-        };
-        if !leaves || role_of(&target.folder) != Some(FolderRole::Drafts) {
-            continue;
-        }
         for (id, draft) in drafts {
             let server = &draft.server;
             if draft.account == target.account
@@ -223,6 +232,31 @@ mod tests {
             .into_iter()
             .map(|(id, _)| id)
             .collect()
+    }
+
+    #[test]
+    fn leaves_drafts_gives_the_id_of_a_delete_or_move_to_trash_only() {
+        let f = folders();
+        let to = |p: &str| ActionKind::Move { to: p.into() };
+        let id = |a: &Action| leaves_drafts(a, &f).map(str::to_owned);
+        let some = Some("<m@x>".to_owned());
+        assert_eq!(
+            id(&action("Drafts", Some("<m@x>"), ActionKind::Delete)),
+            some
+        );
+        assert_eq!(id(&action("Drafts", Some("<m@x>"), to("Trash"))), some);
+        assert_eq!(id(&action("Drafts", Some("<m@x>"), to("Archive"))), None);
+        assert_eq!(id(&action("Drafts", Some("<m@x>"), to("Nowhere"))), None);
+        let flag = ActionKind::SetFlags {
+            add: envio_store::Flags::SEEN,
+            remove: envio_store::Flags::empty(),
+        };
+        assert_eq!(id(&action("Drafts", Some("<m@x>"), flag)), None);
+        assert_eq!(
+            id(&action("INBOX", Some("<m@x>"), ActionKind::Delete)),
+            None
+        );
+        assert_eq!(id(&action("Drafts", None, ActionKind::Delete)), None);
     }
 
     #[test]

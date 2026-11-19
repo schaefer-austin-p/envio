@@ -238,13 +238,19 @@ impl Worker<'_> {
     /// delays it to the next run.
     pub(super) fn forget_deleted_drafts(&mut self, account: &str) {
         let open = self.book.open_drafts();
-        if let Err(error) = driver::forget_deleted_drafts(
+        match driver::forget_deleted_drafts(
             (&self.store.db, &self.store.drafts),
             &mut self.store.journal,
             account,
             &open,
         ) {
-            log::warn!("account {account}: removing drafts deleted on the server: {error}");
+            Ok(removed) if !removed.is_empty() => self.emit(Event::LocalDraftsChanged {
+                account: account.to_owned(),
+            }),
+            Ok(_) => {}
+            Err(error) => {
+                log::warn!("account {account}: removing drafts deleted on the server: {error}");
+            }
         }
     }
 

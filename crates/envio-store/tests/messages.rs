@@ -117,6 +117,29 @@ fn set_flags_replaces_the_flags() {
 }
 
 #[test]
+fn message_ids_in_reads_one_folder_trimmed_and_skips_empty() {
+    let db = Db::open_in_memory().unwrap();
+    let drafts = db
+        .upsert_folder("a1", "Drafts", FolderRole::Drafts)
+        .unwrap();
+    let other = inbox(&db, "a1");
+    db.upsert_message(drafts, &message(1, "x", 1)).unwrap();
+    let mut spaced = message(2, "x", 1);
+    spaced.envelope.message_id = Some(" <2@example.org> ".into());
+    db.upsert_message(drafts, &spaced).unwrap();
+    let mut none = message(3, "x", 1);
+    none.envelope.message_id = None;
+    db.upsert_message(drafts, &none).unwrap();
+    let mut empty = message(4, "x", 1);
+    empty.envelope.message_id = Some("  ".into());
+    db.upsert_message(drafts, &empty).unwrap();
+    db.upsert_message(other, &message(5, "x", 1)).unwrap();
+    let ids = db.message_ids_in(drafts).unwrap();
+    let want = ["<1@example.org>", "<2@example.org>"].map(str::to_owned);
+    assert_eq!(ids, want.into_iter().collect());
+}
+
+#[test]
 fn find_by_message_id_searches_one_account() {
     let db = Db::open_in_memory().unwrap();
     let inbox_a1 = inbox(&db, "a1");

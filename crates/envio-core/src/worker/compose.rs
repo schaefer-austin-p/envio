@@ -248,6 +248,9 @@ impl Worker<'_> {
                 {
                     log::warn!("deleting a sent draft: {e}");
                 }
+                self.emit(Event::LocalDraftsChanged {
+                    account: draft.account.clone(),
+                });
                 if let Some(live) = self.live.get_mut(&draft.account) {
                     live.wants.send = true;
                     // The draft's server copy goes.
