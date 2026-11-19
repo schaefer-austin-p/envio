@@ -129,7 +129,7 @@ Item {
     function snapshot() {
         commitAll()
         return {
-            filled: filled, showCc: showCc, quoted: quoted, keepQuoted: keepQuoted,
+            filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, keepQuoted: keepQuoted,
             attachments: attachments.slice(),
             draft: {
                 account: account, draftId: draftId, to: to.all(), cc: cc.all(), bcc: bcc.all(),
@@ -145,6 +145,9 @@ Item {
         showCc = state.showCc
         keepQuoted = state.keepQuoted
         attachments = state.attachments
+        // Between Send and the answer the new page waits too (no second send).
+        sending = state.sending
+        error = state.error
     }
     // Any edit: the core keeps the draft.
     function edited() {

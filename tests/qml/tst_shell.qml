@@ -598,6 +598,38 @@ Item {
             b.shell.destroy()
         }
 
+        function test_narrowing_while_sending_keeps_send_disabled() {
+            const b = wideCompose()
+            find(b.shell, "composePage").send()
+            compare(b.core.called("send").length, 1)
+            b.shell.width = thm.gu(70)
+            const page = b.shell.currentPage
+            compare(page.sending, true)
+            compare(find(page, "sendButton").enabled, false)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_keeps_the_compose_error() {
+            const b = wideCompose()
+            find(b.shell, "composePage").error = "No recipient"
+            b.shell.width = thm.gu(70)
+            compare(b.shell.currentPage.error, "No recipient")
+            b.shell.destroy()
+        }
+
+        function test_grid_unit_change_rechecks_the_layout() {
+            const b = boot()
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            // Pretend the last check saw a wide window; only the signal of the
+            // grid unit (a Suru change on the phone) can correct it here.
+            b.shell._wide = true
+            compare(b.shell.wide, true)
+            thm.gridUnitChanged()
+            compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
         function test_back_from_the_moved_compose_returns_to_the_list() {
             const b = wideCompose()
             b.shell.width = thm.gu(70)
