@@ -1,6 +1,7 @@
 //! What autoconfig asks, in which order, and which answer wins. Pure: the
 //! lookups themselves are in `http` and `srv`.
 
+use crate::http::is_hostname;
 use crate::server::{Endpoint, Security};
 
 /// Where a server setting came from (the UI says "found by ...").
@@ -65,21 +66,6 @@ pub fn domain_of(email: &str) -> Option<String> {
     let (local, domain) = email.trim().rsplit_once('@')?;
     let domain = domain.to_ascii_lowercase();
     (!local.is_empty() && domain.contains('.') && is_hostname(&domain)).then_some(domain)
-}
-
-/// Letters, digits and '-' in labels separated by single dots. A label
-/// may not be empty or start or end with '-'.
-pub fn is_hostname(host: &str) -> bool {
-    !host.is_empty()
-        && host.len() <= 253
-        && host.split('.').all(|label| {
-            !label.is_empty()
-                && !label.starts_with('-')
-                && !label.ends_with('-')
-                && label
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
-        })
 }
 
 /// Whether `host` is `domain` or under it. Case-insensitive, one trailing

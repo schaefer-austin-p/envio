@@ -8,6 +8,7 @@ use std::io;
 use std::net::IpAddr;
 
 use tokio::io::{AsyncRead, AsyncReadExt};
+use zeroize::Zeroizing;
 
 /// Autoconfig files are a few KiB; a body over this is not one.
 pub const MAX_BODY: usize = 256 * 1024;
@@ -33,6 +34,21 @@ pub enum Reply {
     Nothing,
 }
 
+/// Letters, digits and '-' in labels separated by single dots. A label
+/// may not be empty or start or end with '-'.
+pub fn is_hostname(host: &str) -> bool {
+    !host.is_empty()
+        && host.len() <= 253
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+}
+
 /// `https://host[:port]/path`; anything else (http, user info) is None.
 pub fn parse_url(url: &str) -> Option<Url> {
     let rest = url.strip_prefix("https://")?;
@@ -45,7 +61,7 @@ pub fn parse_url(url: &str) -> Option<Url> {
         None => (authority, 443),
     };
     let ok_path = path.bytes().all(|b| b.is_ascii_graphic());
-    (crate::autoconfig::plan::is_hostname(host) && ok_path).then(|| Url {
+    (is_hostname(host) && ok_path).then(|| Url {
         host: host.to_ascii_lowercase(),
         port,
         path: path.to_owned(),
@@ -170,16 +186,26 @@ pub fn reply_complete(raw: &[u8]) -> bool {
         }
 }
 
-/// The body of a reply, framed by its Content-Length or the cap; None when
-/// it is cut short, over the cap, or has a bad length.
-fn body_of<'a>(head: &Head, raw: &'a [u8]) -> Option<&'a [u8]> {
+/// Why a reply has no usable body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BadReply {
+    /// A body over `MAX_BODY`, declared or read: the server is sending
+    /// something that is not what was asked for.
+    TooBig,
+    /// Cut short, chunked, a bad length, or not HTTP: a bad connection.
+    Unreadable,
+}
+
+/// The body of a reply, framed by its Content-Length or the cap.
+fn body_of<'a>(head: &Head, raw: &'a [u8]) -> Result<&'a [u8], BadReply> {
     let rest = &raw[head.body_start..];
     match head.length {
-        Length::Invalid => None,
-        Length::Known(n) if n > MAX_BODY || rest.len() < n => None,
-        Length::Known(n) => Some(&rest[..n]),
-        Length::None if rest.len() > MAX_BODY => None,
-        Length::None => Some(rest),
+        Length::Invalid => Err(BadReply::Unreadable),
+        Length::Known(n) if n > MAX_BODY => Err(BadReply::TooBig),
+        Length::Known(n) if rest.len() < n => Err(BadReply::Unreadable),
+        Length::Known(n) => Ok(&rest[..n]),
+        Length::None if rest.len() > MAX_BODY => Err(BadReply::TooBig),
+        Length::None => Ok(rest),
     }
 }
 
@@ -191,6 +217,7 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
     match head.status {
         200 if head.chunked => Reply::Chunked,
         200 => body_of(&head, raw)
+            .ok()
             .and_then(|body| String::from_utf8(body.to_vec()).ok())
             .map_or(Reply::Nothing, Reply::Body),
         301 | 302 | 303 | 307 | 308 => head.location.map_or(Reply::Nothing, Reply::Redirect),
@@ -199,15 +226,20 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
 }
 
 /// The status and body of a reply with any status (a token endpoint answers
-/// errors with a JSON body). None for a chunked reply, a bad or cut-short
-/// body, or no status line; the body cap is the same as `parse_reply`'s.
+/// errors with a JSON body). The body cap is the same as `parse_reply`'s.
 /// `clean` is as for [`finish_reply`].
-pub fn parse_response(raw: &[u8], clean: bool) -> Option<(u16, Vec<u8>)> {
-    let head = head(raw)?;
-    if head.chunked || head.status == 0 || !(clean || reply_complete(raw)) {
-        return None;
+pub fn parse_response(raw: &[u8], clean: bool) -> Result<(u16, Vec<u8>), BadReply> {
+    let head = head(raw).ok_or(BadReply::Unreadable)?;
+    if head.chunked || head.status == 0 {
+        return Err(BadReply::Unreadable);
     }
-    body_of(&head, raw).map(|body| (head.status, body.to_vec()))
+    // An over-cap body is reported even if the stream was cut: the size
+    // is what is wrong with it.
+    match body_of(&head, raw) {
+        Err(BadReply::TooBig) => Err(BadReply::TooBig),
+        _ if !(clean || reply_complete(raw)) => Err(BadReply::Unreadable),
+        body => body.map(|body| (head.status, body.to_vec())),
+    }
 }
 
 /// [`parse_reply`], for bytes read until the stream ended. `clean` is
@@ -230,9 +262,10 @@ pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
     stream: &mut R,
 ) -> io::Result<(Vec<u8>, bool)> {
     let mut raw = Vec::new();
-    let mut chunk = [0u8; 8192];
+    // The reply may hold tokens: no stale copy on the stack.
+    let mut chunk = Zeroizing::new([0u8; 8192]);
     while !reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
-        match stream.read(&mut chunk).await {
+        match stream.read(&mut chunk[..]).await {
             Ok(0) => break,
             Ok(n) => raw.extend_from_slice(&chunk[..n]),
             Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok((raw, false)),
@@ -259,23 +292,26 @@ mod tests {
     #[test]
     fn a_response_keeps_its_status_and_body() {
         let raw = b"HTTP/1.0 400 Bad Request\r\nContent-Length: 2\r\n\r\n{}";
-        assert_eq!(parse_response(raw, false), Some((400, b"{}".to_vec())));
+        assert_eq!(parse_response(raw, false), Ok((400, b"{}".to_vec())));
         assert_eq!(
             parse_response(b"HTTP/1.0 503 X\r\n\r\nhi", true).unwrap().0,
             503
         );
         // Cut short without a length, chunked, no status: nothing.
-        assert_eq!(parse_response(b"HTTP/1.0 200 OK\r\n\r\nhi", false), None);
+        assert_eq!(
+            parse_response(b"HTTP/1.0 200 OK\r\n\r\nhi", false),
+            Err(BadReply::Unreadable)
+        );
         assert_eq!(
             parse_response(
                 b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
                 true
             ),
-            None
+            Err(BadReply::Unreadable)
         );
-        assert_eq!(parse_response(b"junk", true), None);
+        assert_eq!(parse_response(b"junk", true), Err(BadReply::Unreadable));
         let big = format!("HTTP/1.0 400 X\r\n\r\n{}", "a".repeat(MAX_BODY + 1));
-        assert_eq!(parse_response(big.as_bytes(), true), None);
+        assert_eq!(parse_response(big.as_bytes(), true), Err(BadReply::TooBig));
     }
 
     #[test]

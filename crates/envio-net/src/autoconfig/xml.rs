@@ -7,7 +7,8 @@ use quick_xml::XmlVersion;
 use quick_xml::escape::resolve_predefined_entity;
 use quick_xml::events::Event;
 
-use super::plan::{Candidates, Setting, is_hostname};
+use super::plan::{Candidates, Setting};
+use crate::http::is_hostname;
 use crate::server::{Endpoint, Security};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

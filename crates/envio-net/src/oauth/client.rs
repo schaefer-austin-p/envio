@@ -10,12 +10,13 @@ use std::time::Duration;
 
 use secrecy::{ExposeSecret, SecretString};
 use tokio::io::AsyncWriteExt;
+use zeroize::Zeroizing;
 
 use super::{Grant, Provider, TokenError, Tokens, parse_token_reply, token_request_body};
 use crate::COMMAND_TIMEOUT;
 use crate::connect;
 use crate::error::{NetError, Result};
-use crate::http::{self, Url};
+use crate::http::{self, BadReply, Url};
 use crate::server::{Endpoint, Security};
 use crate::tls::{self, Roots};
 
@@ -65,18 +66,28 @@ async fn post(
     let body = token_request_body(p, grant);
     let (status, reply) = connect::within_for(limit, round_trip(p, roots, &body))
         .await
-        .map_err(|e| {
-            if e.is_temporary() {
-                TokenError::Temporary
-            } else {
-                // Fixed text: nothing from the request or the error.
-                TokenError::Refused("connection".to_owned())
-            }
-        })?;
+        .map_err(failure)??;
     parse_token_reply(status, &reply)
 }
 
-async fn round_trip(p: &Provider, roots: &Roots, body: &SecretString) -> Result<(u16, Vec<u8>)> {
+/// What a failed call means for the account. Only a bad reply or a bad
+/// token URL is final. Every connection fault is `Temporary`, including
+/// the TLS ones (an unknown or expired certificate from a wrong clock or a
+/// captive portal, a changed pin): they clear by themselves, and "Sign in
+/// again" would not fix them. The text is fixed; nothing of the request
+/// or the error is kept.
+fn failure(e: NetError) -> TokenError {
+    match e {
+        NetError::Refused(_) => TokenError::Refused("token_url".to_owned()),
+        _ => TokenError::Temporary,
+    }
+}
+
+async fn round_trip(
+    p: &Provider,
+    roots: &Roots,
+    body: &SecretString,
+) -> Result<std::result::Result<(u16, Zeroizing<Vec<u8>>), TokenError>> {
     let url = http::parse_url(&p.token_url)
         .ok_or_else(|| NetError::Refused("token URL is not https".into()))?;
     // No pin: the token host must have a certificate the roots trust.
@@ -84,25 +95,34 @@ async fn round_trip(p: &Provider, roots: &Roots, body: &SecretString) -> Result<
     let mut stream = tls::connect(&endpoint, roots).await?;
     stream.write_all(request(&url, body).as_bytes()).await?;
     let (raw, clean) = http::read_reply(&mut stream).await?;
-    // A reply that is cut short, chunked or not HTTP is a bad connection:
-    // retry, as for a dropped socket.
-    http::parse_response(&raw, clean)
-        .ok_or_else(|| NetError::Io(io::Error::from(io::ErrorKind::UnexpectedEof)))
+    let raw = Zeroizing::new(raw);
+    Ok(match http::parse_response(&raw, clean) {
+        Ok((status, reply)) => Ok((status, Zeroizing::new(reply))),
+        // A body over the cap is not a token endpoint's reply (a captive
+        // page, a wrong host, or a hostile one) and a retry gets the same:
+        // final, so the caller does not retry it forever.
+        Err(BadReply::TooBig) => Err(TokenError::Refused("reply_too_large".to_owned())),
+        // Cut short, chunked, a bad length or not HTTP is a bad connection:
+        // retry, as for a dropped socket.
+        Err(BadReply::Unreadable) => {
+            return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
+        }
+    })
 }
 
-/// The POST, with the form as its body.
-fn request(url: &Url, body: &SecretString) -> String {
+/// The POST, with the form as its body. Zeroed when dropped.
+fn request(url: &Url, body: &SecretString) -> Zeroizing<String> {
     let body = body.expose_secret();
     let host = if url.port == 443 {
         url.host.clone()
     } else {
         format!("{}:{}", url.host, url.port)
     };
-    format!(
+    Zeroizing::new(format!(
         "POST {} HTTP/1.0\r\nHost: {host}\r\nAccept: application/json\r\n\
          Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\
          Connection: close\r\n\r\n{body}",
         url.path,
         body.len()
-    )
+    ))
 }

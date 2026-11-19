@@ -5,7 +5,7 @@
 mod support;
 
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use envio_net::Roots;
 use envio_net::oauth::{Provider, TokenError, Tokens, exchange_code, refresh, refresh_within};
@@ -116,27 +116,47 @@ async fn invalid_grant_is_revoked() {
 }
 
 #[tokio::test]
-async fn a_503_a_cut_connection_and_a_stall_are_temporary() {
-    let script = vec![Step::Reply(503, "{}".into()), Step::Cut, Step::Stall];
-    let (p, roots, seen) = fake(script).await;
-    assert_eq!(
-        refreshed(&p, &roots).await.unwrap_err(),
-        TokenError::Temporary
-    );
-    assert_eq!(
-        refreshed(&p, &roots).await.unwrap_err(),
-        TokenError::Temporary
-    );
-    let started = Instant::now();
+async fn a_503_and_a_cut_connection_are_temporary() {
+    let (p, roots, seen) = fake(vec![Step::Reply(503, "{}".into()), Step::Cut]).await;
+    for _ in 0..2 {
+        assert_eq!(
+            refreshed(&p, &roots).await.unwrap_err(),
+            TokenError::Temporary
+        );
+    }
+    assert_eq!(seen.requests().len(), 2);
+}
+
+#[tokio::test]
+async fn a_stall_ends_as_temporary_at_the_limit() {
+    let (p, roots, seen) = fake(vec![Step::Stall]).await;
+    // The limit is generous so a slow runner still gets through the TLS
+    // handshake; the outer guard only keeps a missing timeout from hanging.
     let stalled = tokio::time::timeout(
-        Duration::from_secs(10),
-        refresh_within(&p, &roots, &secret("r"), Duration::from_millis(300)),
+        Duration::from_secs(60),
+        refresh_within(&p, &roots, &secret("r"), Duration::from_secs(3)),
     )
     .await
     .expect("the call must give up by itself");
     assert_eq!(stalled.unwrap_err(), TokenError::Temporary);
-    assert!(started.elapsed() < Duration::from_secs(5));
-    assert_eq!(seen.requests().len(), 3);
+    // The server records the request after the client has sent it; wait
+    // for that rather than racing it.
+    for _ in 0..100 {
+        if !seen.requests().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(seen.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn a_reply_that_is_not_http_is_temporary() {
+    let (p, roots, _) = fake(vec![Step::Raw(b"\x00\x01 not http".to_vec())]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Temporary
+    );
 }
 
 #[tokio::test]
@@ -172,27 +192,51 @@ async fn a_redirect_is_not_followed() {
 }
 
 #[tokio::test]
-async fn a_body_over_the_cap_is_refused() {
+async fn a_body_over_the_cap_is_refused_for_good() {
     let big = ok_body(&"A".repeat(CAP + 1024), "RT");
     let (p, roots, _) = fake(vec![Step::Reply(200, big)]).await;
-    assert!(refreshed(&p, &roots).await.is_err());
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_too_large".to_owned())
+    );
 }
 
 #[tokio::test]
-async fn an_untrusted_certificate_is_never_a_token() {
+async fn a_body_over_the_cap_without_a_length_is_refused_for_good() {
+    // HTTP/1.0 with no Content-Length: the body runs to the close.
+    let mut raw = b"HTTP/1.0 200 OK\r\n\r\n".to_vec();
+    raw.extend(ok_body(&"A".repeat(CAP + 1024), "RT").into_bytes());
+    let (p, roots, _) = fake(vec![Step::Raw(raw)]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_too_large".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn a_certificate_fault_is_temporary_and_sends_nothing() {
     let ca = Ca::new();
-    let (port, seen) = serve(
-        &ca.sign("127.0.0.1"),
-        vec![Step::Reply(200, ok_body("AT", "RT"))],
-    )
-    .await;
+    let ok = || vec![Step::Reply(200, ok_body("AT", "RT"))];
+    // An unknown issuer (roots that trust nothing), and an expired
+    // certificate (a wrong clock, a captive portal): both clear by
+    // themselves, so neither may read as "sign in again".
+    let (port, unknown) = serve(&ca.sign("127.0.0.1"), ok()).await;
     let (p, _) = setup(&ca, port);
     let err = refreshed(&p, &Roots::empty()).await.unwrap_err();
-    assert!(matches!(err, TokenError::Refused(_)), "{err:?}");
-    assert!(
-        seen.requests().is_empty(),
-        "the secrets went to an untrusted host"
+    assert_eq!(err, TokenError::Temporary);
+
+    let (port, expired) = serve(&ca.sign_expired("127.0.0.1"), ok()).await;
+    let (p, roots) = setup(&ca, port);
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Temporary
     );
+    for seen in [unknown, expired] {
+        assert!(
+            seen.requests().is_empty(),
+            "the secrets went to an untrusted host"
+        );
+    }
 }
 
 /// Collects every log record, at every level, as text.
