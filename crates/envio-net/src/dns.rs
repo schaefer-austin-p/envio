@@ -2,22 +2,33 @@
 //! (see `autoconfig::srv`), TXT for DKIM keys. This module never parses
 //! what a record holds.
 
-use std::sync::OnceLock;
-use std::time::Duration;
+use std::future::Future;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use futures::future::BoxFuture;
 use hickory_resolver::TokioResolver;
 use hickory_resolver::config::{ResolveHosts, ResolverOpts};
 use hickory_resolver::net::{DnsError, NetError, NoRecords};
 use hickory_resolver::proto::op::ResponseCode;
-use hickory_resolver::proto::rr::{Name, RData};
+use hickory_resolver::proto::rr::{Name, RData, Record};
 
 /// Records kept per answer.
 const MAX_RECORDS: usize = 8;
 /// Bytes of record text kept per answer.
 const MAX_BYTES: usize = 8 * 1024;
-/// How long one TXT lookup may take.
-const TXT_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long one TXT lookup may take in all: it covers every attempt of
+/// the resolver (see `ATTEMPT_TIMEOUT`), so the retry and the next
+/// nameserver get their turn.
+const TXT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Hickory's wait for one nameserver answer; with `ATTEMPTS` tries it
+/// stays under `TXT_TIMEOUT`.
+const ATTEMPT_TIMEOUT: Duration = Duration::from_secs(4);
+const ATTEMPTS: usize = 2;
+/// The resolver is rebuilt after a failed lookup at most this often: the
+/// network may have changed (Wi-Fi to cellular, new resolv.conf), but a
+/// dead network must not cost a rebuild per lookup.
+const MIN_REBUILD_GAP: Duration = Duration::from_secs(30);
 
 /// What a TXT lookup gave: each record's character-strings joined in
 /// order (a DKIM key is split into 255-byte strings), the smallest TTL in
@@ -59,19 +70,61 @@ pub fn resolver() -> Option<TokioResolver> {
 /// size, and an ad-block hosts file on a phone has a million lines (#97).
 fn configure(options: &mut ResolverOpts) {
     options.use_hosts_file = ResolveHosts::Never;
+    options.timeout = ATTEMPT_TIMEOUT;
+    options.attempts = ATTEMPTS;
 }
 
-/// The system resolver (resolv.conf, hosts file off, #97), 5 s timeout.
-/// The resolver is built on the first lookup and shared after that.
+/// The system resolver (resolv.conf, hosts file off, #97), 10 s timeout.
+/// The resolver is built on the first lookup. A failed build is retried
+/// at the next lookup, and a resolver that gave an `Unavailable` answer is
+/// rebuilt (rate-limited) in case the network changed under it.
 pub struct SystemTxt {
-    resolver: OnceLock<Option<TokioResolver>>,
+    slot: Mutex<Slot>,
+}
+
+struct Slot {
+    resolver: Option<TokioResolver>,
+    built_at: Option<Instant>,
+    /// The last lookup with this resolver was `Unavailable`.
+    failed: bool,
+}
+
+/// Whether to build a resolver now. Pure, so the policy is testable.
+/// A missing resolver (never built, or the build failed) is built at
+/// every call; a present one only after an `Unavailable` answer and not
+/// within `MIN_REBUILD_GAP` of the last build.
+fn rebuild_due(has_resolver: bool, built_at: Option<Instant>, failed: bool, now: Instant) -> bool {
+    if !has_resolver {
+        return true;
+    }
+    failed && built_at.is_none_or(|at| now.saturating_duration_since(at) >= MIN_REBUILD_GAP)
 }
 
 impl SystemTxt {
     pub fn new() -> Self {
         Self {
-            resolver: OnceLock::new(),
+            slot: Mutex::new(Slot {
+                resolver: None,
+                built_at: None,
+                failed: false,
+            }),
         }
+    }
+
+    /// The resolver to use now, rebuilt when the policy says so.
+    fn current(&self) -> Option<TokioResolver> {
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        let now = Instant::now();
+        if rebuild_due(slot.resolver.is_some(), slot.built_at, slot.failed, now) {
+            slot.resolver = resolver();
+            slot.built_at = Some(now);
+            slot.failed = false;
+        }
+        slot.resolver.clone()
+    }
+
+    fn mark_failed(&self) {
+        self.slot.lock().unwrap_or_else(|e| e.into_inner()).failed = true;
     }
 }
 
@@ -84,31 +137,45 @@ impl Default for SystemTxt {
 impl TxtLookup for SystemTxt {
     fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
         Box::pin(async move {
-            let Some(resolver) = self.resolver.get_or_init(resolver).as_ref() else {
+            let Some(resolver) = self.current() else {
                 return TxtAnswer::Unavailable;
             };
-            let Some(query) = query_name(name) else {
-                return TxtAnswer::Unavailable;
-            };
-            match tokio::time::timeout(TXT_TIMEOUT, resolver.txt_lookup(query)).await {
-                Ok(Ok(lookup)) => {
-                    // The answer holds the CNAME records of the chain too.
-                    let raw = lookup
-                        .answers()
-                        .iter()
-                        .filter_map(|record| match &record.data {
-                            RData::TXT(txt) => Some((
-                                txt.txt_data.iter().map(|s| s.to_vec()).collect::<Vec<_>>(),
-                                record.ttl,
-                            )),
-                            _ => None,
-                        });
-                    answer_from(raw)
-                }
-                Ok(Err(error)) => classify(&error),
-                Err(_elapsed) => TxtAnswer::Unavailable,
+            let answer = txt_with(name, |query| async move {
+                tokio::time::timeout(TXT_TIMEOUT, resolver.txt_lookup(query))
+                    .await
+                    .ok()
+                    .map(|result| result.map(|lookup| lookup.answers().to_vec()))
+            })
+            .await;
+            if answer == TxtAnswer::Unavailable {
+                self.mark_failed();
             }
+            answer
         })
+    }
+}
+
+/// The lookup around a query function: `query` gets the fully qualified
+/// name and returns the answer records, the error, or None on timeout.
+async fn txt_with<F, Fut>(name: &str, query: F) -> TxtAnswer
+where
+    F: FnOnce(Name) -> Fut,
+    Fut: Future<Output = Option<Result<Vec<Record>, NetError>>>,
+{
+    let Some(name) = query_name(name) else {
+        return TxtAnswer::Unavailable;
+    };
+    match query(name).await {
+        Some(Ok(records)) => answer_from(records.iter().filter_map(|record| match &record.data {
+            // The answer holds the CNAME records of the chain too.
+            RData::TXT(txt) => Some((
+                txt.txt_data.iter().map(|s| s.to_vec()).collect::<Vec<_>>(),
+                record.ttl,
+            )),
+            _ => None,
+        })),
+        Some(Err(error)) => classify(&error),
+        None => TxtAnswer::Unavailable,
     }
 }
 
@@ -155,6 +222,11 @@ fn answer_from(records: impl IntoIterator<Item = (Vec<Vec<u8>>, u32)>) -> TxtAns
 
 /// What a failed lookup means: NXDOMAIN and NODATA are `NoRecord`,
 /// anything else (SERVFAIL, refused, I/O) is `Unavailable`.
+///
+/// Known limit: hickory also reports `NoRecordsFound` with `NoError` when
+/// it gives up on a CNAME chain (a loop or the hop limit), and that cannot
+/// be told from NODATA by the error alone. It is accepted: `NoRecord`
+/// means "no key", so the message counts as unsigned, never as verified.
 fn classify(error: &NetError) -> TxtAnswer {
     match error {
         NetError::Dns(DnsError::NoRecordsFound(NoRecords {
@@ -359,5 +431,129 @@ mod tests {
             ))),
             TxtAnswer::Unavailable
         );
+    }
+
+    // The rebuild policy.
+    #[test]
+    fn a_missing_resolver_is_built_at_every_call() {
+        let now = Instant::now();
+        assert!(rebuild_due(false, None, false, now));
+        // A failed build leaves no resolver and stamps the time: still due.
+        assert!(rebuild_due(false, Some(now), false, now));
+    }
+
+    #[test]
+    fn a_healthy_resolver_is_kept() {
+        let built = Instant::now();
+        let later = built + Duration::from_secs(3600);
+        assert!(!rebuild_due(true, Some(built), false, later));
+    }
+
+    #[test]
+    fn an_unavailable_answer_triggers_a_rebuild_after_the_gap() {
+        let built = Instant::now();
+        assert!(rebuild_due(
+            true,
+            Some(built),
+            true,
+            built + MIN_REBUILD_GAP
+        ));
+        assert!(rebuild_due(true, None, true, built));
+    }
+
+    #[test]
+    fn rebuilds_are_rate_limited() {
+        let built = Instant::now();
+        let soon = built + MIN_REBUILD_GAP - Duration::from_millis(1);
+        assert!(!rebuild_due(true, Some(built), true, soon));
+    }
+
+    #[test]
+    fn the_attempts_fit_inside_the_outer_timeout() {
+        let mut options = ResolverOpts::default();
+        configure(&mut options);
+        assert_eq!(options.timeout, ATTEMPT_TIMEOUT);
+        assert_eq!(options.attempts, ATTEMPTS);
+        // With room to spare for scheduling, not just equal.
+        assert!(options.timeout * options.attempts as u32 + Duration::from_secs(1) <= TXT_TIMEOUT);
+        assert!(options.attempts >= 2, "a retry must be possible");
+    }
+
+    // The glue around the resolver call.
+    fn txt_record(text: &str, ttl: u32) -> Record {
+        Record::from_rdata(
+            Name::from_ascii("k.example.com.").unwrap(),
+            ttl,
+            RData::TXT(hickory_resolver::proto::rr::rdata::TXT::new(vec![
+                text.into(),
+            ])),
+        )
+    }
+
+    fn cname_record() -> Record {
+        Record::from_rdata(
+            Name::from_ascii("sel.example.com.").unwrap(),
+            3600,
+            RData::CNAME(hickory_resolver::proto::rr::rdata::CNAME(
+                Name::from_ascii("k.example.com.").unwrap(),
+            )),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_timeout_is_unavailable() {
+        let answer = txt_with("a.example.com", |_| async { None }).await;
+        assert_eq!(answer, TxtAnswer::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn a_cname_chain_with_a_txt_record_gives_records() {
+        let answer = txt_with("sel.example.com", |name| async move {
+            assert_eq!(name.to_ascii(), "sel.example.com.");
+            Some(Ok(vec![cname_record(), txt_record("v=DKIM1; p=AB", 120)]))
+        })
+        .await;
+        assert_eq!(
+            answer,
+            TxtAnswer::Records {
+                texts: vec!["v=DKIM1; p=AB".into()],
+                ttl: 120
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn an_answer_with_only_a_cname_is_no_record() {
+        let answer = txt_with("sel.example.com", |_| async {
+            Some(Ok(vec![cname_record()]))
+        })
+        .await;
+        assert_eq!(answer, TxtAnswer::NoRecord);
+    }
+
+    #[tokio::test]
+    async fn a_bad_name_is_unavailable_and_never_queried() {
+        let long = format!("{}.example.com", "a".repeat(64));
+        let answer = txt_with(&long, |_| async {
+            panic!("a bad name must not reach the resolver");
+        })
+        .await;
+        assert_eq!(answer, TxtAnswer::Unavailable);
+    }
+
+    #[tokio::test]
+    async fn a_lookup_error_goes_through_classify() {
+        let nx = txt_with("a.example.com", |_| async {
+            Some(Err(no_records(ResponseCode::NXDomain)))
+        })
+        .await;
+        assert_eq!(nx, TxtAnswer::NoRecord);
+        let fail = txt_with("a.example.com", |_| async {
+            Some(Err(NetError::Dns(DnsError::ResponseCode(
+                ResponseCode::ServFail,
+            ))))
+        })
+        .await;
+        assert_eq!(fail, TxtAnswer::Unavailable);
     }
 }
