@@ -1,6 +1,8 @@
 //! The Drafts list's pseudo-rows: the I/O half (files, cache, journal) that
 //! feeds the pure merge in `local_rows`.
 
+use std::collections::HashSet;
+
 use envio_store::{Cursor, FolderId, FolderRole};
 
 use super::Worker;
@@ -36,11 +38,12 @@ impl Worker<'_> {
         let folders = db.folders(&folder.account)?;
         let on_server = db.message_ids_in(folder.id)?;
         let leaving = leaving(self.store.journal.pending(), &folder.account, &folders);
+        let open: HashSet<String> = self.book.open_drafts().into_iter().collect();
         let mut ids = self.local_ids.borrow_mut();
         Ok(local_rows(
             &drafts,
             (&folder.account, folder.id),
-            (&on_server, &leaving),
+            (&on_server, &leaving, &open),
             &mut ids,
         ))
     }

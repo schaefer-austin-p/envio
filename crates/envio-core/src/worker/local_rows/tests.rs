@@ -42,7 +42,7 @@ fn rows_for(
     local_rows(
         drafts,
         ("a", FolderId(7)),
-        (&set(on_server), &set(leaving)),
+        (&set(on_server), &set(leaving), &HashSet::new()),
         ids,
     )
 }
@@ -298,7 +298,7 @@ fn other_actions_are_not_leaving() {
 // ---- recipients of a cached message
 
 #[test]
-fn a_recipient_list_splits_outside_quotes_and_brackets() {
+fn a_recipient_list_splits_at_the_commas_that_end_an_address() {
     let list = r#""Doe, Jo" <jo@example.org>, x@example.org,Cy <cy@example.org>"#;
     assert_eq!(
         split_list(list),
@@ -319,4 +319,76 @@ fn a_cached_message_shows_its_recipients_and_tints_by_the_first() {
     let (line, key) = recipients_of("");
     assert_eq!(line, "To: (no recipients)");
     assert_eq!(key, "");
+}
+
+fn with_server(server: ServerCopy, updated: i64) -> Draft {
+    draft("a", server, updated)
+}
+
+#[test]
+fn a_cached_row_of_an_earlier_copy_hides_the_draft() {
+    let mut server = copy(Some("<b@x>"), None, 5_000);
+    server.earlier = vec!["<a@x>".into()];
+    assert!(rows_of(with_server(server, 5_000), &["<a@x>"], &[]).is_empty());
+}
+
+#[test]
+fn an_earlier_copy_that_is_leaving_hides_the_draft() {
+    let mut server = copy(Some("<b@x>"), None, 5_000);
+    server.earlier = vec![" <a@x>\n".into()];
+    assert!(rows_of(with_server(server, 5_000), &[], &["<a@x>"]).is_empty());
+}
+
+#[test]
+fn the_import_original_does_not_hide_a_detached_copy() {
+    let mut server = copy(None, None, 0);
+    server.imported_from = Some("<o@x>".into());
+    server.detached = true;
+    assert_eq!(
+        rows_of(with_server(server, 5_000), &["<o@x>"], &[]).len(),
+        1
+    );
+}
+
+#[test]
+fn an_incomplete_import_gives_no_row() {
+    let mut server = copy(None, None, 0);
+    server.incomplete = true;
+    assert!(rows_of(with_server(server, 5_000), &[], &[]).is_empty());
+}
+
+#[test]
+fn an_open_draft_that_is_leaving_keeps_its_row() {
+    let d = draft("a", copy(Some("<m@x>"), None, 5_000), 5_000);
+    let rows = local_rows(
+        &one(d),
+        ("a", FolderId(7)),
+        (&set(&[]), &set(&["<m@x>"]), &set(&["d1"])),
+        &mut LocalIds::default(),
+    );
+    assert_eq!(rows.len(), 1);
+}
+
+#[test]
+fn a_cached_name_with_a_comma_stays_one_recipient() {
+    // `Address::display()` stores names unquoted.
+    assert_eq!(
+        split_list("Doe, Jo <jo@example.org>, x@example.org"),
+        ["Doe, Jo <jo@example.org>", "x@example.org"]
+    );
+    let (line, key) = recipients_of("Doe, Jo <jo@example.org>, Cy <cy@example.org>");
+    assert_eq!(line, "To: Doe, Jo, Cy");
+    assert_eq!(key, "jo@example.org");
+}
+
+#[test]
+fn a_quote_in_a_cached_name_does_not_swallow_the_commas() {
+    assert_eq!(
+        split_list(r#"O"Neil, Pat <p@example.org>, q@example.org"#),
+        [r#"O"Neil, Pat <p@example.org>"#, "q@example.org"]
+    );
+    assert_eq!(
+        split_list(r#"A\"B <a@example.org>, c@example.org"#),
+        [r#"A\"B <a@example.org>"#, "c@example.org"]
+    );
 }
