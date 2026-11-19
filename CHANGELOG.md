@@ -5,6 +5,17 @@ All notable changes to Envio are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Sign in with Microsoft for Outlook, Hotmail, Live and Microsoft 365
+  accounts (OAuth 2.0 with PKCE in the system browser, XOAUTH2 over IMAP and
+  SMTP, tokens refreshed without a prompt, "Sign in again" when Microsoft
+  revokes the sign-in, a held Outbox message that goes out after it, and a
+  clear message when a mailbox has Authenticated SMTP switched off). It is
+  built and tested end to end, but stays off until the owner's Microsoft
+  client ID is put in (#219): until then Microsoft accounts show the
+  unsupported message, as before.
+
 ### Changed
 
 - The keyboard handling (pages and sheets rising above the on-screen
