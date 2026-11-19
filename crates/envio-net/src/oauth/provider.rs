@@ -31,6 +31,7 @@ impl Provider {
 
     /// Microsoft's endpoints and hosts with an empty client ID. Tests and
     /// `envio-core::Config` fill it in with `with_client_id`.
+    #[doc(hidden)]
     pub fn microsoft_template() -> Provider {
         const BASE: &str = "https://login.microsoftonline.com/common/oauth2/v2.0";
         Provider {
@@ -70,25 +71,36 @@ fn microsoft_domain(d: &str) -> bool {
     {
         return true;
     }
-    // outlook.*, hotmail.*, live.*: the rest must look like a country or
-    // generic suffix ("com", "de", "co.uk", "com.au"), not a registrable domain.
     let Some((first, rest)) = d.split_once('.') else {
         return false;
     };
-    matches!(first, "outlook" | "hotmail" | "live") && is_suffix(rest)
+    let suffixes = match first {
+        "outlook" => OUTLOOK,
+        "hotmail" => HOTMAIL,
+        "live" => LIVE,
+        _ => return false,
+    };
+    suffixes.contains(&rest)
 }
 
-fn is_suffix(rest: &str) -> bool {
-    let labels: Vec<&str> = rest.split('.').collect();
-    let alpha = |l: &str, lo: usize, hi: usize| {
-        (lo..=hi).contains(&l.len()) && l.bytes().all(|b| b.is_ascii_lowercase())
-    };
-    match labels.as_slice() {
-        [tld] => alpha(tld, 2, 3),
-        [sld, tld] => matches!(*sld, "co" | "com") && alpha(tld, 2, 2),
-        _ => false,
-    }
-}
+// Microsoft's consumer domains by country. An explicit list on purpose: a
+// missing domain only means the password path (safe); a false positive
+// would offer the wrong provider (live.org, hotmail.biz are not Microsoft's).
+const OUTLOOK: &[&str] = &[
+    "com", "at", "be", "cl", "cz", "de", "dk", "es", "fr", "hu", "ie", "in", "it", "jp", "kr",
+    "lv", "my", "ph", "pt", "sa", "sg", "sk", "co.id", "co.il", "co.th", "com.ar", "com.au",
+    "com.br", "com.gr", "com.tr", "com.vn",
+];
+const HOTMAIL: &[&str] = &[
+    "com", "at", "be", "ca", "ch", "cl", "cz", "de", "dk", "es", "fi", "fr", "gr", "hu", "it",
+    "kz", "lt", "lv", "nl", "no", "pt", "ro", "rs", "se", "sg", "sk", "co.il", "co.jp", "co.nz",
+    "co.th", "co.uk", "com.ar", "com.au", "com.br", "com.gr", "com.mx", "com.pe", "com.tr",
+    "com.vn",
+];
+const LIVE: &[&str] = &[
+    "com", "at", "be", "ca", "cl", "cn", "de", "dk", "fi", "fr", "hk", "ie", "in", "it", "jp",
+    "nl", "no", "ru", "se", "co.uk", "co.za", "com.ar", "com.au", "com.mx", "com.pt",
+];
 
 #[cfg(test)]
 mod tests;

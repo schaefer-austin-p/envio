@@ -1,4 +1,57 @@
 use super::*;
+
+#[test]
+fn invalid_grant_at_other_statuses_is_refused_not_revoked() {
+    for s in [401, 403, 404] {
+        let e = parse_token_reply(s, br#"{"error":"invalid_grant"}"#).err();
+        assert_eq!(
+            e,
+            Some(TokenError::Refused("invalid_grant".to_owned())),
+            "{s}"
+        );
+    }
+}
+
+#[test]
+fn only_2xx_is_success() {
+    let body = br#"{"access_token":"AT","expires_in":60}"#;
+    for s in [100, 300, 302, 399] {
+        assert!(
+            matches!(parse_token_reply(s, body), Err(TokenError::Refused(_))),
+            "{s}"
+        );
+    }
+    assert!(parse_token_reply(299, body).is_ok());
+}
+
+#[test]
+fn an_empty_refresh_token_is_none() {
+    let body = br#"{"access_token":"AT","refresh_token":"","expires_in":60}"#;
+    assert!(parse_token_reply(200, body).unwrap().refresh.is_none());
+}
+
+#[test]
+fn a_padded_payload_is_accepted() {
+    use base64::Engine;
+    let payload = r#"{"email":"a@example.org","x":"12"}"#;
+    assert_ne!(payload.len() % 3, 0);
+    let padded = base64::engine::general_purpose::URL_SAFE.encode(payload);
+    assert!(padded.ends_with('='));
+    let got = identity_of(&format!("h.{padded}.s"));
+    assert_eq!(got.and_then(|i| i.email), Some("a@example.org".to_owned()));
+}
+
+#[test]
+fn the_standard_alphabet_is_rejected() {
+    use base64::Engine;
+    let payload = r#"{"email":"a@example.org","x":"???>>>"}"#;
+    let std_enc = base64::engine::general_purpose::STANDARD_NO_PAD.encode(payload);
+    assert!(std_enc.contains('+') || std_enc.contains('/'), "{std_enc}");
+    assert_eq!(identity_of(&format!("h.{std_enc}.s")), None);
+    // The same claims in base64url do parse.
+    let url_enc = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload);
+    assert!(identity_of(&format!("h.{url_enc}.s")).is_some());
+}
 use base64::Engine;
 use secrecy::ExposeSecret;
 

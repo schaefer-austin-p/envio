@@ -94,16 +94,19 @@ pub fn parse_redirect(
         .and_then(|rest| rest.strip_prefix('?'))
         .ok_or(RedirectError::Malformed)?;
     let p = params(query)?;
+    // The state comes first, errors included (RFC 6749 4.1.2.1 echoes it on
+    // error responses), so a forged `?error=access_denied` cannot cancel a
+    // pending sign-in.
+    let state = p.state.unwrap_or_default();
+    if !same_bytes(state.as_bytes(), expect_state.as_bytes()) {
+        return Err(RedirectError::Mismatch);
+    }
     if let Some(e) = p.error {
         return Err(if e == "access_denied" {
             RedirectError::Denied
         } else {
             RedirectError::Server(safe_code(&e))
         });
-    }
-    let state = p.state.unwrap_or_default();
-    if !same_bytes(state.as_bytes(), expect_state.as_bytes()) {
-        return Err(RedirectError::Mismatch);
     }
     match p.code {
         Some(code) if !code.is_empty() => Ok(Redirect {

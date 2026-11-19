@@ -1,6 +1,29 @@
 use super::*;
 
 #[test]
+fn safe_code_keeps_plain_codes_up_to_64_characters() {
+    assert_eq!(safe_code("server_error"), "server_error");
+    assert_eq!(safe_code("."), ".");
+    assert_eq!(safe_code(&"a".repeat(64)), "a".repeat(64));
+}
+
+#[test]
+fn safe_code_hides_everything_else() {
+    for s in [
+        &"a".repeat(65),
+        "",
+        "a b",
+        " ",
+        "a@x",
+        "a@example.org",
+        "é",
+        "a\n",
+    ] {
+        assert_eq!(safe_code(s), "unknown", "{s:?}");
+    }
+}
+
+#[test]
 fn encodes_everything_but_the_unreserved_set() {
     assert_eq!(encode("aZ09-._~"), "aZ09-._~");
     assert_eq!(

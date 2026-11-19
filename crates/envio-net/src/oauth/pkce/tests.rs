@@ -1,4 +1,15 @@
 use super::*;
+
+#[test]
+fn the_verifier_draws_on_all_64_symbols() {
+    use secrecy::ExposeSecret;
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..2000 {
+        seen.extend(Pkce::new().verifier.expose_secret().bytes());
+    }
+    assert_eq!(seen.len(), 64);
+    assert!(ALPHABET.iter().all(|b| seen.contains(b)));
+}
 use base64::Engine;
 use secrecy::ExposeSecret;
 

@@ -1,4 +1,40 @@
 use super::*;
+
+#[test]
+fn an_unsafe_error_value_is_not_echoed() {
+    for e in ["a%40x", "for%20user%40example.org", &"a".repeat(65), ""] {
+        let url = format!("envio-oauth://callback?error={e}&state=s");
+        let got = parse_redirect(&url, "s", "envio-oauth://callback").err();
+        assert_eq!(
+            got,
+            Some(RedirectError::Server("unknown".to_owned())),
+            "{e}"
+        );
+    }
+}
+
+#[test]
+fn an_error_with_a_wrong_or_missing_state_is_a_mismatch() {
+    // A forged link must not cancel a pending sign-in.
+    for url in [
+        "envio-oauth://callback?error=access_denied&state=other",
+        "envio-oauth://callback?error=access_denied",
+        "envio-oauth://callback?error=server_error&state=other",
+        "envio-oauth://callback?error=server_error",
+    ] {
+        let got = parse_redirect(url, "s", "envio-oauth://callback").err();
+        assert_eq!(got, Some(RedirectError::Mismatch), "{url}");
+    }
+}
+
+#[test]
+fn a_fragment_is_ignored() {
+    let uri = "envio-oauth://callback";
+    let r = parse_redirect("envio-oauth://callback?code=c&state=s#state=evil", "s", uri).unwrap();
+    assert_eq!(secrecy::ExposeSecret::expose_secret(&r.code), "c");
+    let got = parse_redirect("envio-oauth://callback?state=s#code=c", "s", uri).err();
+    assert_eq!(got, Some(RedirectError::Malformed));
+}
 use secrecy::ExposeSecret;
 
 const URI: &str = "envio-oauth://callback";
