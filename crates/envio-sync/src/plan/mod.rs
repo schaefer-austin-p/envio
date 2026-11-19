@@ -7,5 +7,6 @@ pub mod message_id;
 pub mod older;
 pub mod outbox;
 pub mod pending;
+pub mod refusal;
 pub mod replay;
 pub mod sync;
