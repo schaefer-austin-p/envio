@@ -66,7 +66,7 @@ Item {
         function toSignIn(json, needsConfirm) {
             typeEmail()
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", needsConfirm, json, serversLines)
+            core.detected("ann@example.org", "Settings found", needsConfirm, json, serversLines, "")
             compare(wizard.step, "signin")
         }
         function dialogButton(dialogName, action) {
@@ -187,7 +187,7 @@ Item {
 
             // Detected again; this time confirm.
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", true, srvJson, "")
+            core.detected("ann@example.org", "Settings found", true, srvJson, "", "")
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !dlg.visible })
             compare(wizard.serversConfirmed, true)
@@ -322,7 +322,7 @@ Item {
             // Another address: step 2 comes up empty and unconfirmed.
             find("emailField").text = "bob@example.net"
             mouseClick(find("continueButton"))
-            core.detected("bob@example.net", "Settings found", false, plainJson, "")
+            core.detected("bob@example.net", "Settings found", false, plainJson, "", "")
             compare(wizard.step, "signin")
             compare(find("passwordField").text, "")
             compare(wizard.serversConfirmed, false)
@@ -389,7 +389,7 @@ Item {
             core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server", "4F", "4f", "Late.")
             core.setupProblem("ann@example.org", "Late problem.")
             core.accountAdded("ann", "ann@example.org")
-            core.detected("ann@example.org", "Late", false, plainJson, "")
+            core.detected("ann@example.org", "Late", false, plainJson, "", "")
             wait(50)
             verify(!find("trustDialog").visible)
             compare(wizard.step, "email")
@@ -406,7 +406,7 @@ Item {
             find("emailField").text = "bob@example.org"
             mouseClick(find("continueButton"))
             core.detected("bob@example.org", "Settings found", false,
-                plainJson.replace(/ann@example.org/g, "bob@example.org"), "")
+                plainJson.replace(/ann@example.org/g, "bob@example.org"), "", "")
             compare(wizard.step, "signin")
             find("passwordField").text = "swordfish"
             mouseClick(find("signInContinue"))
@@ -448,7 +448,7 @@ Item {
             mouseClick(find("continueButton"))
             mouseClick(find("manualButton"))
             compare(wizard.step, "servers")
-            core.detected("ann@example.org", "Late", false, plainJson, "")
+            core.detected("ann@example.org", "Late", false, plainJson, "", "")
             compare(wizard.step, "servers")
         }
 
@@ -458,7 +458,7 @@ Item {
             tryVerify(function() { return !find("confirmHosts").visible })
             compare(wizard.serversConfirmed, true)
             // The same attempt is answered again, with hosts to confirm.
-            core.detected("ann@example.org", "Settings found", true, srvJson, "")
+            core.detected("ann@example.org", "Settings found", true, srvJson, "", "")
             compare(wizard.serversConfirmed, false)
             find("passwordField").text = "hunter2"
             wizard.submit()
