@@ -99,6 +99,11 @@ ENVIO_REQUIRE_STALWART=1 cargo test -p envio-e2e
 command = "tools/ci/no-qml-plurals.sh"
 args = ["--self-test"]
 
+# The app's Config takes its OAuth providers from envio-core (#219).
+[tasks.oauth-wired]
+command = "tools/ci/oauth-wired.sh"
+args = ["--self-test"]
+
 # Needs the qml/bindle submodule (git submodule update --init).
 [tasks.bindle-qrc]
 description = "bindle.qrc lists every bindle QML file (#229)"
@@ -106,7 +111,7 @@ command = "cargo"
 args = ["xtask", "bindle-qrc"]
 
 [tasks.ci]
-dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals", "bindle-qrc"]
+dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals", "oauth-wired", "bindle-qrc"]
 
 [tasks.default]
 alias = "ci"
