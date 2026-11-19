@@ -253,10 +253,12 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             compose,
             draft,
             quoted,
+            note,
         } => Signal::ComposeReady {
             compose,
             draft,
             quoted,
+            note,
         },
         Event::DraftSaved { compose, .. } => Signal::DraftSaved { compose },
         Event::ComposeRefused { compose, text } => Signal::ComposeRefused { compose, text },

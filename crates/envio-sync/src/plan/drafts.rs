@@ -27,7 +27,7 @@ pub fn needs_upload(draft: &Draft) -> bool {
     let current = server.message_id.is_some() && server.uploaded_ms == draft.updated_at_ms;
     let given_up = server.failed_ms == draft.updated_at_ms && server.failures >= GIVE_UP;
     let has_copy = server.message_id.is_some() || server.pending_id.is_some();
-    !current && !given_up && !(is_blank(draft) && !has_copy)
+    !server.incomplete && !current && !given_up && !(is_blank(draft) && !has_copy)
 }
 
 /// A copy from an upload that was cut: it may hold older text, so it goes
@@ -110,6 +110,14 @@ mod tests {
             },
             ..Draft::default()
         }
+    }
+
+    #[test]
+    fn an_incomplete_import_is_never_uploaded() {
+        let mut half = draft(5, None, 0);
+        assert!(needs_upload(&half));
+        half.server.incomplete = true;
+        assert!(!needs_upload(&half));
     }
 
     #[test]

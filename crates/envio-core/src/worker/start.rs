@@ -18,6 +18,12 @@ fn shown_name(from: &[Address]) -> String {
         .unwrap_or_default()
 }
 
+/// A forward carries the attachments and an edited draft keeps them, which
+/// a partial body lacks.
+fn needs_whole(from: &StartFrom) -> bool {
+    matches!(from, StartFrom::Forward { .. } | StartFrom::Edit { .. })
+}
+
 pub(super) fn displayed(list: &[Address]) -> Vec<String> {
     list.iter().map(Address::display).collect()
 }
@@ -35,7 +41,7 @@ impl Worker<'_> {
             return self.compose_refused(compose, unavailable);
         };
         // A forward carries the attachments, which a partial body lacks.
-        let whole = matches!(from, StartFrom::Forward { .. });
+        let whole = needs_whole(&from);
         let cached = match message.body {
             BodyState::Downloaded => true,
             BodyState::Partial => !whole,
@@ -74,6 +80,9 @@ impl Worker<'_> {
         id: MessageRowId,
         raw: &[u8],
     ) {
+        if matches!(from, StartFrom::Edit { .. }) {
+            return self.edit_or_import(compose, id, Some(raw));
+        }
         let Some(account) = self.account_of(id) else {
             return self.compose_refused(compose, text::read::message_unavailable());
         };
@@ -128,7 +137,7 @@ impl Worker<'_> {
                 reply.quoted
             }
         };
-        self.compose_ready(compose, draft, quoted);
+        self.compose_ready(compose, draft, (quoted, String::new()));
         if matches!(from, StartFrom::Forward { .. }) {
             self.attach_originals(compose, raw);
         }
@@ -181,7 +190,7 @@ impl Worker<'_> {
             match raw {
                 // The open message's partial body came first: a forward
                 // asks again for the whole message.
-                Some(_) if !whole && partial && matches!(from, StartFrom::Forward { .. }) => {
+                Some(_) if !whole && partial && needs_whole(&from) => {
                     self.wait_for_whole(compose, id, from);
                 }
                 Some(raw) => self.finish_start((compose, &from), id, raw),

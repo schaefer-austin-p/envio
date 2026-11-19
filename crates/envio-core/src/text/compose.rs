@@ -57,6 +57,10 @@ pub fn draft_already_open() -> String {
     tr("This draft is already open.")
 }
 
+pub fn editing_a_copy() -> String {
+    tr("Editing a copy. The original stays in Drafts.")
+}
+
 pub fn draft_unavailable() -> String {
     tr("This draft can not be opened")
 }

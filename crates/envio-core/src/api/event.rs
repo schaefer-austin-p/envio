@@ -294,6 +294,8 @@ pub enum Event {
         compose: ComposeId,
         draft: DraftInput,
         quoted: String,
+        /// A note Compose shows while it is open; empty for none.
+        note: String,
     },
     /// The draft was stored for the first time as `draft_id`.
     DraftSaved {
