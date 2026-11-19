@@ -35,12 +35,14 @@ pub(crate) fn host_name(host: &str) -> Option<String> {
 }
 
 /// A domain a DKIM signature may claim (`d=`): a [`host_name`] whose public
-/// suffix is on the Public Suffix List. Hosts under an unknown TLD such as
+/// suffix is on the Public Suffix List and that is not itself a public
+/// suffix (`co.uk`, `github.io`: no one owns them). Hosts under an unknown TLD such as
 /// `1.2.3.4a` still have an [`org_domain`] (DMARC alignment is a pure string
 /// rule), but no signature may use them, so no key lookup is made for them.
 pub(crate) fn signing_domain(host: &str) -> Option<String> {
     let ascii = host_name(host)?;
-    psl::suffix(ascii.as_bytes())?.is_known().then_some(ascii)
+    let known = psl::suffix(ascii.as_bytes())?.is_known();
+    (known && psl::domain(ascii.as_bytes()).is_some()).then_some(ascii)
 }
 
 /// An IP literal as mail headers spell it: optional brackets, an optional
@@ -58,14 +60,22 @@ fn looks_like_ip(host: &str) -> bool {
     bare.parse::<IpAddr>().is_ok()
 }
 
-/// A plausible DNS name with at least two labels: every label non-empty and
-/// only `[a-z0-9-_]`, and a last label with an ASCII letter (so `1.2.3`,
+/// DNS limits: a label and a whole name (RFC 1035).
+pub(crate) const MAX_LABEL: usize = 63;
+pub(crate) const MAX_NAME: usize = 253;
+
+/// A plausible DNS name with at least two labels: every label non-empty, at
+/// most 63 bytes and only `[a-z0-9-_]`, at most 253 bytes in all, and a last label with an ASCII letter (so `1.2.3`,
 /// `0x7f.1` and other numeric forms are not names).
 fn valid_host(ascii: &str) -> bool {
+    if ascii.len() > MAX_NAME {
+        return false;
+    }
     let mut count = 0;
     let mut last = "";
     for label in ascii.split('.') {
         let ok = !label.is_empty()
+            && label.len() <= MAX_LABEL
             && label
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_');
@@ -267,5 +277,41 @@ mod tests {
         ] {
             assert_eq!(signing_domain(h), None, "{h:?}");
         }
+    }
+
+    #[test]
+    fn signing_domain_rejects_a_bare_public_suffix() {
+        for h in ["co.uk", "github.io", "duckdns.org", "com", "b.ck"] {
+            assert_eq!(signing_domain(h), None, "{h:?}");
+        }
+        assert_eq!(signing_domain("x.co.uk").as_deref(), Some("x.co.uk"));
+    }
+
+    fn name_of_len(n: usize) -> String {
+        let mut s = String::new();
+        while n - 4 - s.len() > 63 {
+            s.push_str(&"a".repeat(63));
+            s.push('.');
+        }
+        let rest = n - 4 - s.len();
+        s.push_str(&"a".repeat(rest));
+        s.push_str(".com");
+        assert_eq!(s.len(), n);
+        s
+    }
+
+    #[test]
+    fn dns_length_limits() {
+        let l63 = format!("{}.example.com", "a".repeat(63));
+        let l64 = format!("{}.example.com", "a".repeat(64));
+        assert!(host_name(&l63).is_some());
+        assert_eq!(host_name(&l64), None);
+        assert!(host_name(&name_of_len(253)).is_some());
+        assert_eq!(host_name(&name_of_len(254)), None);
+        assert!(signing_domain(&name_of_len(253)).is_some());
+        assert_eq!(signing_domain(&name_of_len(254)), None);
+        assert_eq!(org_domain(&l64), None);
+        // A trailing dot is not counted.
+        assert!(host_name(&format!("{}.", name_of_len(253))).is_some());
     }
 }

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc bc730a8ca6374921a0cde30211dc6f713095cacb57748e5a0a37786b797e1299 # shrinks to a = "rsa-sha256", d = "example.com", h = "From : Content-Type", i = " i=a@b@example.com;", l = "", c = ""
+cc b05ad211152a05ba2ca39e0ff6ba3ef8fcee8c1774c338065710fb66dfcc3d48 # shrinks to a = "rsa-sha256", d = "co.uk", h = "From : Content-Type", i = "", l = "", c = ""

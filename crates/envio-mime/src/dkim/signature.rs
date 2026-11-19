@@ -1,6 +1,6 @@
 //! The `DKIM-Signature` header (RFC 6376 3.5).
 
-use super::super::align::{host_name, signing_domain};
+use super::super::align::{MAX_LABEL, MAX_NAME, host_name, signing_domain};
 use super::tags::{base64_bytes, colon_list, tag_list};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,12 +89,13 @@ fn header_names(value: &str) -> Option<Vec<String>> {
     (well_formed && names.iter().any(|h| h == "from")).then_some(names)
 }
 
-/// `i=`: an address whose domain is `d` or a subdomain of it.
-fn agent_inside(agent: &str, domain: &str) -> bool {
-    let Some((_, host)) = agent.rsplit_once('@') else {
-        return false;
-    };
-    host_name(host).is_some_and(|h| h == domain || h.ends_with(&format!(".{domain}")))
+/// `i=`: `[local]@host` with exactly one `@` (`host_name` rejects a second), the host a name equal to `d`
+/// or under it. Returns the address with the host normalised.
+fn agent_inside(agent: &str, domain: &str) -> Option<String> {
+    let (local, host) = agent.split_once('@')?;
+    let host = host_name(host)?;
+    let inside = host == domain || host.ends_with(&format!(".{domain}"));
+    inside.then(|| format!("{local}@{host}"))
 }
 
 /// A selector is a DNS name in the key lookup, so it must be a plain one.
@@ -102,6 +103,7 @@ fn selector(value: &str) -> Option<String> {
     let s = value.to_ascii_lowercase();
     let ok = s.split('.').all(|label| {
         !label.is_empty()
+            && label.len() <= MAX_LABEL
             && label
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
@@ -137,15 +139,19 @@ pub(crate) fn signature(header_value: &str) -> Option<Signature> {
     // The normalised name: the key lookup queries exactly this.
     let domain = signing_domain(get("d")?)?;
     let selector = selector(get("s")?)?;
+    // The key lookup name `<s>._domainkey.<d>` must fit a DNS name.
+    if selector.len() + "._domainkey.".len() + domain.len() > MAX_NAME {
+        return None;
+    }
     let signed_headers = header_names(get("h")?)?;
     let body_hash = base64_bytes(get("bh")?).filter(|b| !b.is_empty())?;
     let signature = base64_bytes(get("b")?).filter(|b| !b.is_empty())?;
     let body_length = optional_number(get("l")).ok()?;
     let expires = optional_number(get("x")).ok()?;
-    let agent = get("i").map(str::to_owned);
-    if agent.as_deref().is_some_and(|i| !agent_inside(i, &domain)) {
-        return None;
-    }
+    let agent = match get("i") {
+        Some(i) => Some(agent_inside(i, &domain)?),
+        None => None,
+    };
     Some(Signature {
         algorithm,
         header_canon,
@@ -307,6 +313,87 @@ mod tests {
         assert_eq!(sig.selector, "mail.test_1");
     }
 
+    #[test]
+    fn empty_bh_and_b_are_none() {
+        let bh = "bh=2jUSOH9NhtVGCQWNr9BrIAPreKQjO6Sn7XIkfJVOzv8=";
+        assert!(signature(&with(bh, "bh=")).is_none());
+        assert!(signature(&with(bh, "bh= \r\n ")).is_none());
+        let at = RSA.rfind("b=").unwrap();
+        assert!(signature(&format!("{}b=", &RSA[..at])).is_none());
+        assert!(signature(&format!("{}b= ;", &RSA[..at])).is_none());
+        assert!(signature(RSA).is_some());
+    }
+
+    #[test]
+    fn the_agent_is_stored_normalised_and_has_one_at() {
+        let i = "i=@football.example.com";
+        let sig = signature(&with(i, "i=joe@Football.Example.COM.")).unwrap();
+        assert_eq!(sig.agent.as_deref(), Some("joe@football.example.com"));
+        for bad in [
+            "i=a@b@football.example.com",
+            "i=@@football.example.com",
+            "i=joe@football..example.com",
+            "i=joe@football.example.com:25",
+            "i=joe@10.0.0.1",
+        ] {
+            assert!(signature(&with(i, bad)).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn dns_length_limits_apply_to_d_and_s() {
+        let no_i = with(" i=@football.example.com;", "");
+        let l63 = "a".repeat(63);
+        let l64 = "a".repeat(64);
+        let d = |d: &str| no_i.replace("d=football.example.com", &format!("d={d}"));
+        let s = |s: &str| no_i.replace("s=test", &format!("s={s}"));
+        assert!(signature(&d(&format!("{l63}.example.com"))).is_some());
+        assert!(signature(&d(&format!("{l64}.example.com"))).is_none());
+        assert!(signature(&s(&l63)).is_some());
+        assert!(signature(&s(&l64)).is_none());
+        // The whole query name `<s>._domainkey.<d>` is at most 253 bytes.
+        let dom = format!("{l63}.{l63}.{l63}.com"); // 194
+        let room = 253 - "._domainkey.".len() - dom.len(); // 47
+        assert!(
+            signature(
+                &no_i
+                    .replace("d=football.example.com", &format!("d={dom}"))
+                    .replace("s=test", &format!("s={}", "s".repeat(room)))
+            )
+            .is_some()
+        );
+        assert!(
+            signature(
+                &no_i
+                    .replace("d=football.example.com", &format!("d={dom}"))
+                    .replace("s=test", &format!("s={}", "s".repeat(room + 1)))
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn the_tag_list_cap_applies_to_signatures() {
+        let pad = |n: usize| format!("{RSA}; z={}", "x".repeat(n));
+        let base = pad(0).len();
+        assert!(signature(&pad(16384 - base)).is_some());
+        assert_eq!(pad(16385 - base).len(), 16385);
+        assert!(signature(&pad(16385 - base)).is_none());
+    }
+
+    #[test]
+    fn the_worst_case_input_is_fast() {
+        let mut s = String::from(RSA);
+        let mut i = 0;
+        while s.len() + 8 <= 16 * 1024 {
+            s.push_str(&format!("; t{i}="));
+            i += 1;
+        }
+        let started = std::time::Instant::now();
+        assert!(signature(&s).is_some());
+        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+
     proptest! {
         #[test]
         fn signature_never_panics(s in any::<String>()) {
@@ -318,6 +405,46 @@ mod tests {
             s in "(v=1|a=rsa-sha256|d=a\\.example\\.com|s=x|h=from|bh=AAAA|b=AAAA|i=@a\\.example\\.com|l=[0-9]{1,30}|x=[0-9]{1,30}|c=[a-z/]{0,15}|;| |\\r\\n|=){0,40}",
         ) {
             let _ = signature(&s);
+        }
+
+        /// Whatever parses holds every invariant the verifier relies on.
+        #[test]
+        fn a_parse_implies_the_invariants(
+            a in prop::sample::select(vec!["rsa-sha256", "ed25519-sha256", "rsa-sha1", "x"]),
+            d in prop::sample::select(vec![
+                "football.example.com", "Football.Example.COM.", "example.com", "co.uk",
+                "github.io", "10.0.0.1", "a.b.invalidtld", "bücher.example",
+            ]),
+            h in prop::sample::select(vec![
+                "from:to", "to:subject", "From : Content-Type", "", "from::to", "subject",
+            ]),
+            i in prop::sample::select(vec![
+                "", " i=@football.example.com;", " i=a@b@example.com;", " i=x@other.example;",
+                " i=joe@sub.football.example.com;", " i=@xn--bcher-kva.example;",
+            ]),
+            l in prop::sample::select(vec!["", " l=5;", " l=x;"]),
+            c in prop::sample::select(vec!["", " c=relaxed/simple;", " c=bad;"]),
+        ) {
+            let header = format!(
+                "v=1; a={a}; d={d};{i}{l}{c} s=sel; h={h}; bh=AAAA; b=BBBB"
+            );
+            if let Some(sig) = signature(&header) {
+                prop_assert!(["rsa-sha256", "ed25519-sha256"].contains(&a));
+                prop_assert!(sig.signed_headers.iter().any(|x| x == "from"));
+                prop_assert!(sig.signed_headers.iter().all(|x| !x.is_empty()));
+                let again = signing_domain(&sig.domain);
+                prop_assert_eq!(again.as_deref(), Some(sig.domain.as_str()));
+                prop_assert!(psl::domain(sig.domain.as_bytes()).is_some());
+                prop_assert!(!sig.body_hash.is_empty() && !sig.signature.is_empty());
+                if let Some(agent) = &sig.agent {
+                    prop_assert_eq!(agent.matches('@').count(), 1);
+                    let host = agent.rsplit('@').next().unwrap();
+                    prop_assert!(agent_inside(agent, &sig.domain).is_some());
+                    let under = format!(".{}", sig.domain);
+                    prop_assert!(host == sig.domain || host.ends_with(&under));
+                    prop_assert_eq!(host, host.to_ascii_lowercase());
+                }
+            }
         }
     }
 }

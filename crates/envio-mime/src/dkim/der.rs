@@ -134,6 +134,42 @@ mod tests {
         assert_eq!(rsa_public_key(&[0x30, 0x00]), None);
     }
 
+    #[test]
+    fn the_bit_string_must_have_no_unused_bits() {
+        let mut der = spki();
+        let at = der
+            .windows(4)
+            .position(|w| w == [0x03, 0x81, 0x8d, 0x00])
+            .unwrap();
+        assert!(rsa_public_key(&der).is_some());
+        der[at + 3] = 0x01;
+        assert_eq!(rsa_public_key(&der), None);
+    }
+
+    #[test]
+    fn lengths_must_be_minimal() {
+        // SEQUENCE { INTEGER 1, INTEGER 3 } is a valid bare key.
+        assert!(rsa_public_key(&[0x30, 0x06, 2, 1, 1, 2, 1, 3]).is_some());
+        // The same with the outer length in the long forms, which are not minimal.
+        assert_eq!(rsa_public_key(&[0x30, 0x81, 0x06, 2, 1, 1, 2, 1, 3]), None);
+        assert_eq!(
+            rsa_public_key(&[0x30, 0x82, 0x00, 0x06, 2, 1, 1, 2, 1, 3]),
+            None
+        );
+        // And a minimal two-byte length is still fine (a 256-byte modulus).
+        let mut key = vec![0x30, 0x82, 0x01, 0x07, 2, 0x82, 0x01, 0x00];
+        key.extend([0x80; 256]);
+        key.extend([2, 1, 3]);
+        assert!(rsa_public_key(&key).is_some());
+    }
+
+    #[test]
+    fn integers_must_not_be_empty() {
+        assert_eq!(rsa_public_key(&[0x30, 0x05, 2, 0, 2, 1, 3]), None);
+        assert_eq!(rsa_public_key(&[0x30, 0x05, 2, 1, 1, 2, 0]), None);
+        assert_eq!(rsa_public_key(&[0x30, 0x04, 2, 0, 2, 0]), None);
+    }
+
     proptest! {
         #[test]
         fn never_panics(bytes in proptest::collection::vec(any::<u8>(), 0..600)) {

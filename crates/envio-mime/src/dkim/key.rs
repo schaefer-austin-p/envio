@@ -160,5 +160,30 @@ mod tests {
         ) {
             let _ = key_record(&s);
         }
+
+        /// A record that parses is not testing, allows sha256 and email.
+        #[test]
+        fn a_parse_implies_the_invariants(
+            v in prop::sample::select(vec!["", "v=DKIM1;", "v=DKIM2;"]),
+            k in prop::sample::select(vec!["", "k=ed25519;", "k=rsa;", "k=x;"]),
+            t in prop::sample::select(vec!["", "t=y;", "t=s;", "t=y:s;", "t=s:y;", "t=Y;"]),
+            s in prop::sample::select(vec!["", "s=*;", "s=email;", "s=other;", "s=email:x;"]),
+            h in prop::sample::select(vec!["", "h=sha256;", "h=sha1;", "h=sha1:sha256;"]),
+        ) {
+            let txt = format!("{v} {k} {t} {s} {h} p={ED_P}");
+            if let Some(rec) = key_record(&txt) {
+                let has = |tag: &str, want: &str| {
+                    tag_list(&txt).unwrap().iter().any(|(n, val)| {
+                        n == tag && colon_list(val).any(|e| e == want)
+                    })
+                };
+                prop_assert!(!has("t", "y"));
+                prop_assert_eq!(rec.strict, has("t", "s"));
+                if txt.contains("h=") { prop_assert!(has("h", "sha256")); }
+                if txt.contains("s=") { prop_assert!(has("s", "*") || has("s", "email")); }
+                prop_assert!(!txt.contains("v=DKIM2"));
+                prop_assert!(matches!(rec.key, PublicKey::Ed25519(_)) == !k.contains("rsa"));
+            }
+        }
     }
 }
