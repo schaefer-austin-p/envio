@@ -154,9 +154,8 @@ four frames the board shows in dark). Built in T8: `SignInStep.qml` (the
 layout and behaviour by `cargo make qml-test` against the fake core, and the
 end-to-end path by `crates/envio-e2e/tests/oauth_e2e.rs` (no Microsoft
 involved). **Not yet audited:** the phone shots with the real flow, which
-need the client ID (#219 T10). The Microsoft button, the browser step and
-the error cards are never reachable until then (the constant is empty, so
-the wizard never offers them), so no deviation row can be measured on a
+need the real flow (#219 T10; the client ID is set, the phone test is
+open). Until then no deviation row on these frames has been measured on a
 phone. T10 runs the audit process above on these frames and adds the rows
 here.
 

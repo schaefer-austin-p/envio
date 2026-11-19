@@ -1,8 +1,8 @@
 //! Signing in with Microsoft, end to end, with no Microsoft (#219 T9): one
 //! injected `Provider` whose token endpoint, IMAP and SMTP are the fakes of
 //! envio-core's tests. Detect, sign in, sync and send over XOAUTH2, refresh,
-//! revoke, "Sign in again", a mailbox that refuses SMTP, and the empty
-//! client ID constant.
+//! revoke, "Sign in again", a mailbox that refuses SMTP, the real
+//! Microsoft provider's Detect, and the empty provider list.
 
 #[path = "support/oauth.rs"]
 mod support;
@@ -199,14 +199,31 @@ fn a_mailbox_with_smtp_auth_disabled_fails_the_message_with_the_hint_and_stays_u
 }
 
 #[test]
-fn without_a_client_id_the_wizard_path_is_what_it_always_was() {
-    // The checked-in constant is empty until #219 T10.
-    assert!(Provider::microsoft().is_none());
+fn detect_offers_the_real_microsoft_provider_with_its_hosts() {
+    // The real `Provider::microsoft()` list, as the app's `Config` takes it:
+    // the other tests inject a provider with fake hosts.
+    assert!(Provider::microsoft().is_some());
     let mut h = Harness::unstarted();
-    // The providers the app's `Config` takes (qt/src/lifecycle.rs uses the
-    // same function).
     h.oauth = envio_core::default_oauth_providers();
-    assert!(h.oauth.is_empty());
+    assert_eq!(h.oauth.len(), 1);
+    h.start_core();
+    h.send(Command::Detect {
+        email: "x@outlook.com".into(),
+    });
+    let (setup, oauth) = h.wait(|e| match e {
+        Event::Detected { setup, oauth, .. } => Some((setup.clone(), oauth.clone())),
+        _ => None,
+    });
+    assert_eq!(oauth.expect("an offer").provider, "Microsoft");
+    assert_eq!(setup.imap.host, "outlook.office365.com");
+    assert_eq!(setup.smtp.host, "smtp.office365.com");
+}
+
+#[test]
+fn without_a_provider_the_wizard_path_is_what_it_always_was() {
+    // An app built with no OAuth provider (an empty list) keeps today's path.
+    let mut h = Harness::unstarted();
+    h.oauth = Vec::new();
     h.start_core();
     let setting = |host: &str| envio_net::autoconfig::Setting {
         endpoint: Endpoint::new(host, 993, Security::Tls),
