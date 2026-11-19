@@ -145,11 +145,37 @@ pub(super) fn merge_page(
     rows
 }
 
+/// One address of the cached list. A quoted name (see `split_list`) is read
+/// up to its closing unescaped quote, and `\"` and `\\` in it are undone;
+/// `Address::parse` only trims the quotes and would keep the escapes.
+fn cached_address(text: &str) -> Option<Address> {
+    let text = text.trim();
+    let Some(quoted) = text.strip_prefix('"') else {
+        return Address::parse(text);
+    };
+    let (mut name, mut escaped) = (String::new(), false);
+    for (i, c) in quoted.char_indices() {
+        match c {
+            _ if escaped => {
+                name.push(c);
+                escaped = false;
+            }
+            '\\' => escaped = true,
+            '"' => {
+                let email = Address::parse(&quoted[i + 1..])?.email;
+                return Some(Address::new(Some(&name), &email));
+            }
+            _ => name.push(c),
+        }
+    }
+    Address::parse(text)
+}
+
 /// "To: Bob, cy@example.org": the recipients' names or addresses.
 pub(super) fn to_line(to: &[String]) -> String {
     let names: Vec<String> = to
         .iter()
-        .map(|t| match Address::parse(t) {
+        .map(|t| match cached_address(t) {
             Some(a) => sender_label(a.name.as_deref(), &a.email),
             None => t.trim().to_owned(),
         })

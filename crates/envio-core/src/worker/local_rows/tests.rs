@@ -407,3 +407,15 @@ fn a_quote_in_a_cached_name_does_not_swallow_the_commas() {
         [r#"A\"B <a@example.org>"#, "c@example.org"]
     );
 }
+
+#[test]
+fn a_quoted_cached_name_round_trips_with_its_quotes_and_backslashes() {
+    // What `envio-sync` caches for these names (`shown_address`).
+    let line =
+        r#""Bob \"B\" Smith" <bob@example.org>, "Q\"" <q@example.org>, "Back\\" <b@example.org>"#;
+    let (shown, key) = recipients_of(line);
+    assert_eq!(shown, r#"To: Bob "B" Smith, Q", Back\"#);
+    assert_eq!(key, "bob@example.org");
+    let a = cached_address(r#""Q\"" <q@example.org>"#).unwrap();
+    assert_eq!(a.name.as_deref(), Some(r#"Q""#));
+}
