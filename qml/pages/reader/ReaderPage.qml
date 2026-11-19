@@ -19,6 +19,8 @@ Item {
     required property var accounts
     required property var folders
     property real messageId: -1
+    // In the right pane of the wide layout: Close in place of Back, a capped text measure.
+    property bool wide: false
 
     // Set by messageOpened; null until then.
     property var view: null
@@ -73,7 +75,7 @@ Item {
     onViewChanged: imageRedraw.stop()
 
     // The body's width in pixels, which the core scales images to.
-    readonly property int bodyWidth: Math.max(0, Math.round(width - theme.gu(7)))
+    readonly property int bodyWidth: Math.max(0, Math.round(wide ? Math.min(width - theme.gu(13), theme.gu(77)) : width - theme.gu(7)))
 
     // Leaving the page: Back, or a message that is no longer in this list.
     signal backRequested()
@@ -93,6 +95,13 @@ Item {
     onMessageIdChanged: {
         started = false; view = null
         sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
+        // The pane reuses this page for the next message: nothing of the
+        // last one stays (scroll, a queued action, a sheet).
+        flick.contentY = 0
+        pendingMode = ""
+        calendarPending = false
+        undoId = -1
+        more.close(); moveSheet.close(); linkSheet.close(); attachmentSheet.close()
         start()
     }
     Component.onCompleted: { if (settled) everSettled = true; start() }
@@ -228,6 +237,8 @@ Item {
         theme: root.theme
         width: parent.width
         showBack: true
+        backIcon: root.wide ? "close" : "back"
+        backLabel: root.wide ? qsTr("Close") : qsTr("Back")
         onBackClicked: root.backRequested()
         IconButton {
             objectName: "act-archive"
@@ -274,6 +285,7 @@ Item {
 
     Flickable {
         id: flick
+        objectName: "readerFlick"
         anchors { top: banner.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         visible: root.ready
         clip: true
@@ -282,8 +294,9 @@ Item {
 
         Column {
             id: page
-            x: root.theme.gu(2)
-            width: flick.width - root.theme.gu(4)
+            // Wide: left-aligned, 5 gu in from the pane edge (board frame 2).
+            width: root.wide ? Math.min(flick.width - root.theme.gu(10), root.theme.gu(80)) : flick.width - root.theme.gu(4)
+            x: root.wide ? root.theme.gu(5) : root.theme.gu(2)
             topPadding: root.theme.gu(1.5)
             spacing: root.theme.gu(2)
 
@@ -421,6 +434,7 @@ Item {
         id: footer
         theme: root.theme
         visible: root.view !== null
+        wide: root.wide
         onReplyRequested: root.compose("reply")
         onForwardRequested: root.forward()
     }

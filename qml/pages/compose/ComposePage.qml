@@ -19,6 +19,8 @@ Item {
     required property var suggestions
     // The compose id `startCompose` returned.
     property real compose: -1
+    // In the right pane of the wide layout: fields 5 gu in from the edge, 90 gu at most.
+    property bool wide: false
     // The platform's file picker; the tests replace it (the Content Hub only
     // exists on the phone).
     property var importFiles: function() { content.importFiles() }
@@ -122,6 +124,32 @@ Item {
             attachments: attachments.map(function(a) { return a.path })
         })
     }
+    // Everything the page holds, for another page of the same compose (the
+    // pane's page goes when the window narrows). Nothing is sent to the core.
+    function snapshot() {
+        commitAll()
+        return {
+            filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, keepQuoted: keepQuoted, expanded: fold.expanded,
+            attachments: attachments.slice(),
+            draft: {
+                account: account, draftId: draftId, to: to.all(), cc: cc.all(), bcc: bcc.all(),
+                subject: subject.text, body: body.text, inReplyTo: inReplyTo, references: references,
+                attachments: []
+            }
+        }
+    }
+    // A page that has not been filled yet gets its composeReady as usual.
+    function restore(state) {
+        if (!state.filled) return
+        fill(state.draft, state.quoted)
+        showCc = state.showCc
+        keepQuoted = state.keepQuoted
+        fold.expanded = state.expanded
+        attachments = state.attachments
+        // Between Send and the answer the new page waits too (no second send).
+        sending = state.sending
+        error = state.error
+    }
     // Any edit: the core keeps the draft.
     function edited() {
         if (filling || !filled) return
@@ -210,7 +238,8 @@ Item {
 
         Column {
             id: column
-            width: flick.width
+            width: root.wide ? Math.min(flick.width - root.theme.gu(10), root.theme.gu(90)) : flick.width
+            x: root.wide ? root.theme.gu(5) : 0
             FromRow {
                 width: parent.width
                 labelColumn: root.labelColumn
