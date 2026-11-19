@@ -271,3 +271,35 @@ fn a_remote_delete_leaves_the_draft_showing_as_not_uploaded() {
     s.start();
     assert_eq!(subjects(&s.rows(s.drafts_folder)), ["linked"]);
 }
+
+#[test]
+fn sending_a_draft_tells_the_list_its_file_is_gone() {
+    let mut s = seeded();
+    s.start();
+    let c = ComposeId(1);
+    let draft = DraftInput {
+        account: s.key.clone(),
+        to: vec!["ada@example.org".into()],
+        subject: "out".into(),
+        body: "hi".into(),
+        ..DraftInput::default()
+    };
+    s.h.send(Command::StartCompose {
+        compose: c,
+        from: StartFrom::New {
+            account: s.key.clone(),
+        },
+        draft_id: None,
+        mailto: None,
+    });
+    s.h.send(Command::DraftChanged {
+        compose: c,
+        draft: draft.clone(),
+    });
+    // The first save creates the file and tells the list.
+    s.h.wait(|e| matches!(e, Event::LocalDraftsChanged { .. }).then_some(()));
+    s.h.send(Command::Send { compose: c, draft });
+    // The send's own deletion tells it again, after the file is gone.
+    s.h.wait(|e| matches!(e, Event::LocalDraftsChanged { .. }).then_some(()));
+    assert!(s.drafts.list().unwrap().is_empty());
+}

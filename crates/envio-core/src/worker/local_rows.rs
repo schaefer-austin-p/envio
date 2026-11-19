@@ -162,11 +162,26 @@ pub(super) fn to_line(to: &[String]) -> String {
 }
 
 /// The addresses of a cached recipient list ("Name <a@b>, c@d"), split at
-/// the commas that end an address.
+/// the commas that end an address. The cache quotes a name that holds a
+/// special (`"Doe, Jo" <a@b>`, escapes with `\`): nothing splits inside
+/// those quotes. Older rows hold such names unquoted, so outside quotes a
+/// comma splits only after a closing `>` or a bare address. A quote that
+/// does not open the address is part of a name.
 pub(super) fn split_list(list: &str) -> Vec<String> {
     let (mut out, mut at, mut angle) = (Vec::new(), 0, false);
+    let (mut quoted, mut escaped) = (false, false);
     for (i, c) in list.char_indices() {
+        if quoted {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => quoted = false,
+                _ => {}
+            }
+            continue;
+        }
         match c {
+            '"' if list[at..i].trim().is_empty() => quoted = true,
             '<' => angle = true,
             '>' => angle = false,
             ',' if !angle && ends_address(list[at..i].trim()) => {
@@ -184,9 +199,8 @@ pub(super) fn split_list(list: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether the text so far is a whole address. The cache holds names
-/// unquoted (`Address::display()`), so a comma inside a name must not split:
-/// only a closing `>` or a bare address (an `@`, no space) ends one.
+/// Whether the text so far is a whole address: it ends in `>` or is a bare
+/// address (an `@`, no space).
 fn ends_address(text: &str) -> bool {
     text.ends_with('>') || (text.contains('@') && !text.contains(char::is_whitespace))
 }

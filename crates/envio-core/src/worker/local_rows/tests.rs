@@ -382,6 +382,21 @@ fn a_cached_name_with_a_comma_stays_one_recipient() {
 }
 
 #[test]
+fn a_cached_name_that_looks_like_an_address_stays_with_its_address() {
+    assert_eq!(
+        split_list(r#""jo@x, Inc" <a@b.org>, c@d.org"#),
+        [r#""jo@x, Inc" <a@b.org>"#, "c@d.org"]
+    );
+    assert_eq!(
+        split_list(r#""A \", B" <a@b.org>, "C, D" <c@d.org>"#),
+        [r#""A \", B" <a@b.org>"#, r#""C, D" <c@d.org>"#]
+    );
+    let (line, key) = recipients_of(r#""jo@x, Inc" <a@b.org>, c@d.org"#);
+    assert_eq!(line, "To: a@b.org, c@d.org");
+    assert_eq!(key, "a@b.org");
+}
+
+#[test]
 fn a_quote_in_a_cached_name_does_not_swallow_the_commas() {
     assert_eq!(
         split_list(r#"O"Neil, Pat <p@example.org>, q@example.org"#),
