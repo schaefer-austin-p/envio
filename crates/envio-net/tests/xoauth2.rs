@@ -144,16 +144,52 @@ async fn smtp_wrong_token_is_a_sign_in_error_in_both_failure_shapes() {
         let err = result.unwrap_err();
         assert!(matches!(err, NetError::SignIn(_)), "{challenge}: {err:?}");
         assert!(!sends_password(&lines), "{lines:?}");
+        let text = err.to_string();
+        // Never the client library's wording; the server's own refusal.
+        assert!(!text.contains("internal client error"), "{text}");
+        assert!(text.contains("535"), "{text}");
         if challenge {
-            // lettre never answers a 334 error challenge for XOAUTH2: it
-            // fails on the client side ("does not expect a challenge",
-            // mapped by `client_error`), so the 535 is never read.
-            assert!(
-                lines.last().unwrap().starts_with("AUTH XOAUTH2 "),
-                "{lines:?}"
-            );
+            // RFC 7628: the 334 error challenge is answered with an empty
+            // line, so the server's 535 is read.
+            assert_eq!(lines.last().unwrap(), "", "{lines:?}");
         }
     }
+}
+
+/// A refused XOAUTH2 whose 334 challenge is answered with `final_reply`.
+async fn after_challenge(final_reply: &'static str) -> Result<(), NetError> {
+    let script = fake_smtp::Script {
+        xoauth2_challenge: true,
+        xoauth2_final: Some(final_reply),
+        ..smtp_script()
+    };
+    let (result, lines) = smtp_login(script, "bad-token").await;
+    // The empty answer went out whatever came back.
+    assert!(lines.iter().any(|l| l.is_empty()), "{lines:?}");
+    result
+}
+
+#[tokio::test]
+async fn smtp_challenge_then_try_later_is_busy() {
+    let err = after_challenge("454 4.7.0 Temporary authentication failure")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, NetError::Busy(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn smtp_challenge_then_success_signs_in() {
+    after_challenge("235 2.7.0 Authentication successful")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn smtp_challenge_then_another_challenge_is_a_sign_in_error() {
+    let err = after_challenge("334 eyJzdGF0dXMiOiI0MDEifQ==")
+        .await
+        .unwrap_err();
+    assert!(matches!(err, NetError::SignIn(_)), "{err:?}");
 }
 
 #[tokio::test]
