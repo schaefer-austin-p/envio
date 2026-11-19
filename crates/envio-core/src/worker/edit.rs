@@ -40,12 +40,28 @@ impl Worker<'_> {
         }
         let message_id = message.envelope.message_id.as_deref();
         let found = message_id.and_then(|message_id| match self.store.drafts.list() {
-            Ok(drafts) => draft_for(&drafts, &folder.account, message_id).map(|id| {
-                let detached = drafts
-                    .iter()
-                    .any(|(d, draft)| *d == id && draft.server.is_detached_copy());
-                (id, detached)
-            }),
+            Ok(drafts) => draft_for(&drafts, &folder.account, message_id)
+                .and_then(|id| {
+                    // An import that never got its files in (a crash): it is
+                    // not the user's work yet, so it is dropped (no note: the
+                    // original it names must stay) and imported again.
+                    if drafts
+                        .iter()
+                        .any(|(d, draft)| *d == id && draft.server.incomplete)
+                    {
+                        if let Err(e) = self.store.drafts.remove_imported(&id) {
+                            log::warn!("discarding an incomplete import {id}: {e}");
+                        }
+                        return None;
+                    }
+                    Some(id)
+                })
+                .map(|id| {
+                    let detached = drafts
+                        .iter()
+                        .any(|(d, draft)| *d == id && draft.server.is_detached_copy());
+                    (id, detached)
+                }),
             Err(e) => {
                 log::warn!("listing drafts to edit one: {e}");
                 None
@@ -101,17 +117,18 @@ impl Worker<'_> {
         (account, message_id, plain_flags): (&str, Option<&str>, bool),
         raw: &[u8],
     ) {
-        let Some(identity) = self
+        let Some((identity, name)) = self
             .store
             .accounts
             .get(account)
-            .map(|a| a.settings.email.clone())
+            .map(|a| (a.settings.email.clone(), a.settings.name.clone()))
         else {
             return self.compose_refused(compose, text::compose::no_account());
         };
         let source = Source {
             account,
             identity: &identity,
+            name: &name,
             message_id,
             plain_flags,
             safe_name: super::read::safe_file_name,
@@ -161,7 +178,7 @@ mod tests {
 
     const C: ComposeId = ComposeId(7);
     const MID: &str = "<d1@example.org>";
-    const RAW: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+    const RAW: &[u8] = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Subject: server text\r\nMessage-ID: <d1@example.org>\r\n\r\nserver body\r\n";
 
     /// A worker whose Drafts folder holds one message with `state` as its body.

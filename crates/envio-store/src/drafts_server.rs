@@ -40,6 +40,13 @@ pub struct ServerCopy {
     /// most `EARLIER_MAX`. A stale cached row of an older copy still finds
     /// the draft by one of them.
     pub earlier: Vec<String>,
+    /// An imported copy that does not stand in for its original (set when
+    /// it is imported, never derived from the bounded `earlier` list): the
+    /// original stays on the server, and Edit says so each time.
+    pub detached: bool,
+    /// An import whose files are not all in yet. The sync planner leaves
+    /// it alone and Edit discards it and imports again.
+    pub incomplete: bool,
 }
 
 /// How many earlier Message-IDs a draft remembers.
@@ -61,17 +68,7 @@ impl ServerCopy {
     /// original is not (and never was) this draft's server copy.
     #[must_use]
     pub fn is_detached_copy(&self) -> bool {
-        self.imported_from
-            .as_deref()
-            .is_some_and(|origin| !self.names_as_copy(origin))
-    }
-
-    fn names_as_copy(&self, id: &str) -> bool {
-        [&self.message_id, &self.pending_id]
-            .into_iter()
-            .flatten()
-            .chain(self.earlier.iter())
-            .any(|own| own.trim() == id.trim())
+        self.detached
     }
 }
 
@@ -228,6 +225,7 @@ impl Drafts {
                 pending_id: None,
                 uploaded_ms,
                 imported_from: old.imported_from,
+                detached: old.detached,
                 earlier,
                 ..ServerCopy::default()
             };
@@ -260,7 +258,10 @@ impl Drafts {
         link: Option<&str>,
         add_files: impl FnOnce(&Self, &str, &mut Draft) -> Result<()>,
     ) -> Result<(String, bool)> {
-        let id = self.create_imported(draft)?;
+        let mut first = draft.clone();
+        first.server.detached = true;
+        first.server.incomplete = true;
+        let id = self.create_imported(&first)?;
         let done = (|| {
             let mut filled = draft.clone();
             add_files(self, &id, &mut filled)?;
@@ -268,10 +269,7 @@ impl Drafts {
                 // `save` keeps the server copy and `updated_at_ms` as written.
                 self.save(&id, &filled)?;
             }
-            match link {
-                Some(original) => self.link_imported(&id, original),
-                None => Ok(false),
-            }
+            self.finish_imported(&id, link)
         })();
         match done {
             Ok(linked) => Ok((id, linked)),
@@ -284,11 +282,12 @@ impl Drafts {
         }
     }
 
-    /// Makes the imported draft `id` stand in for `original` (see
-    /// `import`): `uploaded_ms` becomes its `updated_at_ms`, so it is not
-    /// uploaded until changed. False, with nothing changed, when the
-    /// draft is gone or an upload touched it meanwhile.
-    fn link_imported(&self, id: &str, original: &str) -> Result<bool> {
+    /// Ends an import: the draft is complete from now on, and when `link`
+    /// (the original's Message-ID) is given it stands in for the original
+    /// (`uploaded_ms` becomes its `updated_at_ms`, so it is not uploaded
+    /// until changed) and is no longer detached. Whether the link was
+    /// made: false when the draft is gone or an upload touched it meanwhile.
+    fn finish_imported(&self, id: &str, link: Option<&str>) -> Result<bool> {
         if !is_key(id) {
             return Err(StoreError::NotFound);
         }
@@ -299,13 +298,20 @@ impl Drafts {
             Err(error) => return Err(error),
         };
         let server = &mut draft.server;
-        if server.message_id.is_some() || server.pending_id.is_some() || server.uploaded_ms != 0 {
-            return Ok(false);
-        }
-        server.message_id = Some(original.to_owned());
-        server.uploaded_ms = draft.updated_at_ms;
+        server.incomplete = false;
+        let untouched =
+            server.message_id.is_none() && server.pending_id.is_none() && server.uploaded_ms == 0;
+        let linked = match link {
+            Some(original) if untouched => {
+                server.message_id = Some(original.to_owned());
+                server.uploaded_ms = draft.updated_at_ms;
+                server.detached = false;
+                true
+            }
+            _ => false,
+        };
         self.write(id, &draft)?;
-        Ok(true)
+        Ok(linked)
     }
 
     /// Takes back a draft `create_imported` just made, when the import

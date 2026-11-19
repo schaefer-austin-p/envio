@@ -3,7 +3,7 @@
 //! (one text/plain, then attachments). For Edit's import of a server
 //! draft (#228): the caller decides what loses nothing.
 
-use mail_parser::{MimeHeaders, PartType};
+use mail_parser::{HeaderValue, MimeHeaders, PartType};
 
 use crate::address::{Address, from_header};
 use crate::mail::{Parsed, parse_mail};
@@ -13,6 +13,12 @@ use crate::mail::{Parsed, parse_mail};
 pub struct Layout {
     /// Names of the top-level headers, lower case, each once, in order.
     pub headers: Vec<String>,
+    /// Some header name occurs more than once. The reader keeps one value
+    /// of a repeated To, Cc or From, so a rebuild would lose the others.
+    pub repeated: bool,
+    /// How many Message-IDs the In-Reply-To header holds (the reader and
+    /// a rebuilt draft keep the first only).
+    pub in_reply_to_ids: usize,
     /// The Bcc header's mailboxes (the reader's envelope has none).
     pub bcc: Vec<Address>,
     /// The body is one `text/plain` part, alone or first in a
@@ -25,13 +31,23 @@ pub struct Layout {
 pub fn layout(raw: &[u8]) -> Option<Layout> {
     let message = parse_mail(raw)?;
     let mut headers: Vec<String> = Vec::new();
+    let mut repeated = false;
     for name in header_names(raw) {
-        if !headers.contains(&name) {
+        if headers.contains(&name) {
+            repeated = true;
+        } else {
             headers.push(name);
         }
     }
+    let in_reply_to_ids = match message.in_reply_to() {
+        HeaderValue::Text(_) => 1,
+        HeaderValue::TextList(list) => list.len(),
+        _ => 0,
+    };
     Some(Layout {
         headers,
+        repeated,
+        in_reply_to_ids,
         bcc: from_header(message.bcc()),
         plain_shape: plain_shape(&message),
     })
@@ -129,6 +145,28 @@ Content-Disposition: attachment; filename=\"a.pdf\"\r\nContent-Transfer-Encoding
         let raw = b"From: me@example.org\r\nSubject: a\r\n b\r\nX-Priority: 1\r\nx-priority: 2\r\n\r\nt\r\n";
         let l = layout(raw).unwrap();
         assert_eq!(l.headers, vec!["from", "subject", "x-priority"]);
+        assert!(l.repeated, "x-priority twice");
+    }
+
+    #[test]
+    fn a_repeated_header_is_reported() {
+        let once = layout(format!("{HEAD}\r\nt\r\n").as_bytes()).unwrap();
+        assert!(!once.repeated);
+        for name in ["To", "Cc", "From", "Subject"] {
+            let raw = format!("{HEAD}Cc: c@example.org\r\n{name}: b@example.org\r\n\r\nt\r\n");
+            assert!(layout(raw.as_bytes()).unwrap().repeated, "{name}");
+        }
+    }
+
+    #[test]
+    fn counts_the_ids_of_in_reply_to() {
+        let ids = |value: &str| {
+            let raw = format!("{HEAD}{value}\r\n\r\nt\r\n");
+            layout(raw.as_bytes()).unwrap().in_reply_to_ids
+        };
+        assert_eq!(ids("X-A: 1"), 0);
+        assert_eq!(ids("In-Reply-To: <a@x>"), 1);
+        assert_eq!(ids("In-Reply-To: <a@x> <b@x>"), 2);
     }
 
     #[test]

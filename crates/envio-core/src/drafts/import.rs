@@ -31,6 +31,8 @@ pub(crate) struct Source<'a> {
     pub account: &'a str,
     /// The account's own address, what Envio writes as From.
     pub identity: &'a str,
+    /// The account's name, what Envio writes as From's display name.
+    pub name: &'a str,
     /// The cached row's Message-ID, with angle brackets.
     pub message_id: Option<&'a str>,
     /// The cached row's flags are \Seen and \Draft at most (it does not
@@ -133,7 +135,9 @@ fn loses_nothing(
     (attachments, carried): (&[envio_mime::AttachmentInfo], usize),
     src: &Source<'_>,
 ) -> bool {
-    let own_from = matches!(&envelope.from[..], [from] if from.is(src.identity));
+    let own_from = matches!(&envelope.from[..], [from]
+        if from.is(src.identity)
+            && from.name.as_deref().unwrap_or("").trim() == src.name.trim());
     let files = attachments.iter().filter(|a| !a.inline);
     let kept = files.clone().all(|a| {
         a.filename.as_deref().is_some_and(|name| {
@@ -142,6 +146,8 @@ fn loses_nothing(
         })
     });
     layout.plain_shape
+        && !layout.repeated
+        && layout.in_reply_to_ids <= 1
         && layout.bcc.is_empty()
         && layout
             .headers
@@ -167,6 +173,7 @@ mod tests {
         Source {
             account: "acc",
             identity: "me@example.org",
+            name: "",
             message_id,
             plain_flags: true,
             safe_name: safe,
@@ -323,11 +330,46 @@ Content-Disposition: inline; filename=\"i.png\"\r\nContent-Transfer-Encoding: ba
             "From: me@example.org, other@example.org",
         );
         assert_detached(&import(&two), "two froms");
-        let own = plain_with(
+        // The rebuild writes the account's own display name, so a
+        // different (or missing) name would be lost.
+        let named = plain_with(
             "From: me@example.org",
             "From: \"Me Myself\" <ME@Example.org>",
         );
-        assert_eq!(import(&own).link.as_deref(), Some(MID));
+        assert_detached(&import(&named), "name the account does not have");
+        let src = Source {
+            name: "Me Myself",
+            ..source(Some(MID))
+        };
+        let got = draft_from_raw(&named, &src, 5).unwrap();
+        assert_eq!(got.link.as_deref(), Some(MID), "the account's own name");
+        let bare = draft_from_raw(&plain(""), &src, 5).unwrap();
+        assert_detached(&bare, "no name where the account has one");
+        assert_eq!(import(&plain("")).link.as_deref(), Some(MID));
+    }
+
+    #[test]
+    fn repeated_headers_are_never_replaced() {
+        for (name, value) in [
+            ("To", "late@example.org"),
+            ("Cc", "late@example.org"),
+            ("From", "other@example.org"),
+            ("Subject", "again"),
+        ] {
+            let got = import(&plain(&format!("{name}: {value}\r\n")));
+            assert_detached(&got, name);
+        }
+    }
+
+    #[test]
+    fn more_than_one_in_reply_to_id_is_never_replaced() {
+        let two = plain_with(
+            "In-Reply-To: <p@example.org>",
+            "In-Reply-To: <p@example.org> <q@example.org>",
+        );
+        assert_detached(&import(&two), "two ids");
+        // References are all kept by the rebuild, so several are fine.
+        assert_eq!(import(&plain("")).link.as_deref(), Some(MID));
     }
 
     #[test]

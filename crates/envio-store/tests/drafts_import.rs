@@ -133,30 +133,53 @@ fn uploads_remember_the_earlier_message_ids_up_to_a_bound() {
 }
 
 #[test]
-fn a_draft_is_a_detached_copy_while_its_original_was_never_its_server_copy() {
-    let mut server = ServerCopy {
-        imported_from: Some(ORIGIN.into()),
-        ..ServerCopy::default()
-    };
-    assert!(server.is_detached_copy(), "imported, nothing uploaded");
-    server.message_id = Some("<c2@x>".into());
-    assert!(server.is_detached_copy(), "uploaded as a new draft");
-    // Linked: the original was its server copy, and still counts after
-    // the replacing upload.
-    let linked = ServerCopy {
-        message_id: Some(ORIGIN.into()),
-        imported_from: Some(ORIGIN.into()),
-        ..ServerCopy::default()
-    };
-    assert!(!linked.is_detached_copy());
-    let replaced = ServerCopy {
-        message_id: Some("<c2@x>".into()),
-        imported_from: Some(ORIGIN.into()),
-        earlier: vec![ORIGIN.into()],
-        ..ServerCopy::default()
-    };
-    assert!(!replaced.is_detached_copy());
+fn detached_is_stored_at_import_and_survives_any_number_of_uploads() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let (copy, linked) = drafts
+        .import(&plain_copy(7), None, |_, _, _| Ok(()))
+        .unwrap();
+    assert!(!linked);
+    assert!(drafts.load(&copy).unwrap().server.is_detached_copy());
+    let (own, linked) = drafts
+        .import(&plain_copy(8), Some(ORIGIN), |_, _, _| Ok(()))
+        .unwrap();
+    assert!(linked);
+    assert!(!drafts.load(&own).unwrap().server.is_detached_copy());
+    // More uploads than the bounded list holds: the original's id has
+    // left `earlier`, and neither answer changes.
+    for n in 0..(EARLIER_MAX + 4) {
+        for id in [&copy, &own] {
+            drafts.mark_uploaded(id, &format!("<u{n}@x>"), 9).unwrap();
+        }
+    }
+    let copy = drafts.load(&copy).unwrap().server;
+    let own = drafts.load(&own).unwrap().server;
+    assert!(!own.earlier.iter().any(|e| e == ORIGIN));
+    assert!(copy.is_detached_copy());
+    assert!(!own.is_detached_copy());
     assert!(!ServerCopy::default().is_detached_copy());
+}
+
+#[test]
+fn an_import_is_incomplete_until_its_files_are_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let mut halfway = None;
+    let (id, _) = drafts
+        .import(&plain_copy(7), Some(ORIGIN), |drafts, id, _| {
+            halfway = Some(drafts.load(id).unwrap().server.incomplete);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(halfway, Some(true));
+    assert!(!drafts.load(&id).unwrap().server.incomplete);
+    // Also when the link is not made.
+    let (id, linked) = drafts
+        .import(&plain_copy(8), None, |_, _, _| Ok(()))
+        .unwrap();
+    assert!(!linked);
+    assert!(!drafts.load(&id).unwrap().server.incomplete);
 }
 
 #[test]
@@ -227,5 +250,7 @@ fn an_import_without_a_link_stays_a_plain_copy() {
         .import(&plain_copy(7), None, |_, _, _| Ok(()))
         .unwrap();
     assert!(!linked);
-    assert_eq!(drafts.load(&id).unwrap().server, plain_copy(7).server);
+    let mut expected = plain_copy(7).server;
+    expected.detached = true;
+    assert_eq!(drafts.load(&id).unwrap().server, expected);
 }

@@ -11,7 +11,7 @@ use support::Harness;
 
 const ME: &str = "me@example.org";
 const MID: &str = "<d1@example.org>";
-const RAW: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+const RAW: &[u8] = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Subject: server text\r\nMessage-ID: <d1@example.org>\r\n\r\nserver body\r\n";
 
 struct Seeded {
@@ -220,11 +220,11 @@ fn the_reader_says_when_the_message_is_a_draft() {
     assert!(!s.open(s.in_inbox).is_draft);
 }
 
-const HTML: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+const HTML: &[u8] = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Subject: html text\r\nMessage-ID: <d1@example.org>\r\n\
 MIME-Version: 1.0\r\nContent-Type: text/html\r\n\r\n<p>html <b>body</b></p>\r\n";
 
-const WITH_FILE: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+const WITH_FILE: &[u8] = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Subject: with file\r\nMessage-ID: <d1@example.org>\r\n\
 MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=B\r\n\r\n\
 --B\r\nContent-Type: text/plain\r\n\r\nsee file\r\n\
@@ -232,7 +232,7 @@ MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=B\r\n\r\n\
 Content-Disposition: attachment; filename=\"a.pdf\"\r\n\
 Content-Transfer-Encoding: base64\r\n\r\nSGVsbG8=\r\n--B--\r\n";
 
-const NO_ID: &[u8] = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+const NO_ID: &[u8] = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Subject: no id\r\n\r\nbody without id\r\n";
 
 #[test]
@@ -318,7 +318,11 @@ fn two_edits_of_a_draft_without_a_message_id_make_two_copies_and_lose_nothing() 
     let files = s.files();
     assert_eq!(files.len(), 2);
     for (_, file) in &files {
-        assert_eq!(file.server, envio_store::ServerCopy::default());
+        let copy = envio_store::ServerCopy {
+            detached: true,
+            ..envio_store::ServerCopy::default()
+        };
+        assert_eq!(file.server, copy);
         assert_eq!(file.body.trim_end(), "body without id");
     }
 }
@@ -393,7 +397,7 @@ fn a_linked_import_stays_without_a_note_when_reopened() {
 
 #[test]
 fn a_bcc_of_the_server_draft_comes_into_the_compose_and_the_original_stays() {
-    let raw = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+    let raw = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Bcc: Hid <hidden@example.org>, h2@example.org\r\n\
 Subject: secret\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
     let s = seeded_with(raw, Some(MID));
@@ -411,7 +415,7 @@ Subject: secret\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
 
 #[test]
 fn a_draft_with_headers_envio_does_not_write_is_a_copy_not_a_replacement() {
-    let raw = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+    let raw = b"From: Test <me@example.org>\r\nTo: ada@example.org\r\n\
 Reply-To: other@example.org\r\nX-Priority: 1\r\n\
 Subject: urgent\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
     let s = seeded_with(raw, Some(MID));
@@ -430,4 +434,93 @@ fn a_local_draft_uploaded_twice_is_found_by_its_first_message_id() {
     s.edit(ComposeId(1), s.in_drafts);
     assert_eq!(s.ready(ComposeId(1)).draft_id.as_deref(), Some(id.as_str()));
     assert_eq!(s.files().len(), 1);
+}
+
+/// A server draft `extra` is added to, with Envio's own From.
+fn with_header(extra: &str) -> Vec<u8> {
+    format!(
+        "From: Test <me@example.org>\r\nTo: ada@example.org\r\n{extra}\
+Subject: s\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_draft_the_rebuild_would_change_is_a_copy_and_the_original_stays() {
+    for (why, extra) in [
+        ("two To", "To: late@example.org\r\n"),
+        ("two Cc", "Cc: a@example.org\r\nCc: late@example.org\r\n"),
+        ("two From", "From: Test <other@example.org>\r\n"),
+        (
+            "two In-Reply-To ids",
+            "In-Reply-To: <p@example.org> <q@example.org>\r\n",
+        ),
+    ] {
+        let s = seeded_with(&with_header(extra), Some(MID));
+        s.edit(ComposeId(1), s.in_drafts);
+        assert_eq!(s.ready_with_note(ComposeId(1)).1, COPY_NOTE, "{why}");
+        assert_eq!(s.files()[0].1.server.message_id, None, "{why}");
+    }
+}
+
+#[test]
+fn a_from_name_other_than_the_accounts_is_a_copy() {
+    let raw = b"From: Someone Else <me@example.org>\r\nTo: ada@example.org\r\n\
+Subject: s\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
+    let s = seeded_with(raw, Some(MID));
+    s.edit(ComposeId(1), s.in_drafts);
+    assert_eq!(s.ready_with_note(ComposeId(1)).1, COPY_NOTE);
+    assert_eq!(s.files()[0].1.server.message_id, None);
+}
+
+#[test]
+fn a_copy_and_a_linked_import_stay_what_they_are_after_many_uploads() {
+    let detached = seeded_with(HTML, Some(MID));
+    detached.edit(ComposeId(1), detached.in_drafts);
+    let id = detached.ready(ComposeId(1)).draft_id.unwrap();
+    detached.close(ComposeId(1));
+    let linked = seeded();
+    linked.edit(ComposeId(1), linked.in_drafts);
+    let own = linked.ready(ComposeId(1)).draft_id.unwrap();
+    linked.close(ComposeId(1));
+    for n in 0..12 {
+        let id_n = format!("<u{n}@example.org>");
+        detached.drafts.mark_uploaded(&id, &id_n, 50).unwrap();
+        linked.drafts.mark_uploaded(&own, &id_n, 50).unwrap();
+    }
+    detached.edit(ComposeId(2), detached.in_drafts);
+    assert_eq!(detached.ready_with_note(ComposeId(2)).1, COPY_NOTE);
+    linked.edit(ComposeId(2), linked.in_drafts);
+    assert_eq!(linked.ready_with_note(ComposeId(2)).1, "");
+}
+
+#[test]
+fn an_incomplete_import_is_dropped_and_imported_again() {
+    let s = seeded();
+    // What a crash between creating the copy and its files leaves.
+    let half = Draft {
+        account: s.key.clone(),
+        body: "half".into(),
+        updated_at_ms: 5,
+        server: envio_store::ServerCopy {
+            imported_from: Some(MID.into()),
+            detached: true,
+            incomplete: true,
+            ..envio_store::ServerCopy::default()
+        },
+        ..Draft::default()
+    };
+    let stale = s.drafts.create_imported(&half).unwrap();
+    s.edit(ComposeId(1), s.in_drafts);
+    let (draft, note) = s.ready_with_note(ComposeId(1));
+    assert_ne!(draft.draft_id.as_deref(), Some(stale.as_str()));
+    assert_eq!(note, "", "a fresh, linked import");
+    assert!(draft.body.contains("server body"), "{}", draft.body);
+    let files = s.files();
+    assert_eq!(files.len(), 1, "the half-made one is gone");
+    assert!(!files[0].1.server.incomplete);
+    assert!(
+        s.drafts.deletes().unwrap().is_empty(),
+        "no note for the original"
+    );
 }
