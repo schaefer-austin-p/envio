@@ -3,7 +3,7 @@
 //! width that draws wider than the reader (#170). Qt's rich text has no
 //! `max-width`, so the core renders again with the sizes known.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use envio_mime::Unsized;
 use envio_store::{BodyState, MessageRowId};
@@ -11,7 +11,7 @@ use envio_store::{BodyState, MessageRowId};
 use super::Worker;
 use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
-use crate::api::view::MessageView;
+use crate::api::view::{MessageHeader, MessageView};
 
 /// Natural pixel size (width, height) by image URL.
 pub(crate) type Sizes = HashMap<String, (u32, u32)>;
@@ -29,6 +29,17 @@ pub(crate) struct Shown {
     pub html: String,
     /// The remote images that HTML has with no width.
     pub open_images: Vec<Unsized>,
+    /// The header last sent (the sender verdict can change without the
+    /// HTML changing).
+    pub header: MessageHeader,
+    /// Key names whose lookup came back `Unavailable` while this message is
+    /// open; not looked up again until it is opened again. Carried over by
+    /// `show()` for the same id, like `sizes`.
+    pub failed: BTreeSet<String>,
+    /// The sender was verified during this open: later renders keep it, with
+    /// no new hashing or RSA check and no loss of images when the key's TTL
+    /// ends. `open_message` starts it again.
+    pub verified: bool,
 }
 
 /// Adds to `known` the sizes in `new` that are for an image in `open` (at
@@ -61,6 +72,25 @@ impl Worker<'_> {
             .unwrap_or_default()
     }
 
+    /// The failed key names for message `id` (none when another one is
+    /// shown).
+    pub(super) fn failed_for(&self, id: MessageRowId) -> BTreeSet<String> {
+        self.store
+            .shown
+            .as_ref()
+            .filter(|s| s.id == id)
+            .map(|s| s.failed.clone())
+            .unwrap_or_default()
+    }
+
+    /// Whether message `id` was verified during this open.
+    pub(super) fn verified_for(&self, id: MessageRowId) -> bool {
+        self.store
+            .shown
+            .as_ref()
+            .is_some_and(|s| s.id == id && s.verified)
+    }
+
     /// The reader opens message `id`: sizes reported for another are
     /// dropped.
     pub(super) fn forget_other_shown(&mut self, id: MessageRowId) {
@@ -75,19 +105,24 @@ impl Worker<'_> {
         &mut self,
         id: MessageRowId,
         choice: (ImagesChoice, u32),
-        (view, open_images): (MessageView, Vec<Unsized>),
+        (view, open_images, lookups): (MessageView, Vec<Unsized>, Vec<String>),
     ) {
         if self.store.open_message == Some(id) {
             let sizes = self.sizes_for(id);
+            let failed = self.failed_for(id);
             self.store.shown = Some(Shown {
                 id,
                 choice,
                 sizes,
                 html: view.html.clone(),
                 open_images,
+                header: view.header.clone(),
+                failed,
+                verified: view.header.sender_verified,
             });
         }
         self.emit(Event::MessageOpened { id, view });
+        self.request_keys(id, lookups);
     }
 
     /// The reader loaded remote images of message `id`: shows it again
@@ -103,6 +138,19 @@ impl Worker<'_> {
         if !merge(&mut shown.sizes, sizes, &shown.open_images) {
             return;
         }
+        self.show_again(id);
+    }
+
+    /// Renders message `id` again from its cached body and sends it when
+    /// its HTML or its header changed (a size cap, a key that verified the
+    /// sender). It is not marked read again.
+    pub(super) fn show_again(&mut self, id: MessageRowId) {
+        if self.store.open_message != Some(id) {
+            return;
+        }
+        let Some(shown) = self.store.shown.as_ref().filter(|s| s.id == id) else {
+            return;
+        };
         let choice = shown.choice;
         let Ok(message) = self.store.db.message(id) else {
             return;
@@ -114,14 +162,19 @@ impl Worker<'_> {
             Ok(raw) => raw,
             Err(e) => return log::warn!("reading a cached body: {e}"),
         };
-        let (view, open_images) = self.view(&message, &raw, choice);
+        let (view, open_images, lookups) = self.view(&message, &raw, choice);
+        if let Some(shown) = self.store.shown.as_mut() {
+            shown.verified = view.header.sender_verified;
+        }
         if let Some(shown) = self.store.shown.as_mut()
-            && shown.html != view.html
+            && (shown.html != view.html || shown.header != view.header)
         {
             shown.html.clone_from(&view.html);
+            shown.header.clone_from(&view.header);
             shown.open_images = open_images;
             self.emit(Event::MessageOpened { id, view });
         }
+        self.request_keys(id, lookups);
     }
 }
 

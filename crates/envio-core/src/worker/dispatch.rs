@@ -198,5 +198,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             std::thread::sleep(std::time::Duration::from_millis(ms));
             Flow::Continue
         }
+        #[cfg(feature = "test-hooks")]
+        Command::AdvanceClock { ms } => {
+            crate::clock::advance(ms);
+            Flow::Continue
+        }
     }
 }

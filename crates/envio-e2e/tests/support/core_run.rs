@@ -74,6 +74,7 @@ fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
         data_dir: dir.path().join("data"),
         roots: Roots::bundled(),
         oauth: Vec::new(),
+        dns: None,
         log_level: level,
         foreground: true,
     };

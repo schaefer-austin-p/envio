@@ -13,6 +13,7 @@ use envio_store::{BodyState, Cursor, ListRef, Message, MessageRowId, PAGE};
 use super::Worker;
 use super::folder_order::drawer_order;
 use super::rows::{rows, sender_label};
+use super::sender_check::{Check, check};
 use super::userdata::{is_known, loads_images};
 use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
@@ -39,6 +40,15 @@ pub(crate) struct ViewContext<'a> {
     pub image_sizes: &'a super::shown::Sizes,
     /// What the meeting card needs, when the message holds an invite.
     pub invites: super::invite::InviteEnv<'a>,
+    /// The DKIM keys looked up so far, the key names whose lookup failed
+    /// while this message is open, and the time (sender trust, #285).
+    pub keys: &'a super::dkim_keys::KeyCache,
+    pub failed: &'a std::collections::BTreeSet<String>,
+    pub now_ms: i64,
+    /// The sender was verified earlier in this open (no new check).
+    pub verified: bool,
+    /// The body is a partial one: it can never verify, so no lookup.
+    pub partial: bool,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -66,18 +76,20 @@ pub(super) fn stored_header(stored: &envio_store::Envelope, account: &str) -> Me
         account: account.to_owned(),
         sender_known: false,
         sender_verified: false,
+        sender_checkable: false,
     }
 }
 
 /// Renders raw mail for the reader. Sanitising stays in `envio_mime`;
 /// a message that is not valid mail comes back as escaped text. Remote
-/// images load only as `images` and the sender allow.
+/// images load only as `images` and the sender allow. The third part is
+/// the DKIM key names to look up (see `sender_check::check`).
 pub(crate) fn render_view(
     raw: &[u8],
     images: ImagesChoice,
     width_px: u32,
     ctx: &ViewContext<'_>,
-) -> (MessageView, Vec<envio_mime::Unsized>) {
+) -> (MessageView, Vec<envio_mime::Unsized>, Vec<String>) {
     let message = envio_mime::parse(raw);
     let invite = super::invite::card_of(raw, ctx.account, &ctx.invites);
     let mut header = stored_header(ctx.stored, ctx.account);
@@ -93,8 +105,30 @@ pub(crate) fn render_view(
             ..header
         };
     }
-    let verified = envio_mime::sender_verified(raw, &header.from_address, ctx.imap_host);
+    let mut trust = if ctx.verified {
+        Check {
+            verified: true,
+            checkable: true,
+            lookups: Vec::new(),
+        }
+    } else {
+        check(
+            raw,
+            &header.from_address,
+            ctx.imap_host,
+            ctx.settings,
+            images,
+            ctx.keys,
+            ctx.failed,
+            ctx.now_ms,
+        )
+    };
+    if ctx.partial {
+        trust.lookups.clear();
+    }
+    let verified = trust.verified;
     header.sender_verified = verified;
+    header.sender_checkable = trust.checkable || verified;
     header.sender_known = is_known(ctx.settings, ctx.contacts, &header.from_address, verified);
     let load = loads_images(ctx.settings, images, &header.from_address, verified);
     let inlined = match (&message, ctx.inline_dir) {
@@ -152,7 +186,7 @@ pub(crate) fn render_view(
         invite,
         is_draft: false,
     };
-    (view, rendered.unsized_images)
+    (view, rendered.unsized_images, trust.lookups)
 }
 
 fn escape(text: &str) -> String {
@@ -318,7 +352,7 @@ impl Worker<'_> {
         message: &Message,
         raw: &[u8],
         (images, width_px): (ImagesChoice, u32),
-    ) -> (MessageView, Vec<envio_mime::Unsized>) {
+    ) -> (MessageView, Vec<envio_mime::Unsized>, Vec<String>) {
         let account = self.account_of(message.id).unwrap_or_default();
         // A late view (its body arrived after the reader moved on) must not
         // touch the folder of the message the reader shows now.
@@ -326,6 +360,7 @@ impl Worker<'_> {
             .then(|| self.store.paths.inline().join(message.id.0.to_string()));
         let image_sizes = self.sizes_for(message.id);
         let invites = self.invite_data(&account, raw);
+        let failed = self.failed_for(message.id);
         let imap_host = self
             .store
             .accounts
@@ -341,14 +376,19 @@ impl Worker<'_> {
             inline_dir: inline_dir.as_deref(),
             image_sizes: &image_sizes,
             invites: invites.env(),
+            keys: &self.store.keys,
+            failed: &failed,
+            now_ms: now_ms(),
+            verified: self.verified_for(message.id),
+            partial: message.body == BodyState::Partial,
         };
-        let (mut view, unsized_images) = render_view(raw, images, width_px, &ctx);
+        let (mut view, unsized_images, lookups) = render_view(raw, images, width_px, &ctx);
         view.is_draft = self
             .store
             .db
             .folder(message.folder)
             .is_ok_and(|f| f.role == envio_store::FolderRole::Drafts);
-        (view, unsized_images)
+        (view, unsized_images, lookups)
     }
 
     /// A body cached before the list had the attachment mark (migration
@@ -377,6 +417,11 @@ impl Worker<'_> {
         let (images, width_px) = (images, width_px);
         self.store.open_message = Some(id);
         self.forget_other_shown(id);
+        // Opening it again is the retry of a lookup that failed.
+        if let Some(shown) = self.store.shown.as_mut() {
+            shown.failed.clear();
+            shown.verified = false;
+        }
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
         };
@@ -467,7 +512,9 @@ impl Worker<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::worker::dkim_keys::KeyCache;
     use crate::worker::testing::{Sink, open, seed};
+    use std::collections::BTreeSet;
     use std::fs;
 
     #[test]
@@ -577,6 +624,11 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let ctx = ViewContext {
             account: "me",
             imap_host: "",
+            keys: &KeyCache::default(),
+            failed: &BTreeSet::new(),
+            now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -596,6 +648,11 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let ctx = ViewContext {
             account: "me",
             imap_host: "",
+            keys: &KeyCache::default(),
+            failed: &BTreeSet::new(),
+            now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -620,6 +677,11 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let ctx = ViewContext {
             account: "me",
             imap_host: "",
+            keys: &KeyCache::default(),
+            failed: &BTreeSet::new(),
+            now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -649,6 +711,11 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
         let ctx = ViewContext {
             account: "me",
             imap_host: "",
+            keys: &KeyCache::default(),
+            failed: &BTreeSet::new(),
+            now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,

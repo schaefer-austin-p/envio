@@ -19,6 +19,7 @@ const MAX_SIGNATURES: usize = 5;
 const MAX_KEYS: usize = 3;
 
 /// What a TXT lookup for one key name returned.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyAnswer {
     /// The records, each with its TXT strings already joined.
     Records(Vec<String>),

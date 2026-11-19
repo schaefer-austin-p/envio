@@ -317,6 +317,9 @@ pub enum Command {
     /// Make the worker sleep, to test what must not wait for it.
     #[cfg(feature = "test-hooks")]
     Stall { ms: u64 },
+    /// Move the worker's clock forward, to test what expires.
+    #[cfg(feature = "test-hooks")]
+    AdvanceClock { ms: i64 },
 }
 
 impl Command {
@@ -367,6 +370,8 @@ impl Command {
             Self::Crash => "Crash",
             #[cfg(feature = "test-hooks")]
             Self::Stall { .. } => "Stall",
+            #[cfg(feature = "test-hooks")]
+            Self::AdvanceClock { .. } => "AdvanceClock",
         }
     }
 }

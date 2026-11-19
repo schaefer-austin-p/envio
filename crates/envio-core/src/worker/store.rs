@@ -47,6 +47,11 @@ pub(crate) struct Store {
     /// The open message as the reader last got it, with the sizes of its
     /// remote images. Row ids start over on a rebuild, so it goes with them.
     pub shown: Option<super::shown::Shown>,
+    /// The DKIM keys looked up so far (sender trust, #285). In memory only.
+    pub keys: super::dkim_keys::KeyCache,
+    /// The messages a key lookup task is running for: one task each, however
+    /// often the reader opens them.
+    pub dkim_in_flight: std::collections::BTreeSet<MessageRowId>,
 }
 
 pub(super) fn secrets_error(error: SecretsError) -> StoreError {
@@ -117,6 +122,8 @@ impl Store {
             }),
             open_message: None,
             shown: None,
+            keys: super::dkim_keys::KeyCache::default(),
+            dkim_in_flight: std::collections::BTreeSet::new(),
             db,
             data_dir: config.data_dir.clone(),
             paths,
@@ -174,6 +181,7 @@ impl Store {
         super::inline::clear_all(&self.paths.inline());
         self.open_message = None;
         self.shown = None;
+        self.dkim_in_flight.clear();
         Ok(())
     }
 
@@ -250,11 +258,15 @@ mod tests {
             sizes: [("https://e.test/a.png".to_owned(), (1000, 10))].into(),
             html: String::new(),
             open_images: Vec::new(),
+            header: super::super::read::stored_header(&envio_store::Envelope::default(), "a"),
+            failed: ["k._domainkey.example.com".to_owned()].into(),
+            verified: false,
         });
         worker.store.rebuild().unwrap();
         assert!(worker.store.shown.is_none());
         // A row that gets the old id after the rebuild starts with no sizes.
         assert!(worker.sizes_for(seeded.message).is_empty());
+        assert!(worker.failed_for(seeded.message).is_empty());
     }
 
     #[test]
