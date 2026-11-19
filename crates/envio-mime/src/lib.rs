@@ -4,6 +4,7 @@
 //! so nothing here panics on it.
 
 mod address;
+mod align;
 mod attach_part;
 mod attachments;
 mod auth;
@@ -36,6 +37,7 @@ mod thread;
 mod widths;
 
 pub use address::{Address, same_email};
+pub use align::aligned;
 pub use attachments::{
     AttachmentInfo, attachment_bytes, attachments_bytes, decode_part, with_attachments,
 };
