@@ -205,7 +205,8 @@ pub(super) fn canon_field(field: &[u8], canon: Canon) -> Vec<u8> {
 }
 
 /// The DKIM-Signature field (no final line ending) with the value of its `b=`
-/// tag removed; the tag, its `=` and the whitespace around the value stay.
+/// tag removed, "including all surrounding whitespace" (RFC 6376 3.5): the
+/// tag name and its `=` stay, and so does the `;` that ends it.
 fn empty_b(field: &[u8]) -> Vec<u8> {
     let mut start = field.iter().position(|&b| b == b':').map_or(0, |c| c + 1);
     loop {
@@ -219,16 +220,7 @@ fn empty_b(field: &[u8]) -> Vec<u8> {
             let from = name.iter().position(|&b| !is_fws(b)).unwrap_or(name.len());
             let to = name.iter().rposition(|&b| !is_fws(b)).map_or(0, |i| i + 1);
             if &name[from..to.max(from)] == b"b" {
-                let value = &tag[eq + 1..];
-                let lead = value.iter().take_while(|&&b| is_fws(b)).count();
-                let trail = value[lead..]
-                    .iter()
-                    .rev()
-                    .take_while(|&&b| is_fws(b))
-                    .count();
                 let mut out = field[..start + eq + 1].to_vec();
-                out.extend_from_slice(&value[..lead]);
-                out.extend_from_slice(&value[value.len() - trail..]);
                 out.extend_from_slice(&field[end..]);
                 return out;
             }
@@ -243,12 +235,18 @@ fn empty_b(field: &[u8]) -> Vec<u8> {
 /// The data the signature covers (RFC 6376 3.7, 5.4.2): for each name in
 /// `h=`, the next unused field of that name counting from the bottom (none
 /// left: nothing, which is how over-signing works), canonicalised, then the
-/// DKIM-Signature field itself canonicalised with `b=` emptied and no trailing
+/// DKIM-Signature field itself (found among `fields` by identity and never
+/// selected by `h=`) canonicalised with `b=` emptied and no trailing
 /// CRLF.
 pub(crate) fn signed_data(fields: &[&[u8]], sig_field: &[u8], sig: &Signature) -> Vec<u8> {
     // Per name, the field indexes top to bottom: pop() gives the lowest left.
     let mut by_name: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
     for (i, f) in fields.iter().enumerate() {
+        // The signature being checked is added last, with `b=` emptied; an
+        // `h=dkim-signature` must never select it (RFC 6376 5.4.2).
+        if std::ptr::eq(*f, sig_field) {
+            continue;
+        }
         if let Some(name) = field_name(f) {
             by_name
                 .entry(name.to_ascii_lowercase())

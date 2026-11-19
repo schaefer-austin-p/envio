@@ -297,7 +297,7 @@ fn sig_field_b_emptied_only() {
     );
     assert_eq!(
         d(b"DKIM-Signature: v=1; b= QUJD ; bh=x\r\n"),
-        b"DKIM-Signature: v=1; b=  ; bh=x"
+        b"DKIM-Signature: v=1; b=; bh=x"
     );
     assert_eq!(
         d(b"DKIM-Signature: b =QUJD;v=1\r\n"),
@@ -347,11 +347,81 @@ fn sig_field_b_emptied_only() {
 }
 
 #[test]
+fn sig_field_b_folded_simple() {
+    let s = sig(&[], SP);
+    let d = |f: &[u8]| signed_data(&[], f, &s);
+    // RFC 6376 3.5: the b= value is deleted "including all surrounding
+    // whitespace". Folded right after the `=`, in the middle, with a `;`:
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH;\r\n bh=x\r\n"),
+        b"DKIM-Signature: v=1; b=;\r\n bh=x"
+    );
+    // ... and with whitespace before the `;` too.
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH \r\n ; bh=x\r\n"),
+        b"DKIM-Signature: v=1; b=; bh=x"
+    );
+    // ... and as the last tag, with and without a final `;`.
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH\r\n"),
+        b"DKIM-Signature: v=1; b="
+    );
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH;\r\n"),
+        b"DKIM-Signature: v=1; b=;"
+    );
+}
+
+#[test]
 fn sig_field_relaxed_form() {
     let s = sig(&[], RX);
     assert_eq!(
         signed_data(&[], b"DKIM-Signature:  v=1;\r\n  b=QUJD ;  bh=x  \r\n", &s),
-        b"dkim-signature:v=1; b= ; bh=x"
+        b"dkim-signature:v=1; b=; bh=x"
+    );
+}
+
+#[test]
+fn sig_field_b_folded_relaxed() {
+    let s = sig(&[], RX);
+    let d = |f: &[u8]| signed_data(&[], f, &s);
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH;\r\n bh=x\r\n"),
+        b"dkim-signature:v=1; b=; bh=x"
+    );
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH;\r\n"),
+        b"dkim-signature:v=1; b=;"
+    );
+    assert_eq!(
+        d(b"DKIM-Signature: v=1; b=\r\n QUJD\r\n RUZH\r\n"),
+        b"dkim-signature:v=1; b="
+    );
+}
+
+#[test]
+fn h_dkim_signature_never_selects_the_signature_itself() {
+    // The signature being checked is the lower one; `h=dkim-signature`
+    // must pick the other one, not it (its b= would be unemptied).
+    let raw =
+        b"DKIM-Signature: other\r\nFrom: a@example.com\r\nDKIM-Signature: v=1; b=QUJD\r\n\r\n";
+    let f = header_fields(raw);
+    let own = f[2];
+    let s = sig(&["dkim-signature", "from"], SP);
+    assert_eq!(
+        signed_data(&f, own, &s),
+        b"DKIM-Signature: other\r\nFrom: a@example.com\r\nDKIM-Signature: v=1; b="
+    );
+    // Alone, it contributes only its own emptied copy, once.
+    let raw1 = b"DKIM-Signature: v=1; b=QUJD\r\n\r\n";
+    let f1 = header_fields(raw1);
+    let s1 = sig(&["dkim-signature"], SP);
+    assert_eq!(signed_data(&f1, f1[0], &s1), b"DKIM-Signature: v=1; b=");
+    // Listed twice with one other: the other once, then nothing.
+    let s2 = sig(&["dkim-signature", "dkim-signature"], SP);
+    assert_eq!(
+        signed_data(&f, own, &s2),
+        b"DKIM-Signature: other\r\nDKIM-Signature: v=1; b="
     );
 }
 

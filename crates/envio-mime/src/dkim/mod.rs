@@ -5,7 +5,11 @@
 
 mod canon;
 #[cfg(test)]
+mod canon_signer_tests;
+#[cfg(test)]
 mod canon_tests;
+#[cfg(test)]
+mod canon_vectors;
 mod der;
 mod key;
 mod signature;
