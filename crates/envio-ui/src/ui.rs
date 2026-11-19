@@ -7,6 +7,7 @@ mod folder_counts;
 mod messages;
 mod notify;
 mod older;
+mod open;
 mod search;
 mod selection;
 
@@ -60,6 +61,10 @@ pub struct Ui {
     /// Accounts that could not answer the current server search.
     server_failed: usize,
     selection: BTreeSet<i64>,
+    /// The message the reader shows (the row's `open` role).
+    open: Option<i64>,
+    /// The model `open` was opened from; its row leaving clears `open`.
+    open_from: Option<Model>,
     /// The "Load older" row's state, as last announced.
     older: OlderRow,
     /// Load older found nothing more on the server for the shown list.
@@ -210,6 +215,8 @@ impl Ui {
             _ => Vec::new(),
         };
         self.prune_selection();
+        let mut outs = outs;
+        outs.extend(self.prune_open());
         self.mirror.track(&outs);
         outs
     }
@@ -218,6 +225,7 @@ impl Ui {
     /// The outputs clear the selection marks of the rows being left.
     pub fn open_list(&mut self, list: ListRef) -> (Command, Vec<Output>) {
         let mut outs = self.clear_marks();
+        outs.extend(self.clear_open());
         outs.extend(self.older_reset());
         self.mirror.track(&outs);
         self.current = Some(Current::new(list));

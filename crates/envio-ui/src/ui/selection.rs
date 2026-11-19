@@ -65,7 +65,7 @@ impl Ui {
         Some((Command::Act { ids, action }, outs))
     }
 
-    fn shows(&self, id: i64) -> bool {
+    pub(super) fn shows(&self, id: i64) -> bool {
         self.found.contains(id) || self.current.as_ref().is_some_and(|c| c.shown.contains(id))
     }
 
