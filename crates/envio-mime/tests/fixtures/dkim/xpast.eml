@@ -1,0 +1,19 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com;
+ i=@example.com; q=dns/txt; s=test; t=1795101874; h=from : to : subject
+ : date : message-id : content-type;
+ bh=UU85U+2y98k1mC8bEAfI4q2Z7Zu/RdUAQkwysGedf3o=; x=1000000000;
+ b=UapXuwnRqK3QYTJbWCcgXg53rph3spSsKkIRSKIpJpoKqe6YMIzpTaSKmmbIxlMr6+U1+
+ jCUJlswriX565fl7IQf/n0g/oq7nuL89rSI7SerW1H3Ld7T8DRFihyXTxVv/11Luf5m79jl
+ bhJFO0+6aT2TVRXKXUWd5Wdw1eloWsOQ5bK37mE8jNs/hAYtQBeEMy7eRoBjgjz4nSw9okB
+ SNnvJBuyEAC9ueKSLcMblYGJJt7E4mwUc9ySHTvQhIe1226hCTqYoFc9Jw0Aad3mS/dhkAV
+ 4uyhlB8226aHYVEexCC+Klc1+Q83/+8mniKtPBUp6xPx4wEg2vcLXZyvQsFA==
+From: Bob <bob@example.com>
+To: Alice <alice@example.org>
+Subject: Hello
+Date: Thu, 19 Nov 2026 10:00:00 +0000
+Message-ID: <fixture@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hello there.
+Second line.
