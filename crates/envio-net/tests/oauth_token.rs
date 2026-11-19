@@ -422,3 +422,28 @@ async fn a_content_length_reply_still_works() {
     let tokens = refreshed(&p, &roots).await.unwrap();
     assert_eq!(tokens.access.expose_secret(), "AT-LEN");
 }
+
+#[tokio::test]
+async fn bad_framing_in_a_try_later_reply_is_temporary() {
+    let gzip = "HTTP/1.1 503 Unavailable\r\nTransfer-Encoding: gzip\r\n\r\n2\r\n{}\r\n0\r\n\r\n";
+    let cut = chunked("503 Unavailable", "5\r\nhel");
+    let broken = chunked("429 Too Many Requests", "zz\r\n{}\r\n0\r\n\r\n");
+    for raw in [gzip.as_bytes().to_vec(), cut, broken] {
+        let (p, roots, _) = fake(vec![Step::Raw(raw)]).await;
+        assert_eq!(
+            refreshed(&p, &roots).await.unwrap_err(),
+            TokenError::Temporary
+        );
+    }
+}
+
+#[tokio::test]
+async fn chunk_framing_that_fills_the_read_cap_is_refused_as_too_big() {
+    // One-byte chunks and no last chunk: the framing alone passes the cap.
+    let body = "1\r\nx\r\n".repeat(CAP / 3);
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_too_large".to_owned())
+    );
+}

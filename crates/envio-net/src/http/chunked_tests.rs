@@ -1,5 +1,6 @@
 //! Chunked replies as `parse_response` and `response_complete` read them.
 
+use super::chunked::ResponseScan;
 use super::*;
 use tokio::io::AsyncWriteExt;
 
@@ -191,7 +192,7 @@ async fn read_response_stops_at_a_bad_chunk_without_waiting_for_a_close() {
 #[test]
 fn the_shared_autoconfig_reader_still_refuses_chunked() {
     let raw = wire("5\r\nhello\r\n0\r\n\r\n");
-    assert_eq!(parse_reply(&raw), Reply::Chunked);
+    assert_eq!(parse_reply(&raw), Reply::TransferEncoded);
     assert!(reply_complete(&raw));
 }
 
@@ -231,7 +232,127 @@ fn a_repeated_transfer_encoding_header_is_malformed() {
 fn the_autoconfig_reader_refuses_any_transfer_encoding() {
     for value in ["chunked", "gzip, chunked", "gzip"] {
         let raw = format!("HTTP/1.1 200 OK\r\nTransfer-Encoding: {value}\r\n\r\n<a/>");
-        assert_eq!(parse_reply(raw.as_bytes()), Reply::Chunked, "{value}");
+        assert_eq!(
+            parse_reply(raw.as_bytes()),
+            Reply::TransferEncoded,
+            "{value}"
+        );
         assert!(reply_complete(raw.as_bytes()), "{value}");
     }
+}
+
+#[test]
+fn bad_framing_in_a_try_later_reply_stays_retryable() {
+    let cases = [
+        // gzip on a 503, a 503 cut short by a clean close, broken chunks
+        // on a 429 and on a 500.
+        ("503 Unavailable", "gzip", "2\r\n{}\r\n0\r\n\r\n"),
+        ("503 Unavailable", "chunked", "5\r\nhel"),
+        ("429 Too Many", "chunked", "zz\r\n{}\r\n0\r\n\r\n"),
+        ("500 Oops", "chunked", "2\r\nhiXX0\r\n\r\n"),
+    ];
+    for (status, coding, body) in cases {
+        let raw = format!("HTTP/1.1 {status}\r\nTransfer-Encoding: {coding}\r\n\r\n{body}");
+        assert_eq!(
+            parse_response(raw.as_bytes(), true),
+            Err(BadReply::Unreadable),
+            "{status} {coding} {body:?}"
+        );
+    }
+    // The same framing faults in a 200, 400 or 404 stay final.
+    for status in ["200 OK", "400 Bad", "404 No"] {
+        let raw = format!("HTTP/1.1 {status}\r\nTransfer-Encoding: gzip\r\n\r\n");
+        assert_eq!(
+            parse_response(raw.as_bytes(), true),
+            Err(BadReply::Malformed),
+            "{status}"
+        );
+    }
+    // A 503 that is well framed still decodes, and one over the cap is
+    // still too big.
+    let ok = "HTTP/1.1 503 X\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n";
+    assert_eq!(
+        parse_response(ok.as_bytes(), true),
+        Ok((503, b"{}".to_vec()))
+    );
+    let big = format!(
+        "HTTP/1.1 503 X\r\nTransfer-Encoding: chunked\r\n\r\n{:x}\r\n",
+        MAX_BODY + 1
+    );
+    assert_eq!(parse_response(big.as_bytes(), true), Err(BadReply::TooBig));
+}
+
+#[test]
+fn the_scan_does_linear_work_for_a_reply_dripped_in_tiny_chunks() {
+    let mut raw = wire("");
+    let mut scan = ResponseScan::default();
+    let mut calls = 0;
+    // 6 bytes per chunk, as one read each, up to about the read cap.
+    while raw.len() < MAX_RAW {
+        raw.extend_from_slice(b"1\r\n");
+        raw.extend_from_slice(b"x\r\n");
+        calls += 1;
+        assert!(!scan.complete(&raw));
+        // Re-parsing the buffer on every read would be about
+        // `calls * raw.len() / 2` in all, and this fails at the first read.
+        assert!(
+            scan.work() <= 2 * raw.len(),
+            "{} bytes looked at for {} read",
+            scan.work(),
+            raw.len()
+        );
+    }
+    assert!(calls > 40_000);
+}
+
+#[test]
+fn a_reply_fed_one_byte_at_a_time_completes_exactly_where_it_ends() {
+    let whole = wire("3;e\r\nabc\r\n2\r\nde\r\n0\r\nT: v\r\n\r\n");
+    let mut scan = ResponseScan::default();
+    for cut in 1..=whole.len() {
+        let done = scan.complete(&whole[..cut]);
+        assert_eq!(done, response_complete(&whole[..cut]), "cut at {cut}");
+        assert_eq!(done, cut == whole.len(), "cut at {cut}");
+    }
+    // Content-Length and a bad encoding take the same path.
+    let mut scan = ResponseScan::default();
+    let raw = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}";
+    let done: Vec<bool> = (1..=raw.len()).map(|n| scan.complete(&raw[..n])).collect();
+    assert!(done[..raw.len() - 1].iter().all(|d| !d));
+    assert!(done[raw.len() - 1]);
+}
+
+#[tokio::test]
+async fn framing_overhead_past_the_read_cap_is_too_big_not_malformed() {
+    // One-byte chunks: the read cap is reached with far less than
+    // `MAX_BODY` of body, and no last chunk.
+    let mut raw = wire("");
+    while raw.len() <= MAX_RAW {
+        raw.extend_from_slice(b"1\r\nx\r\n");
+    }
+    let (read, clean) = read_within(&mut &raw[..]).await;
+    assert!(clean);
+    assert!(read.len() > MAX_RAW);
+    // Each 6 bytes of framing and data carry one byte of body.
+    assert!((read.len() - HEAD.len()) / 6 < MAX_BODY);
+    assert_eq!(parse_response(&read, true), Err(BadReply::TooBig));
+    assert_eq!(parse_response(&read, false), Err(BadReply::TooBig));
+}
+
+#[test]
+fn the_head_is_searched_for_only_in_new_bytes() {
+    // A head that never ends, a few bytes per read: each read looks only
+    // at what is new, so the search is linear.
+    let mut raw = b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX: ".to_vec();
+    let mut scan = ResponseScan::default();
+    for _ in 0..1000 {
+        raw.extend_from_slice(b"yyyyyyyyyy");
+        assert!(!scan.complete(&raw));
+        assert!(scan.searched() + 3 >= raw.len());
+    }
+    // A terminator split across two reads is still found.
+    raw.extend_from_slice(b"\r\n\r");
+    assert!(!scan.complete(&raw));
+    raw.extend_from_slice(b"\n");
+    assert!(scan.complete(&raw), "the split terminator was found");
 }
