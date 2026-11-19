@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 16:06+0100\n"
+"POT-Creation-Date: 2026-11-19 16:20+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -113,7 +113,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:113
+#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:115
 msgid "Add account"
 msgstr ""
 
@@ -219,19 +219,19 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: qml/pages/accounts/OAuthSession.qml:47
+#: qml/pages/accounts/OAuthSession.qml:50
 msgid "Sign-in cancelled"
 msgstr ""
 
-#: qml/pages/accounts/OAuthSession.qml:48
+#: qml/pages/accounts/OAuthSession.qml:51
 msgid "Nothing was changed. No account was added."
 msgstr ""
 
-#: qml/pages/accounts/OAuthSession.qml:101
+#: qml/pages/accounts/OAuthSession.qml:107
 msgid "You signed in as %1"
 msgstr ""
 
-#: qml/pages/accounts/OAuthSession.qml:102
+#: qml/pages/accounts/OAuthSession.qml:108
 msgid "Use this account for %1?"
 msgstr ""
 
@@ -414,19 +414,19 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:115
+#: qml/pages/accounts/WizardPage.qml:117
 msgid "Sign in · %1"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:116
+#: qml/pages/accounts/WizardPage.qml:118
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:117
+#: qml/pages/accounts/WizardPage.qml:119
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:118
+#: qml/pages/accounts/WizardPage.qml:120
 msgid "Account options"
 msgstr ""
 
