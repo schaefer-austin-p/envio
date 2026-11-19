@@ -1195,6 +1195,22 @@ Item {
             }
         }
 
+        // An edge gesture or overlay can steal the touch: the drag then ends
+        // by cancel, and the menu must still come back. (The test cannot make
+        // Qt cancel a real grab, so it emits the MouseArea's `canceled`.)
+        function test_the_menu_reopens_when_a_handle_drag_is_canceled() {
+            const v = view([], 0)
+            v.html = "<p>Intro line</p><p>Order 48213 shipped on time today</p><p>More text here</p>"
+            open(v)
+            const menu = find("bodyMenu")
+            holdAndCheck("48213")
+            const h = find("endHandle")
+            mousePress(h, h.width / 2, h.height / 2)
+            tryVerify(function() { return !menu.visible }, 2000, "menu still open during the drag")
+            h.children[0].canceled()
+            tryVerify(function() { return menu.visible }, 2000, "menu did not reopen after cancel")
+        }
+
         function test_a_tap_clears_the_selection_handles_and_menu() {
             const v = view([], 0)
             v.html = "<p>Order 48213 shipped</p>"

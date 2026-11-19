@@ -77,7 +77,10 @@ Item {
                 if (root.flick) root.flick.interactive = true
                 root.dragFinished()
             }
-            onCanceled: if (root.flick) root.flick.interactive = true
+            onCanceled: {
+                if (root.flick) root.flick.interactive = true
+                root.dragFinished()
+            }
             onPositionChanged: root.dragTo(knob.atStart, mapToItem(root.edit, mouse.x, mouse.y))
         }
     }
