@@ -7,13 +7,14 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use envio_core::{Command, Event, FolderRole, ListRef, UserAction};
-use envio_store::{Db, Draft, Drafts, Envelope, NewMessage};
+use envio_core::{AccountStatus, Command, Event, FolderId, FolderRole, ListRef, UserAction};
+use envio_store::{ActionKind, Db, Draft, Drafts, Envelope, Journal, MessageRef, NewMessage};
 use support::Harness;
-use support::fake::{DRAFT_ID, Kind, serve};
+use support::fake::{DRAFT_ID, Kind, TlsServer, serve};
 
-#[test]
-fn deleting_an_uploaded_draft_in_drafts_removes_its_local_file_once_replayed() {
+/// A cached Drafts folder with one message, and the uploaded local draft
+/// that names it; the core is not started yet.
+fn seeded() -> (Harness, TlsServer, FolderId, Drafts, String) {
     let mut h = Harness::unstarted();
     h.foreground = true;
     let server = serve(Kind::Drafts);
@@ -48,6 +49,12 @@ fn deleting_an_uploaded_draft_in_drafts_removes_its_local_file_once_replayed() {
         })
         .unwrap();
     assert!(drafts.mark_uploaded(&id, DRAFT_ID, 5).unwrap());
+    (h, server, folder, drafts, id)
+}
+
+#[test]
+fn deleting_an_uploaded_draft_in_drafts_removes_its_local_file_once_replayed() {
+    let (mut h, _server, folder, drafts, id) = seeded();
     h.start_core();
 
     let list = ListRef::Folder(folder);
@@ -68,4 +75,69 @@ fn deleting_an_uploaded_draft_in_drafts_removes_its_local_file_once_replayed() {
         std::thread::sleep(Duration::from_millis(50));
     }
     assert!(drafts.deletes().unwrap().is_empty(), "no note either");
+}
+
+/// Restores a folder's mode when dropped.
+struct Mode(std::path::PathBuf);
+
+impl Drop for Mode {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
+#[test]
+fn a_replay_that_fails_after_the_commit_still_forgets_the_draft() {
+    use std::os::unix::fs::PermissionsExt;
+    let (mut h, _server, folder, drafts, id) = seeded();
+    // An intent that stays (its folder is unknown) makes the sidecar exist,
+    // so the commit below needs no new file in the data folder.
+    let key = drafts.load(&id).unwrap().account;
+    let mut journal = Journal::open(&h.paths().journal()).unwrap();
+    let other = MessageRef {
+        account: key,
+        folder: "Elsewhere".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: Some("<z@x>".into()),
+    };
+    let seeded = journal.push(0, other, ActionKind::Delete).unwrap();
+    journal.commit(seeded.seq).unwrap();
+    drop(journal);
+    h.start_core();
+    let list = ListRef::Folder(folder);
+    h.send(Command::ListMessages { list, after: None });
+    let rows = h.wait(|e| match e {
+        Event::Messages { rows, .. } => Some(rows.clone()),
+        _ => None,
+    });
+    // The data folder turns read-only: the replay commits the delete
+    // (appends to files that exist) but cannot rewrite the journal after
+    // it, so `driver::replay` returns an error.
+    let data = h.data_dir();
+    let _restore = Mode(data.clone());
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o555)).unwrap();
+    h.send(Command::Act {
+        ids: vec![rows[0].id],
+        action: UserAction::Delete,
+    });
+    // The failed replay shows as a local error. The draft must be gone by
+    // then, not only after the retry that follows.
+    let end = Instant::now() + Duration::from_secs(20);
+    loop {
+        let left = end.saturating_duration_since(Instant::now());
+        match h.events.recv_timeout(left) {
+            Ok(Event::AccountStatus {
+                status: AccountStatus::LocalError { .. },
+                ..
+            }) => break,
+            Ok(_) => {}
+            Err(_) => panic!("the replay never failed"),
+        }
+    }
+    assert!(
+        drafts.load(&id).is_err(),
+        "the failed replay left the draft"
+    );
 }

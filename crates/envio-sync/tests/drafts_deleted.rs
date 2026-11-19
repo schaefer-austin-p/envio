@@ -250,3 +250,42 @@ async fn each_intent_settles_on_its_own() {
     let left = store.journal.to_forget(ACCOUNT);
     assert_eq!(left.iter().map(|a| a.seq).collect::<Vec<_>>(), [other.seq]);
 }
+
+/// Restores a folder's mode when dropped, so a failed assert cannot leave
+/// the temp dir unremovable.
+struct Mode(std::path::PathBuf);
+
+impl Drop for Mode {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o755));
+    }
+}
+
+#[tokio::test]
+async fn a_transient_io_error_keeps_the_intent_and_a_later_run_forgets_the_draft() {
+    use std::os::unix::fs::PermissionsExt;
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    // The draft's file cannot be removed: its folder is read-only.
+    // Its "gone" marker folder too, or the draft would be hidden at once.
+    let dir = store.dir.path().join("drafts");
+    let dirs = [dir.join("gone"), dir.clone()];
+    let _restore: Vec<Mode> = dirs.iter().cloned().map(Mode).collect();
+    for dir in dirs.iter().filter(|dir| dir.exists()) {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    }
+    assert!(forget(&mut store, &BTreeSet::new()).is_empty());
+    assert!(store.drafts.load(&id).is_ok(), "still there");
+    assert_eq!(store.journal.to_forget(ACCOUNT).len(), 1, "intent kept");
+    for dir in dirs.iter().filter(|dir| dir.exists()) {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    assert_eq!(forget(&mut store, &BTreeSet::new()), [id.as_str()]);
+    assert!(store.drafts.load(&id).is_err());
+    assert!(store.journal.to_forget(ACCOUNT).is_empty());
+}
