@@ -16,15 +16,15 @@ preview: "Your weekly digest"
 has_attachments: false
 blocked: 30 trackers: 1
 ---
-<div style="background-color:#f3f2ef"><div align="center" style="background-color:#f3f2ef">
-<div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef">
+<div align="left" style="background-color:#f3f2ef"><div align="center" style="background-color:#f3f2ef">
+<div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef">
 <table width="100%"><tbody><tr><td width="24" style="background-color:#f3f2ef">&nbsp;</td><td style="background-color:#f3f2ef;font-size:20px">Your weekly digest</td><td width="24" style="background-color:#f3f2ef">&nbsp;</td></tr></tbody></table>
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td width="24" style="background-color:#f3f2ef">&nbsp;</td>
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/0?trk=abc0"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/0?trk=def0"><span style="color:#0a66c2">Person 0</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 0</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/0?trk=def0"><span style="color:#0a66c2">Person 0</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 0</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 0</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">0h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -35,7 +35,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/1?trk=abc1"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/1?trk=def1"><span style="color:#0a66c2">Person 1</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 1</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/1?trk=def1"><span style="color:#0a66c2">Person 1</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 1</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 1</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">1h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -46,7 +46,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/2?trk=abc2"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/2?trk=def2"><span style="color:#0a66c2">Person 2</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 2</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/2?trk=def2"><span style="color:#0a66c2">Person 2</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 2</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 2</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">2h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -57,7 +57,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/3?trk=abc3"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/3?trk=def3"><span style="color:#0a66c2">Person 3</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 3</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/3?trk=def3"><span style="color:#0a66c2">Person 3</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 3</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 3</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">3h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -68,7 +68,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/4?trk=abc4"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/4?trk=def4"><span style="color:#0a66c2">Person 4</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 4</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/4?trk=def4"><span style="color:#0a66c2">Person 4</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 4</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 4</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">4h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -79,7 +79,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/5?trk=abc5"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/5?trk=def5"><span style="color:#0a66c2">Person 5</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 5</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/5?trk=def5"><span style="color:#0a66c2">Person 5</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 5</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 5</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">5h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -90,7 +90,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/6?trk=abc6"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/6?trk=def6"><span style="color:#0a66c2">Person 6</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 6</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/6?trk=def6"><span style="color:#0a66c2">Person 6</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 6</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 6</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">6h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -101,7 +101,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/7?trk=abc7"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/7?trk=def7"><span style="color:#0a66c2">Person 7</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 7</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/7?trk=def7"><span style="color:#0a66c2">Person 7</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 7</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 7</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">7h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -112,7 +112,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/8?trk=abc8"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/8?trk=def8"><span style="color:#0a66c2">Person 8</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 8</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/8?trk=def8"><span style="color:#0a66c2">Person 8</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 8</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 8</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">8h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -123,7 +123,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/9?trk=abc9"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/9?trk=def9"><span style="color:#0a66c2">Person 9</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 9</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/9?trk=def9"><span style="color:#0a66c2">Person 9</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 9</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 9</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">9h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -134,7 +134,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/10?trk=abc10"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/10?trk=def10"><span style="color:#0a66c2">Person 10</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 10</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/10?trk=def10"><span style="color:#0a66c2">Person 10</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 10</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 10</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">10h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -145,7 +145,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/11?trk=abc11"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/11?trk=def11"><span style="color:#0a66c2">Person 11</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 11</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/11?trk=def11"><span style="color:#0a66c2">Person 11</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 11</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 11</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">11h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -156,7 +156,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/12?trk=abc12"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/12?trk=def12"><span style="color:#0a66c2">Person 12</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 12</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/12?trk=def12"><span style="color:#0a66c2">Person 12</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 12</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 12</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">12h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -167,7 +167,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/13?trk=abc13"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/13?trk=def13"><span style="color:#0a66c2">Person 13</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 13</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/13?trk=def13"><span style="color:#0a66c2">Person 13</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 13</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 13</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">13h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -178,7 +178,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/14?trk=abc14"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/14?trk=def14"><span style="color:#0a66c2">Person 14</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 14</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/14?trk=def14"><span style="color:#0a66c2">Person 14</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 14</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 14</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">14h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -189,7 +189,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/15?trk=abc15"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/15?trk=def15"><span style="color:#0a66c2">Person 15</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 15</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/15?trk=def15"><span style="color:#0a66c2">Person 15</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 15</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 15</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">15h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -200,7 +200,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/16?trk=abc16"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/16?trk=def16"><span style="color:#0a66c2">Person 16</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 16</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/16?trk=def16"><span style="color:#0a66c2">Person 16</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 16</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 16</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">16h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -211,7 +211,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/17?trk=abc17"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/17?trk=def17"><span style="color:#0a66c2">Person 17</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 17</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/17?trk=def17"><span style="color:#0a66c2">Person 17</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 17</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 17</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">17h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -222,7 +222,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/18?trk=abc18"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/18?trk=def18"><span style="color:#0a66c2">Person 18</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 18</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/18?trk=def18"><span style="color:#0a66c2">Person 18</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 18</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 18</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">18h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -233,7 +233,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/19?trk=abc19"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/19?trk=def19"><span style="color:#0a66c2">Person 19</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 19</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/19?trk=def19"><span style="color:#0a66c2">Person 19</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 19</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 19</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">19h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -244,7 +244,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/20?trk=abc20"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/20?trk=def20"><span style="color:#0a66c2">Person 20</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 20</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/20?trk=def20"><span style="color:#0a66c2">Person 20</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 20</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 20</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">20h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -255,7 +255,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/21?trk=abc21"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/21?trk=def21"><span style="color:#0a66c2">Person 21</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 21</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/21?trk=def21"><span style="color:#0a66c2">Person 21</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 21</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 21</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">21h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -266,7 +266,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/22?trk=abc22"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/22?trk=def22"><span style="color:#0a66c2">Person 22</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 22</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/22?trk=def22"><span style="color:#0a66c2">Person 22</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 22</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 22</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">22h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -277,7 +277,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/23?trk=abc23"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/23?trk=def23"><span style="color:#0a66c2">Person 23</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 23</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/23?trk=def23"><span style="color:#0a66c2">Person 23</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 23</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 23</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">23h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -288,7 +288,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/24?trk=abc24"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/24?trk=def24"><span style="color:#0a66c2">Person 24</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 24</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/24?trk=def24"><span style="color:#0a66c2">Person 24</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 24</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 24</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">24h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -299,7 +299,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/25?trk=abc25"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/25?trk=def25"><span style="color:#0a66c2">Person 25</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 25</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/25?trk=def25"><span style="color:#0a66c2">Person 25</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 25</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 25</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">25h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -310,7 +310,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/26?trk=abc26"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/26?trk=def26"><span style="color:#0a66c2">Person 26</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 26</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/26?trk=def26"><span style="color:#0a66c2">Person 26</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 26</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 26</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">26h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -321,7 +321,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/27?trk=abc27"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/27?trk=def27"><span style="color:#0a66c2">Person 27</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 27</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/27?trk=def27"><span style="color:#0a66c2">Person 27</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 27</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 27</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">27h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -332,7 +332,7 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/28?trk=abc28"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/28?trk=def28"><span style="color:#0a66c2">Person 28</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 28</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/28?trk=def28"><span style="color:#0a66c2">Person 28</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 28</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 28</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">28h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
@@ -343,13 +343,13 @@ blocked: 30 trackers: 1
 <td style="background-color:#f3f2ef">
 <table cellspacing="0" cellpadding="0" width="100%"><tbody><tr>
 <td style="background-color:#f3f2ef;vertical-align:top" width="56"><a href="https://news.example.com/r/29?trk=abc29"></a></td>
-<td style="background-color:#f3f2ef;vertical-align:top"><div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/29?trk=def29"><span style="color:#0a66c2">Person 29</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 29</span></a></div>
+<td style="background-color:#f3f2ef;vertical-align:top"><div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:16px;font-weight:600"><a href="https://news.example.com/r/29?trk=def29"><span style="color:#0a66c2">Person 29</span> <span style="color:#333333">shared a post about</span> <span style="color:#0a66c2">example topic 29</span></a></div>
 <div style="background-color:#f3f2ef;font-size:14px;color:#666666"><span style="color:#666666">A short summary line for item 29</span> <span style="font-size:12px;color:#999999">that wraps on a narrow screen.</span> <span style="font-size:12px;color:#999999">29h ago</span></div></div></td>
 </tr></tbody></table>
 </td>
 <td width="24" style="background-color:#f3f2ef">&nbsp;</td>
 </tr></tbody></table>
 
-<div style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:12px;color:#666666"><a href="https://news.example.com/unsub?t=xyz">Unsubscribe</a> · <a href="https://news.example.com/help">Help</a></div></div>
+<div align="left" style="background-color:#f3f2ef"><div style="background-color:#f3f2ef;font-size:12px;color:#666666"><a href="https://news.example.com/unsub?t=xyz">Unsubscribe</a> · <a href="https://news.example.com/help">Help</a></div></div>
 
 </div></div></div></div>

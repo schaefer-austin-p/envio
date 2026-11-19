@@ -1,6 +1,7 @@
 //! The worker: one thread, one current-thread runtime, one command loop.
 
 mod act;
+mod act_local;
 mod alerts;
 mod attachment;
 mod compose;

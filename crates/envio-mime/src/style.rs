@@ -1,5 +1,7 @@
 //! The `style` attribute: which CSS properties survive, and which values.
 
+use crate::cssdecl::{collapsed, declarations, with_generic};
+
 /// CSS properties kept in `style`.
 const STYLE_PROPS: &[&str] = &[
     "color",
@@ -72,12 +74,12 @@ pub(crate) fn is_hidden(style: &str) -> bool {
 /// Keeps only allowed properties with safe values; `None` when nothing is
 /// left.
 pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
-    let kept: Vec<String> = style
-        .split(';')
-        .filter_map(|declaration| {
-            let (prop, value) = declaration.split_once(':')?;
-            let prop = prop.trim().to_ascii_lowercase();
-            let value = value.trim();
+    let decls = declarations(style);
+    let collapsed = collapsed(&decls).then(|| DISPLAY_NONE.to_owned());
+    let kept: Vec<String> = decls
+        .iter()
+        .filter_map(|(prop, value)| {
+            let (prop, value) = (prop.clone(), value.as_str());
             if let Some(marker) = hiding(&prop, value) {
                 return Some(marker.to_owned());
             }
@@ -94,8 +96,12 @@ pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
             if prop == "background" {
                 return shorthand_colour(value);
             }
+            if prop == "font-family" {
+                return Some(format!("{prop}:{}", with_generic(value)));
+            }
             Some(format!("{prop}:{value}"))
         })
+        .chain(collapsed)
         .collect();
     (!kept.is_empty()).then(|| kept.join(";"))
 }

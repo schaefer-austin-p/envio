@@ -7,6 +7,7 @@ use envio_sync::UNDO_MS;
 use envio_sync::driver::{self, Undo};
 
 use super::Worker;
+use super::act_local::offered_with;
 use crate::api::command::{UndoId, UserAction};
 use crate::api::event::{Event, UndoScope};
 use crate::clock::now_ms;
@@ -14,12 +15,25 @@ use crate::problem::{self, Problem};
 use crate::text;
 use crate::undo::{Offer, Offered};
 
-/// The journal entry for `action`, given the message's account's folders.
-/// `None` when it has no target there.
-pub(crate) fn action_kind(action: UserAction, folders: &[Folder]) -> Option<ActionKind> {
+/// The journal entry for `action` on a message of a `from`-role folder,
+/// given the message's account's folders. `None` when it has no target
+/// there. From Drafts only Delete and a Move to Trash are kinds: any other
+/// way out would leave the local draft file behind (#228).
+pub(crate) fn action_kind(
+    action: UserAction,
+    from: FolderRole,
+    folders: &[Folder],
+) -> Option<ActionKind> {
     let flags = |add: Flags, remove: Flags| Some(ActionKind::SetFlags { add, remove });
     let move_to = |found: Option<&Folder>| found.map(|f| ActionKind::Move { to: f.path.clone() });
+    let to_trash = |to: FolderId| {
+        folders
+            .iter()
+            .any(|f| f.id == to && f.role == FolderRole::Trash)
+    };
     match action {
+        UserAction::Archive if from == FolderRole::Drafts => None,
+        UserAction::Move { to } if from == FolderRole::Drafts && !to_trash(to) => None,
         UserAction::MarkRead(true) => flags(Flags::SEEN, Flags::empty()),
         UserAction::MarkRead(false) => flags(Flags::empty(), Flags::SEEN),
         UserAction::Flag(true) => flags(Flags::FLAGGED, Flags::empty()),
@@ -41,11 +55,13 @@ struct Done {
     folders: BTreeSet<FolderId>,
     /// The notice for the first message left alone, if any.
     refused: Option<String>,
+    /// Local drafts held for the window (see `act_local`).
+    local: Vec<String>,
 }
 
 impl Done {
     fn count(&self) -> usize {
-        self.undos.len() + self.kept
+        self.undos.len() + self.kept + self.local.len()
     }
 }
 
@@ -56,9 +72,10 @@ impl Worker<'_> {
             now,
             ..Done::default()
         };
-        for id in ids {
+        for id in ids.iter().filter(|id| id.0 >= 0) {
             self.act_one(*id, action, &mut done);
         }
+        done.local = self.hold_local(ids, action);
         if !done.folders.is_empty() {
             self.emit(Event::MessagesChanged {
                 folders: done.folders.iter().copied().collect(),
@@ -104,15 +121,16 @@ impl Worker<'_> {
     }
 
     fn offer_undo(&mut self, action: UserAction, done: Done, now: i64) {
-        let shown = !done.undos.is_empty();
+        let shown = !done.undos.is_empty() || !done.local.is_empty();
         let text = text::undo::offer(action, done.count());
         let expires_at_ms = now + UNDO_MS;
+        let actions = Offered::Actions {
+            undos: done.undos,
+            accounts: done.accounts,
+            folders: done.folders,
+        };
         let undo = self.undo.offer(Offer {
-            what: Offered::Actions {
-                undos: done.undos,
-                accounts: done.accounts,
-                folders: done.folders,
-            },
+            what: offered_with(done.local, actions),
             expires_at_ms,
         });
         // With nothing to take back the entry only times the replay.
@@ -139,8 +157,12 @@ impl Worker<'_> {
                 return;
             }
         };
-        let Some(kind) = action_kind(action, &folders) else {
+        let Some(kind) = action_kind(action, folder.role, &folders) else {
+            let from_drafts = folder.role == FolderRole::Drafts;
             done.refused.get_or_insert_with(|| match action {
+                UserAction::Archive | UserAction::Move { .. } if from_drafts => {
+                    text::undo::drafts_delete_only()
+                }
                 UserAction::Archive => text::undo::no_archive(),
                 _ => text::undo::not_done(),
             });
@@ -186,13 +208,22 @@ impl Worker<'_> {
             });
             return;
         };
-        let (undos, accounts, folders) = match offer.what {
+        let (restored, what) = self.restore_local(offer.what);
+        let (undos, accounts, folders) = match what {
             Offered::Actions {
                 undos,
                 accounts,
                 folders,
             } => (undos, accounts, folders),
             answer @ Offered::Answer { .. } => return self.undo_answer(undo, answer),
+            Offered::LocalDrafts { .. } => {
+                // `restore_local` left no drafts in it.
+                self.emit(Event::UndoClosed {
+                    undo,
+                    undone: restored,
+                });
+                return;
+            }
         };
         let mut undone = 0;
         let mut late = 0;
@@ -218,7 +249,7 @@ impl Worker<'_> {
         }
         self.emit(Event::UndoClosed {
             undo,
-            undone: undone > 0,
+            undone: undone > 0 || restored,
         });
         if failed {
             // Those stay pending: replay them without waiting for a poll.
@@ -276,26 +307,41 @@ impl Worker<'_> {
         let mut closed = Vec::new();
         for (undo, offer) in self.undo.expire(now) {
             closed.push(undo);
-            match offer.what {
-                Offered::Actions {
-                    undos, accounts, ..
-                } => {
-                    if !undos.is_empty() {
-                        self.emit(Event::UndoClosed {
-                            undo,
-                            undone: false,
-                        });
-                    }
-                    self.want_replay(&accounts);
-                }
-                // The held reply becomes due on its own.
-                Offered::Answer { .. } => self.emit(Event::UndoClosed {
-                    undo,
-                    undone: false,
-                }),
-            }
+            self.close_offer(undo, offer.what);
         }
         closed
+    }
+
+    /// What the end of one offer's window does.
+    fn close_offer(&mut self, undo: UndoId, what: Offered) {
+        match what {
+            Offered::Actions {
+                undos, accounts, ..
+            } => {
+                if !undos.is_empty() {
+                    self.emit(Event::UndoClosed {
+                        undo,
+                        undone: false,
+                    });
+                }
+                self.want_replay(&accounts);
+            }
+            // The held reply becomes due on its own.
+            Offered::Answer { .. } => self.emit(Event::UndoClosed {
+                undo,
+                undone: false,
+            }),
+            Offered::LocalDrafts { ids, rest } => {
+                self.delete_local(&ids);
+                match rest {
+                    Some(rest) => self.close_offer(undo, *rest),
+                    None => self.emit(Event::UndoClosed {
+                        undo,
+                        undone: false,
+                    }),
+                }
+            }
+        }
     }
 }
 
@@ -350,10 +396,13 @@ mod tests {
     #[test]
     fn archive_without_an_archive_folder_is_none() {
         let folders = [folder(1, "INBOX", FolderRole::Inbox)];
-        assert_eq!(action_kind(UserAction::Archive, &folders), None);
+        assert_eq!(
+            action_kind(UserAction::Archive, FolderRole::Inbox, &folders),
+            None
+        );
         let with = [folder(2, "All Mail", FolderRole::Archive)];
         assert_eq!(
-            action_kind(UserAction::Archive, &with),
+            action_kind(UserAction::Archive, FolderRole::Inbox, &with),
             Some(ActionKind::Move {
                 to: "All Mail".into()
             })
@@ -361,16 +410,45 @@ mod tests {
     }
 
     #[test]
+    fn from_drafts_only_delete_and_move_to_trash_are_kinds() {
+        let folders = [
+            folder(1, "Drafts", FolderRole::Drafts),
+            folder(2, "All Mail", FolderRole::Archive),
+            folder(3, "Trash", FolderRole::Trash),
+            folder(4, "Misc", FolderRole::Other),
+        ];
+        let from = FolderRole::Drafts;
+        assert_eq!(action_kind(UserAction::Archive, from, &folders), None);
+        for to in [2, 4] {
+            let mv = UserAction::Move { to: FolderId(to) };
+            assert_eq!(action_kind(mv, from, &folders), None, "to {to}");
+        }
+        assert_eq!(
+            action_kind(UserAction::Move { to: FolderId(3) }, from, &folders),
+            Some(ActionKind::Move { to: "Trash".into() })
+        );
+        assert_eq!(
+            action_kind(UserAction::Delete, from, &folders),
+            Some(ActionKind::Delete)
+        );
+        // From the Inbox nothing changes.
+        let inbox = FolderRole::Inbox;
+        assert!(action_kind(UserAction::Archive, inbox, &folders).is_some());
+        let mv = UserAction::Move { to: FolderId(4) };
+        assert!(action_kind(mv, inbox, &folders).is_some());
+    }
+
+    #[test]
     fn mark_read_sets_seen() {
         assert_eq!(
-            action_kind(UserAction::MarkRead(true), &[]),
+            action_kind(UserAction::MarkRead(true), FolderRole::Inbox, &[]),
             Some(ActionKind::SetFlags {
                 add: Flags::SEEN,
                 remove: Flags::empty()
             })
         );
         assert_eq!(
-            action_kind(UserAction::MarkRead(false), &[]),
+            action_kind(UserAction::MarkRead(false), FolderRole::Inbox, &[]),
             Some(ActionKind::SetFlags {
                 add: Flags::empty(),
                 remove: Flags::SEEN

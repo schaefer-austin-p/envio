@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A saved draft can be reopened in Compose. A message in a Drafts-role folder opens in the reader with one **Edit** button instead of Reply, Reply all and Forward. Edit fills Compose from the local draft file, found by Message-ID, or else from the server message. Every local draft with no current server copy also shows in the Drafts list as a row with a **Not uploaded** chip (this covers #266's notice). Tapping that row opens Compose at once. A draft never shows twice. Saving a plain-text draft replaces its server copy. An HTML draft, or one with an unusable Message-ID, is edited as a copy and the original stays (Decision 4).
+**Goal:** A saved draft can be reopened in Compose. A message in a Drafts-role folder opens in the reader with one **Edit** button instead of Reply, Reply all and Forward. Edit fills Compose from the local draft file, found by Message-ID, or else from the server message. Every local draft with no current server copy also shows in the Drafts list as a row with a **Not uploaded** chip (the start of #266's notice; #266 adds the reasons). Tapping that row opens Compose at once. A draft never shows twice. Saving a plain-text draft replaces its server copy. An HTML draft, or one with an unusable Message-ID, is edited as a copy and the original stays (Decision 4).
 
 **Design:** `docs/design/carbon-draft-edit.html` (the notes under each frame are part of the spec). The `docs/10-design.md` row is "Reopen a draft". It is Carbon only, and the chip uses tint A, so there is no new colour role.
 
@@ -362,7 +362,7 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
 - `qml/pages/reader/ReplyBar.qml`: when `isDraft`, one filled `AppButton` with `objectName: "edit"`, a pencil icon and `qsTr("Edit")`.
 - `ReaderMore.qml`: hide `moreReplyAll` and `moreMove` when `isDraft` (Decision 12). The items are chosen by `pick`, so filter the model rather than renumbering the `pick` cases. The reader's top bar has no Move button (`act-archive`, `act-delete`, `act-more` only), so More is the only reader entry to Move.
 - `ReaderPage.qml`: hide `act-archive` when `isDraft`. `edit()` calls `core.startCompose("edit", messageId, view.account, "")`, and then `composeOpened(id)` as `compose()` does.
-- `qml/pages/inbox/MessageRow.qml`: a `Chip` with tint A and `qsTr("Not uploaded")` when `model.notUploaded`. Its ink comes from the existing tint A theme values.
+- `qml/pages/inbox/MessageRow.qml`: a new 24 px `StatusChip.qml` (not `Chip.qml`, which is the 44 px filter button) with the upload-off glyph and the fixed text `qsTr("Not uploaded")`, shown when `model.notUploaded`. Tint A, with its ink from theme tokens so it is right in the dark theme. #266 T5 later binds its text to `model.notUploadedText`.
 - `MessageList.qml:96`: when not selecting, `model.opens === "compose"` emits a new `draftRequested(model.draftId)`, and every other row emits `messageRequested`.
 - `InboxPage.qml`: `onDraftRequested` calls `core.startCompose("draft", 0, "", draftId)` and opens Compose like the "new" path in `AppShell.qml:92`. Move that wiring to AppShell if InboxPage has no compose hook.
 - `qml/pages/compose/ComposePage.qml`: a second `Banner` (`objectName: "composeNote"`, `kind: "info"`) under the top bar and above `composeError`, showing the compose's `note` while it is non-empty. It follows the mockup frame **"Edit a copy in Compose"** in `docs/design/carbon-draft-edit.html`: the info icon, the images-banner style and no button. The text comes from Rust (gettext), so QML adds no string.
@@ -413,7 +413,7 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
 
 **Phone** (ask before taking the phone; it is shared). Use `ute2e shot` for the Drafts list with a Not uploaded row, the reader of a draft, the Edit compose and the "Edit a copy" compose with its banner. A separate agent then reviews the shots against `carbon-draft-edit.html` and flags anything that differs.
 
-**Spec:** add one sentence. A Drafts-folder message opens with Edit, and local drafts without a server copy show in the Drafts list as "Not uploaded". Close #266 with the PR that lands T6, because the chip is its notice.
+**Spec:** add one sentence. A Drafts-folder message opens with Edit, and local drafts without a server copy show in the Drafts list as "Not uploaded". The T6 PR says "Refs #266" and does not close it: #266 adds the reasons.
 
 ## Out of scope
 
