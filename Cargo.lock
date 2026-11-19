@@ -2887,6 +2887,7 @@ name = "xtask"
 version = "0.2.0"
 dependencies = [
  "cargo_metadata",
+ "quick-xml",
 ]
 
 [[package]]

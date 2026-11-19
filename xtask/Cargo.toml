@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 cargo_metadata = "0.19"
+quick-xml = "0.42"
