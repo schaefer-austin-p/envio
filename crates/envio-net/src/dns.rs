@@ -79,11 +79,20 @@ fn configure(options: &mut ResolverOpts) {
 /// at the next lookup, and a resolver that gave an `Unavailable` answer is
 /// rebuilt (rate-limited) in case the network changed under it.
 pub struct SystemTxt {
-    slot: Mutex<Slot>,
+    pool: Pool<TokioResolver>,
 }
 
-struct Slot {
-    resolver: Option<TokioResolver>,
+/// The resolver of a `SystemTxt` and when to rebuild it. Generic over the
+/// resolver, with the builder and the clock injected, so that the tests
+/// count builds without a network.
+struct Pool<R> {
+    build: Box<dyn Fn() -> Option<R> + Send + Sync>,
+    clock: Box<dyn Fn() -> Instant + Send + Sync>,
+    slot: Mutex<Slot<R>>,
+}
+
+struct Slot<R> {
+    resolver: Option<R>,
     built_at: Option<Instant>,
     /// The last lookup with this resolver was `Unavailable`.
     failed: bool,
@@ -100,9 +109,14 @@ fn rebuild_due(has_resolver: bool, built_at: Option<Instant>, failed: bool, now:
     failed && built_at.is_none_or(|at| now.saturating_duration_since(at) >= MIN_REBUILD_GAP)
 }
 
-impl SystemTxt {
-    pub fn new() -> Self {
+impl<R: Clone> Pool<R> {
+    fn new(
+        build: impl Fn() -> Option<R> + Send + Sync + 'static,
+        clock: impl Fn() -> Instant + Send + Sync + 'static,
+    ) -> Self {
         Self {
+            build: Box::new(build),
+            clock: Box::new(clock),
             slot: Mutex::new(Slot {
                 resolver: None,
                 built_at: None,
@@ -111,12 +125,18 @@ impl SystemTxt {
         }
     }
 
+    /// The slot, also when a thread panicked while holding the lock: the
+    /// fields are plain values that are always consistent.
+    fn lock(&self) -> std::sync::MutexGuard<'_, Slot<R>> {
+        self.slot.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// The resolver to use now, rebuilt when the policy says so.
-    fn current(&self) -> Option<TokioResolver> {
-        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
-        let now = Instant::now();
+    fn current(&self) -> Option<R> {
+        let mut slot = self.lock();
+        let now = (self.clock)();
         if rebuild_due(slot.resolver.is_some(), slot.built_at, slot.failed, now) {
-            slot.resolver = resolver();
+            slot.resolver = (self.build)();
             slot.built_at = Some(now);
             slot.failed = false;
         }
@@ -124,7 +144,32 @@ impl SystemTxt {
     }
 
     fn mark_failed(&self) {
-        self.slot.lock().unwrap_or_else(|e| e.into_inner()).failed = true;
+        self.lock().failed = true;
+    }
+
+    /// One TXT lookup: the current resolver (none is `Unavailable`), the
+    /// query, and a mark for a rebuild when the answer is `Unavailable`.
+    async fn lookup<F, Fut>(&self, name: &str, query: F) -> TxtAnswer
+    where
+        F: FnOnce(R, Name) -> Fut,
+        Fut: Future<Output = Option<Result<Vec<Record>, NetError>>>,
+    {
+        let Some(resolver) = self.current() else {
+            return TxtAnswer::Unavailable;
+        };
+        let answer = txt_with(name, |name| query(resolver, name)).await;
+        if answer == TxtAnswer::Unavailable {
+            self.mark_failed();
+        }
+        answer
+    }
+}
+
+impl SystemTxt {
+    pub fn new() -> Self {
+        Self {
+            pool: Pool::new(resolver, Instant::now),
+        }
     }
 }
 
@@ -136,22 +181,12 @@ impl Default for SystemTxt {
 
 impl TxtLookup for SystemTxt {
     fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
-        Box::pin(async move {
-            let Some(resolver) = self.current() else {
-                return TxtAnswer::Unavailable;
-            };
-            let answer = txt_with(name, |query| async move {
-                tokio::time::timeout(TXT_TIMEOUT, resolver.txt_lookup(query))
-                    .await
-                    .ok()
-                    .map(|result| result.map(|lookup| lookup.answers().to_vec()))
-            })
-            .await;
-            if answer == TxtAnswer::Unavailable {
-                self.mark_failed();
-            }
-            answer
-        })
+        Box::pin(self.pool.lookup(name, |resolver, query| async move {
+            tokio::time::timeout(TXT_TIMEOUT, resolver.txt_lookup(query))
+                .await
+                .ok()
+                .map(|result| result.map(|lookup| lookup.answers().to_vec()))
+        }))
     }
 }
 
@@ -555,5 +590,146 @@ mod tests {
         })
         .await;
         assert_eq!(fail, TxtAnswer::Unavailable);
+    }
+
+    // The pool around the resolver, with a counting builder and a clock
+    // the test moves. The "resolver" is the number of the build.
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Rig {
+        pool: Pool<usize>,
+        builds: Arc<AtomicUsize>,
+        now: Arc<Mutex<Instant>>,
+        queries: Arc<Mutex<Vec<usize>>>,
+    }
+
+    impl Rig {
+        /// `builds_ok`: whether the builder succeeds.
+        fn new(builds_ok: bool) -> Self {
+            let builds = Arc::new(AtomicUsize::new(0));
+            let now = Arc::new(Mutex::new(Instant::now()));
+            let (b, c) = (builds.clone(), now.clone());
+            let pool = Pool::new(
+                move || {
+                    let n = b.fetch_add(1, Ordering::SeqCst) + 1;
+                    builds_ok.then_some(n)
+                },
+                move || *c.lock().unwrap(),
+            );
+            Self {
+                pool,
+                builds,
+                now,
+                queries: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn advance(&self, by: Duration) {
+            *self.now.lock().unwrap() += by;
+        }
+
+        fn builds(&self) -> usize {
+            self.builds.load(Ordering::SeqCst)
+        }
+
+        /// A lookup whose query answers `result` (None: timeout) and
+        /// records which resolver it ran on.
+        async fn lookup(&self, result: Option<Result<Vec<Record>, NetError>>) -> TxtAnswer {
+            let queries = self.queries.clone();
+            self.pool
+                .lookup("a.example.com", |resolver, _| async move {
+                    queries.lock().unwrap().push(resolver);
+                    result
+                })
+                .await
+        }
+
+        async fn ok(&self) -> TxtAnswer {
+            self.lookup(Some(Ok(vec![txt_record("v=DKIM1", 60)]))).await
+        }
+
+        async fn timeout(&self) -> TxtAnswer {
+            self.lookup(None).await
+        }
+    }
+
+    #[tokio::test]
+    async fn the_resolver_is_built_once_while_lookups_work() {
+        let rig = Rig::new(true);
+        for _ in 0..3 {
+            assert!(matches!(rig.ok().await, TxtAnswer::Records { .. }));
+        }
+        assert_eq!(rig.builds(), 1);
+        assert_eq!(*rig.queries.lock().unwrap(), vec![1, 1, 1]);
+    }
+
+    #[tokio::test]
+    async fn a_nxdomain_does_not_mark_the_resolver_failed() {
+        let rig = Rig::new(true);
+        rig.lookup(Some(Err(no_records(ResponseCode::NXDomain))))
+            .await;
+        rig.advance(MIN_REBUILD_GAP * 2);
+        rig.ok().await;
+        assert_eq!(rig.builds(), 1);
+    }
+
+    #[tokio::test]
+    async fn after_a_failure_the_next_call_rebuilds_once() {
+        let rig = Rig::new(true);
+        assert_eq!(rig.timeout().await, TxtAnswer::Unavailable);
+        rig.advance(MIN_REBUILD_GAP);
+        assert!(matches!(rig.ok().await, TxtAnswer::Records { .. }));
+        assert_eq!(rig.builds(), 2);
+        // The new resolver ran the second query, and a success after it
+        // does not rebuild again.
+        rig.advance(MIN_REBUILD_GAP * 2);
+        rig.ok().await;
+        assert_eq!(rig.builds(), 2);
+        assert_eq!(*rig.queries.lock().unwrap(), vec![1, 2, 2]);
+    }
+
+    #[tokio::test]
+    async fn no_rebuild_within_the_gap_of_the_last_build() {
+        let rig = Rig::new(true);
+        rig.timeout().await;
+        rig.advance(MIN_REBUILD_GAP - Duration::from_secs(1));
+        rig.timeout().await;
+        rig.advance(Duration::from_secs(5));
+        rig.timeout().await;
+        // Only the lookups before the gap ran on build 1; the failure is
+        // still marked, so the first call past the gap rebuilds.
+        assert_eq!(rig.builds(), 2);
+        assert_eq!(*rig.queries.lock().unwrap(), vec![1, 1, 2]);
+    }
+
+    #[tokio::test]
+    async fn a_missing_resolver_is_rebuilt_on_every_call() {
+        let rig = Rig::new(false);
+        for expected in 1..=3 {
+            assert_eq!(rig.ok().await, TxtAnswer::Unavailable);
+            assert_eq!(rig.builds(), expected);
+        }
+        // No time passes, and no query ran.
+        assert!(rig.queries.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_poisoned_lock_does_not_panic() {
+        let rig = Rig::new(true);
+        rig.ok().await;
+        std::thread::scope(|scope| {
+            let handle = scope.spawn(|| {
+                let _guard = rig.pool.slot.lock().unwrap();
+                panic!("poison the lock");
+            });
+            assert!(handle.join().is_err());
+        });
+        assert!(rig.pool.slot.is_poisoned());
+        assert!(matches!(rig.ok().await, TxtAnswer::Records { .. }));
+        assert_eq!(rig.timeout().await, TxtAnswer::Unavailable);
+        rig.advance(MIN_REBUILD_GAP);
+        assert!(matches!(rig.ok().await, TxtAnswer::Records { .. }));
+        assert_eq!(rig.builds(), 2);
     }
 }
