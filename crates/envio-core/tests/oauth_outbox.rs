@@ -370,6 +370,7 @@ fn send_refusal_fails_the_item(refusal: &str, server_text: Option<&str>) {
     );
     let reason = failed_reason(&r);
     assert!(reason.contains(HINT), "{reason}");
+    assert!(!reason.contains("internal client error"), "{reason}");
     if let Some(text) = server_text {
         assert!(reason.contains(text), "{reason}");
     }
@@ -417,10 +418,10 @@ fn a_disabled_smtp_mailbox_fails_the_item_and_keeps_the_account_up() {
 
 #[test]
 fn a_bare_refusal_after_a_working_imap_login_fails_the_item_too() {
-    // (g) The reason carries the client's wording for the 334 challenge the
-    // fake (and Microsoft) send before a bare 535, not the server's text,
-    // so only the hint is asserted. See the hand-back note on #326.
-    send_refusal_fails_the_item(BARE_535, None);
+    // (g) The fake (and Microsoft) send a 334 error challenge before a bare
+    // 535; the reason carries the server's 535 text, never the client
+    // library's wording for the challenge (#327).
+    send_refusal_fails_the_item(BARE_535, Some("Authentication unsuccessful"));
 }
 
 #[test]
