@@ -132,9 +132,11 @@ Item {
     }
     // Files were handed to the core to attach: each answers with Attached
     // or AttachFailed. (The shell counts them with the shared files'.)
-    signal attachStarted(int count)
-    function pick(paths) {
-        attachStarted(paths.length)
+    // `transfer` is the picker's Content Hub transfer, if any: finalized once
+    // its files settled.
+    signal attachStarted(int count, var transfer)
+    function pick(paths, transfer) {
+        attachStarted(paths.length, transfer || null)
         for (const p of paths) core.attach(compose, p)
     }
     function leave() {
@@ -325,7 +327,7 @@ Item {
         id: content
         anchors.fill: parent
         theme: root.theme
-        onFilesImported: function(paths) { root.pick(paths) }
+        onFilesImported: function(paths, transfer) { root.pick(paths, transfer) }
     }
 
     Connections {

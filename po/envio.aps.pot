@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 11:34+0100\n"
+"POT-Creation-Date: 2026-11-19 12:04+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -347,17 +347,17 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:231
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:233
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:248
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:250
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:262
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:264
 msgid "Bcc"
 msgstr ""
 
@@ -366,28 +366,28 @@ msgstr ""
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:159
+#: qml/pages/compose/ComposePage.qml:161
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:165
+#: qml/pages/compose/ComposePage.qml:167
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:173 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:175 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:263
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:184
+#: qml/pages/compose/ComposePage.qml:186
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:232
+#: qml/pages/compose/ComposePage.qml:234
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:290
+#: qml/pages/compose/ComposePage.qml:292
 msgid "Write your message"
 msgstr ""
 
