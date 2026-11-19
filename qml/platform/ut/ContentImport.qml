@@ -10,7 +10,8 @@ import "../fileUrl.js" as FileUrl
 Rectangle {
     id: root
     property var theme
-    signal imported(var paths)
+    // `transfer` is finalized by the receiver once the copies are made.
+    signal imported(var paths, var transfer)
     signal done()
 
     property var transfer: null
@@ -43,9 +44,13 @@ Rectangle {
                 for (let i = 0; i < root.transfer.items.length; i++)
                     urls.push(root.transfer.items[i].url.toString())
                 const paths = FileUrl.pathsOfUrls(urls)
-                root.imported(paths)
+                // The receiver finalizes the transfer once the files are
+                // copied (platform/ShareIn.qml); with nothing to copy, now.
+                if (paths.length > 0) root.imported(paths, root.transfer)
+                else root.transfer.finalize()
                 root.done()
             } else if (root.transfer.state === ContentTransfer.Aborted) {
+                root.transfer.finalize()
                 root.done()
             }
         }

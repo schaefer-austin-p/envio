@@ -164,6 +164,34 @@ Item {
             b.shell.destroy()
         }
 
+        function test_the_pickers_transfer_is_finalized_once_its_files_settled() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "")
+            const t = newTransfer()
+            b.shell.currentPage.pick(["/p/a.pdf", "/p/b.png"], t)
+            compare(t.finalized, 0, "the copies are not made yet")
+            b.core.attached(1, "/d/a.pdf", "a.pdf", 3)
+            compare(t.finalized, 0, "one file is still being copied")
+            b.core.attachFailed(1, "unreadable")
+            compare(t.finalized, 1)
+            b.core.attached(1, "/d/other.pdf", "other.pdf", 3)
+            compare(t.finalized, 1, "once")
+            b.shell.destroy()
+        }
+
+        function test_a_picker_transfer_with_no_files_is_finalized_at_once() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "")
+            const t = newTransfer()
+            b.shell.currentPage.pick([], t)
+            compare(t.finalized, 1)
+            b.shell.destroy()
+        }
+
         function test_a_refused_compose_finalizes_and_attaches_nothing() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
