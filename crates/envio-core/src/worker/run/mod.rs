@@ -256,6 +256,10 @@ pub(crate) fn failed(
         return Response::ItemError;
     };
     let response = live.health.failed_step(kind, problem, (account, now));
+    worker
+        .store
+        .token_cells
+        .set_paused(account, super::conn::paused_problem(&live.health.status));
     if !matches!(problem, Problem::Refused(_)) {
         live.conn = Conn::Closed;
         live.listed = false;

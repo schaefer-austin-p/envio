@@ -620,6 +620,7 @@ dependencies = [
  "mail-builder",
  "mail-parser",
  "psl",
+ "ring",
 ]
 
 [[package]]
