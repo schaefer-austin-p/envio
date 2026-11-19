@@ -389,6 +389,17 @@ impl<'s> Worker<'s> {
             .map_or(AccountStatus::Ready, |live| live.health.status.clone())
     }
 
+    /// The words for `status` of `account` (an OAuth account is told to sign
+    /// in again, not to update a password).
+    pub(crate) fn status_text(&self, account: &str, status: &AccountStatus) -> String {
+        let oauth = self
+            .store
+            .accounts
+            .get(account)
+            .is_some_and(|a| a.settings.is_oauth());
+        text::status::status(status, oauth)
+    }
+
     /// Tells the app if the account's status is not `before`.
     pub(crate) fn report(&self, account: &str, before: &AccountStatus) {
         let now = self.status_of(account);
@@ -399,7 +410,7 @@ impl<'s> Worker<'s> {
             };
             self.sink.emit(Event::AccountStatus {
                 account: account.to_owned(),
-                text: text::status::status(&status),
+                text: self.status_text(account, &status),
                 status,
             });
         }

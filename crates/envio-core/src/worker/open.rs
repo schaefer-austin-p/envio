@@ -11,7 +11,9 @@ use futures::future::{Aborted, abortable};
 use futures::stream::FuturesUnordered;
 
 use super::Worker;
-use super::conn::{Conn, changed_since_sync, login, prepare_idle, start_idle, sync_first};
+use super::conn::{
+    Conn, Login, changed_since_sync, connect_imap, prepare_idle, start_idle, sync_first,
+};
 use super::plan::idle_problem;
 use crate::clock::now_ms;
 use crate::problem::{self, Problem};
@@ -32,7 +34,7 @@ pub(crate) type OpenFuture =
 /// What the future owns: it holds no borrow of the worker.
 struct Job {
     have: Option<ImapSession>,
-    login: (envio_net::Endpoint, envio_net::Credentials),
+    login: Login,
     roots: envio_net::Roots,
     inbox_path: String,
     until_ms: i64,
@@ -73,9 +75,9 @@ async fn open_inbox(job: Job) -> Result<Opened, Problem> {
     let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Imap);
     let mut session = match have {
         Some(session) => session,
-        None => ImapSession::open(&login.0, &roots, &login.1)
-            .await
-            .map_err(to_problem)?,
+        // A token account's access token is resolved here, in the future,
+        // so the worker never waits on the network for it.
+        None => connect_imap(&login, &roots).await?,
     };
     if !session.caps().idle {
         return Ok(Opened {
@@ -103,10 +105,7 @@ impl Worker<'_> {
         let Some(inbox) = self.inbox(account)? else {
             return Ok(());
         };
-        let Some(settings) = self.store.accounts.get(account) else {
-            return Err(Problem::Local);
-        };
-        let credentials = login(settings, &self.store.secrets, Service::Imap)?;
+        let login = self.login_for(account, Service::Imap)?;
         let Some(live) = self.live.get_mut(account) else {
             return Err(Problem::Local);
         };
@@ -121,7 +120,7 @@ impl Worker<'_> {
         };
         let work = open_inbox(Job {
             have,
-            login: credentials,
+            login,
             roots: self.roots.clone(),
             inbox_path: inbox.path,
             until_ms,

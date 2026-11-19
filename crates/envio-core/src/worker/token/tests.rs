@@ -34,7 +34,7 @@ impl Fake {
 
     fn refresher(self: &Rc<Self>) -> Refresher {
         let fake = Rc::clone(self);
-        Rc::new(move |token| {
+        Rc::new(move |_, token| {
             fake.calls.set(fake.calls.get() + 1);
             fake.seen
                 .borrow_mut()
@@ -112,6 +112,26 @@ async fn cached_token_is_reused_for_ten_connects() {
         assert_eq!(text(h.access(false).await), "acc-1");
     }
     assert_eq!(s.fake.calls.get(), 1);
+}
+
+#[tokio::test]
+async fn the_cache_and_the_imap_flag_outlive_every_handle() {
+    let s = setup(vec![Ok(("acc-1", None, 3600)), Ok(("acc-2", None, 3600))]);
+    let first = handle(&s, "a");
+    assert_eq!(text(first.access(false).await), "acc-1");
+    first.set_imap_ok();
+    drop(first);
+    // A later connect asks for the handle again: same token, same flag.
+    let again = handle(&s, "a");
+    assert_eq!(text(again.access(false).await), "acc-1");
+    assert!(again.imap_ok());
+    assert_eq!(s.fake.calls.get(), 1);
+    // A removed account's token does not come back with a new one.
+    drop(again);
+    s.cells.forget("a");
+    let reborn = handle(&s, "a");
+    assert!(!reborn.imap_ok());
+    assert_eq!(text(reborn.access(false).await), "acc-2");
 }
 
 #[tokio::test]

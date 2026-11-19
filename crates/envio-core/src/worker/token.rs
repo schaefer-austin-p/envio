@@ -5,7 +5,7 @@
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 use envio_net::NetError;
 use envio_net::Roots;
@@ -28,7 +28,7 @@ type Reply = Result<SecretString, TokenError>;
 type Flight = Shared<LocalBoxFuture<'static, Reply>>;
 /// Trades a refresh token for new tokens (the network call, replaceable in tests).
 pub(crate) type Refresher =
-    Rc<dyn Fn(&SecretString) -> LocalBoxFuture<'static, Result<Tokens, TokenError>>>;
+    Rc<dyn Fn(&Provider, &SecretString) -> LocalBoxFuture<'static, Result<Tokens, TokenError>>>;
 pub(crate) type Clock = Rc<dyn Fn() -> i64>;
 
 struct Access {
@@ -47,6 +47,7 @@ struct State {
 
 struct Cell {
     key: String,
+    provider: Provider,
     tokens: Rc<RefCell<OAuthTokens>>,
     refresh: Refresher,
     clock: Clock,
@@ -130,7 +131,7 @@ impl Cell {
             return Err(TokenError::Revoked);
         };
         let at = (self.clock)();
-        let result = (self.refresh)(&stored).await;
+        let result = (self.refresh)(&self.provider, &stored).await;
         let tokens = match result {
             Ok(tokens) => tokens,
             Err(error) => {
@@ -168,30 +169,20 @@ pub(crate) struct TokenCells {
     refresh: Refresher,
     clock: Clock,
     tokens: Rc<RefCell<OAuthTokens>>,
-    cells: RefCell<BTreeMap<String, Weak<Cell>>>,
+    cells: RefCell<BTreeMap<String, Rc<Cell>>>,
 }
 
 impl TokenCells {
-    pub(crate) fn new(providers: Vec<Provider>, roots: Roots, tokens: OAuthTokens) -> Self {
-        let first = providers.first().cloned();
-        let refresh: Refresher = Rc::new(move |token| {
-            let token = token.clone();
-            let roots = roots.clone();
-            let provider = first.clone();
-            async move {
-                match provider {
-                    Some(p) => envio_net::oauth::refresh(&p, &roots, &token).await,
-                    None => Err(TokenError::Refused("no_provider".to_owned())),
-                }
-            }
-            .boxed_local()
+    pub(crate) fn new(
+        providers: Vec<Provider>,
+        roots: Roots,
+        tokens: Rc<RefCell<OAuthTokens>>,
+    ) -> Self {
+        let refresh: Refresher = Rc::new(move |provider, token| {
+            let (provider, token, roots) = (provider.clone(), token.clone(), roots.clone());
+            async move { envio_net::oauth::refresh(&provider, &roots, &token).await }.boxed_local()
         });
-        Self::with(
-            providers,
-            refresh,
-            Rc::new(crate::clock::now_ms),
-            Rc::new(RefCell::new(tokens)),
-        )
+        Self::with(providers, refresh, Rc::new(crate::clock::now_ms), tokens)
     }
 
     pub(crate) fn with(
@@ -209,23 +200,29 @@ impl TokenCells {
         }
     }
 
-    /// The account's handle, the same one for every caller while one is
-    /// alive; `None` while no provider of that kind is configured.
+    /// The account's handle: always the same cell, so its cached access
+    /// token and its IMAP-worked flag outlive any one connect; `None` while no provider of that kind is configured.
     pub(crate) fn handle(&self, account: &str, kind: ProviderKind) -> Option<TokenHandle> {
-        self.providers.iter().find(|p| p.kind == kind)?;
+        let provider = self.providers.iter().find(|p| p.kind == kind)?;
         let mut cells = self.cells.borrow_mut();
-        if let Some(cell) = cells.get(account).and_then(Weak::upgrade) {
-            return Some(TokenHandle(cell));
+        if let Some(cell) = cells.get(account) {
+            return Some(TokenHandle(Rc::clone(cell)));
         }
         let cell = Rc::new(Cell {
             key: account.to_owned(),
+            provider: provider.clone(),
             tokens: Rc::clone(&self.tokens),
             refresh: Rc::clone(&self.refresh),
             clock: Rc::clone(&self.clock),
             state: RefCell::new(State::default()),
         });
-        cells.insert(account.to_owned(), Rc::downgrade(&cell));
+        cells.insert(account.to_owned(), Rc::clone(&cell));
         Some(TokenHandle(cell))
+    }
+
+    /// The account is gone: its cached token goes with it.
+    pub(crate) fn forget(&self, account: &str) {
+        self.cells.borrow_mut().remove(account);
     }
 }
 
