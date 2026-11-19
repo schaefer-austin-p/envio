@@ -1,0 +1,20 @@
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com;
+ i=@example.com; q=dns/txt; s=test; t=1795101874; h=from : to : subject
+ : date : message-id : content-type : x-long;
+ bh=UU85U+2y98k1mC8bEAfI4q2Z7Zu/RdUAQkwysGedf3o=;
+ b=HqlPPVvyW0FNiAyKPLYsI/0q7NrUTo3qghcmrUnQ7H9TzuVrqjAbsnJ/+4k/9l7yaCYYH
+ KHV439UJFKmYGAx06Ij0e7CRUknWLsMnbin97NaTbBaIcg27HuaSlVOKZ8fm6s/yHLfzb4f
+ y4sqLFggcbF9mGf0lij3DZl8JPyDq5oHGA8DcFvMsHkZla3WAFeiq17II2pnMK7gB27/fr+
+ QRBoyQKEcAfIeKmKKpQU6GQ+mUXqakVNTZzBPl1nS1BZBVP9iPCDUePQiwJhCRSFXIv4hB7
+ udiNT5FJmJJQ3Ge+36zK/kX7bELdfdhEAYocDZ6ks91bikr/Klo7TGR+vDFQ==
+From: Bob <bob@example.com>
+To: Alice <alice@example.org>
+Subject: A long subject word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word 
+Date: Thu, 19 Nov 2026 10:00:00 +0000
+Message-ID: <fixture@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+X-Long: alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta alpha beta gamma delta 
+
+Hello there.
+Second line.
