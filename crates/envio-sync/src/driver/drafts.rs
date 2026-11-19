@@ -1,20 +1,21 @@
 //! Keeps the server's Drafts folder in step with the local drafts: a saved
 //! draft that was left is appended (flags \Draft and \Seen), its older copy
 //! is deleted after that, and the copy of a draft that was sent or
-//! discarded is deleted. Local drafts are never touched here beyond the
-//! note of which server copy they have; a failure leaves everything to be
-//! retried. Copies are found by Message-ID, so no UID is kept.
+//! discarded is deleted. Local drafts are not touched here beyond the
+//! note of which server copy they have, except by `forget_deleted_drafts`,
+//! which removes a draft whose server copy the user deleted. A failure
+//! leaves everything to be retried. Copies are found by Message-ID, so no UID is kept.
 
 use std::collections::BTreeSet;
 
 use envio_mime::{Address, new_message_id};
 use envio_net::imap::Flag;
-use envio_store::{Db, Draft, Drafts, FolderRole};
+use envio_store::{Action, Db, Draft, Drafts, FolderRole};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
 use crate::error::{ErrorKind, Result};
-use crate::plan::drafts::{cut_copy, needs_upload, replaced};
+use crate::plan::drafts::{cut_copy, drafts_to_forget, needs_upload, replaced};
 use crate::plan::message_id::search_id;
 use crate::server::MailServer;
 
@@ -179,4 +180,35 @@ async fn remove_copies(server: &mut impl MailServer, ids: &[String]) -> Result<(
         }
     }
     Ok(())
+}
+
+/// Deletes the local drafts whose Drafts-folder copy the replayed
+/// `committed` actions have deleted or moved to Trash (see
+/// `drafts_to_forget`). Returns the ids removed.
+pub fn forget_deleted_drafts(
+    (db, drafts): (&Db, &Drafts),
+    account: &str,
+    committed: &[Action],
+    open: &BTreeSet<String>,
+) -> Result<Vec<String>> {
+    let committed: Vec<Action> = committed
+        .iter()
+        .filter(|a| a.target.account == account)
+        .cloned()
+        .collect();
+    if committed.is_empty() {
+        return Ok(Vec::new());
+    }
+    let folders = db.folders(account)?;
+    let ids = drafts_to_forget(&committed, &folders, &drafts.list()?, open);
+    let mut removed = Vec::new();
+    for (id, message_id) in ids {
+        // One draft that cannot be removed must not keep the others.
+        match drafts.forget_if_uploaded(&id, &message_id) {
+            Ok(true) => removed.push(id),
+            Ok(false) => {}
+            Err(error) => log::warn!("draft {id}: removing it after its copy was deleted: {error}"),
+        }
+    }
+    Ok(removed)
 }
