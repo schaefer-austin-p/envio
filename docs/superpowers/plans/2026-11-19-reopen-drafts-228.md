@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A saved draft can be reopened in Compose. A message in a Drafts-role folder opens in the reader with one **Edit** button instead of Reply, Reply all and Forward. Edit fills Compose from the local draft file, found by Message-ID, or else from the server message. Every local draft with no current server copy also shows in the Drafts list as a row with a **Not uploaded** chip (this covers #266's notice). Tapping that row opens Compose at once. A draft never shows twice, and saving never adds a second server copy.
+**Goal:** A saved draft can be reopened in Compose. A message in a Drafts-role folder opens in the reader with one **Edit** button instead of Reply, Reply all and Forward. Edit fills Compose from the local draft file, found by Message-ID, or else from the server message. Every local draft with no current server copy also shows in the Drafts list as a row with a **Not uploaded** chip (this covers #266's notice). Tapping that row opens Compose at once. A draft never shows twice. Saving a plain-text draft replaces its server copy. An HTML draft, or one with an unusable Message-ID, is edited as a copy and the original stays (Decision 4).
 
 **Design:** `docs/design/carbon-draft-edit.html` (the notes under each frame are part of the spec). The `docs/10-design.md` row is "Reopen a draft". It is Carbon only, and the chip uses tint A, so there is no new colour role.
 
-**Depends on #284** (parallel PR): deleting a Drafts-folder message also deletes the local draft file and its attachment copies. This plan does not touch that path. T6 (the QML that shows Edit) must not merge before #284, or Edit could bring back a draft the user deleted. T1 to T5 can land first because they show nothing new.
+**Depends on #284** (parallel PR) **and respects #299** (a deleted draft's file stays until the journal replays the action; see Decision 2): deleting a Drafts-folder message also deletes the local draft file and its attachment copies. This plan does not touch that path. T6 (the QML that shows Edit) must not merge before #284, or Edit could bring back a draft the user deleted. T1 to T5 can land first because they show nothing new.
 
 **Architecture:** All the matching is done in `envio-core`: which local draft belongs to a server row, which local drafts get a pseudo-row, and how a server message becomes a draft. `envio-ui` carries two new row fields and one list flag. `qt/` adds roles, a property and a compose kind. QML only shows what it is given. No migration and no new crate. Drafts stay JSON files under `drafts/`, outside SQLite.
 
@@ -33,15 +33,21 @@
 
 1. **Message-IDs are matched in core, and the UI never sees them.** The feasibility check noted that `MessageRowUi` lacks `message_id`. It keeps lacking it. The reader sends the row id (`StartFrom::Edit { id }`) and core looks up the Message-ID. Reason: one place that knows about brackets and pending ids, and nothing extra crosses cxx-qt.
 2. **"Has a current server copy" means:** the account's Drafts-role folder in the cache holds a message whose Message-ID equals the draft's `server.message_id` or `server.pending_id`, compared after `trim()`. A local draft without such a message gets a pseudo-row. Reason: the mockup says the server row takes the local row's place, matched by Message-ID, so a draft never shows twice. Matching `pending_id` as well covers the moment between APPEND and `mark_uploaded`. Known effect: right after a cache rebuild, before the Drafts folder syncs, uploaded drafts show as Not uploaded for one sync. That errs toward showing too much, never hiding.
+   - **Being deleted hides it (interaction with #299).** A Delete or Move removes the cache row at once (`envio-sync/src/driver/actions.rs:72-74`). Under #299 the local file stays until the journal replays the action after the Undo window, and offline it stays longer. Without a rule, the draft would come back as a "Not uploaded" pseudo-row during that time, and tapping and saving it would upload it again. **Rule:** a local draft gets no pseudo-row while the journal (`Journal::pending()`) holds an action that is not done, has kind `Delete` or `Move { .. }` (any destination, Trash included), targets this account's Drafts-role folder path, and whose `target.message_id` matches the draft's `message_id` or `pending_id` after `trim()`.
+   - **Why "hide" rather than "count as a server copy":** the user asked for the draft to go, so the honest state is "leaving", and neither row should show. On Undo the action is withdrawn, `Restore::Row` brings the server row back, and the draft shows as the server row again. Once the action replays, #299 removes the file. If the replay is skipped (the journal's `skipped()`), the action is no longer pending and the next sync restores the server row, so the draft never vanishes for good. Counting it as a server copy would have the same effect on screen, but it would put a false fact into a predicate that T1 and the planner also read.
+   - **Remote deletes still show it.** When another device deletes the uploaded copy, nothing is pending here, so the draft shows as "Not uploaded" and is not re-uploaded until it changes. This follows #299's rule that a remote event never destroys a local draft. (This was open question 2, decided on the owner's behalf; they can override it.) A T3 test covers it: a draft whose `message_id` is neither on the server nor in `leaving` gives a row.
 3. **A local file is newer than the server copy.** When Edit finds a local draft by Message-ID, Compose opens the local file even if the reader showed older server text (an edit that has not uploaded yet). The server message is imported only when no local file matches.
-4. **Import marks the draft as current.** The imported draft gets `server.message_id = <that message's Message-ID>` and `uploaded_ms = updated_at_ms`. Unchanged, it is never uploaded. After the first edit, the existing upload replaces that copy, because `replaced()` returns the old id. So the mockup's "first save replaces it on the server" needs no new sync code.
+4. **Import marks the draft as current only when nothing can be lost.** There are two kinds of import:
+   - **Linked import**, the mockup's case. The server message's Message-ID passes `envio_sync::plan::message_id::search_id`, and the message has no `text/html` part. That is a plain-text draft, which is what Envio itself uploads (`draft_mail::draft_eml` writes text only). The imported draft gets `server.message_id = <that Message-ID>` and `uploaded_ms = updated_at_ms`. Unchanged, it is never uploaded. After the first edit, the existing upload replaces that copy, because `replaced()` returns the old id. So "first save replaces it on the server" needs no new sync code.
+   - **Detached import**, for an unusable Message-ID (missing, `<>`, or one `search_id` rejects) or for any message with a `text/html` part. Compose holds only plain text, so replacing the original would drop its formatting, and an unusable id cannot be found to replace. The imported draft gets no `ServerCopy` (`message_id: None`). It uploads as a new draft on the first save and never removes the original. Compose shows a translated notice once: "Editing a copy. The original stays in Drafts." The original stays readable and deletable in the reader. The cost is a second draft in the Drafts folder, which is visible and loses nothing.
+   - **A detached import remembers its origin.** `ServerCopy` gains `imported_from: Option<String>` (`#[serde(default)]`, so old files load). It holds the origin's usable Message-ID. T1's `draft_for` also matches it, so a second Edit of the same original reopens the copy instead of importing again. The sync planner and `replaced()` ignore the field. For an unusable Message-ID there is nothing to match, so each Edit makes a new copy. That case is rare and loses nothing, and a test pins the behaviour.
 5. **Import waits for the whole body, as Forward does,** so attachments come along. They are copied into the draft's folder with `Drafts::keep_bytes`. With no connection and no cached whole body, Edit is refused with `text::read::message_unavailable()`, the same as Forward.
 6. **Pseudo-row ids are negative.** The worker keeps `LocalIds`, a map from draft id to `i64` starting at -1 and counting down. Ids are stable for the session and never reused. Cached rows have positive SQLite rowids, so the two can't collide, and `ShownList` keys `(date, id)` keep working. The cursor is `{ date: updated_at_ms / 1000, id }`.
 7. **Pseudo-rows are merged per page in core** (`list_messages` for a `ListRef::Folder` whose role is Drafts). A page shows the cached rows plus the local drafts whose key lies in the page's range (`(after, last cached key]`, or everything older when `end`), sorted newest first. `end` still comes from the cached page alone. The unified inbox, search and other folders never get pseudo-rows.
 8. **Taps are routed by Rust.** A row has `opens: "reader" | "compose"`. Pseudo-rows open Compose (`startCompose("draft", 0, "", draftId)`) and every other row opens the reader, as the mockup says ("Tap opens it in Compose at once. Any other row opens the reader."). The feasibility note's "tapping a Drafts row opens Compose" is read as the pseudo-rows. A server row goes through the reader's Edit.
 9. **Drafts rows show To instead of From** (server rows and pseudo-rows). Core fills `from` with the translated "To: %s", taking the recipients' names or addresses joined with ", " (or "(no recipients)"), and fills `from_address` with the first recipient so the stamp tint works. The stamp, preview and date stay where they are.
 10. **List refresh:** a new `Event::LocalDraftsChanged { account }`. It is sent when a draft file is created, closed (saved or discarded), deleted (Send, the #284 path, T5's Delete), or changes upload state (after `sync_drafts`). It is not sent on every throttled keystroke save, so the list does not reload once a second behind Compose. `envio-ui` turns it into a first-page refresh when the current list is that account's Drafts folder.
-11. **Selection:** pseudo-rows can be selected (mockup: "Long-press selects"). In a Drafts list the selection bar never offers Archive. While the selection holds a pseudo-row it offers only Delete. Delete of pseudo-rows goes through `Act { Delete }` with the usual Undo: core holds the draft ids for the Undo window and calls `Drafts::delete` when the window closes. If the app is killed during the window, the draft survives, which is the safe direction.
+11. **Selection:** pseudo-rows can be selected (mockup: "Long-press selects"). In a Drafts list the selection bar never offers Archive. While the selection holds a pseudo-row it offers only Delete. Delete of pseudo-rows goes through `Act { Delete }` with the usual Undo: core holds the draft ids for the Undo window and calls `Drafts::delete` when the window closes. If the app is killed during the window, the draft survives, which is the safe direction. The Undo stays (this was open question 3, decided on the owner's behalf). A confirmation dialog would need a new mockup, and no other Delete in the app asks first.
 12. **Reader of a draft** (`MessageView.is_draft`, true when the message's folder role is Drafts): the bottom bar is one filled Edit button with a pencil, and Reply all leaves More. Archive is hidden. Delete, Move, Flag and Add sender stay. Reason: the mockup removes only the reply actions and Archive.
 13. **One compose per draft.** Edit or a pseudo-row tap for a draft that an open compose already holds is refused with a new text, "This draft is already open." Today `DraftBook::adopt` would let two composes write over each other.
 
@@ -53,9 +59,20 @@ Order: T1 → T2 → T3 → T4 → T5 → T6 → T7. T1 to T3 are core (T3 adds 
 
 ### T1: Edit a cached Drafts message that has a local file (core, qt kind)
 
-**Tier:** trunk (`envio-core`, `qt/`). **Testing:** unit plus core integration (`crates/envio-core/tests/`, existing fake-server support).
+**Tier:** trunk (`envio-core`, `envio-store`, `qt/`). **Testing:** unit plus core integration (`crates/envio-core/tests/`, existing fake-server support), plus `cargo make app-docker` because `qt/` changes.
 
-**Files:** new `crates/envio-core/src/drafts/lookup.rs` (pure), `crates/envio-core/src/api/command.rs` (`StartFrom::Edit`), new `crates/envio-core/src/worker/edit.rs` (`start_edit`), `worker/compose.rs` (dispatch only), `drafts/book.rs` (`holder`), `api/view.rs` and `worker/read.rs` (`is_draft`), `text/compose.rs` (`draft_already_open`), `qt/src/convert.rs` (kind `"edit"`), `qt/src/core_object.rs` (`isDraft` on the reader view, if the view is not exposed as one object).
+**Files:**
+- New `crates/envio-core/src/drafts/lookup.rs` (pure).
+- `crates/envio-core/src/api/command.rs`: `StartFrom::Edit`.
+- New `crates/envio-core/src/worker/edit.rs`: `start_edit`.
+- `worker/compose.rs`: dispatch only.
+- `drafts/book.rs`: `holder`.
+- `api/view.rs` and `worker/read.rs:144`: `is_draft`.
+- `text/compose.rs`: `draft_already_open`.
+- `crates/envio-store/src/drafts_server.rs`: `ServerCopy.imported_from` (Decision 4). Serde default, no migration, and old files still load (test it).
+- `qt/src/convert.rs`: kind `"edit"`.
+- `qt/src/json.rs::message_view_value`: emit `isDraft`, which is how the reader view reaches QML.
+- `MessageView` struct literals that gain `is_draft: false`: `qt/src/json.rs` tests (lines 327, 353 and 390) and `crates/envio-ui/tests/mirror.rs` (lines 110 and 170). The compiler lists any more.
 
 **Produces:**
 ```rust
@@ -66,8 +83,8 @@ pub enum StartFrom { …, /// A cached message in a Drafts-role folder.
 pub struct MessageView { …, /// The message's folder has the Drafts role.
     pub is_draft: bool }
 // drafts/lookup.rs
-/// The local draft whose server copy is `message_id` (its `message_id` or
-/// `pending_id`, trimmed), in `account`. Pure over a listing.
+/// The local draft whose server copy is `message_id` (its `message_id`,
+/// `pending_id` or `imported_from`, trimmed), in `account`. Pure over a listing.
 pub(crate) fn draft_for(drafts: &[(String, Draft)], account: &str, message_id: &str) -> Option<String>;
 pub(crate) fn same_id(a: &str, b: &str) -> bool;
 // drafts/book.rs
@@ -84,12 +101,13 @@ pub fn holder(&self, draft_id: &str) -> Option<ComposeId>;
 - A draft held by an open compose is not adopted a second time.
 
 **Tests:**
-- `draft_for` matches on `message_id`, matches on `pending_id`, ignores surrounding whitespace, misses another account, misses `<>`.
+- `draft_for` matches on `message_id`, on `pending_id` and on `imported_from`, ignores surrounding whitespace, misses another account, misses `<>`.
+- Store: a draft file without `imported_from` loads with `None`, and the field round-trips.
 - Integration: a cached Drafts message plus a local file with the same `server.message_id` gives `ComposeReady` with the file's text.
 - Integration: a non-Drafts message gives `ComposeRefused`.
 - Integration: a second Edit while the first compose is open gives `ComposeRefused` with "This draft is already open."
 - `is_draft` is true for a Drafts-role folder and false for the Inbox.
-- qt: `start_from("edit", 7, …)` gives `StartFrom::Edit { id: 7 }`.
+- qt: `start_from("edit", 7, …)` gives `StartFrom::Edit { id: 7 }`, and `message_view_value` carries `isDraft`.
 
 ---
 
@@ -103,9 +121,12 @@ pub fn holder(&self, draft_id: &str) -> Option<ComposeId>;
 ```rust
 // drafts/import.rs
 /// A local draft built from a server draft's raw bytes. Pure.
-/// `server.message_id = Some(message_id)`, `uploaded_ms = updated_at_ms = now_ms`.
-pub(crate) fn draft_from_raw(raw: &[u8], account: &str, message_id: &str, now_ms: i64) -> Imported;
-pub(crate) struct Imported { pub draft: Draft, pub attachments: Vec<(String, Vec<u8>)> }
+/// Linked (Decision 4): `server.message_id = Some(id)`, `uploaded_ms = updated_at_ms = now_ms`.
+/// Detached: `server = ServerCopy { imported_from: usable id or None, ..Default }`.
+pub(crate) fn draft_from_raw(raw: &[u8], account: &str, message_id: Option<&str>, now_ms: i64) -> Imported;
+pub(crate) struct Imported { pub draft: Draft, pub attachments: Vec<(String, Vec<u8>)>, pub linked: bool }
+/// Linked only for a usable Message-ID (`search_id`) and no text/html part anywhere in the message.
+pub(crate) fn can_link(parsed: &envio_mime::Parsed, message_id: Option<&str>) -> bool;
 ```
 - Recipients come from To, Cc and Bcc, shown as `start::displayed` does.
 - The subject is taken unchanged. In-Reply-To and References are carried over.
@@ -114,17 +135,25 @@ pub(crate) struct Imported { pub draft: Draft, pub attachments: Vec<(String, Vec
   1. `Drafts::create`.
   2. `keep_bytes` for each attachment, then `save` with the paths.
   3. `adopt`, then `compose_ready`.
+  4. For a detached import, also emit `Event::Notice` with `text::compose::editing_a_copy()` ("Editing a copy. The original stays in Drafts.").
 
   If the body is missing or partial, wait for the whole body exactly as Forward does (`live.wants.bodies` plus `whole`, and `composing` with `StartFrom::Edit`).
 
 **Invariants:**
-- An unchanged import is never uploaded. The planner sees it as current (Decision 4).
-- The first saved change uploads with `replaced() == Some(old)`, so the server copy is replaced, never duplicated.
+- An unchanged linked import is never uploaded. The planner sees it as current (Decision 4).
+- The first saved change to a linked import uploads with `replaced() == Some(old)`, so the server copy is replaced, never duplicated.
+- A detached import never causes a server message to be removed: `replaced()` and `cut_copy()` see no id, and `imported_from` is never read by sync.
+- An HTML original is never overwritten by plain text.
 - If an import fails halfway (a write error), `Drafts::delete` removes the new file and Compose is refused. No half-filled draft is left behind.
 
 **Tests:**
 - Unit: `draft_from_raw` on a multipart with an attachment gives the recipients, subject, body, `in_reply_to` and one attachment, and `server.message_id` equals the input.
-- Unit: an HTML-only draft gives the text body.
+- Unit: an HTML-only draft gives the text body and `linked == false`, with `server.message_id == None` and `imported_from == Some(id)`.
+- Unit: a multipart/alternative draft (text plus HTML) is detached too.
+- Unit: a plain-text draft whose Message-ID is missing, `<>` or `"  "` is detached, with `imported_from == None`.
+- Integration: Edit on a cached HTML draft, then a change and a close, uploads a new copy. The server keeps both copies, the original's bytes are unchanged, and a `Notice` with the copy text was sent.
+- Integration: a second Edit of that same HTML original reopens the copy through `imported_from`, and no third draft is made.
+- Integration: a plain-text draft with no Message-ID, edited twice, gives two local drafts. This pins the documented behaviour, and nothing is deleted.
 - Integration: Edit on a cached Drafts message with no local file creates one draft file with `server.message_id` set and gives `ComposeReady`. A second Edit on the same message (after closing) finds that file through T1 instead of importing again.
 - Integration: a body not yet cached gives `ComposeReady` after the fetch.
 - Sync planner, unit in `envio-sync` if not already covered: a draft with `uploaded_ms == updated_at_ms` and `message_id` set plans no upload. After `updated_at_ms` grows it plans an upload that names the old id as replaced.
@@ -137,11 +166,13 @@ pub(crate) struct Imported { pub draft: Draft, pub attachments: Vec<(String, Vec
 
 **Files:**
 - `crates/envio-store/src/messages.rs`: `message_ids_in`, which reads the indexed column and adds no migration.
+- Journal read for Decision 2's hide rule: new pure `leaving(pending: impl Iterator<Item = &Action>, account: &str, drafts_path: &str) -> HashSet<String>` in `local_rows.rs`. It returns the trimmed `target.message_id`s of pending `Delete` and `Move` actions in that folder. Core reads `self.store.journal.pending()`. The store's journal API does not change.
 - `crates/envio-core/src/api/view.rs`: `MessageRow.local_draft`.
 - `crates/envio-core/src/api/event.rs`: `LocalDraftsChanged`.
 - New `crates/envio-core/src/worker/local_rows.rs`: the pure merge, `LocalIds`, the To line.
 - `worker/read.rs`: `list_messages` calls the merge for a Drafts-role folder.
-- `worker/rows.rs`: the To line for Drafts-role server rows.
+- `worker/rows.rs`: the To line for Drafts-role server rows. Make `subject` `pub(super)` so `local_rows.rs` can share the placeholder. It is private today.
+- `MessageRow` struct literals that gain `local_draft: None`: `worker/rows.rs::row_of` and its test helper, and `crates/envio-ui/tests/support/mod.rs::msg_in`. The compiler lists any more.
 - `text/read.rs` or a new `text/list.rs`: "To: %s", "(no recipients)", "Not uploaded".
 - `drafts/keeper.rs` and `drafts/book.rs`: send `LocalDraftsChanged` on create and close.
 - `worker/run/mail.rs`: send it after `sync_drafts` when anything was uploaded, refused, failed or deleted.
@@ -150,7 +181,7 @@ pub(crate) struct Imported { pub draft: Draft, pub attachments: Vec<(String, Vec
 **Produces:**
 ```rust
 // envio-store messages.rs
-/// The Message-IDs (as stored) of the live messages in `folder`.
+/// The Message-IDs of the live messages in `folder`, each `trim()`med; NULL and empty skipped.
 pub fn message_ids_in(&self, folder: FolderId) -> Result<HashSet<String>>;
 // api/view.rs
 pub struct MessageRow { …, /// Set on a pseudo-row: the local draft's id (no server copy yet).
@@ -162,8 +193,10 @@ LocalDraftsChanged { account: String },
 pub(super) struct LocalIds { /* draft id -> negative i64, next */ }
 impl LocalIds { pub fn id_of(&mut self, draft_id: &str) -> MessageRowId; pub fn draft_of(&self, id: MessageRowId) -> Option<&str>; }
 /// Local drafts of `account` with no current server copy (Decision 2), as rows.
+/// `on_server` from `message_ids_in`, `leaving` from the journal; both trimmed.
 pub(super) fn local_rows(drafts: &[(String, Draft)], account: &str, folder: FolderId,
-                         on_server: &HashSet<String>, ids: &mut LocalIds) -> Vec<MessageRow>;
+                         (on_server, leaving): (&HashSet<String>, &HashSet<String>),
+                         ids: &mut LocalIds) -> Vec<MessageRow>;
 /// The cached page with the local rows in its range merged in, newest first (Decision 7).
 pub(super) fn merge_page(page: Vec<MessageRow>, local: Vec<MessageRow>, after: Option<Cursor>, end: bool) -> Vec<MessageRow>;
 pub(super) fn to_line(to: &[String]) -> String;
@@ -176,6 +209,7 @@ A pseudo-row has:
 
 **Invariants:**
 - A draft never appears twice, either as two pseudo-rows or as a pseudo-row next to its server row.
+- A draft whose server copy has a pending Delete or Move in the journal shows no row at all: not during the Undo window, and not offline.
 - Every local draft of the account with no current server copy appears in exactly one page.
 - Pages never overlap. The last key a non-end page shows is always a cached row, so the next `after` works against SQLite.
 - The unified inbox, search and non-Drafts folders are unchanged, which existing tests check.
@@ -191,6 +225,9 @@ A pseudo-row has:
 - `local_rows`:
   - a draft whose `message_id` is on the server gives no row;
   - a draft whose `pending_id` is on the server gives no row;
+  - a draft whose `message_id` is not on the server but is in `leaving` gives no row;
+  - `leaving` takes pending `Delete` and `Move { to: "Trash" }` in the Drafts path, and ignores `SetFlags`, done actions, other folders and other accounts;
+  - Message-IDs with stray whitespace still match;
   - a never-uploaded draft gives a row;
   - a refused draft (`failures >= GIVE_UP`) gives a row;
   - another account's draft gives no row;
@@ -200,7 +237,8 @@ A pseudo-row has:
 - Core integration:
   - `ListMessages` on a Drafts folder with one cached server draft and two local drafts (one matching the server row) gives two rows, and one of them has `local_draft`;
   - the Inbox list has no pseudo-rows;
-  - closing a compose sends `LocalDraftsChanged`.
+  - closing a compose sends `LocalDraftsChanged`;
+  - **#299 window:** a cached Drafts server row plus its uploaded local file. `Act { Delete }` on the server row, then `ListMessages` inside the Undo window gives no row for that draft, neither server nor pseudo. The same holds with the account offline after the window. After `Undo`, the server row is back and there is still no pseudo-row.
 
 ---
 
@@ -309,13 +347,21 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
   4. The server's Drafts folder holds exactly one copy, with the new text and a new Message-ID.
 - **Server refusal:** make the Drafts folder read-only, or use Stalwart's quota if `up.sh` can set it. Closing a compose then gives a pseudo-row with `local_draft`. Once the folder is writable again, the next save uploads, and the list shows the server row only.
 - **Delete through #284:** delete a Drafts row from the reader. Then Edit cannot bring the draft back, because the file is gone.
+- **#299 Undo window:** delete an uploaded draft's Drafts row from the reader, with its local file still present.
+  - Inside the Undo window, the Drafts list shows no row for it, neither server nor "Not uploaded".
+  - With the account taken offline before the replay, still no row.
+  - After the replay, the server holds no copy and the local file is gone.
+  - In a second run, Undo instead brings the server row back. The server holds exactly one copy and no pseudo-row appears.
+- **HTML original:** APPEND an HTML draft to Drafts directly, Edit it, change it and close.
+  - The server then holds the untouched original plus one new plain-text copy.
+  - A second Edit of the original reopens the same local copy.
 
 **Phone** (ask before taking the phone; it is shared). Use `ute2e shot` for the Drafts list with a Not uploaded row, the reader of a draft and the Edit compose. A separate agent then reviews the shots against `carbon-draft-edit.html` and flags anything that differs.
 
 **Spec:** add one sentence. A Drafts-folder message opens with Edit, and local drafts without a server copy show in the Drafts list as "Not uploaded". Close #266 with the PR that lands T6, because the chip is its notice.
 
-## Open questions
+## Out of scope
 
-1. **An account with no Drafts-role folder** (`done.no_folder`) has no Drafts list, so its local drafts still show nowhere. The choices are a local-only "Drafts" drawer entry for such accounts, or creating a Drafts folder on the server. Neither is in the mockup. The suggestion is a follow-up issue, not this plan.
-2. **An uploaded copy deleted on another device:** under Decision 2 the local draft then shows as Not uploaded, and the planner treats it as current, so it is not re-uploaded until it changes. The alternative is to treat the copy's disappearance as a delete (#284 across devices) and remove the local file. Showing it is the safe default chosen here. Confirm, or file it as its own issue.
-3. **Undo for deleting a pseudo-row (T5)** costs a new `Offered` variant. If that is too much for 0.3.0, the fallback is a confirmation dialog ("Delete this draft? It is not on the server."), which needs a mockup first. A third option is to drop selection of pseudo-rows for now and delete through Compose's Discard.
+- **Accounts with no Drafts-role folder** (`done.no_folder`) have no Drafts list, so their local drafts still show nowhere. This is a follow-up issue (a local-only Drafts entry in the drawer, or creating the folder on the server), and it needs its own mockup. It was decided on the owner's behalf; they can override it.
+
+Former open questions 2 and 3 are now decisions: remote deletes in Decision 2, Undo in Decision 11.
