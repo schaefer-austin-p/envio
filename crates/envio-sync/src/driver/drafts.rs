@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use envio_mime::{Address, new_message_id};
 use envio_net::imap::Flag;
-use envio_store::{Db, Draft, Drafts, FolderRole, Journal, StoreError};
+use envio_store::{Db, Draft, Drafts, FolderRole, Journal, RefusalKind, StoreError};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
@@ -106,11 +106,13 @@ pub async fn sync_drafts(
             Ok(false) => {}
             Err(error) => match error.kind() {
                 ErrorKind::Refused => {
-                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
+                    let kind = RefusalKind::Other;
+                    drafts.mark_failed(&id, draft.updated_at_ms, 1, kind, run.now_ms)?;
                     done.refused.push(id);
                 }
                 ErrorKind::Protocol => {
-                    drafts.mark_failed(&id, draft.updated_at_ms, 1)?;
+                    let kind = RefusalKind::Other;
+                    drafts.mark_failed(&id, draft.updated_at_ms, 1, kind, run.now_ms)?;
                     done.failed.push(id);
                 }
                 // A lost connection ends the run and is not counted against
