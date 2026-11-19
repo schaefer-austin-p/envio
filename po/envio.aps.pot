@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 09:06+0100\n"
+"POT-Creation-Date: 2026-11-19 09:13+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
-#: qml/components/EditMenu.qml:75
+#: qml/components/EditMenu.qml:82
 msgid "Cut"
 msgstr ""
 
-#: qml/components/EditMenu.qml:82 qml/pages/reader/LinkSheet.qml:120
+#: qml/components/EditMenu.qml:89 qml/pages/reader/LinkSheet.qml:120
 msgid "Copy"
 msgstr ""
 
-#: qml/components/EditMenu.qml:89
+#: qml/components/EditMenu.qml:96
 msgid "Paste"
 msgstr ""
 
-#: qml/components/EditMenu.qml:96
+#: qml/components/EditMenu.qml:103
 msgid "Select all"
 msgstr ""
 

@@ -128,7 +128,7 @@ Item {
     // Opens Copy / Select all clear of the selection handles, not at the
     // finger (which is on the handles' side of the selection).
     function showBodyMenu() {
-        const at = bodyHandles.menuSpot(bodyMenu.implicitWidth, bodyMenu.implicitHeight, flick)
+        const at = bodyHandles.menuSpot(bodyMenu.implicitWidth, bodyMenu.openHeight, flick)
         bodyMenu.popup(body, at.x, at.y)
     }
     // Clears the selection, its handles and the menu.

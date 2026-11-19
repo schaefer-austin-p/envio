@@ -920,6 +920,9 @@ Item {
             compare(body.selectedText, word)
             const menu = find("bodyMenu")
             verify(menu.visible || menu.opened)
+            // The menu's real open height, not the closed 12 px.
+            tryVerify(function() { return menu.height >= thm.touch }, 2000, "menu height " + menu.height)
+            tryCompare(menu, "height", menu.openHeight)
             const m = Qt.rect(menu.x, menu.y, menu.width, menu.height)
             const names = ["startHandle", "endHandle"]
             for (let i = 0; i < names.length; i++) {
