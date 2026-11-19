@@ -129,11 +129,11 @@ pub(crate) fn with_generic(families: &str) -> String {
 }
 
 /// Whether the declarations clearly hide their element: `opacity:0`,
-/// `mso-hide:all`, a box collapsed to nothing and clipped (`max-height:0` or
-/// `height:0` or `max-width:0` with `overflow:hidden`), or a zero font size
-/// together with a zero line height, a collapsed box or clipping. A zero
-/// font size alone is the inline-block gap trick and stays visible. The
-/// last declaration of a property wins.
+/// `mso-hide:all`, or a box collapsed to nothing and clipped (`max-height:0`,
+/// `height:0` or `max-width:0` with `overflow:hidden`). A zero font size or
+/// line height never hides on its own or in company: it is the newsletter
+/// trick that removes the gap around an image or button, whose content
+/// shows. The last declaration of a property wins.
 pub(crate) fn collapsed(decls: &[(String, String)]) -> bool {
     let get = |name: &str| {
         decls
@@ -151,8 +151,83 @@ pub(crate) fn collapsed(decls: &[(String, String)]) -> bool {
     };
     let clipped = get("overflow").as_deref() == Some("hidden");
     let box_collapsed = zero("max-height") || zero("height") || zero("max-width");
-    zero("opacity")
-        || get("mso-hide").as_deref() == Some("all")
-        || (box_collapsed && clipped)
-        || (zero("font-size") && (zero("line-height") || box_collapsed || clipped))
+    zero("opacity") || get("mso-hide").as_deref() == Some("all") || (box_collapsed && clipped)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decl(style: &str) -> Vec<(String, String)> {
+        declarations(style)
+    }
+
+    fn pair(p: &str, v: &str) -> (String, String) {
+        (p.to_owned(), v.to_owned())
+    }
+
+    #[test]
+    fn important_is_ignored_when_judging_a_collapsed_box() {
+        assert!(collapsed(&decl("opacity: 0 !important")));
+        assert!(collapsed(&decl(
+            "max-height:0px ! important;overflow:Hidden !IMPORTANT"
+        )));
+        assert!(!collapsed(&decl("opacity:0.1 !important")));
+    }
+
+    #[test]
+    fn the_last_declaration_wins() {
+        assert!(!collapsed(&decl("opacity:0;opacity:1")));
+        assert!(collapsed(&decl("opacity:1;opacity:0")));
+    }
+
+    #[test]
+    fn zero_font_or_line_height_never_collapses() {
+        for style in [
+            "font-size:0;line-height:0",
+            "font-size:0;overflow:hidden",
+            "font-size:0;max-height:0",
+            "line-height:0",
+        ] {
+            assert!(!collapsed(&decl(style)), "{style}");
+        }
+    }
+
+    #[test]
+    fn a_system_font_keyword_gives_nothing() {
+        assert!(decl("font: caption").is_empty());
+        assert!(decl("font:menu").is_empty());
+    }
+
+    #[test]
+    fn an_empty_or_sizeless_shorthand_gives_nothing() {
+        assert!(decl("font:").is_empty());
+        assert!(decl("font:   ").is_empty());
+        assert!(decl("font:12px").is_empty());
+        assert!(decl("font:italic bold").is_empty());
+    }
+
+    #[test]
+    fn the_line_height_form_is_skipped() {
+        let want = vec![
+            pair("font-size", "12px"),
+            pair("font-family", "Arial, sans-serif"),
+        ];
+        assert_eq!(decl("font:12px/18px Arial, sans-serif"), want);
+        assert_eq!(decl("font:12px / 18px Arial, sans-serif"), want);
+        assert_eq!(decl("font:12px /18px Arial, sans-serif"), want);
+    }
+
+    #[test]
+    fn weight_and_style_come_before_the_size() {
+        assert_eq!(
+            decl("font:italic 700 1em Georgia, serif"),
+            vec![
+                pair("font-style", "italic"),
+                pair("font-weight", "700"),
+                pair("font-size", "1em"),
+                pair("font-family", "Georgia, serif"),
+            ]
+        );
+    }
 }

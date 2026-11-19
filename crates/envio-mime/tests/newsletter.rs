@@ -87,9 +87,8 @@ fn each_hiding_style_removes_its_element() {
         "max-height:0;overflow:hidden",
         "max-height:0px; overflow : hidden !important",
         "height:0;overflow:hidden",
-        "font-size:0;line-height:0",
-        "font-size:0px;max-height:0",
-        "font-size:0;overflow:hidden",
+        "font-size:0;max-height:0;overflow:hidden",
+        "font-size:0px;height:0px;overflow:hidden !important",
     ] {
         let out = clean(&format!(r#"<div style="{style}">HIDDEN</div><p>real</p>"#));
         assert_eq!(out, "<p>real</p>", "{style}");
@@ -109,6 +108,9 @@ fn visible_look_alikes_are_kept() {
         "mso-hide:none",
         "max-height:100px;overflow:hidden",
         "line-height:0",
+        "font-size:0;line-height:0",
+        "font-size:0;overflow:hidden",
+        "font-size:0;max-height:0",
     ] {
         let out = clean(&format!(r#"<div style="{style}">SHOWN</div>"#));
         assert!(out.contains("SHOWN"), "{style}: {out}");
@@ -225,4 +227,50 @@ fn a_cell_with_content_keeps_its_colour() {
         r##"<table width="100%"><tr><td style="background:#454542">&nbsp;</td><td style="background:#222222"><b>x</b></td></tr></table>"##,
     );
     assert!(out.contains("#454542") && out.contains("#222222"), "{out}");
+}
+
+fn keeps_with_images(html: &str) -> String {
+    sanitize_html(
+        html,
+        &RenderOptions {
+            allow_remote_images: true,
+            ..RenderOptions::default()
+        },
+    )
+    .html
+}
+
+#[test]
+fn zero_font_size_and_line_height_wrapper_keeps_image_and_button() {
+    let out = keeps_with_images(
+        r#"<div style="font-size:0;line-height:0"><a href="https://x.example/"><img src="https://x.example/hero.png" width="500" height="200"></a></div><div style="font-size:0px;line-height:0px"><a href="https://x.example/b">BUTTONTEXT</a></div>"#,
+    );
+    assert!(out.contains("hero.png"), "{out}");
+    assert!(out.contains("BUTTONTEXT"), "{out}");
+}
+
+#[test]
+fn zero_font_size_and_line_height_cell_keeps_its_content() {
+    let out = keeps_with_images(
+        r#"<table width="100%"><tr><td style="font-size:0;line-height:0"><img src="https://x.example/hero.png" width="500" height="200"></td></tr></table>"#,
+    );
+    assert!(out.contains("hero.png"), "{out}");
+}
+
+#[test]
+fn clipped_zero_font_size_wrapper_keeps_a_child_with_its_own_size() {
+    let out = clean(
+        r#"<div style="font-size:0;overflow:hidden"><span style="font-size:16px">TEXTB</span></div>"#,
+    );
+    assert!(out.contains("TEXTB"), "{out}");
+}
+
+#[test]
+fn an_xhtml_prolog_before_the_doctype_keeps_standards_mode() {
+    let out = clean(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html><body><table><tr><td align="center"><table><tr><td>IN-TEXT</td></tr></table></td></tr></table></body></html>"#,
+    );
+    assert!(out.contains("IN-TEXT"), "{out}");
+    assert!(!out.contains(r#"align="left""#), "{out}");
 }

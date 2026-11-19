@@ -243,15 +243,23 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     rendered
 }
 
-/// Whether the mail starts with a doctype (after a BOM, whitespace or
-/// comments), so a browser would lay it out in standards mode.
+/// Whether the mail starts with a doctype (after a BOM, whitespace,
+/// comments or an `<?xml ...?>` prolog, which a browser reads as a bogus
+/// comment), so it would be laid out in standards mode.
 fn has_doctype(html: &str) -> bool {
     let mut rest = html.trim_start_matches(['\u{feff}', ' ', '\t', '\r', '\n']);
-    while let Some(tail) = rest.strip_prefix("<!--") {
-        let Some(end) = tail.find("-->") else {
-            return false;
+    loop {
+        let skipped = if let Some(tail) = rest.strip_prefix("<!--") {
+            tail.find("-->").map(|end| &tail[end + 3..])
+        } else if let Some(tail) = rest.strip_prefix("<?") {
+            tail.find('>').map(|end| &tail[end + 1..])
+        } else {
+            break;
         };
-        rest = tail[end + 3..].trim_start();
+        match skipped {
+            Some(next) => rest = next.trim_start(),
+            None => return false,
+        }
     }
     rest.get(..9)
         .is_some_and(|p| p.eq_ignore_ascii_case("<!doctype"))
