@@ -6,6 +6,7 @@
     "hooks": {
         "envio": {
             "apparmor": "envio.apparmor",
+            "content-hub": "envio.content-hub",
             "desktop":  "envio.desktop",
             "urls":     "envio.url-dispatcher"
         },

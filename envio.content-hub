@@ -1,0 +1,16 @@
+{
+    "share": [
+        "pictures",
+        "documents",
+        "videos",
+        "music",
+        "ebooks"
+    ],
+    "destination": [
+        "pictures",
+        "documents",
+        "videos",
+        "music",
+        "ebooks"
+    ]
+}
