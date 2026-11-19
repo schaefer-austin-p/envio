@@ -4,6 +4,7 @@
         <file>pages/AppShell.qml</file>
         <file>pages/ProblemPage.qml</file>
         <file>pages/inbox/InboxPage.qml</file>
+        <file>pages/ReaderPane.qml</file>
         <file>pages/inbox/AccountTabs.qml</file>
         <file>pages/inbox/LoadOlderRow.qml</file>
         <file>pages/inbox/MessageList.qml</file>
@@ -66,6 +67,7 @@
         <file>components/AppButton.qml</file>
         <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>
+        <file>components/KeyChip.qml</file>
         <file>components/DateText.qml</file>
         <file>components/FolderLabel.qml</file>
         <file>components/AppDialog.qml</file>

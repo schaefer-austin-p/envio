@@ -299,3 +299,27 @@ async fn a_run_leaves_the_accounts_own_mail_out_of_new_mail() {
     .unwrap();
     assert_eq!(new_mail(&run), Some(1));
 }
+
+#[tokio::test]
+async fn removing_an_account_drops_its_forget_intents_only() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server).await;
+    let target = |account: &str| envio_store::MessageRef {
+        account: account.into(),
+        folder: "Drafts".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: Some("<m@x>".into()),
+    };
+    for account in [ACCOUNT, "1800"] {
+        let action = store
+            .journal
+            .push(NOW_MS, target(account), ActionKind::Delete)
+            .unwrap();
+        store.journal.commit(action.seq).unwrap();
+    }
+    let (mut local, drafts) = store.with_drafts();
+    remove_account(&mut local, drafts, ACCOUNT).unwrap();
+    assert!(store.journal.to_forget(ACCOUNT).is_empty());
+    assert_eq!(store.journal.to_forget("1800").len(), 1);
+}

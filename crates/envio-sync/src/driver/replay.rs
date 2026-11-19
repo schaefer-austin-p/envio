@@ -60,7 +60,7 @@ pub async fn replay(
         let key = Key::Action(action.seq);
         match outcome(result.as_ref().copied()) {
             Outcome::Done => {
-                local.journal.done(action.seq)?;
+                local.journal.commit(action.seq)?;
                 local.schedule.succeeded(&key);
                 replayed.done += 1;
                 replayed.committed.push(action);

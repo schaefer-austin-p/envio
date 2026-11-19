@@ -13,6 +13,7 @@ Rectangle {
     // The compose bar's smaller title, and the glyph of the leading button.
     property bool compact: false
     property string backIcon: "back"
+    property string backLabel: qsTr("Back")
     signal backClicked()
     default property alias actions: actionRow.data
 
@@ -26,7 +27,7 @@ Rectangle {
         visible: root.showBack
         theme: root.theme
         iconName: root.selecting ? "close" : root.backIcon
-        text: root.selecting ? qsTr("Leave selection") : qsTr("Back")
+        text: root.selecting ? qsTr("Leave selection") : root.backLabel
         anchors.left: parent.left
         anchors.leftMargin: root.theme.gu(0.5)
         anchors.verticalCenter: parent.verticalCenter

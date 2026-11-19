@@ -118,12 +118,22 @@ fn map_error(error: lettre::transport::smtp::Error, signing_in: bool) -> NetErro
         return client_error(error.to_string());
     }
     if error.is_response() {
-        return NetError::Protocol(error.to_string());
+        return response_error(error.to_string());
     }
     NetError::Io(std::io::Error::new(
         std::io::ErrorKind::ConnectionAborted,
         error.to_string(),
     ))
+}
+
+/// lettre reports a connection that closed cleanly before a reply was
+/// complete (greeting, EHLO, AUTH) as a response error. For the user that
+/// is a dropped connection, not a broken protocol.
+fn response_error(text: String) -> NetError {
+    if text.contains("incomplete response") {
+        return NetError::Io(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, text));
+    }
+    NetError::Protocol(text)
 }
 
 /// lettre has no kind for "the server offers none of our AUTH
@@ -150,6 +160,19 @@ mod tests {
         assert!(matches!(client_error(text.into()), NetError::SignIn(_)));
         assert!(matches!(
             client_error("internal client error: response too long".into()),
+            NetError::Protocol(_)
+        ));
+    }
+
+    #[test]
+    fn a_close_before_the_reply_is_complete_is_a_dropped_connection() {
+        let error = response_error("response error: incomplete response".into());
+        assert!(
+            matches!(&error, NetError::Io(e) if e.kind() == std::io::ErrorKind::UnexpectedEof),
+            "{error:?}"
+        );
+        assert!(matches!(
+            response_error("response error: malformed".into()),
             NetError::Protocol(_)
         ));
     }

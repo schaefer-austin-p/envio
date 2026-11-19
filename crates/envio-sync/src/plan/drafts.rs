@@ -41,6 +41,17 @@ pub fn replaced<'a>(server: &'a ServerCopy, new: &str) -> Option<&'a str> {
     server.message_id.as_deref().filter(|old| *old != new)
 }
 
+/// Whether the cache knows the folders an action names well enough for
+/// `drafts_to_forget` to judge it (after a rebuilt cache it may not yet).
+pub fn can_judge(action: &Action, folders: &[Folder]) -> bool {
+    let known = |path: &str| folders.iter().any(|f| f.path == path);
+    known(&action.target.folder)
+        && match &action.kind {
+            ActionKind::Move { to } => known(to),
+            _ => true,
+        }
+}
+
 /// Ids (with the Message-ID of the deleted copy) of the local drafts whose server copy the user has just deleted (or
 /// moved to Trash) in the Drafts folder: their files must go, or Upload or
 /// Edit would bring the draft back. `done` are actions the server has now
