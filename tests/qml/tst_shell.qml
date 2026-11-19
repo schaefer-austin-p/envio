@@ -205,7 +205,12 @@ Item {
             xhr.send()
             const hook = JSON.parse(xhr.responseText)
             verify(hook.share.length > 0)
-            compare(hook.destination, hook.share)
+            for (const type of hook.share)
+                verify(hook.destination.indexOf(type) >= 0, type)
+            // "all" is what the hub knows for a file of any type (an archive,
+            // a file with no extension): without it the File Manager does not
+            // offer Envio for those.
+            verify(hook.destination.indexOf("all") >= 0)
         }
 
         function test_the_share_receiver_compiles() {
