@@ -27,14 +27,14 @@ Decisions 1 to 7 were taken on the owner's behalf after the feasibility check; t
 1. **"Too large"** is `[TOOBIG]`, or the words "too large", "too big" or "size" inside a NO that is already `Refused` (a best guess). `[LIMIT]` stays busy (`is_busy`, `envio-net/src/imap/client.rs:118`): it ends the run as `Temporary` and shows "Not uploaded".
 2. **A lost connection or offline** keeps a stored reason: it is still true.
 3. **BAD (`Protocol`) retries too**, with the same backoff. `GIVE_UP` is removed. A BAD is stored as `Other`.
-4. **Retries back off:** the delay after the n-th failure of one save is `min(5 min * 2^(n-1), 1 h)`, checked in the pure planner `needs_upload(draft, now_ms)`. A new save (`failed_ms != updated_at_ms`) and a manual refresh reset it. `LocalDraftsChanged` is sent only when a stored reason changes.
+4. **Retries back off:** the delay after the n-th failure of one save is `min(5 min * 2^(n-1), 1 h)`, checked in the pure planner `needs_upload(draft, now_ms)`. A new save (`failed_ms != updated_at_ms`) and a manual refresh reset it. `LocalDraftsChanged` is sent only when what a row shows changes, judged by `(refusal, failed_at_ms)` before and after the run (see T2). A clock that stepped back (`failed_at_ms > now_ms`) counts as due.
 5. **The reason shows only while `failed_ms == updated_at_ms`.** A newer save shows "Not uploaded".
 6. **Store `RefusalKind { OverQuota, ReadOnly, TooLarge, Other }`**, never the server text. The label is built in core with gettext.
 7. **A local NO** (`Error::Validate`, `Error::Append`, `client.rs:111-112`, also `Refused`) shows "Server refused". Accepted; noted on the board.
 8. **Classifier input and order.** The text is `NetError::Refused`'s string, which has the form `code: <Option<Code>>, info: <Option<str>>` (`client.rs:128-132`). `imap-proto` 0.17 does not parse OVERQUOTA, NOPERM, TOOBIG or LIMIT, so they stay in `info`; READ-ONLY appears as `code: Some(ReadOnly)`. Match case-insensitively, first hit wins: OverQuota (`overquota`, `quota`), ReadOnly (`ReadOnly` code, `noperm`, `permission`, `read-only`), TooLarge (Decision 1), else Other. `TRYCREATE` is `Other`.
 9. **Field and writer.** `ServerCopy` gains `refusal: Option<RefusalKind>` and `failed_at_ms: i64`, both serde-default (old files load). `mark_failed` takes the kind and the time. `mark_uploaded` rebuilds `server` from the default and so clears both, which is how a later success clears the reason (the A reset). `mark_tried` leaves them alone.
-10. **A manual refresh** clears `failed_at_ms` of the account's drafts through a new `Drafts::clear_backoff(account)`, called where core starts a manual full run (check `worker/plan.rs` before coding; the plan found full runs at `plan.rs:162-183`, every `POLL_MS` = 5 min). The count stays; only the wait is lifted.
-11. **T5 extends #228 T6's chip; it does not fold into it.** #228 T6 waits for #284 and is written against ui roles that are merged. Folding the text binding into it would make T6 wait for T1 to T4 here, and would mix two reviews. T5 is a few lines on top (`qsTr("Not uploaded")` becomes `model.notUploadedText`). If T1 to T4 finish first, T5 waits for #228 T6.
+10. **Only a manual refresh clears the wait.** `Drafts::clear_backoff(account)` is called in the `Command::Refresh` arm of `worker/dispatch.rs:20` and nowhere else. It is not in `Worker::refresh` (`conn.rs:471`): that also runs on every foreground resume (`conn.rs:467`), so a resume does not clear the backoff. The count stays; only the wait is lifted.
+11. **#228 T6 builds the pill; T5 only binds the text.** #228 T6 (amended in the same PR as this plan) builds the new 24 px `StatusChip.qml` with the upload-off glyph and the fixed text "Not uploaded", and its PR says "Refs #266", not that it closes it. T5 here then changes only the binding (`qsTr("Not uploaded")` becomes `model.notUploadedText`). Reason: #228 T6 waits for #284 and uses merged ui roles; folding the dynamic text into it would make it wait for T1 to T4 here. If T1 to T4 finish first, T5 waits for #228 T6.
 
 ## Tasks
 
@@ -46,12 +46,14 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 
 **Tier:** trunk (`envio-store`). **Testing:** unit.
 
-**Files:** `crates/envio-store/src/drafts_server.rs` (ServerCopy fields, `mark_failed`, `clear_backoff`), new `crates/envio-store/src/refusal.rs` (the enum, `Serialize`/`Deserialize`, `Copy`). ServerCopy literals to update: `envio-core/src/drafts/import.rs:117`, `drafts/lookup.rs`, `envio-core/tests/edit.rs:321`, and sync tests.
+**Files:** `crates/envio-sync/src/driver/drafts.rs` (caller only), `crates/envio-store/src/drafts_server.rs` (ServerCopy fields, `mark_failed`, `clear_backoff`), new `crates/envio-store/src/refusal.rs` (the enum, `Serialize`/`Deserialize`, `Copy`). ServerCopy literals to update: `envio-core/src/drafts/import.rs:117`, `drafts/lookup.rs`, `envio-core/tests/edit.rs:321`, and sync tests.
 
 **Signatures:**
 - `pub enum RefusalKind { OverQuota, ReadOnly, TooLarge, Other }`
 - `Drafts::mark_failed(&self, id: &str, saved_ms: i64, weight: u32, refusal: RefusalKind, at_ms: i64) -> Result<bool>`
 - `Drafts::clear_backoff(&self, account: &str) -> Result<usize>`
+
+**Callers move with the signature (so CI passes at this commit):** the only caller, `crates/envio-sync/src/driver/drafts.rs:109,113`, passes `RefusalKind::Other` and `run.now_ms` for now (T2 swaps in the classifier), and the sync tests that call `mark_failed` are updated in this task.
 
 **Invariants:**
 - Old draft files without the new fields load as `None` and 0, no migration.
@@ -67,7 +69,7 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 
 **Tier:** trunk (`envio-sync`). **Testing:** unit (table test) plus `crates/envio-sync/tests/` with the fake server.
 
-**Files:** new `crates/envio-sync/src/plan/refusal.rs`; `plan/drafts.rs` (`needs_upload`, drop `GIVE_UP`, `:18`, `:26-32`); `driver/drafts.rs:105-112` (pass kind and time; BAD gives `Other`); `DraftsSynced` gets `reasons_changed: bool`.
+**Files:** new `crates/envio-sync/src/plan/refusal.rs`; `plan/drafts.rs` (`needs_upload`, drop `GIVE_UP`, `:18`, `:26-32`); `driver/drafts.rs:105-112` (pass kind and time; BAD gives `Other`); `DraftsSynced` gets `reasons_changed: bool`; `crates/envio-sync/tests/drafts.rs` (`run_with`, `:41`, takes a `now_ms` argument, and `run` passes `NOW_MS`; otherwise the growing waits cannot be tested).
 
 **Signatures:**
 - `pub fn classify(refusal_text: &str) -> RefusalKind` (pure)
@@ -77,15 +79,23 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 **Invariants:**
 - `classify` follows Decision 8, case-insensitive, first hit wins.
 - `retry_delay_ms(1) = 5 min`, doubling, capped at 1 h, no overflow for any `u32`.
-- A draft with `failed_ms == updated_at_ms`, `failures > 0` and `now_ms < failed_at_ms + retry_delay_ms(failures)` is not due. Every other rule of `needs_upload` is unchanged.
+- A draft with `failed_ms == updated_at_ms`, `failures > 0` and `now_ms < failed_at_ms + retry_delay_ms(failures)` is not due. `failed_at_ms > now_ms` (the clock stepped back) is due. Every other rule of `needs_upload` is unchanged.
 - `Busy` and `Io` never reach `mark_failed` (Temporary path), as today.
-- `reasons_changed` is true when a draft's stored kind differs after the run (a new kind, or one cleared by upload).
+- `reasons_changed` is true when any draft's `(refusal, failed_at_ms)` differs after the run. Comparing the kind alone is wrong: refused OverQuota, then the user saves (the chip goes "Not uploaded"), then refused OverQuota again leaves the kind unchanged, yet the chip must change back.
 
 **Tests:**
 - Table test for `classify`: `OVERQUOTA`, `NOPERM`, `code: Some(ReadOnly)`, `TOOBIG`, "message too large", `[LIMIT]` (gives `Other`; busy is decided earlier in `net`), a bare NO, `TRYCREATE`, mixed case.
 - `plan/drafts.rs:150-156` (the give-up test) becomes a backoff test: not due inside the delay, due after it, due after a new save.
 - `crates/envio-sync/tests/drafts.rs` `a_refused_draft_is_retried_then_left_alone_until_it_changes` (~:183-196) becomes: retried with growing waits, never left alone; kind stored; a later success clears it.
 - BAD stores `Other` and retries.
+- Clock step back: `failed_at_ms > now_ms` is due (planner unit test, and one driver run with `now_ms` before `failed_at_ms`).
+- `reasons_changed`: refused OverQuota, a newer save, refused OverQuota again gives true on the second run (same kind, new `failed_at_ms`); a run that changes nothing gives false.
+- Tests that break and are rewritten with the new signatures:
+  - `a_refused_draft_is_retried_then_left_alone_until_it_changes` (`:184`, loops `GIVE_UP`);
+  - `a_refusal_that_clears_is_uploaded_on_a_later_run` (`:200`): its immediate retry now falls inside the wait, so the second run passes a `now_ms` after the delay;
+  - `a_lost_connection_is_not_counted_against_the_draft` (`:212`, loops `GIVE_UP + 1`): the loop count becomes a plain constant, and the check is that `failures` stays 0;
+  - the `GIVE_UP` import at `:14` goes away;
+  - the unit tests at `plan/drafts.rs:150-156`.
 
 ---
 
@@ -93,7 +103,7 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 
 **Tier:** trunk (`envio-core`). **Testing:** unit plus core integration (existing fake-server support).
 
-**Files:** new `crates/envio-core/src/text/draft_chip.rs` (one function per label, with a translator comment: keep to about 20 characters); `api/view.rs:56-80` (`MessageRow.not_uploaded_text: String`); `worker/local_rows.rs:99-112` (fill it); `worker/run/mail.rs:~121-129` (emit `LocalDraftsChanged` when `done.reasons_changed`, not on every refused id); the manual-refresh path (Decision 10).
+**Files:** new `crates/envio-core/src/text/draft_chip.rs` (one function per label, with a translator comment: keep to about 20 characters); `api/view.rs:56-80` (`MessageRow.not_uploaded_text: String`); `worker/local_rows.rs:99-112` (fill it); `worker/run/mail.rs:~121-129` (emit `LocalDraftsChanged` when `done.reasons_changed`, not on every refused id); the `Command::Refresh` arm of `worker/dispatch.rs:20` (Decision 10), and not `Worker::refresh` (`conn.rs:471`).
 
 **MessageRow literal sites** (add `not_uploaded_text: String::new()`): `worker/rows.rs:67`, `local_rows/tests.rs:163`, `envio-ui/tests/support/mod.rs:15`, `envio-ui/tests/drafts.rs:9`, `envio-e2e/tests/support/core_run.rs:~255`.
 
@@ -103,8 +113,9 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 - A server row has an empty `not_uploaded_text`.
 - A pseudo-row always has a non-empty one.
 - No event when the sync run changed nothing the user sees.
+- A foreground resume (`conn.rs:467`, which calls `Worker::refresh`) does not clear the backoff.
 
-**Tests:** `chip_text` per kind and the newer-save case; `local_rows/tests.rs:126-129` updated; a run that stores the same kind twice emits one event; manual refresh clears `failed_at_ms`.
+**Tests:** `chip_text` per kind and the newer-save case; `local_rows/tests.rs:126-129` updated; a run that stores the same kind twice emits one event; `Command::Refresh` clears `failed_at_ms`, and a foreground resume leaves it.
 
 ---
 
@@ -124,9 +135,9 @@ Order: T1 → T2 and T3 (T3 needs only T1's field) → T4 → T5 → T6. T1 to T
 
 **Tier:** leaf (`qml/pages/**`), but if the chip's colours need `qml/platform/Theme.qml` that file is trunk. **Testing:** `cargo make qml-test`, `cargo make app-docker`, `cargo make pot`.
 
-**Files:** the chip #228 T6 adds in `qml/pages/inbox/MessageRow.qml`; one new component `qml/pages/inbox/StatusChip.qml`; the upload-off glyph in the icon set.
+**Files:** `qml/pages/inbox/StatusChip.qml`, which #228 T6 builds (amended: it adds the component, the upload-off glyph and the fixed "Not uploaded" text). This task only changes the binding where `MessageRow.qml` uses it.
 
-**Behaviour:** the chip is a **new 24 px status pill, not `Chip.qml`** (that is the 44 px filter button). It has the upload-off icon, the text from `model.notUploadedText`, one line, elided, tint A. Its ink comes from theme tokens, so it is right in the dark theme. No `qsTr` for the labels: they come from Rust.
+**Behaviour:** the pill is the **24 px status component, not `Chip.qml`** (that is the 44 px filter button). The text comes from `model.notUploadedText`, one line, elided, tint A. Its ink comes from theme tokens, so it is right in the dark theme. No `qsTr` for the labels: they come from Rust.
 
 **Invariants:** no swipe handler; no Lomiri API outside `qml/platform/ut/`; the label never wraps (German and French labels are about 215 to 228 px of the 328 px row, so it fits; the elide is the guard).
 
