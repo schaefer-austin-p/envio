@@ -40,8 +40,10 @@ fn has_pause(events: &[String]) -> bool {
 
 #[test]
 fn a_microsoft_account_signs_in_syncs_sends_and_refreshes_without_a_word() {
-    // Code exchange gives at-1, the next connect refreshes to at-2.
-    let mut w = world(&["at-1", "at-2", "at-3"], |n, form| {
+    // The code exchange gives at-1, which the servers do not accept: IMAP
+    // only gets in if the core refreshes ahead (at-1 has 60 s left), and
+    // SMTP then refreshes again.
+    let mut w = world(&["at-2", "at-3"], |n, form| {
         if form.contains("grant_type=authorization_code") {
             short("at-1", "rt-1")
         } else {
@@ -85,6 +87,7 @@ fn a_microsoft_account_signs_in_syncs_sends_and_refreshes_without_a_word() {
     // IMAP and SMTP each signed in with a token of their own.
     let imap = w.peers.imap_tokens.lock().unwrap().clone();
     let smtp = w.peers.smtp_tokens.lock().unwrap().clone();
+    assert_eq!(imap[0], "at-2", "IMAP did not get a refreshed token");
     assert_ne!(imap[0], smtp[0], "SMTP reused IMAP's token");
 }
 
