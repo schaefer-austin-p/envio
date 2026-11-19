@@ -21,6 +21,7 @@ mod image_label;
 mod image_size;
 mod images;
 mod invite;
+mod layout;
 mod linear;
 mod link;
 mod mail;
@@ -53,6 +54,7 @@ pub use invite::{
     Invite, InviteMethod, NaiveParts, PartStat, Person, When, calendar_file, invite_of,
     parse_invite, reply_ics, reply_outgoing,
 };
+pub use layout::{Layout, layout};
 pub use link::{LinkParts, link_parts, strip_bidi_controls};
 pub use mailto::{MailtoDraft, parse_mailto};
 pub use message::{Body, Message, parse, quote_text};

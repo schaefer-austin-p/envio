@@ -119,6 +119,7 @@ pub mod qobject {
             compose: f64,
             draft: &QMap_QString_QVariant,
             quoted: &QString,
+            note: &QString,
         );
         #[qsignal]
         #[cxx_name = "draftSaved"]

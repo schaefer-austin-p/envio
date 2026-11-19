@@ -3,8 +3,8 @@
 use envio_store::Draft;
 use envio_sync::plan::message_id::usable_message_id;
 
-/// The local draft whose server copy is `message_id` (its `message_id`,
-/// `pending_id` or `imported_from`, trimmed), in `account`. An unusable
+/// The local draft whose server copy is, was or was imported from
+/// `message_id` (see `ServerCopy::names`), in `account`. An unusable
 /// Message-ID (empty, `<>`) matches nothing.
 pub(crate) fn draft_for(
     drafts: &[(String, Draft)],
@@ -16,23 +16,8 @@ pub(crate) fn draft_for(
     }
     drafts
         .iter()
-        .find(|(_, d)| {
-            d.account == account
-                && [
-                    &d.server.message_id,
-                    &d.server.pending_id,
-                    &d.server.imported_from,
-                ]
-                .into_iter()
-                .flatten()
-                .any(|id| same_id(id, message_id))
-        })
+        .find(|(_, d)| d.account == account && d.server.names(message_id))
         .map(|(id, _)| id.clone())
-}
-
-/// Two Message-IDs are the same after trimming (servers pad and fold them).
-pub(crate) fn same_id(a: &str, b: &str) -> bool {
-    a.trim() == b.trim()
 }
 
 #[cfg(test)]
@@ -111,13 +96,36 @@ mod tests {
     }
 
     #[test]
+    fn matches_a_message_id_the_draft_had_two_uploads_ago() {
+        let l = vec![(
+            "g".into(),
+            draft(
+                "me",
+                envio_store::ServerCopy {
+                    message_id: Some("<now@example.org>".into()),
+                    earlier: vec!["<old@example.org>".into(), "<mid@example.org>".into()],
+                    ..Default::default()
+                },
+            ),
+        )];
+        assert_eq!(
+            draft_for(&l, "me", "<old@example.org>").as_deref(),
+            Some("g")
+        );
+        assert_eq!(
+            draft_for(&l, "me", "<mid@example.org>").as_deref(),
+            Some("g")
+        );
+        assert_eq!(draft_for(&l, "me", "<other@example.org>"), None);
+    }
+
+    #[test]
     fn ignores_surrounding_whitespace() {
         let l = listing();
         assert_eq!(
             draft_for(&l, "me", "  <m1@example.org>\r\n").as_deref(),
             Some("a")
         );
-        assert!(same_id(" <x@example.org> ", "<x@example.org>"));
     }
 
     #[test]

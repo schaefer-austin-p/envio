@@ -94,6 +94,7 @@ pub enum Signal {
         compose: ComposeId,
         draft: DraftInput,
         quoted: String,
+        note: String,
     },
     DraftSaved {
         compose: ComposeId,
