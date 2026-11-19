@@ -27,7 +27,7 @@ Item {
     }
 
     // The paths of the files the user picked to attach.
-    signal filesImported(var paths)
+    signal filesImported(var paths, var transfer)
 
     // Asks the user for files; `filesImported` follows.
     function importFiles() {
@@ -65,7 +65,7 @@ Item {
     Connections {
         target: picker.item
         ignoreUnknownSignals: true
-        function onImported(paths) { root.filesImported(paths) }
+        function onImported(paths, transfer) { root.filesImported(paths, transfer) }
         function onDone() { picker.source = "" }
     }
     Connections {
