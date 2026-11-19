@@ -305,6 +305,7 @@ fn setup_event(
                     text::status::status(&AccountStatus::Certificate(None), false)
                 }
                 Problem::Refused(reason) => text::notice::refused(&reason),
+                _ if dropped(error) => text::setup::dropped(),
                 _ => text::setup::unreachable(),
             };
             return Event::SetupProblem { email, text };
@@ -319,6 +320,20 @@ fn setup_event(
         title: text::setup::trust_title(service),
         text: text::setup::trust(service, host, reason),
     }
+}
+
+/// The connection was closed or reset on us (a rate limit, a firewall, a
+/// plaintext port behind implicit TLS), as opposed to never connecting.
+fn dropped(error: &NetError) -> bool {
+    matches!(
+        error,
+        NetError::Io(e) if matches!(
+            e.kind(),
+            io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::UnexpectedEof
+        )
+    )
 }
 
 /// Opens IMAP, then SMTP, with the request's pins.
@@ -364,6 +379,46 @@ mod tests {
                 SetupJob::Exchange(job) => job.ticket,
             })
             .collect()
+    }
+
+    fn text_of(error: &NetError) -> String {
+        let addr = ServerAddr {
+            host: "mail.example.org".into(),
+            port: 465,
+            security: envio_net::Security::Tls,
+        };
+        let setup = AccountSetup {
+            name: String::new(),
+            email: "a@example.org".into(),
+            username: "a".into(),
+            imap: addr.clone(),
+            smtp: addr,
+            source: None,
+            needs_confirm: false,
+        };
+        match setup_event(&setup, Service::Smtp, error, false) {
+            Event::SetupProblem { text, .. } => text,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_dropped_connection_is_not_called_unreachable() {
+        for kind in [
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::UnexpectedEof,
+        ] {
+            let text = text_of(&NetError::Io(io::Error::new(kind, "peer closed")));
+            assert_eq!(text, text::setup::dropped(), "{kind:?}");
+            assert!(!text.contains("Could not reach"), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_refused_connection_is_still_unreachable() {
+        let error = NetError::Io(io::Error::from(io::ErrorKind::ConnectionRefused));
+        assert_eq!(text_of(&error), text::setup::unreachable());
     }
 
     #[test]

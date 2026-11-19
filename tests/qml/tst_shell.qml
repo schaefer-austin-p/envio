@@ -31,6 +31,31 @@ Item {
 
         readonly property var ann: ({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })
 
+        function message(id) {
+            return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
+                     preview: "I found a train", date: 0, dateBucket: "time", unread: true,
+                     flagged: false, hasAttachments: false, selected: false, open: false }
+        }
+        function find(item, name) {
+            if (item.objectName === name) return item
+            const kids = item.children || []
+            for (let i = 0; i < kids.length; i++) {
+                const hit = find(kids[i], name)
+                if (hit !== null) return hit
+            }
+            if (item.contentItem && item.contentItem !== item) return find(item.contentItem, name)
+            return null
+        }
+        // A booted shell of the given width (gu) with three messages.
+        function bootWide(gu) {
+            const b = boot()
+            b.core.messages.append(message(7))
+            b.core.messages.append(message(8))
+            b.shell.width = thm.gu(gu)
+            tryVerify(function() { return b.shell.depth === 1 })
+            return b
+        }
+
         // A shell on its own core, with an account unless told otherwise.
         function boot(withAccount) {
             const c = coreComponent.createObject(root)
@@ -392,6 +417,336 @@ Item {
             tryVerify(function() { return b.shell.currentPage.objectName === "settingsPage" })
             b.shell.currentPage.accountsRequested()
             compare(b.shell.depth, 3)
+            b.shell.destroy()
+        }
+
+        function test_narrow_shows_the_stack() {
+            const b = bootWide(70)
+            compare(b.shell.wide, false)
+            compare(b.shell.depth, 1)
+            b.shell.destroy()
+        }
+
+        function test_wide_shows_list_and_empty_pane() {
+            const b = bootWide(100)
+            compare(b.shell.wide, true)
+            const empty = find(b.shell, "emptyReader")
+            verify(empty !== null, "no empty pane")
+            tryVerify(function() { return empty.visible })
+            compare(empty.shortcutHint, qsTr("Or press %1 to write one."))
+            b.shell.destroy()
+        }
+
+        function test_tap_row_opens_in_pane_without_push() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.shell.depth, 1)
+            compare(b.core.openMessage, 7)
+            compare(b.core.messages.get(0).open, true)
+            compare(b.core.messages.get(1).open, false)
+            compare(find(b.shell, "readerPage") !== null, true)
+            b.shell.destroy()
+        }
+
+        function test_narrow_tap_row_still_pushes() {
+            const b = bootWide(70)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.shell.depth, 2)
+            compare(b.core.called("setOpenMessage").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_hysteresis() {
+            const b = bootWide(80)
+            compare(b.shell.wide, false)
+            b.shell.width = thm.gu(90)
+            compare(b.shell.wide, true)
+            b.shell.width = thm.gu(88)
+            compare(b.shell.wide, true)
+            b.shell.width = thm.gu(85)
+            compare(b.shell.wide, false)
+            b.shell.width = thm.gu(88)
+            compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
+        function test_close_clears_the_open_message() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            find(b.shell, "readerPage").backRequested()
+            compare(b.core.openMessage, 0)
+            compare(b.core.called("setOpenMessage").pop().args, [0])
+            b.shell.destroy()
+        }
+
+        function test_settings_covers_both_panes() {
+            const b = bootWide(100)
+            b.shell.currentPage.settingsRequested()
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.objectName, "settingsPage")
+            tryCompare(b.shell.currentPage, "width", b.shell.frameArea.width)
+            verify(!find(b.shell, "emptyReader").visible, "the pane shows over the settings page")
+            b.shell.destroy()
+        }
+
+        function test_folder_change_clears_open() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            b.shell.currentPage.showFolder(3, "Archive")
+            // The core clears it (Rust's open_list); the shell does not call setOpenMessage(0) too.
+            compare(b.core.openMessage, 0)
+            compare(b.core.called("setOpenMessage").length, 1)
+            tryVerify(function() { return find(b.shell, "emptyReader").visible })
+            b.shell.destroy()
+        }
+
+        function test_pane_shows_compose_while_paneCompose_set() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            b.shell.paneCompose = 4
+            compare(find(b.shell, "readerPage"), null)
+            const page = find(b.shell, "composePage")
+            verify(page !== null, "no compose in the pane")
+            compare(page.compose, 4)
+            b.shell.paneCompose = 0
+            verify(find(b.shell, "readerPage") !== null, "the reader does not return")
+            b.shell.currentPage.showFolder(3, "Archive")
+            verify(find(b.shell, "emptyReader") !== null)
+            b.shell.destroy()
+        }
+
+        function test_empty_pane_text_icon_and_keys() {
+            const b = bootWide(100)
+            const empty = find(b.shell, "emptyReader")
+            compare(find(empty, "emptyIcon").name, "mailopen")
+            const title = find(empty, "emptyTitle")
+            compare(title.font.pixelSize, 18)
+            compare(title.font.family, thm.fontUi)
+            verify(!title.text.endsWith("."), "the title has a full stop")
+            verify(empty.shortcutHint.endsWith("."), "the hint has no full stop")
+            let keys = []
+            ;(function walk(it) {
+                if (it.objectName === "keyChip") keys.push(it.text)
+                for (let i = 0; i < it.children.length; i++) walk(it.children[i])
+            })(empty)
+            compare(keys, [qsTr("Ctrl"), "N"])
+            b.shell.destroy()
+        }
+
+        function test_hairline_between_list_and_pane() {
+            const b = bootWide(100)
+            const line = find(b.shell, "paneHairline")
+            verify(line !== null && line.visible, "no hairline")
+            compare(line.width, 1)
+            compare(line.x, thm.gu(50))
+            compare(line.color, thm.hairline)
+            b.shell.destroy()
+        }
+        function test_no_hairline_when_narrow() {
+            const b = bootWide(70)
+            verify(!find(b.shell, "paneHairline").visible)
+            b.shell.destroy()
+        }
+
+        function test_second_compose_closes_the_first() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, { to: [], cc: [], bcc: [], subject: "one", body: "", account: "ann", attachments: [] }, "")
+            b.core.reset()
+            b.shell.composeOpened(2)
+            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[1, false]])
+            compare(b.shell.paneCompose, 2)
+            const page = find(b.shell, "composePage")
+            compare(page.compose, 2)
+            verify(!page.filled, "the new compose shows the old one's fields")
+            b.core.reset()
+            page.edited()
+            compare(b.core.called("draftChanged").length, 0)
+            b.shell.destroy()
+        }
+
+        readonly property var composeDraft: ({ account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "Plans",
+            body: "Hello", inReplyTo: "", references: [], attachments: ["/tmp/a.pdf"] })
+
+        // Compose 4 open in the pane at 100 gu, edited, with an attachment.
+        function wideCompose() {
+            const b = bootWide(100)
+            b.shell.composeOpened(4)
+            b.core.composeReady(4, composeDraft, "On Monday Bob wrote:\n> hi")
+            const page = find(b.shell, "composePage")
+            find(page, "subjectField").text = "Plans, edited"
+            find(page, "bodyField").text = "Hello again"
+            b.core.reset()
+            return b
+        }
+
+        function test_narrowing_moves_the_compose_to_the_stack() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            compare(b.shell.paneCompose, 0)
+            compare(b.shell.depth, 2)
+            const page = b.shell.currentPage
+            compare(page.objectName, "composePage")
+            compare(page.compose, 4)
+            verify(page.visible)
+            // The full width of the window, not a sliver of the old pane.
+            verify(page.width >= thm.gu(70) - 2, "compose is " + page.width + " wide")
+            const sent = JSON.parse(page.draftJson())
+            compare(sent.subject, "Plans, edited")
+            compare(sent.to, ["Bob <bob@example.org>"])
+            compare(sent.body, "Hello again\n\nOn Monday Bob wrote:\n> hi")
+            compare(sent.attachments, ["/tmp/a.pdf"])
+            compare(b.core.called("closeCompose").length, 0)
+            compare(b.core.called("draftChanged").length, 0)
+            b.shell.width = thm.gu(45)
+            verify(b.shell.currentPage.width >= thm.gu(45) - 2, "compose is " + b.shell.currentPage.width + " wide at 45 gu")
+            b.shell.destroy()
+        }
+
+        function test_compose_content_survives_narrow_then_wide() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.width = thm.gu(100)
+            compare(b.shell.wide, true)
+            const page = b.shell.currentPage
+            compare(page.objectName, "composePage")
+            compare(page.compose, 4)
+            verify(page.width >= thm.gu(50), "compose is " + page.width + " wide")
+            compare(JSON.parse(page.draftJson()).subject, "Plans, edited")
+            compare(JSON.parse(page.draftJson()).attachments, ["/tmp/a.pdf"])
+            compare(b.core.called("closeCompose").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_while_sending_keeps_send_disabled() {
+            const b = wideCompose()
+            find(b.shell, "composePage").send()
+            compare(b.core.called("send").length, 1)
+            b.shell.width = thm.gu(70)
+            const page = b.shell.currentPage
+            compare(page.sending, true)
+            compare(find(page, "sendButton").enabled, false)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_keeps_the_compose_error() {
+            const b = wideCompose()
+            find(b.shell, "composePage").error = "No recipient"
+            b.shell.width = thm.gu(70)
+            compare(b.shell.currentPage.error, "No recipient")
+            b.shell.destroy()
+        }
+
+        function test_grid_unit_change_rechecks_the_layout() {
+            const b = boot()
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            // Pretend the last check saw a wide window; only the signal of the
+            // grid unit (a Suru change on the phone) can correct it here.
+            b.shell._wide = true
+            compare(b.shell.wide, true)
+            thm.gridUnitChanged()
+            compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
+        function test_the_pane_composes_picker_transfer_is_finalized() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "")
+            const t = newTransfer()
+            find(b.shell, "composePage").pick(["/p/a.pdf", "/p/b.png"], t)
+            compare(t.finalized, 0, "the copies are not made yet")
+            b.core.attached(1, "/d/a.pdf", "a.pdf", 3)
+            compare(t.finalized, 0, "one file is still being copied")
+            b.core.attachFailed(1, "unreadable")
+            compare(t.finalized, 1)
+            b.shell.destroy()
+        }
+
+        function test_an_expanded_quote_stays_expanded_after_narrowing() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, draft, "On Monday Bob wrote:\n> hi")
+            find(find(b.shell, "composePage"), "quoteShow").clicked()
+            verify(find(find(b.shell, "composePage"), "quoteText").visible)
+            b.shell.width = thm.gu(70)
+            verify(find(b.shell.currentPage, "quoteText").visible, "the quote folded again")
+            b.shell.destroy()
+        }
+
+        function test_back_from_the_moved_compose_returns_to_the_list() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.currentPage.leave()
+            tryCompare(b.shell, "depth", 1)
+            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[4, false]])
+            b.shell.destroy()
+        }
+
+        function test_pane_compose_is_never_narrower_than_36_gu() {
+            const b = wideCompose()
+            for (const w of [90, 88, 86, 85, 70, 45]) {
+                b.shell.width = thm.gu(w)
+                const pane = find(b.shell, "pane")
+                if (b.shell.wide) verify(pane.width >= thm.gu(36), "pane is " + pane.width + " at " + w + " gu")
+                else compare(b.shell.paneCompose, 0)
+                compare(b.shell.wide, w >= 86)
+            }
+            b.shell.destroy()
+        }
+
+        function test_second_compose_while_narrowed_goes_on_the_stack() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.composeOpened(5)
+            compare(b.shell.depth, 3)
+            compare(b.shell.currentPage.compose, 5)
+            verify(b.shell.currentPage.visible)
+            compare(b.core.called("closeCompose").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_clears_the_open_message() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            b.shell.width = thm.gu(80)
+            compare(b.shell.wide, false)
+            compare(b.core.openMessage, 0)
+            compare(b.core.messages.get(0).open, false)
+            b.shell.destroy()
+        }
+
+        function test_ctrl_n_opens_a_new_message_in_the_pane() {
+            const b = bootWide(100)
+            verify(b.shell.newShortcut.enabled)
+            b.shell.newShortcut.activated()
+            compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
+            compare(b.shell.paneCompose, 1)
+            // With compose open the key does nothing more.
+            verify(!b.shell.newShortcut.enabled)
+            b.shell.destroy()
+        }
+
+        function test_wide_compose_is_inset_and_capped() {
+            const b = bootWide(200)
+            b.shell.composeOpened(4)
+            b.core.composeReady(4, { to: [], cc: [], bcc: [], subject: "", body: "", account: "ann", attachments: [] }, "")
+            const page = find(b.shell, "composePage")
+            const to = find(page, "to")
+            compare(to.mapToItem(page, 0, 0).x, thm.gu(5))
+            compare(to.width, thm.gu(90))
+            b.shell.destroy()
+        }
+
+        function test_compose_opens_in_the_pane_when_wide() {
+            const b = bootWide(100)
+            b.shell.composeOpened(5)
+            compare(b.shell.depth, 1)
+            compare(b.shell.paneCompose, 5)
             b.shell.destroy()
         }
     }

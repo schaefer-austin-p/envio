@@ -218,11 +218,12 @@ pub(super) async fn replay(
     account: &str,
     session: &mut ImapSession,
 ) -> Result<(), Problem> {
-    let replayed = driver::replay(session, &mut worker.store.local(), account, now_ms())
-        .await
-        .map_err(|e| imap_error(&e))?;
+    let replayed = driver::replay(session, &mut worker.store.local(), account, now_ms()).await;
+    // Also after an error: actions committed before it, or before a crash,
+    // have their forget intents in the journal.
+    worker.forget_deleted_drafts(account);
+    let replayed = replayed.map_err(|e| imap_error(&e))?;
     worker.report_replayed(account, &replayed);
-    worker.forget_deleted_drafts(account, &replayed);
     // A replay that stopped, Local included, is the account's problem.
     match replayed.stopped {
         Some(kind) => Err(problem::from_kind(kind)),
@@ -231,14 +232,16 @@ pub(super) async fn replay(
 }
 
 impl Worker<'_> {
-    /// Removes the local drafts whose Drafts-folder copy the replay has
-    /// just deleted or moved to Trash, except drafts open in a window.
-    pub(super) fn forget_deleted_drafts(&mut self, account: &str, replayed: &Replayed) {
+    /// Removes the local drafts whose Drafts-folder copy a committed action
+    /// has deleted or moved to Trash, except drafts open in a window. The
+    /// journal remembers what is owed, so a crash or a failed replay only
+    /// delays it to the next run.
+    pub(super) fn forget_deleted_drafts(&mut self, account: &str) {
         let open = self.book.open_drafts();
         if let Err(error) = driver::forget_deleted_drafts(
             (&self.store.db, &self.store.drafts),
+            &mut self.store.journal,
             account,
-            &replayed.committed,
             &open,
         ) {
             log::warn!("account {account}: removing drafts deleted on the server: {error}");
@@ -389,22 +392,20 @@ mod tests {
             .drafts
             .mark_uploaded(&open_id, "<m@x>", updated)
             .unwrap();
-        let replayed = Replayed {
-            committed: vec![Action {
-                seq: 1,
-                at_ms: 0,
-                target: MessageRef {
-                    account: seeded.account.clone(),
-                    folder: "Drafts".into(),
-                    uidvalidity: 1,
-                    uid: 1,
-                    message_id: Some("<m@x>".into()),
-                },
-                kind: ActionKind::Delete,
-            }],
-            ..Replayed::default()
+        let target = MessageRef {
+            account: seeded.account.clone(),
+            folder: "Drafts".into(),
+            uidvalidity: 1,
+            uid: 1,
+            message_id: Some("<m@x>".into()),
         };
-        worker.forget_deleted_drafts(&seeded.account, &replayed);
+        let action = worker
+            .store
+            .journal
+            .push(0, target, ActionKind::Delete)
+            .unwrap();
+        worker.store.journal.commit(action.seq).unwrap();
+        worker.forget_deleted_drafts(&seeded.account);
         assert!(worker.store.drafts.load(&closed).is_err(), "forgotten");
         assert!(worker.store.drafts.load(&open_id).is_ok(), "open: kept");
         assert!(worker.store.drafts.load(&other).is_ok(), "other account");

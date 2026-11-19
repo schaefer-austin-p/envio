@@ -176,4 +176,23 @@ TestCase {
         compare(theme.barTitleFont.family, theme.fontTitle)
         compare(theme.barTitleFont.weight, Font.DemiBold)
     }
+
+    // docs/10-design.md: the row under the mouse, between ground and selected.
+    function test_hover_roles() {
+        const want = [
+            ["carbon", "light", "#f3f1ea"], ["carbon", "dark", "#1b2027"],
+            ["airmail", "light", "#f7f2e8"], ["airmail", "dark", "#18222e"]
+        ]
+        function lum(c) { return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
+        for (const w of want) {
+            theme.name = w[0]
+            theme.darkMode = w[1]
+            const tag = w[0] + " " + w[1]
+            compare(String(theme.hover), w[2], tag)
+            verify(String(theme.hover) !== String(theme.ground), tag + ": same as ground")
+            verify(String(theme.hover) !== String(theme.selected), tag + ": same as selected")
+            verify(Math.abs(lum(theme.hover) - lum(theme.ground)) < Math.abs(lum(theme.selected) - lum(theme.ground)),
+                   tag + ": hover is not closer to ground than selected")
+        }
+    }
 }

@@ -4,7 +4,7 @@ import "../platform"
 // A line icon drawn on a canvas in a theme colour, so no icon set (and no
 // Suru) is needed. `name` is one of: back, forward, down, close, check,
 // plus, send, search, menu, alert, info, archive, trash, move, more, flag,
-// clip, mail, pencil, offline.
+// clip, mail, mailopen, pencil, offline.
 Canvas {
     id: root
     required property Theme theme
@@ -45,6 +45,7 @@ Canvas {
             "flag": [[6, 21], [6, 4], null, [6, 5], [18, 5], [15, 9], [18, 13], [6, 13]],
             "mail": [[4, 6], [20, 6], [20, 18], [4, 18], [4, 6], null, [4, 6], [12, 13], [20, 6]],
             "send": [[4, 12], [20, 4], [14, 20], [11, 14], [4, 12], null, [11, 14], [20, 4]],
+            "mailopen": [[4, 10], [12, 4], [20, 10], [20, 19], [4, 19], [4, 10], null, [4, 10], [12, 15], [20, 10]],
             "pencil": [[4, 20], [5, 15], [16, 4], [20, 8], [9, 19], [4, 20]]
         }
         // Icons with arcs are SVG path strings (same 24 grid). Arc flags stay

@@ -5,6 +5,7 @@ use std::fs::{self, OpenOptions};
 use std::io;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,10 @@ pub struct Drafts {
     /// Held across every read-modify-write of a draft file: core's draft
     /// thread saves while its worker records an upload.
     lock: Mutex<()>,
+    /// Test seam: the next removal of a draft fails with an I/O error.
+    fail_next_remove: AtomicBool,
+    /// Test seam: the next `forget_if_uploaded` finds the file unreadable.
+    pub(crate) corrupt_next_forget: AtomicBool,
 }
 
 impl Drafts {
@@ -58,6 +63,8 @@ impl Drafts {
         let drafts = Self {
             dir: dir.to_owned(),
             lock: Mutex::new(()),
+            fail_next_remove: AtomicBool::new(false),
+            corrupt_next_forget: AtomicBool::new(false),
         };
         // For `delete`'s markers, made now so a folder that turns read-only
         // later still takes them. Interrupted marker writes go too.
@@ -131,6 +138,20 @@ impl Drafts {
         let before = old.map(|old| old.attachments).unwrap_or_default();
         self.prune(id, &before, &draft.attachments);
         Ok(())
+    }
+
+    /// Test seam: makes the next `forget_if_uploaded` find the draft file
+    /// unreadable, as if it was damaged after the listing.
+    #[doc(hidden)]
+    pub fn corrupt_next_forget(&self) {
+        self.corrupt_next_forget.store(true, Ordering::Relaxed);
+    }
+
+    /// Test seam: makes the next removal of a draft fail with an I/O error,
+    /// before anything is touched.
+    #[doc(hidden)]
+    pub fn fail_next_remove(&self) {
+        self.fail_next_remove.store(true, Ordering::Relaxed);
     }
 
     pub(crate) fn held(&self) -> MutexGuard<'_, ()> {
@@ -243,6 +264,9 @@ impl Drafts {
     /// Removes the draft file and its files with `lock` held, and leaves no
     /// note for the server copy.
     pub(crate) fn remove_locked(&self, id: &str) -> Result<()> {
+        if self.fail_next_remove.swap(false, Ordering::Relaxed) {
+            return Err(io::Error::other("injected removal failure").into());
+        }
         // A marker first: when the file can't be removed (a disk or
         // permission error), the draft stays hidden and the next start
         // removes it, so a sent draft never comes back. Best effort.
