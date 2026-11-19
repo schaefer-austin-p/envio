@@ -40,8 +40,10 @@ where
             match hop(parsed).await? {
                 Reply::Body(body) => return Ok(Some(body)),
                 Reply::Nothing => return Ok(None),
-                Reply::Chunked => {
-                    return Err(NetError::Protocol("chunked autoconfig reply".into()));
+                Reply::TransferEncoded => {
+                    return Err(NetError::Protocol(
+                        "autoconfig reply with a Transfer-Encoding".into(),
+                    ));
                 }
                 Reply::Redirect(next) => url = next,
             }

@@ -133,6 +133,14 @@ pub fn remove_account(local: &mut Local<'_>, drafts: &Drafts, account: &str) -> 
         local.journal.done(seq)?;
         local.schedule.succeeded(&Key::Action(seq));
     }
+    // Its drafts go below; nothing is left to forget for it.
+    let owed: Vec<u64> = local
+        .journal
+        .to_forget(account)
+        .iter()
+        .map(|action| action.seq)
+        .collect();
+    local.journal.settle(&owed)?;
     local.journal.compact()?;
     for item in local.outbox.items()? {
         if item.meta.account == account {
