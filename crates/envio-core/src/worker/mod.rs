@@ -27,6 +27,11 @@ mod start;
 mod store;
 #[cfg(test)]
 mod testing;
+#[allow(
+    dead_code,
+    reason = "the connect path takes it into use in the next change"
+)]
+mod token;
 mod trust;
 mod turn;
 mod userdata;
