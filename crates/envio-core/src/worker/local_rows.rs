@@ -56,6 +56,10 @@ impl LocalIds {
         self.held.insert(draft_id.to_owned());
     }
 
+    pub fn is_held(&self, draft_id: &str) -> bool {
+        self.held.contains(draft_id)
+    }
+
     pub fn release(&mut self, draft_id: &str) {
         self.held.remove(draft_id);
     }

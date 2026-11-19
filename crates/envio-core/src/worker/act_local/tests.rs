@@ -226,6 +226,64 @@ fn a_draft_already_open_is_not_held_or_offered() {
 }
 
 #[test]
+fn a_second_delete_in_the_window_makes_no_second_offer() {
+    let r = rig();
+    let mut w = open(&r.config, &r.sink);
+    let m = with_draft(&mut w, &r);
+    w.act(&[m.row], UserAction::Delete);
+    w.act(&[m.row], UserAction::Delete);
+    assert_eq!(offers(&r.sink).len(), 1);
+    w.undo_action(offers(&r.sink)[0], now_ms());
+    let _ = w.expire_undos(now_ms() + UNDO_MS + 1_000);
+    assert!(w.store.drafts.load(&m.id).is_ok(), "the undone draft stays");
+    assert_eq!(shown(&w, m.folder), 1);
+}
+
+#[test]
+fn expiry_leaves_a_draft_that_is_no_longer_held() {
+    let r = rig();
+    let mut w = open(&r.config, &r.sink);
+    let m = with_draft(&mut w, &r);
+    // An offer whose hold an Undo already released.
+    w.undo.offer(crate::undo::Offer {
+        what: Offered::LocalDrafts {
+            ids: vec![m.id.clone()],
+            rest: None,
+        },
+        expires_at_ms: now_ms() - 1,
+    });
+    let _ = w.expire_undos(now_ms());
+    assert!(w.store.drafts.load(&m.id).is_ok());
+    assert!(m.files.exists());
+}
+
+#[test]
+fn a_closing_compose_still_holds_its_draft() {
+    let r = rig();
+    let mut w = open(&r.config, &r.sink);
+    let m = with_draft(&mut w, &r);
+    // At Act time: the compose is closing, its last save may be queued.
+    w.book.adopt(ComposeId(1), m.id.clone());
+    w.book.closing(ComposeId(1));
+    w.act(&[m.row], UserAction::Delete);
+    assert!(offers(&r.sink).is_empty());
+    assert_eq!(shown(&w, m.folder), 1);
+}
+
+#[test]
+fn a_compose_that_closed_during_the_window_still_protects_the_draft() {
+    let r = rig();
+    let mut w = open(&r.config, &r.sink);
+    let m = with_draft(&mut w, &r);
+    w.act(&[m.row], UserAction::Delete);
+    w.book.adopt(ComposeId(1), m.id.clone());
+    w.book.closing(ComposeId(1));
+    let _ = w.expire_undos(now_ms() + UNDO_MS + 1_000);
+    assert!(w.store.drafts.load(&m.id).is_ok());
+    assert_eq!(shown(&w, m.folder), 1);
+}
+
+#[test]
 fn an_unknown_negative_id_is_ignored() {
     let r = rig();
     let mut w = open(&r.config, &r.sink);

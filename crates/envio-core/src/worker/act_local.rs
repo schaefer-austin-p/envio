@@ -36,7 +36,6 @@ impl Worker<'_> {
         if action != UserAction::Delete {
             return Vec::new();
         }
-        let open = self.book.open_drafts();
         let mut held: Vec<String> = Vec::new();
         for id in ids.iter().filter(|id| id.0 < 0) {
             let Some(draft) = self.local_ids.borrow().draft_of(*id).map(str::to_owned) else {
@@ -45,7 +44,12 @@ impl Worker<'_> {
             if held.contains(&draft) {
                 continue;
             }
-            if open.contains(&draft) {
+            // Held by an earlier Delete: that offer owns it, no second one.
+            if self.local_ids.borrow().is_held(&draft) {
+                continue;
+            }
+            // A compose that is closing still counts: its last save may be queued.
+            if self.book.holder(&draft).is_some() {
                 log::info!("draft {draft}: a compose holds it, not deleting it");
                 continue;
             }
@@ -60,14 +64,15 @@ impl Worker<'_> {
         held
     }
 
-    /// The window ended: the held drafts and their files go, except one a
-    /// compose holds by now. A failed delete keeps the draft (its row
-    /// returns).
+    /// The window ended: the held drafts and their files go, except one
+    /// that is no longer held (an Undo restored it) and one a compose holds
+    /// by now. A failed delete keeps the draft (its row returns).
     pub(super) fn delete_local(&mut self, ids: &[String]) {
-        let open = self.book.open_drafts();
         let accounts = self.accounts_of(ids);
         for id in ids {
-            if open.contains(id) {
+            if !self.local_ids.borrow().is_held(id) {
+                log::info!("draft {id}: restored meanwhile, not deleting it");
+            } else if self.book.holder(id).is_some() {
                 log::info!("draft {id}: a compose holds it, not deleting it");
             } else if let Err(e) = self.store.drafts.delete(id) {
                 log::warn!("deleting draft {id}: {e}");
