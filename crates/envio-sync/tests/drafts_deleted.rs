@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use envio_mime::Address;
 use envio_net::imap::Role;
-use envio_store::{ActionKind, Draft};
+use envio_store::{ActionKind, Draft, Journal};
 use envio_sync::UNDO_MS;
 use envio_sync::driver::{
     DraftRun, forget_deleted_drafts, record, replay, sync_drafts, sync_folder, sync_folders,
@@ -73,16 +73,25 @@ async fn replay_and_forget(
     now_ms: i64,
     open: &BTreeSet<String>,
 ) -> Vec<String> {
-    let replayed = replay(server, &mut store.local(), ACCOUNT, now_ms)
+    replay(server, &mut store.local(), ACCOUNT, now_ms)
         .await
         .unwrap();
+    forget(store, open)
+}
+
+fn forget(store: &mut Store, open: &BTreeSet<String>) -> Vec<String> {
     forget_deleted_drafts(
         (&store.db, &store.drafts),
+        &mut store.journal,
         ACCOUNT,
-        &replayed.committed,
         open,
     )
     .unwrap()
+}
+
+/// What a restart does to the journal: it is read from disk again.
+fn restart(store: &mut Store) {
+    store.journal = Journal::open(&store.dir.path().join("journal")).unwrap();
 }
 
 #[tokio::test]
@@ -121,4 +130,59 @@ async fn a_draft_with_newer_unsent_edits_survives_the_delete_of_its_old_copy() {
     let gone = replay_and_forget(&mut server, &mut store, LATER, &BTreeSet::new()).await;
     assert!(gone.is_empty());
     assert_eq!(store.drafts.load(&id).unwrap().body, "newer text");
+}
+
+#[tokio::test]
+async fn a_forget_cut_short_after_the_commit_runs_on_the_next_start() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    // The replay commits the delete; the process dies before the forget.
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert!(store.drafts.load(&id).is_ok());
+    restart(&mut store);
+    let gone = forget(&mut store, &BTreeSet::new());
+    assert_eq!(gone, std::slice::from_ref(&id));
+    assert!(store.drafts.load(&id).is_err());
+}
+
+#[tokio::test]
+async fn a_forget_settles_once_so_it_does_not_run_twice() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Move { to: "Trash".into() });
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(forget(&mut store, &BTreeSet::new()), [id]);
+    restart(&mut store);
+    assert!(store.journal.to_forget(ACCOUNT).is_empty());
+}
+
+#[tokio::test]
+async fn an_action_still_pending_does_not_forget_its_draft() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    // Inside the Undo window: nothing is committed, nothing is owed.
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER - 1)
+        .await
+        .unwrap();
+    assert!(forget(&mut store, &BTreeSet::new()).is_empty());
+    assert!(store.drafts.load(&id).is_ok());
+}
+
+#[tokio::test]
+async fn an_open_draft_keeps_its_file_and_the_intent_is_settled() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    let open = BTreeSet::from([id.clone()]);
+    assert!(forget(&mut store, &open).is_empty());
+    assert!(store.drafts.load(&id).is_ok());
 }

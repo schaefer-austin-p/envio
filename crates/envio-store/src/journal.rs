@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::atomic::write_atomic;
 use crate::error::{Result, StoreError};
+use crate::journal_forget::Intents;
 use crate::journal_replay::{Replay, Skipped, replay};
 use crate::messages::Flags;
 use crate::private::{create_private_dir, open_private_append};
@@ -85,6 +86,8 @@ pub struct Journal {
     skipped: Vec<Skipped>,
     /// Test seam: the next sync fails after the line is written.
     fail_next_sync: bool,
+    /// Committed Delete and Move actions whose draft is still to be forgotten.
+    intents: Intents,
 }
 
 impl Journal {
@@ -106,6 +109,7 @@ impl Journal {
             needs_compact: replay.torn,
             skipped: replay.skipped,
             fail_next_sync: false,
+            intents: Intents::open(path)?,
         };
         if !existed && let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty()) {
             File::open(dir)?.sync_all()?;
@@ -149,6 +153,34 @@ impl Journal {
         self.append(&Record::Done { seq })?;
         self.pending.remove(&seq);
         Ok(())
+    }
+
+    /// Marks an action done because it reached the server. A Delete or Move
+    /// first leaves a forget intent (see `to_forget`), so the local draft
+    /// file is removed even if the run dies before it can be.
+    pub fn commit(&mut self, seq: u64) -> Result<()> {
+        let action = self.pending.get(&seq).ok_or(StoreError::NotFound)?;
+        if matches!(action.kind, ActionKind::Delete | ActionKind::Move { .. }) {
+            let action = action.clone();
+            self.intents.add(&action)?;
+        }
+        self.done(seq)
+    }
+
+    /// Committed Delete and Move actions of the account whose forget has not
+    /// been settled, oldest first. Actions still pending are not included.
+    pub fn to_forget(&self, account: &str) -> Vec<Action> {
+        self.intents
+            .all()
+            .iter()
+            .filter(|a| a.target.account == account && !self.pending.contains_key(&a.seq))
+            .cloned()
+            .collect()
+    }
+
+    /// Drops the forget intents with these sequence numbers.
+    pub fn settle(&mut self, seqs: &[u64]) -> Result<()> {
+        self.intents.settle(seqs)
     }
 
     /// Pending actions, oldest first.

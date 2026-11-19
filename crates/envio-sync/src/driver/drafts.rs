@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use envio_mime::{Address, new_message_id};
 use envio_net::imap::Flag;
-use envio_store::{Action, Db, Draft, Drafts, FolderRole};
+use envio_store::{Db, Draft, Drafts, FolderRole, Journal};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
@@ -182,33 +182,39 @@ async fn remove_copies(server: &mut impl MailServer, ids: &[String]) -> Result<(
     Ok(())
 }
 
-/// Deletes the local drafts whose Drafts-folder copy the replayed
-/// `committed` actions have deleted or moved to Trash (see
-/// `drafts_to_forget`). Returns the ids removed.
+/// Deletes the local drafts whose Drafts-folder copy a committed Delete or
+/// Move has deleted or moved to Trash (see `drafts_to_forget`). The actions
+/// come from the journal's forget intents, which survive a crash; they are
+/// settled once every draft they name is handled, and kept for the next run
+/// when one could not be removed. Returns the ids removed.
 pub fn forget_deleted_drafts(
     (db, drafts): (&Db, &Drafts),
+    journal: &mut Journal,
     account: &str,
-    committed: &[Action],
     open: &BTreeSet<String>,
 ) -> Result<Vec<String>> {
-    let committed: Vec<Action> = committed
-        .iter()
-        .filter(|a| a.target.account == account)
-        .cloned()
-        .collect();
+    let committed = journal.to_forget(account);
     if committed.is_empty() {
         return Ok(Vec::new());
     }
     let folders = db.folders(account)?;
     let ids = drafts_to_forget(&committed, &folders, &drafts.list()?, open);
     let mut removed = Vec::new();
+    let mut failed = false;
     for (id, message_id) in ids {
         // One draft that cannot be removed must not keep the others.
         match drafts.forget_if_uploaded(&id, &message_id) {
             Ok(true) => removed.push(id),
             Ok(false) => {}
-            Err(error) => log::warn!("draft {id}: removing it after its copy was deleted: {error}"),
+            Err(error) => {
+                failed = true;
+                log::warn!("draft {id}: removing it after its copy was deleted: {error}");
+            }
         }
+    }
+    if !failed {
+        let seqs: Vec<u64> = committed.iter().map(|a| a.seq).collect();
+        journal.settle(&seqs)?;
     }
     Ok(removed)
 }

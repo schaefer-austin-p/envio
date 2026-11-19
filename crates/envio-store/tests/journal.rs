@@ -311,3 +311,45 @@ fn a_sync_that_runs_out_of_space_is_disk_full() {
     let error = StoreError::MayStillApply(std::io::Error::from(std::io::ErrorKind::StorageFull));
     assert!(error.is_disk_full());
 }
+
+#[test]
+fn a_committed_delete_or_move_leaves_a_forget_intent_that_survives_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let mut journal = Journal::open(&path).unwrap();
+    let delete = journal.push(1, target(1), ActionKind::Delete).unwrap();
+    let flag = ActionKind::SetFlags {
+        add: Flags::SEEN,
+        remove: Flags::empty(),
+    };
+    let seen = journal.push(2, target(2), flag).unwrap();
+    // Pending: not owed yet.
+    assert!(journal.to_forget("1700").is_empty());
+    journal.commit(delete.seq).unwrap();
+    journal.commit(seen.seq).unwrap();
+    drop(journal);
+    let mut journal = Journal::open(&path).unwrap();
+    let owed = journal.to_forget("1700");
+    assert_eq!(owed.iter().map(|a| a.seq).collect::<Vec<_>>(), [delete.seq]);
+    assert!(journal.to_forget("other").is_empty());
+    journal.settle(&[delete.seq]).unwrap();
+    drop(journal);
+    assert!(Journal::open(&path).unwrap().to_forget("1700").is_empty());
+}
+
+#[test]
+fn a_torn_forget_intent_line_is_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let mut journal = Journal::open(&path).unwrap();
+    let delete = journal.push(1, target(1), ActionKind::Delete).unwrap();
+    journal.commit(delete.seq).unwrap();
+    drop(journal);
+    let mut sidecar = OpenOptions::new()
+        .append(true)
+        .open(dir.path().join("actions.journal.forget"))
+        .unwrap();
+    sidecar.write_all(b"{\"seq\":9,\"at_").unwrap();
+    let journal = Journal::open(&path).unwrap();
+    assert_eq!(journal.to_forget("1700").len(), 1);
+}
