@@ -39,7 +39,7 @@
 3. **A local file is newer than the server copy.** When Edit finds a local draft by Message-ID, Compose opens the local file even if the reader showed older server text (an edit that has not uploaded yet). The server message is imported only when no local file matches.
 4. **Import marks the draft as current only when nothing can be lost.** There are two kinds of import:
    - **Linked import**, the mockup's case. The server message's Message-ID passes `envio_sync::plan::message_id::search_id`, and the message has no `text/html` part. That is a plain-text draft, which is what Envio itself uploads (`draft_mail::draft_eml` writes text only). The imported draft gets `server.message_id = <that Message-ID>` and `uploaded_ms = updated_at_ms`. Unchanged, it is never uploaded. After the first edit, the existing upload replaces that copy, because `replaced()` returns the old id. So "first save replaces it on the server" needs no new sync code.
-   - **Detached import**, for an unusable Message-ID (missing, `<>`, or one `search_id` rejects) or for any message with a `text/html` part. Compose holds only plain text, so replacing the original would drop its formatting, and an unusable id cannot be found to replace. The imported draft gets no `ServerCopy` (`message_id: None`). It uploads as a new draft on the first save and never removes the original. Compose shows a translated notice once: "Editing a copy. The original stays in Drafts." The original stays readable and deletable in the reader. The cost is a second draft in the Drafts folder, which is visible and loses nothing.
+   - **Detached import**, for an unusable Message-ID (missing, `<>`, or one `search_id` rejects) or for any message with a `text/html` part. Compose holds only plain text, so replacing the original would drop its formatting, and an unusable id cannot be found to replace. The imported draft gets no `ServerCopy` (`message_id: None`). It uploads as a new draft on the first save and never removes the original. Compose shows the info banner "Editing a copy. The original stays in Drafts." for as long as it is open (mockup frame "Edit a copy in Compose"). The original stays readable and deletable in the reader. The cost is a second draft in the Drafts folder, which is visible and loses nothing.
    - **A detached import remembers its origin.** `ServerCopy` gains `imported_from: Option<String>` (`#[serde(default)]`, so old files load). It holds the origin's usable Message-ID. T1's `draft_for` also matches it, so a second Edit of the same original reopens the copy instead of importing again. The sync planner and `replaced()` ignore the field. For an unusable Message-ID there is nothing to match, so each Edit makes a new copy. That case is rare and loses nothing, and a test pins the behaviour.
 5. **Import waits for the whole body, as Forward does,** so attachments come along. They are copied into the draft's folder with `Drafts::keep_bytes`. With no connection and no cached whole body, Edit is refused with `text::read::message_unavailable()`, the same as Forward.
 6. **Pseudo-row ids are negative.** The worker keeps `LocalIds`, a map from draft id to `i64` starting at -1 and counting down. Ids are stable for the session and never reused. Cached rows have positive SQLite rowids, so the two can't collide, and `ShownList` keys `(date, id)` keep working. The cursor is `{ date: updated_at_ms / 1000, id }`.
@@ -135,7 +135,7 @@ pub(crate) fn can_link(parsed: &envio_mime::Parsed, message_id: Option<&str>) ->
   1. `Drafts::create`.
   2. `keep_bytes` for each attachment, then `save` with the paths.
   3. `adopt`, then `compose_ready`.
-  4. For a detached import, also emit `Event::Notice` with `text::compose::editing_a_copy()` ("Editing a copy. The original stays in Drafts.").
+  4. For a detached import, `ComposeReady` carries `note: text::compose::editing_a_copy()` ("Editing a copy. The original stays in Drafts."). `Event::ComposeReady` gains `note: String` (empty for none), which is not a transient `Notice`. The qt glue passes it through with the compose's other fields (trunk, `cargo make app-docker`).
 
   If the body is missing or partial, wait for the whole body exactly as Forward does (`live.wants.bodies` plus `whole`, and `composing` with `StartFrom::Edit`).
 
@@ -151,7 +151,7 @@ pub(crate) fn can_link(parsed: &envio_mime::Parsed, message_id: Option<&str>) ->
 - Unit: an HTML-only draft gives the text body and `linked == false`, with `server.message_id == None` and `imported_from == Some(id)`.
 - Unit: a multipart/alternative draft (text plus HTML) is detached too.
 - Unit: a plain-text draft whose Message-ID is missing, `<>` or `"  "` is detached, with `imported_from == None`.
-- Integration: Edit on a cached HTML draft, then a change and a close, uploads a new copy. The server keeps both copies, the original's bytes are unchanged, and a `Notice` with the copy text was sent.
+- Integration: Edit on a cached HTML draft, then a change and a close, uploads a new copy. The server keeps both copies, the original's bytes are unchanged, and `ComposeReady.note` held the copy text. A linked import has an empty `note`.
 - Integration: a second Edit of that same HTML original reopens the copy through `imported_from`, and no third draft is made.
 - Integration: a plain-text draft with no Message-ID, edited twice, gives two local drafts. This pins the documented behaviour, and nothing is deleted.
 - Integration: Edit on a cached Drafts message with no local file creates one draft file with `server.message_id` set and gives `ComposeReady`. A second Edit on the same message (after closing) finds that file through T1 instead of importing again.
@@ -315,6 +315,7 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
 - `qml/pages/inbox/MessageRow.qml`: a `Chip` with tint A and `qsTr("Not uploaded")` when `model.notUploaded`. Its ink comes from the existing tint A theme values.
 - `MessageList.qml:96`: when not selecting, `model.opens === "compose"` emits a new `draftRequested(model.draftId)`, and every other row emits `messageRequested`.
 - `InboxPage.qml`: `onDraftRequested` calls `core.startCompose("draft", 0, "", draftId)` and opens Compose like the "new" path in `AppShell.qml:92`. Move that wiring to AppShell if InboxPage has no compose hook.
+- `qml/pages/compose/ComposePage.qml`: a second `Banner` (`objectName: "composeNote"`, `kind: "info"`) under the top bar and above `composeError`, showing the compose's `note` while it is non-empty. It follows the mockup frame **"Edit a copy in Compose"** in `docs/design/carbon-draft-edit.html`: the info icon, the images-banner style and no button. The text comes from Rust (gettext), so QML adds no string.
 - `SelectionBar.qml`: hide Archive when `core.listIsDrafts`. Hide Move and More when `core.selectionHasLocal`.
 
 **Invariants:**
@@ -329,6 +330,7 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
 - Tapping a row with `opens: "compose"` calls `startCompose("draft", 0, "", id)`.
 - Tapping a server Drafts row emits `messageRequested`.
 - The chip is visible only when `notUploaded`.
+- ComposePage with a non-empty `note` shows `composeNote` with that text, and with an empty note hides it.
 - The selection bar in a Drafts list has no `act-archive`, and with `selectionHasLocal` has only `act-delete`.
 
 ---
@@ -356,7 +358,7 @@ impl Ui { pub fn list_is_drafts(&self) -> bool; pub fn selection_has_local(&self
   - The server then holds the untouched original plus one new plain-text copy.
   - A second Edit of the original reopens the same local copy.
 
-**Phone** (ask before taking the phone; it is shared). Use `ute2e shot` for the Drafts list with a Not uploaded row, the reader of a draft and the Edit compose. A separate agent then reviews the shots against `carbon-draft-edit.html` and flags anything that differs.
+**Phone** (ask before taking the phone; it is shared). Use `ute2e shot` for the Drafts list with a Not uploaded row, the reader of a draft, the Edit compose and the "Edit a copy" compose with its banner. A separate agent then reviews the shots against `carbon-draft-edit.html` and flags anything that differs.
 
 **Spec:** add one sentence. A Drafts-folder message opens with Edit, and local drafts without a server copy show in the Drafts list as "Not uploaded". Close #266 with the PR that lands T6, because the chip is its notice.
 
