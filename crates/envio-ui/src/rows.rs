@@ -29,6 +29,9 @@ pub struct AccountRow {
     /// New-mail notifications are on for the account (Settings →
     /// Notifications).
     pub notify: bool,
+    /// Signs in with a provider (OAuth): "Sign in again" instead of a new
+    /// password.
+    pub oauth: bool,
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
@@ -107,6 +110,8 @@ pub struct OutboxRowUi {
     pub reason: String,
     /// The label of the button that leads to the fix; empty with no reason.
     pub reason_action: String,
+    /// The message is held because its OAuth account must sign in again.
+    pub signin_again: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +155,7 @@ const ACCOUNT: &[&str] = &[
     "unreadText",
     "attention",
     "notify",
+    "oauth",
     "pinService",
     "pinHost",
     "pinTitle",
@@ -183,6 +189,7 @@ const OUTBOX: &[&str] = &[
     "text",
     "reason",
     "reasonAction",
+    "signInAgain",
 ];
 const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
@@ -218,6 +225,7 @@ impl Row {
             (Self::Account(r), "unreadText") => s(&r.unread_text),
             (Self::Account(r), "attention") => Bool(r.attention),
             (Self::Account(r), "notify") => Bool(r.notify),
+            (Self::Account(r), "oauth") => Bool(r.oauth),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
             (Self::Account(r), "pinTitle") => s(&r.pin.title),
@@ -252,6 +260,7 @@ impl Row {
             (Self::Outbox(r), "text") => s(&r.text),
             (Self::Outbox(r), "reason") => s(&r.reason),
             (Self::Outbox(r), "reasonAction") => s(&r.reason_action),
+            (Self::Outbox(r), "signInAgain") => Bool(r.signin_again),
             (Self::Suggestion(r), "name") => s(&r.name),
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),

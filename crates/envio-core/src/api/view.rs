@@ -25,6 +25,8 @@ pub struct AccountInfo {
     pub unread: u32,
     /// The stored entry cannot be read; `status` names why.
     pub broken: bool,
+    /// Signs in with a provider (OAuth), not a password.
+    pub oauth: bool,
 }
 
 /// Work an account has that no server holds yet.

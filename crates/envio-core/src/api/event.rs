@@ -44,6 +44,14 @@ pub enum OAuthFailure {
     Offline,
     Blocked,
     Other,
+    /// The address is already an account.
+    Duplicate,
+    /// The account does not sign in with Microsoft (or is gone or broken).
+    NotOAuth,
+    /// No Microsoft sign-in in this build.
+    Unavailable,
+    /// The account could not be written to disk.
+    NotSaved,
 }
 
 impl OAuthFailure {
@@ -54,6 +62,10 @@ impl OAuthFailure {
             Self::Offline => crate::text::oauth::offline(),
             Self::Blocked => crate::text::oauth::blocked(),
             Self::Other => crate::text::oauth::other(),
+            Self::Duplicate => crate::text::setup::duplicate(),
+            Self::NotOAuth => crate::text::oauth::not_an_oauth_account(),
+            Self::Unavailable => crate::text::oauth::no_provider(),
+            Self::NotSaved => crate::text::setup::not_saved(),
         }
     }
 }

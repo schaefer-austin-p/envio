@@ -138,21 +138,21 @@ impl Worker<'_> {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => {
                     (a.settings.email.clone(), ProviderKind::Microsoft)
                 }
-                _ => return self.notice(text::oauth::not_an_oauth_account()),
+                _ => return self.refuse(email.to_owned(), OAuthFailure::NotOAuth),
             },
             None => {
                 let email = email.trim().to_owned();
                 let Some(kind) = provider_kind_for(&email) else {
-                    return self.notice(text::oauth::no_provider());
+                    return self.refuse(email, OAuthFailure::Unavailable);
                 };
                 if self.email_taken(&email) {
-                    return self.notice(text::setup::duplicate());
+                    return self.refuse(email, OAuthFailure::Duplicate);
                 }
                 (email, kind)
             }
         };
         let Some(provider) = self.provider_of(kind) else {
-            return self.notice(text::oauth::no_provider());
+            return self.refuse(email, OAuthFailure::Unavailable);
         };
         let pkce = Pkce::new();
         let url = authorize_url(&provider, &pkce, &email);
@@ -171,6 +171,14 @@ impl Worker<'_> {
             email,
             url,
             user_code: None,
+        });
+    }
+
+    /// A start that cannot begin is answered, so the screen does not wait.
+    fn refuse(&mut self, email: String, why: OAuthFailure) {
+        self.emit(Event::OAuthDone {
+            email,
+            outcome: OAuthOutcome::Failed(why),
         });
     }
 
@@ -341,12 +349,10 @@ impl Worker<'_> {
             return OAuthOutcome::Failed(OAuthFailure::Other);
         };
         if self.email_taken(email) {
-            self.notice(text::setup::duplicate());
-            return OAuthOutcome::Failed(OAuthFailure::Other);
+            return OAuthOutcome::Failed(OAuthFailure::Duplicate);
         }
         if !self.drop_stranded(email) {
-            self.notice(text::setup::not_saved());
-            return OAuthOutcome::Failed(OAuthFailure::Other);
+            return OAuthOutcome::Failed(OAuthFailure::NotSaved);
         }
         let addr = |e: &envio_net::Endpoint| {
             store_server(
@@ -374,10 +380,7 @@ impl Worker<'_> {
                 self.emit(Event::AccountAdded { account });
                 OAuthOutcome::Added
             }
-            Err(text) => {
-                self.notice(text);
-                OAuthOutcome::Failed(OAuthFailure::Other)
-            }
+            Err(_) => OAuthOutcome::Failed(OAuthFailure::NotSaved),
         }
     }
 
@@ -387,8 +390,7 @@ impl Worker<'_> {
         }
         if let Err(error) = self.store.tokens.borrow_mut().set(key, refresh) {
             log::error!("saving the new sign-in: {error}");
-            self.notice(text::setup::not_saved());
-            return OAuthOutcome::Failed(OAuthFailure::Other);
+            return OAuthOutcome::Failed(OAuthFailure::NotSaved);
         }
         // The old access token and its worked-once flag belong to the old sign-in.
         self.store.token_cells.forget(key);

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 17:39+0100\n"
+"POT-Creation-Date: 2026-11-19 17:46+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -108,41 +108,73 @@ msgstr ""
 msgid "Ctrl"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:28 qml/pages/inbox/FoldersDrawer.qml:283
+#: qml/pages/accounts/AccountsPage.qml:30 qml/pages/inbox/FoldersDrawer.qml:283
 #: qml/pages/settings/SettingsPage.qml:36
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:34 qml/pages/accounts/WizardPage.qml:99
+#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:115
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:102
+#: qml/pages/accounts/AccountsPage.qml:105
 #: crates/envio-core/src/text/outbox.rs:26
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:138
+#: qml/pages/accounts/AccountsPage.qml:141
 msgid "Rename"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:156
+#: qml/pages/accounts/AccountsPage.qml:162
+#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:90
+#: crates/envio-core/src/text/status.rs:28
+msgid "Sign in again"
+msgstr ""
+
+#: qml/pages/accounts/AccountsPage.qml:182
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:175
-#: qml/pages/accounts/AccountsPage.qml:196
+#: qml/pages/accounts/AccountsPage.qml:201
+#: qml/pages/accounts/AccountsPage.qml:222
 #: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:194
+#: qml/pages/accounts/AccountsPage.qml:220
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:195
+#: qml/pages/accounts/AccountsPage.qml:221
 msgid "Keep account"
+msgstr ""
+
+#: qml/pages/accounts/BrowserStep.qml:48
+msgid "Waiting for Microsoft"
+msgstr ""
+
+#: qml/pages/accounts/BrowserStep.qml:60
+msgid ""
+"Finish signing in to %1 in the browser. Envio carries on by itself when you "
+"are done."
+msgstr ""
+
+#: qml/pages/accounts/BrowserStep.qml:80
+msgid "Open the browser again"
+msgstr ""
+
+#: qml/pages/accounts/BrowserStep.qml:100
+msgid "This stops by itself after 5 minutes."
+msgstr ""
+
+#: qml/pages/accounts/BrowserStep.qml:115
+#: qml/pages/accounts/ConfirmHostsDialog.qml:19
+#: qml/pages/accounts/RenameSheet.qml:68 qml/pages/accounts/TrustDialog.qml:21
+#: qml/pages/inbox/OutboxPage.qml:88 qml/pages/reader/AttachmentsSheet.qml:79
+#: qml/pages/reader/LinkSheet.qml:132 qml/pages/search/SearchPage.qml:193
+msgid "Cancel"
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:17
@@ -153,13 +185,6 @@ msgstr ""
 msgid ""
 "These servers are not on your address's domain. Use them only if you "
 "recognise them."
-msgstr ""
-
-#: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/RenameSheet.qml:68 qml/pages/accounts/TrustDialog.qml:21
-#: qml/pages/inbox/OutboxPage.qml:61 qml/pages/reader/AttachmentsSheet.qml:79
-#: qml/pages/reader/LinkSheet.qml:132 qml/pages/search/SearchPage.qml:193
-msgid "Cancel"
 msgstr ""
 
 #: qml/pages/accounts/ConfirmHostsDialog.qml:20
@@ -178,7 +203,7 @@ msgstr ""
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:55
+#: qml/pages/accounts/EmailStep.qml:55 qml/pages/accounts/SignInStep.qml:124
 msgid "Email address"
 msgstr ""
 
@@ -190,8 +215,24 @@ msgstr ""
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:103 qml/pages/accounts/SignInStep.qml:125
+#: qml/pages/accounts/EmailStep.qml:103 qml/pages/accounts/SignInStep.qml:209
 msgid "Continue"
+msgstr ""
+
+#: qml/pages/accounts/OAuthSession.qml:50
+msgid "Sign-in cancelled"
+msgstr ""
+
+#: qml/pages/accounts/OAuthSession.qml:51
+msgid "Nothing was changed. No account was added."
+msgstr ""
+
+#: qml/pages/accounts/OAuthSession.qml:107
+msgid "You signed in as %1"
+msgstr ""
+
+#: qml/pages/accounts/OAuthSession.qml:108
+msgid "Use this account for %1?"
 msgstr ""
 
 #: qml/pages/accounts/OptionsStep.qml:55
@@ -280,7 +321,7 @@ msgstr ""
 msgid "User name"
 msgstr ""
 
-#: qml/pages/accounts/ServersStep.qml:114 qml/pages/accounts/SignInStep.qml:97
+#: qml/pages/accounts/ServersStep.qml:114 qml/pages/accounts/SignInStep.qml:114
 msgid "Password"
 msgstr ""
 
@@ -292,22 +333,69 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:75
+#: qml/pages/accounts/SignInAgainPage.qml:92
+msgid "Microsoft needs you to sign in again"
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:94
+msgid ""
+"The saved sign-in for %1 expired or was withdrawn. Mail on this phone stays, "
+"and messages waiting in the Outbox go out after you sign in."
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:100
+msgid "Microsoft opens in the browser. Sign in with %1."
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:131
+msgid "Your password never passes through Envio."
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:145
+#: qml/pages/accounts/SignInStep.qml:201
+msgid "Signing in…"
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:153
+#: qml/pages/accounts/SignInStep.qml:220
+msgid "Sign in with Microsoft"
+msgstr ""
+
+#: qml/pages/accounts/SignInAgainPage.qml:164
+#: qml/pages/accounts/SignInStep.qml:230
+msgid "Use this account"
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:91
 msgid "Edit servers"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:84
+#: qml/pages/accounts/SignInStep.qml:100
 msgid ""
 "This provider needs an app password for Envio, not your usual one. Create "
 "one in your account settings."
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:97
+#: qml/pages/accounts/SignInStep.qml:114
 msgid "App password"
 msgstr ""
 
-#: qml/pages/accounts/SignInStep.qml:118
-msgid "Signing in…"
+#: qml/pages/accounts/SignInStep.qml:143
+msgid ""
+"Microsoft signs you in on its own page in the browser. Your password never "
+"passes through Envio, and you come back here when it is done."
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:144
+msgid ""
+"Microsoft signs you in on its own page in the browser. Your password never "
+"passes through Envio."
+msgstr ""
+
+#: qml/pages/accounts/SignInStep.qml:175
+msgid ""
+"Envio keeps only a sign-in token, on this phone. Remove the account and the "
+"token goes with it."
 msgstr ""
 
 #: qml/pages/accounts/TrustDialog.qml:22
@@ -326,15 +414,19 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:100
+#: qml/pages/accounts/WizardPage.qml:117
+msgid "Sign in · %1"
+msgstr ""
+
+#: qml/pages/accounts/WizardPage.qml:118
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:101
+#: qml/pages/accounts/WizardPage.qml:119
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:102
+#: qml/pages/accounts/WizardPage.qml:120
 msgid "Account options"
 msgstr ""
 
@@ -463,7 +555,7 @@ msgstr ""
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:26
+#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:51
 msgid "Outbox"
 msgstr ""
 
@@ -513,36 +605,44 @@ msgstr ""
 msgid "Move to folder"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:49
+#: qml/pages/inbox/OutboxPage.qml:76
 msgid "Nothing waiting to send."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:59
+#: qml/pages/inbox/OutboxPage.qml:86
 msgid "Delete this message?"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:60
+#: qml/pages/inbox/OutboxPage.qml:87
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:62 qml/pages/inbox/OutboxRow.qml:114
+#: qml/pages/inbox/OutboxPage.qml:89 qml/pages/inbox/OutboxRow.qml:125
 #: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:255
 msgid "Delete"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:86
+#: qml/pages/inbox/OutboxRow.qml:46
+msgid "To %1 · %2"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:69
+msgid "Waiting for sign-in. It goes out after you sign in again."
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:97
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:93
+#: qml/pages/inbox/OutboxRow.qml:104
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:100
+#: qml/pages/inbox/OutboxRow.qml:111
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:107
+#: qml/pages/inbox/OutboxRow.qml:118
 msgid "Edit"
 msgstr ""
 
@@ -1420,10 +1520,6 @@ msgstr ""
 
 #: crates/envio-core/src/text/status.rs:26
 msgid "Can't read the saved mail on this phone. Retrying."
-msgstr ""
-
-#: crates/envio-core/src/text/status.rs:28
-msgid "Sign in again"
 msgstr ""
 
 #: crates/envio-core/src/text/status.rs:29

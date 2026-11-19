@@ -42,6 +42,9 @@
         <file>pages/accounts/AccountsPage.qml</file>
         <file>pages/accounts/RenameSheet.qml</file>
         <file>pages/accounts/UpdatePasswordPage.qml</file>
+        <file>pages/accounts/SignInAgainPage.qml</file>
+        <file>pages/accounts/BrowserStep.qml</file>
+        <file>pages/accounts/OAuthSession.qml</file>
         <file>pages/search/SearchPage.qml</file>
         <file>pages/settings/SettingsPage.qml</file>
         <file>pages/settings/AppearancePage.qml</file>
@@ -64,6 +67,7 @@
         <file>components/AirmailFrame.qml</file>
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
+        <file>components/NoticeCard.qml</file>
         <file>components/AppButton.qml</file>
         <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>

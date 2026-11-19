@@ -304,6 +304,7 @@ impl<'s> Worker<'s> {
                     .clone()
                     .map_or(AccountStatus::Ready, AccountStatus::Broken),
                 broken: a.broken.is_some(),
+                oauth: a.settings.is_oauth(),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });

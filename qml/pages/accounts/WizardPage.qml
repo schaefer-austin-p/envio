@@ -10,8 +10,13 @@ Item {
     id: root
     required property Theme theme
     required property var core
-    // "email", "signin", "servers" or "options".
+    // "email", "signin", "browser" (waiting for the provider's page),
+    // "servers" or "options".
     property string step: "email"
+    // The provider this address signs in with ("Microsoft"), else "": the
+    // sign-in step then has a button and no password.
+    property string oauthProvider: ""
+    readonly property alias oauthSession: session
     property string error: ""
     property bool busy: false
     // The address `detect` was asked about; an answer for another is stale.
@@ -46,6 +51,8 @@ Item {
     // its way (`attempting` is off, so late events are ignored).
     function forget() {
         clearPasswords()
+        session.reset()
+        oauthProvider = ""
         serversConfirmed = false
         busy = false
         asked = ""
@@ -53,6 +60,14 @@ Item {
         error = ""
     }
     function back() {
+        // The core is storing the account: Back would drop its AccountAdded.
+        if (session.state === "saving") return
+        // The provider's page is open or the user is asked: Back is Cancel
+        // and the page stays on the sign-in step.
+        if (step === "browser" || session.state === "confirm") {
+            session.cancel()
+            return
+        }
         if (step === "email" || step === "options") {
             error = ""
             close()
@@ -72,8 +87,9 @@ Item {
         attempting = true
         core.detect(asked)
     }
-    // Only the sign-in and servers steps connect.
-    readonly property bool connecting: step === "signin" || step === "servers"
+    // Only the sign-in and servers steps connect (a provider sign-in goes
+    // through `session`, not `connect`).
+    readonly property bool connecting: (step === "signin" && oauthProvider === "") || step === "servers"
     function submit() {
         if (!connecting) return
         error = ""
@@ -97,6 +113,8 @@ Item {
         width: parent.width
         showBack: root.canLeave || (root.step !== "email" && root.step !== "options")
         title: root.step === "email" ? qsTr("Add account")
+             : (root.step === "signin" || root.step === "browser") && root.oauthProvider !== ""
+                 ? qsTr("Sign in · %1").arg(root.oauthProvider)
              : root.step === "signin" ? qsTr("Sign in")
              : root.step === "servers" ? qsTr("Server settings")
              : qsTr("Account options")
@@ -127,8 +145,37 @@ Item {
         appPassword: root.setup.source === "provider"
         error: root.error
         busy: root.busy
+        oauthProvider: root.oauthProvider
+        oauthEmail: root.asked
+        noticeKind: session.noticeKind
+        noticeTitle: session.noticeTitle
+        noticeText: session.noticeText
+        confirming: session.state === "confirm"
         onContinued: root.submit()
         onEditServersRequested: { root.forget(); servers.prefill(root.setup); root.step = "servers" }
+        onOauthRequested: { root.error = ""; root.accountName = root.setup.name; session.start() }
+        onOauthAnswered: function(accept) { session.answer(accept) }
+    }
+    BrowserStep {
+        objectName: "browserStep"
+        theme: root.theme
+        session: session
+        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        visible: root.step === "browser"
+        onCancelRequested: session.cancel()
+    }
+    OAuthSession {
+        id: session
+        objectName: "oauthSession"
+        core: root.core
+        email: root.asked
+        // The wizard waits for the account while the browser or the core has
+        // the attempt (`onAccountAdded` only takes an attempt that is busy).
+        onStateChanged: {
+            root.busy = state === "waiting" || state === "saving"
+            if (state === "waiting") root.step = "browser"
+            else if (root.step === "browser") root.step = "signin"
+        }
     }
     ServersStep {
         objectName: "serversStep"
@@ -182,15 +229,17 @@ Item {
 
     Connections {
         target: root.core
-        function onDetected(email, text, needsConfirm, json, serversText) {
+        function onDetected(email, text, needsConfirm, json, serversText, oauthProvider) {
             if (!root.current(email)) return
             root.busy = false
+            root.oauthProvider = oauthProvider
             root.foundText = text
             root.serversText = serversText
             root.setupJson = json
             root.serversConfirmed = false
             root.step = "signin"
-            if (needsConfirm) confirmHosts.open()
+            // A provider sign-in has no servers to confirm: they are the provider's.
+            if (needsConfirm && oauthProvider === "") confirmHosts.open()
         }
         function onSetupProblem(email, text) {
             if (!root.current(email)) return
