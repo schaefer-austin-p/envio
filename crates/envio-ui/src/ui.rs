@@ -223,10 +223,15 @@ impl Ui {
     }
 
     /// Show a list: its first page replaces what is shown when it arrives.
-    /// The outputs clear the selection marks of the rows being left.
+    /// The outputs clear the selection marks of the rows being left, and the
+    /// open message unless the same list is shown again.
     pub fn open_list(&mut self, list: ListRef) -> (Command, Vec<Output>) {
         let mut outs = self.clear_marks();
-        outs.extend(self.clear_open());
+        // Re-selecting the list that is already shown keeps the reader open.
+        let same = self.current.as_ref().is_some_and(|c| c.list == list);
+        if !same {
+            outs.extend(self.clear_open());
+        }
         outs.extend(self.older_reset());
         self.mirror.track(&outs);
         self.current = Some(Current::new(list));

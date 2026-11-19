@@ -217,3 +217,24 @@ fn an_unknown_id_does_not_open() {
     assert_eq!(ui.open_message(), None);
     assert_eq!(open_ids(&ui, Model::Messages), Vec::<i64>::new());
 }
+
+#[test]
+fn reopening_the_same_list_keeps_open() {
+    let mut ui = three();
+    ui.set_open(Some(2));
+    let _ = ui.open_list(F1);
+    assert_eq!(ui.open_message(), Some(2));
+    feed(
+        &mut ui,
+        page(F1, None, vec![msg(3, 30), msg(2, 20), msg(1, 10)], false),
+    );
+    assert_eq!(open_ids(&ui, Model::Messages), [2]);
+}
+
+#[test]
+fn switching_to_another_list_still_clears_open() {
+    let mut ui = three();
+    ui.set_open(Some(2));
+    let _ = ui.open_list(ListRef::Folder(FolderId(99)));
+    assert_eq!(ui.open_message(), None);
+}
