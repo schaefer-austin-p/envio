@@ -956,6 +956,95 @@ Item {
             compare(find("bodyMenu").copyOnly, true)
         }
 
+        // #291: the menu must not cover either handle's touch target. Covers
+        // the menu's geometry as opened by holdBody (real Menu and handles,
+        // offscreen); not the Lomiri window and a finger on the device.
+        function overlaps(a, b) {
+            return a.x < b.x + b.width && b.x < a.x + a.width
+                && a.y < b.y + b.height && b.y < a.y + a.height
+        }
+        function flickOf(item) {
+            let f = item
+            while (f && f.contentY === undefined) f = f.parent
+            verify(f, "no Flickable above the body")
+            return f
+        }
+        // Holds `word`, first scrolling so its line sits `atY` below the top
+        // of the view (undefined: no scrolling). Returns the menu's and the
+        // selection's rectangles, in the body's coordinates.
+        function holdAndCheck(word, atY) {
+            const body = find("bodyText")
+            const r = body.positionToRectangle(body.getText(0, body.length).indexOf(word))
+            if (atY !== undefined) {
+                const flick = flickOf(body)
+                const y = body.mapToItem(flick.contentItem, 0, r.y).y
+                flick.contentY = Math.max(0, y - atY)
+                verify(flick.contentY > 0, "not scrolled")
+            }
+            root.page.holdBody(r.x + 1, r.y + r.height / 2)
+            compare(body.selectedText, word)
+            const menu = find("bodyMenu")
+            verify(menu.visible || menu.opened)
+            // The menu's real open height, not the closed 12 px.
+            tryVerify(function() { return menu.height >= thm.touch }, 2000, "menu height " + menu.height)
+            tryCompare(menu, "height", menu.openHeight)
+            const m = Qt.rect(menu.x, menu.y, menu.width, menu.height)
+            const names = ["startHandle", "endHandle"]
+            for (let i = 0; i < names.length; i++) {
+                const h = find(names[i])
+                const t = thm.touch
+                const c = body.mapFromItem(h, h.width / 2, h.height / 2)
+                const box = Qt.rect(c.x - t / 2, c.y - t / 2, t, t)
+                verify(!overlaps(m, box), names[i] + " is covered: menu " + JSON.stringify(m)
+                       + " handle " + JSON.stringify(box))
+            }
+            return { menu: m, line: body.positionToRectangle(body.selectionStart), body: body }
+        }
+        function paragraphs(n, marked) {
+            let html = ""
+            for (let i = 0; i < n; i++) html += "<p>Line " + i + (i === 12 ? " " + marked : "") + "</p>"
+            return html
+        }
+        function test_the_menu_clears_the_handles_below_the_first_line() {
+            const v = view([], 0)
+            v.html = "<p>Intro line</p><p>Order 48213 shipped</p><p>More text here</p>"
+            open(v)
+            holdAndCheck("48213")
+        }
+        function test_the_menu_clears_the_handles_on_the_first_line() {
+            const v = view([], 0)
+            v.html = "<p>48213 shipped on time</p><p>More text here</p>"
+            open(v)
+            holdAndCheck("48213")
+        }
+        // With room above, the menu sits wholly above the first selected line.
+        function test_the_menu_goes_above_the_selection_when_there_is_room() {
+            const v = view([], 0)
+            v.html = paragraphs(60, "48213")
+            open(v)
+            const got = holdAndCheck("48213", 300)
+            verify(got.menu.y + got.menu.height <= got.line.y,
+                   "menu " + JSON.stringify(got.menu) + " line " + JSON.stringify(got.line))
+        }
+        // A scrolled page, with the word near the top of the view: no room
+        // above, so the menu is below the end handle; handles still clear.
+        function test_the_menu_clears_the_handles_in_a_scrolled_page() {
+            const v = view([], 0)
+            v.html = paragraphs(60, "48213")
+            open(v)
+            const got = holdAndCheck("48213", 20)
+            verify(flickOf(got.body).contentY > 0)
+            verify(got.menu.y >= got.line.y + got.line.height, "menu not below: " + JSON.stringify(got.menu))
+        }
+        function test_the_menu_stays_inside_the_body_at_the_right_edge() {
+            const v = view([], 0)
+            v.html = "<p>Intro</p><p>Intro</p><p>Intro</p><p align=\"right\">end 48213</p>"
+            open(v)
+            const got = holdAndCheck("48213")
+            verify(got.menu.x >= 0 && got.menu.x + got.menu.width <= got.body.width,
+                   "menu " + JSON.stringify(got.menu) + " body width " + got.body.width)
+        }
+
         function test_copy_puts_the_selection_on_the_clipboard_as_plain_text() {
             const v = view([], 0)
             v.html = "<p>Code <b>7391</b> inside</p>"
