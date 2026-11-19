@@ -364,6 +364,68 @@ Item {
             compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)
         }
 
+        function test_flush_calls_draft_changed_synchronously() {
+            mock.composeReady(1, reply, "")
+            mock.reset()
+            find("subjectField").text = "Re: Plans, edited"
+            mock.reset()
+            page.flush()
+            const c = mock.called("draftChanged")
+            compare(c.length, 1)
+            compare(c[0].args[0], 1)
+            compare(JSON.parse(c[0].args[1]).subject, "Re: Plans, edited")
+            compare(JSON.parse(c[0].args[1]).body, "Hello")
+        }
+
+        function test_flush_commits_a_typed_address() {
+            mock.composeReady(1, reply, "")
+            find("to").input.text = "cy@example.org"
+            mock.reset()
+            page.flush()
+            compare(JSON.parse(mock.called("draftChanged").pop().args[1]).to.length, 2)
+        }
+
+        function test_flush_before_filled_does_nothing() {
+            page.reset()
+            mock.reset()
+            page.flush()
+            compare(mock.called("draftChanged").length, 0)
+        }
+
+        function test_view_state_round_trips_focus_cursor_and_scroll() {
+            mock.composeReady(1, reply, "")
+            find("bodyField").text = new Array(120).join("line\n")
+            const flick = find("composeFlick")
+            tryVerify(function() { return flick.contentHeight > flick.height + 200 })
+            find("bodyField").input.forceActiveFocus()
+            find("bodyField").input.cursorPosition = 7
+            flick.contentY = 150
+            const v = page.viewState()
+            compare(v.focus, "body")
+            compare(v.cursor, 7)
+            find("subjectField").input.forceActiveFocus()
+            flick.contentY = 0
+            page.restoreView(v)
+            tryVerify(function() { return find("bodyField").input.activeFocus })
+            compare(find("bodyField").input.cursorPosition, 7)
+            tryVerify(function() { return Math.abs(flick.contentY - 150) < 2 })
+        }
+
+        function test_wide_close_offers_save_draft_and_discard() {
+            mock.composeReady(1, reply, "")
+            page.wide = true
+            mouseClick(find("backButton"))
+            tryVerify(function() { return shown("saveDraftRow") })
+            verify(shown("discardRow"))
+            compare(mock.called("closeCompose").length, 0)
+            wait(400)
+            mouseClick(find("saveDraftRow"))
+            tryVerify(function() { return mock.called("closeCompose").length === 1 })
+            compare(mock.called("closeCompose").pop().args, [1, false])
+            compare(closed.count, 1)
+            page.wide = false
+        }
+
         function test_back_keeps_the_draft() {
             mock.composeReady(1, reply, "")
             mouseClick(find("backButton"))

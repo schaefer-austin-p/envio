@@ -94,47 +94,208 @@ Item {
     function checkWide() {
         if (!theme) return
         const on = width >= theme.gu(90), off = width < theme.gu(86)
-        if (!_wide && on) _wide = true
-        else if (_wide && off) {
-            // A compose in the pane goes to the stack as the top page, with
-            // everything typed; the pane would be too narrow to use. Nothing
-            // closes it in the core.
-            const carried = paneCompose > 0 && pane.item !== null
-                ? { id: paneCompose, state: pane.item.snapshot() } : null
-            _wide = false
-            if (carried !== null) {
-                paneCompose = 0
-                stack.push(composePage, { compose: carried.id }).restore(carried.state)
-            }
-            // The narrow list has no reader to go with an open row.
-            if (core.openMessage > 0) core.setOpenMessage(0)
-        }
+        if (!_wide && on) toWide()
+        else if (_wide && off) toNarrow()
+        layoutPane()
     }
+    // The pane's width is set here, after the decision above, not bound to
+    // the window: a binding would squeeze a compose in the pane for a moment
+    // before it is moved, and the text would re-wrap and scroll (#332).
+    property real paneWidth: 0
+    function layoutPane() { paneWidth = Math.max(0, frame.area.width - theme.gu(50)) }
     onWidthChanged: checkWide()
     onThemeChanged: checkWide()
-    onPaneComposeChanged: checkWide()
     Connections {
         target: root.theme
         function onGridUnitChanged() { root.checkWide() }
+        function onFrameInsetChanged() { root.checkWide() }
     }
     // The compose the pane shows (an id), 0 for none. `core` has no compose
     // id of its own.
     property int paneCompose: 0
+    onPaneComposeChanged: syncPane()
+
+    // The reader and the compose are single items, made once and moved
+    // between the stack (narrow) and the pane (wide) when the window crosses
+    // the breakpoint: nothing reopens, nothing reloads, and the core is never
+    // told (`closeCompose` is only for Close, Send, a discard and a row click).
+    // A page pushed from a component (Search's reader, a second compose) is
+    // not one of these and stays a stack page.
+    property Item readerItem: null
+    property Item composeItem: null
+    // How long a retired item lives on: the stack's pop transition may still
+    // be drawing it.
+    readonly property int retireMs: 600
+
+    // Sized by its host, not by the stack (which sizes only items that did
+    // not set a size).
+    function fit(item, host) {
+        item.x = 0
+        item.y = 0
+        item.width = Qt.binding(function() { return host.width })
+        item.height = Qt.binding(function() { return host.height })
+    }
+    function toPane(item) {
+        item.parent = pane
+        item.wide = true
+        item.visible = true
+        item.opacity = 1
+        fit(item, pane)
+    }
+    function toStack(item) {
+        item.wide = false
+        item.visible = true
+        item.opacity = 1
+        fit(item, stack)
+        stack.push(item, StackView.Immediate)
+    }
+    function retire(item) {
+        item.visible = false
+        // Out of the pane at once (a new item may take its place); on the
+        // stack it stays until its pop transition is over.
+        if (item.parent === pane) item.parent = null
+        item.destroy(retireMs)
+    }
+    function retireReader() {
+        if (readerItem === null) return
+        const item = readerItem
+        readerItem = null
+        retire(item)
+    }
+    function retireCompose() {
+        if (composeItem === null) return
+        const item = composeItem
+        composeItem = null
+        retire(item)
+    }
+    // The pane shows the compose, else the reader of the open message, else
+    // the empty state (a Loader). A reader under a compose waits, hidden.
+    function syncPane() {
+        if (!wide) return
+        if (paneCompose > 0 && (composeItem === null || composeItem.compose !== paneCompose)) {
+            retireCompose()
+            composeItem = composePage.createObject(root, { compose: paneCompose })
+            toPane(composeItem)
+        }
+        const open = Number(core.openMessage)
+        if (open > 0 && readerItem === null) {
+            readerItem = readerPage.createObject(root, { messageId: open })
+            toPane(readerItem)
+        } else if (readerItem !== null && readerItem.parent === pane) {
+            if (open > 0) readerItem.messageId = open
+            else retireReader()
+        }
+        // A compose that is no longer the pane's goes (whoever cleared
+        // paneCompose closed it in the core).
+        if (paneCompose === 0 && composeItem !== null && composeItem.parent === pane) retireCompose()
+        if (composeItem !== null && composeItem.parent === pane) composeItem.visible = paneCompose > 0
+        if (readerItem !== null && readerItem.parent === pane) readerItem.visible = paneCompose === 0
+    }
+    Connections {
+        target: root.core
+        function onOpenMessageChanged() { root.syncPane() }
+    }
+    // Narrowing: the reader that was beside the list and the compose go onto
+    // the stack, the reader first so Back from the compose returns to it.
+    // The state is read before `_wide` flips: the layout change moves and
+    // hides the items (focus and scroll go with it).
+    function toNarrow() {
+        const reader = readerItem !== null && readerItem.parent === pane && core.openMessage > 0 ? readerItem : null
+        const compose = paneCompose > 0 && composeItem !== null && composeItem.parent === pane ? composeItem : null
+        const view = compose !== null ? compose.viewState() : null
+        if (reader !== null) reader.holdScroll()
+        _wide = false
+        paneCompose = 0
+        if (reader !== null) { toStack(reader); reader.restoreScroll() }
+        if (compose !== null) { toStack(compose); compose.restoreView(view) }
+    }
+    // Widening: when only the reader and the compose are above the list they
+    // move into the pane and the stack pops to the list; with another page on
+    // top they stay, as the stack's pages.
+    function toWide() {
+        let items = []
+        let only = stack.depth >= 2 && rootKind === "inbox"
+        for (let i = 1; only && i < stack.depth; i++) {
+            const page = stack.get(i, StackView.DontLoad)
+            if (page !== readerItem && page !== composeItem) only = false
+            items.push(page)
+        }
+        if (!only) { _wide = true; syncPane(); return }
+        const view = composeItem !== null && items.indexOf(composeItem) >= 0 ? composeItem.viewState() : null
+        for (const page of items) if (page === readerItem) page.holdScroll()
+        _wide = true
+        stack.pop(null, StackView.Immediate)
+        for (const page of items) {
+            if (page === readerItem) {
+                toPane(page)
+                if (Number(core.openMessage) !== page.messageId) core.setOpenMessage(page.messageId)
+                page.restoreScroll()
+            } else {
+                toPane(page)
+                paneCompose = page.compose
+                page.restoreView(view)
+            }
+        }
+        syncPane()
+    }
 
     // Compose pages: the core made the compose, the page follows it. Wide,
     // over the list (nothing on top of it), it opens in the pane.
     function composeOpened(compose) {
-        if (wide && stack.depth === 1 && rootKind === "inbox") {
+        const atList = stack.depth === 1 && rootKind === "inbox"
+        if (wide && atList) {
             // One compose in the pane: the one that was there closes first
             // (its draft stays in Drafts), and its page goes with it.
-            if (paneCompose > 0 && paneCompose !== compose && pane.item !== null) pane.item.leave()
+            if (paneCompose > 0 && paneCompose !== compose && composeItem !== null) composeItem.leave()
             paneCompose = compose
+        } else if (atList && composeItem === null) {
+            composeItem = composePage.createObject(root, { compose: compose })
+            toStack(composeItem)
         } else stack.push(composePage, { compose: compose })
     }
-    // A tap on a row: the pane when wide, else the reader page.
+    // A tap on a row: the pane when wide, else the reader page. With a compose
+    // in the pane the compose closes first, as `leave()` does, and its draft
+    // stays in Drafts.
     function openMessageFromRow(message) {
-        if (wide) core.setOpenMessage(message)
-        else stack.push(readerPage, { messageId: message })
+        if (!wide) {
+            if (stack.depth === 1 && readerItem === null) {
+                readerItem = readerPage.createObject(root, { messageId: message })
+                readerItem.wide = false
+                readerItem.visible = true
+                fit(readerItem, stack)
+                stack.push(readerItem)
+            } else stack.push(readerPage, { messageId: message })
+        } else if (paneCompose > 0 && composeItem !== null) {
+            composeItem.flush()
+            composeItem.leave()
+            core.setOpenMessage(message)
+            sentToast.show(qsTr("Draft saved"))
+        } else core.setOpenMessage(message)
+    }
+    // Back (or a message that is gone) on a reader page.
+    function readerBack(page) {
+        if (page !== readerItem) { stack.pop(); return }
+        if (page.parent === pane) core.setOpenMessage(0)
+        else {
+            stack.pop()
+            retireReader()
+            if (core.openMessage > 0) core.setOpenMessage(0)
+        }
+    }
+    // The compose page is done (Close, Discard, Send): in the pane the pane
+    // empties, on the stack the page pops. `sentToast` is the caller's.
+    function composeDone(page, text) {
+        if (page === composeItem && page.parent === pane) {
+            paneCompose = 0
+            retireCompose()
+        } else if (stack.currentItem === page) {
+            stack.pop()
+            if (page === composeItem) retireCompose()
+        } else if (text !== undefined) page.done = true
+        else {
+            stack.pop()
+            if (page === composeItem) retireCompose()
+        }
     }
     function newMessage() {
         const id = core.startCompose("new", 0, composeAccount, "")
@@ -296,14 +457,15 @@ Item {
         }
         // The right pane of the wide layout, beside the inbox at the root.
         // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
-        // the whole window, so the pane is not shown over them.
-        Loader {
+        // the whole window, so the pane is not shown over them. It holds the
+        // reader and the compose (moved in and out, see `toPane`) or the
+        // empty state.
+        Item {
             id: pane
             objectName: "pane"
             visible: root.wide && stack.depth === 1 && root.rootKind === "inbox"
-            active: root.wide
             anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
-            width: parent.width - root.theme.gu(50)
+            width: root.paneWidth
             // Opaque: the pages are transparent, so without it the list
             // shows through.
             Rectangle {
@@ -312,7 +474,11 @@ Item {
                 z: -1
                 color: root.theme.ground
             }
-            sourceComponent: root.paneCompose > 0 ? paneComposeC : root.core.openMessage > 0 ? paneReaderC : emptyC
+            Loader {
+                anchors.fill: parent
+                active: root.wide && root.paneCompose === 0 && Number(root.core.openMessage) === 0
+                sourceComponent: emptyC
+            }
         }
 
         ProblemPage {
@@ -333,35 +499,6 @@ Item {
 
     Component { id: emptyC; ReaderPane { theme: root.theme } }
     Component {
-        id: paneReaderC
-        ReaderPage {
-            wide: true
-            theme: root.theme
-            core: root.core
-            accounts: root.accounts
-            folders: root.folders
-            // openMessage is a qlonglong in the glue; a real property does
-            // not take it unconverted.
-            messageId: Number(root.core.openMessage)
-            onBackRequested: root.core.setOpenMessage(0)
-            onComposeOpened: function(compose) { root.composeOpened(compose) }
-        }
-    }
-    Component {
-        id: paneComposeC
-        ComposePage {
-            wide: true
-            theme: root.theme
-            core: root.core
-            accounts: root.accounts
-            suggestions: root.suggestions
-            compose: root.paneCompose
-            onClosed: { root.dropShare(compose); root.paneCompose = 0 }
-            onAttachStarted: function(count, transfer) { shareIn.expectPick(compose, count, transfer) }
-            onSent: function(text) { root.paneCompose = 0; sentToast.show(text) }
-        }
-    }
-    Component {
         id: inboxPage
         InboxPage {
             // The list pane when wide, else the whole page (the stack does
@@ -374,6 +511,7 @@ Item {
             folders: root.folders
             messages: root.messages
             outbox: root.outbox
+            showOpen: root.paneCompose === 0
             onMessageRequested: root.openMessageFromRow(message)
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
@@ -430,11 +568,12 @@ Item {
     Component {
         id: readerPage
         ReaderPage {
+            id: reader
             theme: root.theme
             core: root.core
             accounts: root.accounts
             folders: root.folders
-            onBackRequested: stack.pop()
+            onBackRequested: root.readerBack(reader)
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }
     }
@@ -501,19 +640,18 @@ Item {
             StackView.onStatusChanged: {
                 // Later: the pop that showed this page is still completing.
                 if (done && StackView.status === StackView.Active)
-                    Qt.callLater(function() { if (stack.currentItem === page) stack.pop() })
+                    Qt.callLater(function() { if (stack.currentItem === page) root.composeDone(page) })
             }
             theme: root.theme
             core: root.core
             accounts: root.accounts
             suggestions: root.suggestions
-            onClosed: { root.dropShare(compose); stack.pop() }
+            onClosed: { root.dropShare(compose); root.composeDone(page) }
             onAttachStarted: function(count, transfer) { shareIn.expectPick(compose, count, transfer) }
             // Queued arrives late: close this page, not whatever is on top
             // by now. A page below the top closes when it is shown again.
             onSent: function(text) {
-                if (stack.currentItem === page) stack.pop()
-                else page.done = true
+                root.composeDone(page, text)
                 sentToast.show(text)
             }
         }

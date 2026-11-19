@@ -20,6 +20,8 @@ Item {
     property string tab: ""
     property string title: qsTr("Inbox")
     property bool unified: true
+    // Whether the row of the open message is marked; the wide shell turns it off while a compose is in the pane.
+    property bool showOpen: true
     // The account whose Inbox the next folder list should open.
     property string pendingInbox: ""
     property int undoId: 0
@@ -188,6 +190,7 @@ Item {
         core: root.core
         messages: root.messages
         showAccount: root.unified
+        showOpen: root.showOpen
         anchors { top: banners.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         onMessageRequested: root.messageRequested(message)
     }

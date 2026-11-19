@@ -150,6 +150,52 @@ Item {
         sending = state.sending
         error = state.error
     }
+    // Hands the core the fields as they are now, at once, without waiting for
+    // an edit (the shell calls it before it closes this compose for a row
+    // click). The core's SaveThrottle does the throttling; this is a plain
+    // draftChanged.
+    function flush() {
+        if (!filled) return
+        commitAll()
+        core.draftChanged(compose, draftJson())
+    }
+    // The focused field, its cursor and the scroll position, for a move of
+    // this page to another parent (the window narrowed or widened). The page
+    // itself moves, so the text and the chips stay; focus is lost on the
+    // move and has to be given back.
+    function viewState() {
+        const fields = { body: body.input, subject: subject.input, to: to.input, cc: cc.input, bcc: bcc.input }
+        let focus = ""
+        for (const k in fields) if (fields[k].activeFocus) focus = k
+        return { focus: focus, cursor: focus !== "" ? fields[focus].cursorPosition : 0, contentY: resizing ? settledY : flick.contentY }
+    }
+    // After the move and the next layout. The layout lands in steps, so the
+    // scroll is applied again whenever the content grows until the page has
+    // been still for a moment.
+    property var viewWanted: null
+    // A width change makes the text re-wrap, and the field scrolls its cursor
+    // into view on its own; that scroll is not the user's. Until the layout
+    // has settled the last scroll before the change is the one to keep.
+    property real settledY: 0
+    readonly property bool resizing: resizeTimer.running
+    onWidthChanged: resizeTimer.restart()
+    Timer { id: resizeTimer; interval: 200; onTriggered: root.settledY = flick.contentY }
+    function restoreView(state) {
+        viewWanted = state
+        viewTimer.restart()
+        Qt.callLater(applyView)
+    }
+    function applyView() {
+        const state = viewWanted
+        if (state === null) return
+        const fields = { body: body.input, subject: subject.input, to: to.input, cc: cc.input, bcc: bcc.input }
+        if (state.focus !== "" && !fields[state.focus].activeFocus) {
+            fields[state.focus].forceActiveFocus()
+            fields[state.focus].cursorPosition = state.cursor
+        }
+        flick.contentY = Math.min(state.contentY, Math.max(0, flick.contentHeight - flick.height))
+    }
+    Timer { id: viewTimer; interval: 300; onTriggered: root.viewWanted = null }
     // Any edit: the core keeps the draft.
     function edited() {
         if (filling || !filled) return
@@ -185,7 +231,9 @@ Item {
         backIcon: "close"
         compact: true
         title: qsTr("Write")
-        onBackClicked: root.leave()
+        // In the pane, Close asks first: the page is not a whole screen the
+        // user can back out of, and the draft may be worth keeping or not.
+        onBackClicked: if (root.wide) more.openClosing(); else root.leave()
         IconButton {
             objectName: "attachButton"
             theme: root.theme
@@ -229,10 +277,19 @@ Item {
 
     Flickable {
         id: flick
+        objectName: "composeFlick"
         anchors { top: errorBanner.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         clip: true
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
+        onWidthChanged: resizeTimer.restart()
+        onContentHeightChanged: if (root.viewWanted !== null) root.applyView()
+        // Giving focus back scrolls the cursor line into view (KeyboardAvoider);
+        // until the page is still, the saved scroll wins.
+        onContentYChanged: {
+                if (!root.resizing) root.settledY = contentY
+            if (root.viewWanted !== null) Qt.callLater(root.applyView)
+        }
 
         Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
@@ -342,7 +399,9 @@ Item {
 
     DiscardActions {
         id: more
+        objectName: "discardActions"
         theme: root.theme
+        onSaved: root.leave()
         onDiscarded: {
             root.core.closeCompose(root.compose, true)
             root.closed()

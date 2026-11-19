@@ -14,10 +14,12 @@ ListRow {
     property bool selecting: false
     // The unified inbox names each message's account.
     property bool showAccount: false
+    // False while a compose fills the wide pane: no row marks the reader's message then.
+    property bool showOpen: true
 
     objectName: "row-" + model.id
     // The open row (the one the reader shows) has the selected fill too.
-    selected: model.selected || model.open === true
+    selected: model.selected || (showOpen && model.open === true)
 
     // The open row's 3 px accent bar. Parented to the row, not its content,
     // so its height (the row's) does not feed back into the row's height.
@@ -29,7 +31,7 @@ ListRow {
         width: 3
         height: root.height
         color: root.theme.accent
-        visible: root.model.open === true
+        visible: root.showOpen && root.model.open === true
     }
 
     // The slot: an 8 px dot, or the checkbox.
