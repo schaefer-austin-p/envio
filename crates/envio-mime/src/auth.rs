@@ -287,6 +287,32 @@ mod tests {
     }
 
     #[test]
+    fn dmarc_pass_for_another_header_from_does_not_verify() {
+        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=evil.net\r\n");
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+    }
+
+    #[test]
+    fn dmarc_pass_without_header_from_verifies() {
+        // DMARC passes only for the From domain, so a pass with no property
+        // to compare still speaks for the sender (RFC 7489 section 3.1).
+        let m = mail("Authentication-Results: mx.me.org; dmarc=pass\r\n");
+        assert!(sender_verified(&m, "bob@corp.com", HOST));
+    }
+
+    #[test]
+    fn dmarc_header_from_alignment_matches_dkim_and_spf() {
+        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=sub.corp.com\r\n");
+        assert!(sender_verified(&m, "bob@sub.corp.com", HOST));
+        // A parent header domain covers a subdomain sender, as for dkim.
+        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=corp.com\r\n");
+        assert!(sender_verified(&m, "bob@sub.corp.com", HOST));
+        // A subdomain header domain does not cover the parent sender.
+        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=sub.corp.com\r\n");
+        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+    }
+
+    #[test]
     fn only_the_topmost_header_counts() {
         let m = mail(
             "Authentication-Results: mx.me.org; dkim=fail header.d=corp.com\r\nAuthentication-Results: evil.net; dkim=pass header.d=corp.com\r\n",
