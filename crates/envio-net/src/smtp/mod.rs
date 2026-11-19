@@ -7,6 +7,7 @@ mod reply;
 mod send;
 mod starttls;
 mod stream;
+mod xoauth2;
 
 use std::net::Ipv4Addr;
 
@@ -54,33 +55,41 @@ impl SmtpSession {
     /// Signs in with PLAIN, or LOGIN if that's all the server offers; a
     /// bearer credential uses XOAUTH2 and nothing else.
     pub async fn login(&mut self, credentials: &Credentials) -> Result<()> {
+        if credentials.is_bearer() {
+            return self.login_bearer(credentials).await;
+        }
         // lettre keeps a plain String copy until this returns.
         let lettre = LettreCredentials::new(
             credentials.username.clone(),
             credentials.password.expose_secret().to_owned(),
         );
-        let bearer = credentials.is_bearer();
-        let mechanisms: &[Mechanism] = if bearer {
-            &[Mechanism::Xoauth2]
-        } else {
-            &[Mechanism::Plain, Mechanism::Login]
-        };
         connect::within(async {
             self.conn
-                .auth(mechanisms, &lettre)
+                .auth(&[Mechanism::Plain, Mechanism::Login], &lettre)
                 .await
                 .map(drop)
-                .map_err(|e| match map_error(e, true) {
-                    // A server without XOAUTH2 cannot do this; that is not
-                    // an expired token.
-                    NetError::SignIn(text)
-                        if bearer && text.contains("No compatible authentication mechanism") =>
-                    {
-                        NetError::Refused("the server does not offer XOAUTH2".into())
-                    }
-                    other => other,
-                })
+                .map_err(|e| map_error(e, true))
         })
+        .await
+    }
+
+    async fn login_bearer(&mut self, credentials: &Credentials) -> Result<()> {
+        if !self
+            .conn
+            .server_info()
+            .supports_auth_mechanism(Mechanism::Xoauth2)
+        {
+            // A server without XOAUTH2 cannot do this; that is not an
+            // expired token.
+            return Err(NetError::Refused(
+                "the server does not offer XOAUTH2".into(),
+            ));
+        }
+        connect::within(xoauth2::sign_in(
+            &mut self.conn,
+            &credentials.username,
+            credentials.password.expose_secret(),
+        ))
         .await
     }
 
@@ -140,10 +149,7 @@ fn response_error(text: String) -> NetError {
 /// mechanisms" (it is a plain client error with this text), but for the
 /// user it is a sign-in problem, not a broken protocol.
 fn client_error(text: String) -> NetError {
-    // The second is XOAUTH2's failure: the server's 334 error challenge.
-    if text.contains("No compatible authentication mechanism")
-        || text.contains("does not expect a challenge")
-    {
+    if text.contains("No compatible authentication mechanism") {
         NetError::SignIn(text)
     } else {
         NetError::Protocol(text)
@@ -175,12 +181,6 @@ mod tests {
             response_error("response error: malformed".into()),
             NetError::Protocol(_)
         ));
-    }
-
-    #[test]
-    fn a_xoauth2_challenge_is_a_sign_in_problem() {
-        let text = "internal client error: This mechanism does not expect a challenge";
-        assert!(matches!(client_error(text.into()), NetError::SignIn(_)));
     }
 
     #[test]
