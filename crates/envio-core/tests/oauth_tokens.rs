@@ -48,23 +48,27 @@ fn a_wider_mode_is_narrowed_on_open() {
 #[test]
 fn a_failed_write_leaves_the_old_file() {
     let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(FILE_NAME);
     let mut tokens = OAuthTokens::open(dir.path()).unwrap();
     tokens.set("a1", rt("old")).unwrap();
-    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o500)).unwrap();
-    let probe = dir.path().join("probe");
-    let as_root = fs::write(&probe, b"x").is_ok();
-    if as_root {
-        fs::remove_file(&probe).unwrap();
-    }
+    // The rename onto a directory fails for root too, unlike a read-only
+    // folder. The real file waits aside meanwhile.
+    let keep = dir.path().join("kept");
+    fs::rename(&path, &keep).unwrap();
+    fs::create_dir(&path).unwrap();
     let result = tokens.set("a1", rt("new"));
-    fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o700)).unwrap();
-    if as_root {
-        eprintln!("skipped: running as root, read-only has no effect");
-        return;
-    }
     assert!(result.is_err());
     // The in-memory value is the old one too, not just the file.
     assert_eq!(tokens.get("a1").unwrap().expose_secret(), "old");
+    // No temp file with the new token is left behind.
+    let names: Vec<String> = fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert!(names.iter().all(|n| !n.ends_with(".tmp")), "{names:?}");
+    fs::remove_dir(&path).unwrap();
+    fs::rename(&keep, &path).unwrap();
     let again = OAuthTokens::open(dir.path()).unwrap();
     assert_eq!(again.get("a1").unwrap().expose_secret(), "old");
 }

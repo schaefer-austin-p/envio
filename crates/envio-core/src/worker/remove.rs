@@ -70,7 +70,15 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     // marker keeps the removal to be retried.
     let password = store.secrets.remove(key).map_err(secrets_error);
     let token = store.tokens.remove(key).map_err(tokens_error);
-    password.and(token)
+    match (password, token) {
+        (Err(error), Err(dropped)) => {
+            // Only the first error travels on; the second is logged (the
+            // errors carry paths and versions, never a secret).
+            log::error!("removing the OAuth token of {key}: {dropped}");
+            Err(error)
+        }
+        (password, token) => password.and(token),
+    }
 }
 
 #[cfg(test)]

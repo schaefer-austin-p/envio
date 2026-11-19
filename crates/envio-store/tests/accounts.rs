@@ -105,7 +105,7 @@ fn an_entry_that_does_not_parse_is_broken_with_its_key() {
 fn a_newer_version_still_fails() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, r#"{"version": 3, "accounts": [{"key": "1000"}]}"#).unwrap();
+    fs::write(&path, r#"{"version": 4, "accounts": [{"key": "1000"}]}"#).unwrap();
     assert!(matches!(
         Accounts::open(&path),
         Err(StoreError::BadRecord { .. })
@@ -214,7 +214,7 @@ fn a_damaged_file_is_an_error_and_left_alone() {
 fn a_file_from_a_newer_envio_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, br#"{"version": 3, "accounts": []}"#).unwrap();
+    fs::write(&path, br#"{"version": 4, "accounts": []}"#).unwrap();
     let error = Accounts::open(&path).err().unwrap();
     assert!(matches!(error, StoreError::BadRecord { .. }), "{error:?}");
 }
@@ -399,4 +399,52 @@ fn an_account_with_an_unknown_future_auth_kind_is_not_oauth() {
     assert!(!s.is_oauth());
     s.auth = Some("microsoft".into());
     assert!(s.is_oauth());
+}
+
+fn version_of(path: &std::path::Path) -> u64 {
+    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    value["version"].as_u64().unwrap()
+}
+
+#[test]
+fn a_file_with_an_oauth_account_is_version_3_so_an_older_envio_refuses_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    accounts.add(settings("bob@example.org"), 1_000).unwrap();
+    assert_eq!(version_of(&path), 2);
+    let mut ms = settings("ada@outlook.example");
+    ms.auth = Some("microsoft".into());
+    let key = accounts.add(ms.clone(), 2_000).unwrap();
+    assert_eq!(version_of(&path), 3);
+    // This build reads its own version 3 back.
+    let mut reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&key).unwrap().settings, ms);
+    // Removing the last OAuth account lets password-only users downgrade again.
+    reopened.remove(&key).unwrap();
+    assert_eq!(version_of(&path), 2);
+}
+
+#[test]
+fn a_broken_entry_that_names_an_auth_kind_keeps_the_file_at_version_3() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let text = r#"{"version": 3, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@outlook.example", "auth": "microsoft"}}]}"#;
+    fs::write(&path, text).unwrap();
+    let mut accounts = Accounts::open(&path).unwrap();
+    accounts.add(settings("bob@example.org"), 2_000).unwrap();
+    assert_eq!(version_of(&path), 3);
+    assert!(fs::read_to_string(&path).unwrap().contains("microsoft"));
+}
+
+#[test]
+fn a_version_4_file_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    fs::write(&path, r#"{"version": 4, "accounts": []}"#).unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
 }

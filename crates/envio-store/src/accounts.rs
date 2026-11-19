@@ -15,7 +15,11 @@ use crate::ids::{fresh_key, is_key};
 
 /// 2 added `security` and `pin`. An envio that only knows 1 refuses the
 /// file rather than rewriting it without the pins.
-const VERSION: u32 = 2;
+/// The newest version this build reads.
+const VERSION: u32 = 3;
+/// Written while no account has an `auth` kind, so password-only users can
+/// still downgrade.
+const BASE_VERSION: u32 = 2;
 
 /// How the connection is encrypted; envio-net's `Security`, kept here as
 /// plain data because store and net don't depend on each other.
@@ -204,8 +208,22 @@ impl Accounts {
                 _ => serde_json::to_value(account).expect("account settings always serialize"),
             })
             .collect();
+        let entries: Vec<serde_json::Value> = entries;
+        // An older envio refuses a version it does not know (see `parse`), so
+        // it never rewrites an OAuth account without its `auth` kind.
+        let names_auth = |entry: &serde_json::Value| {
+            entry
+                .get("settings")
+                .and_then(|settings| settings.get("auth"))
+                .is_some_and(|auth| !auth.is_null())
+        };
+        let version = if entries.iter().any(names_auth) {
+            VERSION
+        } else {
+            BASE_VERSION
+        };
         let file = FileOut {
-            version: VERSION,
+            version,
             accounts: entries,
         };
         let bytes = serde_json::to_vec_pretty(&file).expect("account settings always serialize");
