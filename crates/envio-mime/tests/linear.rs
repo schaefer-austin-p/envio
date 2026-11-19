@@ -357,8 +357,9 @@ fn two_free_width_columns_beside_an_icon_stack() {
         r#"<table><tr><td width="48"><img src="https://news.example/a.png" alt="A" width="40" height="40"></td><td><p>one</p></td><td><p>two</p></td></tr></table>"#,
     );
     assert_eq!(count(&html, "table"), 0, "{html}");
-    // The blocked 40 px icon leaves no label.
-    in_order(&html, &["<div></div>", "one", "two"]);
+    // The blocked 40 px icon leaves no label, and no empty block (#341).
+    assert!(!html.contains("<div></div>"), "{html}");
+    in_order(&html, &["one", "two"]);
 }
 
 #[test]
