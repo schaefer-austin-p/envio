@@ -284,8 +284,8 @@ fn setup_event(
     }
 }
 
-/// The server answered and then closed the connection (a rate limit does
-/// this), as opposed to never answering.
+/// The connection was closed or reset on us (a rate limit, a firewall, a
+/// plaintext port behind implicit TLS), as opposed to never connecting.
 fn dropped(error: &NetError) -> bool {
     matches!(
         error,

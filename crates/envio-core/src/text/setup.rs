@@ -116,7 +116,9 @@ pub fn unreachable() -> String {
 }
 
 pub fn dropped() -> String {
-    tr("The server closed the connection. Try again in a moment")
+    tr(
+        "The server closed the connection. Check the security setting and password, or try again in a moment",
+    )
 }
 
 pub fn not_saved() -> String {
