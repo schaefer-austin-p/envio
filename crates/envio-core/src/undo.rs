@@ -22,6 +22,13 @@ pub enum Offered {
         accounts: BTreeSet<String>,
         folders: BTreeSet<FolderId>,
     },
+    /// Local drafts the user deleted, held until the window ends: their
+    /// files go then, and an Undo puts their rows back. `rest` is the
+    /// server-side half of the same Act, if it had one.
+    LocalDrafts {
+        ids: Vec<String>,
+        rest: Option<Box<Offered>>,
+    },
     /// An invite answer: its reply waits, held, in the Outbox.
     Answer {
         message: MessageRowId,

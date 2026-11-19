@@ -27,6 +27,12 @@ pub fn cannot_undo() -> String {
     tr("Done, but it can not be undone")
 }
 
+/// Archive or Move was asked of a message in a Drafts folder: its local
+/// draft would stay behind, so Delete is the only way out.
+pub fn drafts_delete_only() -> String {
+    tr("A draft can only be deleted.")
+}
+
 pub fn no_archive() -> String {
     tr("This account has no Archive folder")
 }
