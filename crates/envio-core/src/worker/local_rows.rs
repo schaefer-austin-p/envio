@@ -16,6 +16,9 @@ use crate::text;
 pub(super) struct LocalIds {
     by_draft: HashMap<String, i64>,
     by_id: HashMap<i64, String>,
+    /// Drafts the user deleted that wait out their Undo window: hidden,
+    /// their files still there.
+    held: HashSet<String>,
     next: i64,
 }
 
@@ -24,6 +27,7 @@ impl Default for LocalIds {
         Self {
             by_draft: HashMap::new(),
             by_id: HashMap::new(),
+            held: HashSet::new(),
             next: -1,
         }
     }
@@ -43,15 +47,21 @@ impl LocalIds {
     }
 
     /// The draft a pseudo-row id stands for.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "T4 and T5 turn a tapped or deleted row back into its draft"
-        )
-    )]
     pub fn draft_of(&self, id: MessageRowId) -> Option<&str> {
         self.by_id.get(&id.0).map(String::as_str)
+    }
+
+    /// Hides the draft from the list until `release`.
+    pub fn hold(&mut self, draft_id: &str) {
+        self.held.insert(draft_id.to_owned());
+    }
+
+    pub fn is_held(&self, draft_id: &str) -> bool {
+        self.held.contains(draft_id)
+    }
+
+    pub fn release(&mut self, draft_id: &str) {
+        self.held.remove(draft_id);
     }
 }
 
@@ -71,6 +81,9 @@ pub(super) fn local_rows(
     let mut rows = Vec::new();
     for (draft_id, draft) in drafts {
         if draft.account != account {
+            continue;
+        }
+        if ids.held.contains(draft_id) {
             continue;
         }
         let server = &draft.server;
