@@ -353,3 +353,81 @@ fn edit_leaves_a_damaged_file_that_names_the_message_alone() {
     assert!(s.files().is_empty(), "no import beside the damaged file");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), hurt);
 }
+
+const COPY_NOTE: &str = "Editing a copy. The original stays in Drafts.";
+
+#[test]
+fn a_detached_copy_says_so_every_time_it_is_opened() {
+    let s = seeded_with(HTML, Some(MID));
+    s.edit(ComposeId(1), s.in_drafts);
+    let (first, note) = s.ready_with_note(ComposeId(1));
+    assert_eq!(note, COPY_NOTE);
+    s.close(ComposeId(1));
+    s.edit(ComposeId(2), s.in_drafts);
+    let (second, note) = s.ready_with_note(ComposeId(2));
+    assert_eq!(
+        second.draft_id, first.draft_id,
+        "reopened, not imported again"
+    );
+    assert_eq!(note, COPY_NOTE, "the second open says it too");
+    s.close(ComposeId(2));
+    // Even after the copy was uploaded as a new draft.
+    let copy = first.draft_id.unwrap();
+    s.drafts
+        .mark_uploaded(&copy, "<c2@example.org>", 99)
+        .unwrap();
+    s.edit(ComposeId(3), s.in_drafts);
+    assert_eq!(s.ready_with_note(ComposeId(3)).1, COPY_NOTE);
+    assert_eq!(s.files().len(), 1);
+}
+
+#[test]
+fn a_linked_import_stays_without_a_note_when_reopened() {
+    let s = seeded();
+    s.edit(ComposeId(1), s.in_drafts);
+    s.ready(ComposeId(1));
+    s.close(ComposeId(1));
+    s.edit(ComposeId(2), s.in_drafts);
+    assert_eq!(s.ready_with_note(ComposeId(2)).1, "");
+}
+
+#[test]
+fn a_bcc_of_the_server_draft_comes_into_the_compose_and_the_original_stays() {
+    let raw = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+Bcc: Hid <hidden@example.org>, h2@example.org\r\n\
+Subject: secret\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
+    let s = seeded_with(raw, Some(MID));
+    s.edit(ComposeId(1), s.in_drafts);
+    let (draft, note) = s.ready_with_note(ComposeId(1));
+    assert_eq!(
+        draft.bcc,
+        vec!["Hid <hidden@example.org>", "h2@example.org"]
+    );
+    assert_eq!(note, COPY_NOTE);
+    let file = &s.files()[0].1;
+    assert_eq!(file.bcc, draft.bcc, "kept in the file too");
+    assert_eq!(file.server.message_id, None, "never replaces the original");
+}
+
+#[test]
+fn a_draft_with_headers_envio_does_not_write_is_a_copy_not_a_replacement() {
+    let raw = b"From: me@example.org\r\nTo: ada@example.org\r\n\
+Reply-To: other@example.org\r\nX-Priority: 1\r\n\
+Subject: urgent\r\nMessage-ID: <d1@example.org>\r\n\r\nbody\r\n";
+    let s = seeded_with(raw, Some(MID));
+    s.edit(ComposeId(1), s.in_drafts);
+    assert_eq!(s.ready_with_note(ComposeId(1)).1, COPY_NOTE);
+    assert_eq!(s.files()[0].1.server.message_id, None);
+}
+
+#[test]
+fn a_local_draft_uploaded_twice_is_found_by_its_first_message_id() {
+    let s = seeded();
+    // Composed in Envio: uploaded as MID, then twice more.
+    let id = s.local(MID, "unsent words");
+    s.drafts.mark_uploaded(&id, "<c2@example.org>", 6).unwrap();
+    s.drafts.mark_uploaded(&id, "<c3@example.org>", 7).unwrap();
+    s.edit(ComposeId(1), s.in_drafts);
+    assert_eq!(s.ready(ComposeId(1)).draft_id.as_deref(), Some(id.as_str()));
+    assert_eq!(s.files().len(), 1);
+}

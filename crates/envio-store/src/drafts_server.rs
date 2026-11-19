@@ -35,6 +35,44 @@ pub struct ServerCopy {
     /// usable Message-ID of that original, so a second Edit reopens the
     /// copy. The sync planner and `replaced()` ignore it.
     pub imported_from: Option<String>,
+    /// The Message-IDs this draft had on the server before the current one
+    /// (each upload replaces the copy with a new id), oldest first, at
+    /// most `EARLIER_MAX`. A stale cached row of an older copy still finds
+    /// the draft by one of them.
+    pub earlier: Vec<String>,
+}
+
+/// How many earlier Message-IDs a draft remembers.
+pub const EARLIER_MAX: usize = 8;
+
+impl ServerCopy {
+    /// Whether `id` (trimmed) is any Message-ID this draft has or had on
+    /// the server, or the one it was imported from.
+    #[must_use]
+    pub fn names(&self, id: &str) -> bool {
+        [&self.message_id, &self.pending_id, &self.imported_from]
+            .into_iter()
+            .flatten()
+            .chain(self.earlier.iter())
+            .any(|own| own.trim() == id.trim())
+    }
+
+    /// An imported copy that does not stand in for its original: the
+    /// original is not (and never was) this draft's server copy.
+    #[must_use]
+    pub fn is_detached_copy(&self) -> bool {
+        self.imported_from
+            .as_deref()
+            .is_some_and(|origin| !self.names_as_copy(origin))
+    }
+
+    fn names_as_copy(&self, id: &str) -> bool {
+        [&self.message_id, &self.pending_id]
+            .into_iter()
+            .flatten()
+            .chain(self.earlier.iter())
+            .any(|own| own.trim() == id.trim())
+    }
 }
 
 /// A deleted draft whose copy on the server is still to go.
@@ -176,11 +214,21 @@ impl Drafts {
     pub fn mark_uploaded(&self, id: &str, message_id: &str, uploaded_ms: i64) -> Result<bool> {
         self.edit(id, |draft| {
             // `imported_from` stays: the original has still one local copy.
+            // The copy this one replaces joins `earlier`.
+            let old = std::mem::take(&mut draft.server);
+            let mut earlier = old.earlier;
+            if let Some(previous) = old.message_id.filter(|p| p.trim() != message_id.trim()) {
+                earlier.retain(|e| e.trim() != previous.trim());
+                earlier.push(previous);
+            }
+            let excess = earlier.len().saturating_sub(EARLIER_MAX);
+            earlier.drain(..excess);
             draft.server = ServerCopy {
                 message_id: Some(message_id.to_owned()),
                 pending_id: None,
                 uploaded_ms,
-                imported_from: draft.server.imported_from.take(),
+                imported_from: old.imported_from,
+                earlier,
                 ..ServerCopy::default()
             };
         })
@@ -193,6 +241,71 @@ impl Drafts {
         let id = fresh_key(draft.updated_at_ms, |id| self.path(id).exists());
         self.write(&id, draft)?;
         Ok(id)
+    }
+
+    /// Imports a server draft as a local one, all or nothing. `draft` is
+    /// written first as a plain copy (`draft.server` must not name the
+    /// original as its server copy), `add_files` then puts the files in
+    /// (it may change the draft's attachments; they are saved), and only
+    /// when everything is in place is the copy linked: `link` is the
+    /// original's Message-ID, which the draft then stands in for. So a
+    /// crash or a failure before the end can never leave a linked draft
+    /// that lacks files its original has: the first change of a linked
+    /// draft replaces (expunges) the original. Any failure takes the new
+    /// draft back (no note). The id, and whether the link was made (not
+    /// when something touched the draft first).
+    pub fn import(
+        &self,
+        draft: &Draft,
+        link: Option<&str>,
+        add_files: impl FnOnce(&Self, &str, &mut Draft) -> Result<()>,
+    ) -> Result<(String, bool)> {
+        let id = self.create_imported(draft)?;
+        let done = (|| {
+            let mut filled = draft.clone();
+            add_files(self, &id, &mut filled)?;
+            if filled.attachments != draft.attachments {
+                // `save` keeps the server copy and `updated_at_ms` as written.
+                self.save(&id, &filled)?;
+            }
+            match link {
+                Some(original) => self.link_imported(&id, original),
+                None => Ok(false),
+            }
+        })();
+        match done {
+            Ok(linked) => Ok((id, linked)),
+            Err(error) => {
+                if let Err(again) = self.remove_imported(&id) {
+                    log::warn!("taking back a half-imported draft {id}: {again}");
+                }
+                Err(error)
+            }
+        }
+    }
+
+    /// Makes the imported draft `id` stand in for `original` (see
+    /// `import`): `uploaded_ms` becomes its `updated_at_ms`, so it is not
+    /// uploaded until changed. False, with nothing changed, when the
+    /// draft is gone or an upload touched it meanwhile.
+    fn link_imported(&self, id: &str, original: &str) -> Result<bool> {
+        if !is_key(id) {
+            return Err(StoreError::NotFound);
+        }
+        let _held = self.held();
+        let mut draft = match self.load(id) {
+            Ok(draft) => draft,
+            Err(StoreError::NotFound) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        let server = &mut draft.server;
+        if server.message_id.is_some() || server.pending_id.is_some() || server.uploaded_ms != 0 {
+            return Ok(false);
+        }
+        server.message_id = Some(original.to_owned());
+        server.uploaded_ms = draft.updated_at_ms;
+        self.write(id, &draft)?;
+        Ok(true)
     }
 
     /// Takes back a draft `create_imported` just made, when the import
@@ -211,17 +324,11 @@ impl Drafts {
     /// opened, but it is unsent work, so a second copy of the same message
     /// must not be made beside it.
     pub fn damaged_naming(&self, account: &str, message_id: &str) -> Result<Option<String>> {
-        let names =
-            |id: &Option<String>| id.as_deref().is_some_and(|i| i.trim() == message_id.trim());
         for id in self.damaged()? {
             let Some((owner, server)) = self.salvage_fields(&id) else {
                 continue;
             };
-            if owner == account
-                && (names(&server.message_id)
-                    || names(&server.pending_id)
-                    || names(&server.imported_from))
-            {
+            if owner == account && server.names(message_id) {
                 return Ok(Some(id));
             }
         }

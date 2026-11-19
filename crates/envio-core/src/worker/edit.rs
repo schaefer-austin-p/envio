@@ -3,12 +3,12 @@
 //! local file is imported from the server (Decision 4). The import waits for
 //! the whole body as Forward does, so attachments come along.
 
-use envio_store::{FolderRole, MessageRowId};
+use envio_store::{Flags, FolderRole, MessageRowId};
 
 use super::Worker;
 use crate::api::command::{ComposeId, StartFrom};
 use crate::clock::now_ms;
-use crate::drafts::import::draft_from_raw;
+use crate::drafts::import::{Source, draft_from_raw};
 use crate::drafts::lookup::draft_for;
 use crate::text;
 
@@ -40,17 +40,29 @@ impl Worker<'_> {
         }
         let message_id = message.envelope.message_id.as_deref();
         let found = message_id.and_then(|message_id| match self.store.drafts.list() {
-            Ok(drafts) => draft_for(&drafts, &folder.account, message_id),
+            Ok(drafts) => draft_for(&drafts, &folder.account, message_id).map(|id| {
+                let detached = drafts
+                    .iter()
+                    .any(|(d, draft)| *d == id && draft.server.is_detached_copy());
+                (id, detached)
+            }),
             Err(e) => {
                 log::warn!("listing drafts to edit one: {e}");
                 None
             }
         });
-        if let Some(draft_id) = found {
+        if let Some((draft_id, detached)) = found {
             if self.book.holder(&draft_id).is_some() {
                 return self.compose_refused(compose, text::compose::draft_already_open());
             }
-            return self.start_from_draft(compose, Some(&draft_id), String::new());
+            // A copy of a draft the original of which stays says so every
+            // time it is opened, not only the first.
+            let note = if detached {
+                text::compose::editing_a_copy()
+            } else {
+                String::new()
+            };
+            return self.start_from_draft(compose, Some(&draft_id), note);
         }
         // A file that cannot be read still holds the user's text and names
         // this message: importing beside it would make a second copy.
@@ -70,54 +82,65 @@ impl Worker<'_> {
             }
         }
         match raw {
-            Some(raw) => self.import_draft(compose, (&folder.account, message_id), raw),
+            Some(raw) => {
+                let plain_flags =
+                    message.flags.without(Flags::SEEN | Flags::DRAFT) == Flags::empty();
+                self.import_draft(compose, (&folder.account, message_id, plain_flags), raw);
+            }
             None => self.start_from_message(compose, id, StartFrom::Edit { id }),
         }
     }
 
-    /// Makes a local draft of the server draft's bytes and opens it. A
-    /// failure halfway takes the new file back (without a note for the
-    /// server copy, which is the original) and refuses.
+    /// Makes a local draft of the server draft's bytes and opens it. The
+    /// store does it all or nothing and links the copy to the original
+    /// only after its files are in (see `Drafts::import`); a failure
+    /// refuses, with the original untouched.
     fn import_draft(
         &mut self,
         compose: ComposeId,
-        (account, message_id): (&str, Option<&str>),
+        (account, message_id, plain_flags): (&str, Option<&str>, bool),
         raw: &[u8],
     ) {
-        let Some(imported) = draft_from_raw(raw, account, message_id, now_ms()) else {
+        let Some(identity) = self
+            .store
+            .accounts
+            .get(account)
+            .map(|a| a.settings.email.clone())
+        else {
+            return self.compose_refused(compose, text::compose::no_account());
+        };
+        let source = Source {
+            account,
+            identity: &identity,
+            message_id,
+            plain_flags,
+            safe_name: super::read::safe_file_name,
+        };
+        let Some(imported) = draft_from_raw(raw, &source, now_ms()) else {
             return self.compose_refused(compose, text::read::message_unavailable());
         };
-        let drafts = &self.store.drafts;
-        let id = match drafts.create_imported(&imported.draft) {
-            Ok(id) => id,
+        let made = self.store.drafts.import(
+            &imported.draft,
+            imported.link.as_deref(),
+            |drafts, id, draft| {
+                for a in &imported.attachments {
+                    let name =
+                        super::read::safe_file_name(a.filename.as_deref().unwrap_or(""), a.index);
+                    draft
+                        .attachments
+                        .push(drafts.keep_bytes(id, &name, &a.bytes)?);
+                }
+                Ok(())
+            },
+        );
+        let (id, linked) = match made {
+            Ok(made) => made,
             Err(e) => {
                 log::warn!("importing a draft: {e}");
                 return self.compose_refused(compose, text::compose::draft_unavailable());
             }
         };
-        let saved = (|| -> envio_store::Result<()> {
-            if imported.attachments.is_empty() {
-                return Ok(());
-            }
-            let mut draft = imported.draft.clone();
-            for a in &imported.attachments {
-                let name =
-                    super::read::safe_file_name(a.filename.as_deref().unwrap_or(""), a.index);
-                draft
-                    .attachments
-                    .push(drafts.keep_bytes(&id, &name, &a.bytes)?);
-            }
-            // `save` keeps the server copy and `updated_at_ms` as written.
-            drafts.save(&id, &draft)
-        })();
-        if let Err(e) = saved {
-            log::warn!("importing a draft's attachments: {e}");
-            if let Err(e) = drafts.remove_imported(&id) {
-                log::warn!("removing a half-imported draft: {e}");
-            }
-            return self.compose_refused(compose, text::compose::draft_unavailable());
-        }
-        let note = if imported.linked {
+        let note = if linked {
             String::new()
         } else {
             text::compose::editing_a_copy()

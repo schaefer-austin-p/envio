@@ -4,7 +4,7 @@
 
 use std::fs;
 
-use envio_store::{Draft, Drafts, ServerCopy};
+use envio_store::{Draft, Drafts, EARLIER_MAX, ServerCopy, StoreError};
 
 fn draft(subject: &str, updated_at_ms: i64) -> Draft {
     Draft {
@@ -99,4 +99,133 @@ fn undoing_an_import_leaves_no_note_that_would_delete_the_original() {
     let id = drafts.create_imported(&copy).unwrap();
     drafts.delete(&id).unwrap();
     assert_eq!(drafts.deletes().unwrap().len(), 1);
+}
+
+const ORIGIN: &str = "<o@x>";
+
+fn plain_copy(updated_at_ms: i64) -> Draft {
+    let mut copy = draft("Copy", updated_at_ms);
+    copy.server = ServerCopy {
+        imported_from: Some(ORIGIN.into()),
+        ..ServerCopy::default()
+    };
+    copy
+}
+
+#[test]
+fn uploads_remember_the_earlier_message_ids_up_to_a_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("D", 1)).unwrap();
+    for n in 0..12 {
+        assert!(drafts.mark_uploaded(&id, &format!("<u{n}@x>"), 2).unwrap());
+    }
+    // Uploading under the id it already has adds nothing.
+    drafts.mark_uploaded(&id, "<u11@x>", 3).unwrap();
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.message_id.as_deref(), Some("<u11@x>"));
+    assert_eq!(server.earlier.len(), EARLIER_MAX);
+    assert_eq!(server.earlier.last().map(String::as_str), Some("<u10@x>"));
+    assert!(server.names(" <u10@x> "), "any recent one, trimmed");
+    assert!(server.names("<u3@x>"));
+    assert!(!server.names("<u2@x>"), "the oldest fell off the bound");
+    assert!(!server.earlier.iter().any(|e| e == "<u11@x>"));
+}
+
+#[test]
+fn a_draft_is_a_detached_copy_while_its_original_was_never_its_server_copy() {
+    let mut server = ServerCopy {
+        imported_from: Some(ORIGIN.into()),
+        ..ServerCopy::default()
+    };
+    assert!(server.is_detached_copy(), "imported, nothing uploaded");
+    server.message_id = Some("<c2@x>".into());
+    assert!(server.is_detached_copy(), "uploaded as a new draft");
+    // Linked: the original was its server copy, and still counts after
+    // the replacing upload.
+    let linked = ServerCopy {
+        message_id: Some(ORIGIN.into()),
+        imported_from: Some(ORIGIN.into()),
+        ..ServerCopy::default()
+    };
+    assert!(!linked.is_detached_copy());
+    let replaced = ServerCopy {
+        message_id: Some("<c2@x>".into()),
+        imported_from: Some(ORIGIN.into()),
+        earlier: vec![ORIGIN.into()],
+        ..ServerCopy::default()
+    };
+    assert!(!replaced.is_detached_copy());
+    assert!(!ServerCopy::default().is_detached_copy());
+}
+
+#[test]
+fn an_import_is_linked_only_after_its_files_are_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let mut seen = None;
+    let (id, linked) = drafts
+        .import(&plain_copy(7), Some(ORIGIN), |drafts, id, draft| {
+            // Halfway: a draft on disk, not yet standing in for the original.
+            seen = Some(drafts.load(id).unwrap().server);
+            draft
+                .attachments
+                .push(drafts.keep_bytes(id, "a.txt", b"hello")?);
+            Ok(())
+        })
+        .unwrap();
+    let mid = seen.unwrap();
+    assert_eq!(mid.message_id, None, "not linked while files are added");
+    assert_eq!(mid.uploaded_ms, 0);
+    assert!(linked);
+    let done = drafts.load(&id).unwrap();
+    assert_eq!(done.attachments.len(), 1);
+    assert_eq!(fs::read(&done.attachments[0]).unwrap(), b"hello");
+    assert_eq!(done.server.message_id.as_deref(), Some(ORIGIN));
+    assert_eq!(done.server.uploaded_ms, 7);
+    assert_eq!(done.server.imported_from.as_deref(), Some(ORIGIN));
+}
+
+#[test]
+fn an_import_that_fails_in_the_middle_leaves_nothing_and_no_note() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let failed = drafts.import(&plain_copy(7), Some(ORIGIN), |drafts, id, draft| {
+        draft
+            .attachments
+            .push(drafts.keep_bytes(id, "a.txt", b"one")?);
+        Err(StoreError::NotFound)
+    });
+    assert!(failed.is_err());
+    assert!(drafts.list().unwrap().is_empty());
+    assert!(drafts.damaged().unwrap().is_empty());
+    // A note here would expunge the original.
+    assert!(drafts.deletes().unwrap().is_empty());
+}
+
+#[test]
+fn an_import_touched_by_an_upload_before_the_link_stays_unlinked() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let (id, linked) = drafts
+        .import(&plain_copy(7), Some(ORIGIN), |drafts, id, _| {
+            drafts.mark_uploaded(id, "<c2@x>", 7)?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(!linked);
+    let server = drafts.load(&id).unwrap().server;
+    assert_eq!(server.message_id.as_deref(), Some("<c2@x>"));
+    assert_eq!(server.imported_from.as_deref(), Some(ORIGIN));
+}
+
+#[test]
+fn an_import_without_a_link_stays_a_plain_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let (id, linked) = drafts
+        .import(&plain_copy(7), None, |_, _, _| Ok(()))
+        .unwrap();
+    assert!(!linked);
+    assert_eq!(drafts.load(&id).unwrap().server, plain_copy(7).server);
 }

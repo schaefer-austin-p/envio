@@ -31,7 +31,7 @@ pub use addresses::SeenAddress;
 pub use bodies::Bodies;
 pub use db::Db;
 pub use drafts::{Draft, Drafts};
-pub use drafts_server::{ServerCopy, ServerDelete};
+pub use drafts_server::{EARLIER_MAX, ServerCopy, ServerDelete};
 pub use error::{Result, StoreError};
 pub use folders::{Folder, FolderId, FolderRole, SyncState};
 pub use invites::{InviteAnswer, forget_invite, load_invites, record_invite};
