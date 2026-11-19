@@ -395,7 +395,7 @@ Item {
     }
 
     // The browser's redirect after a Microsoft sign-in comes back as an
-    // `envio-oauth:` link; it waits until the core is up, then goes to it. The
+    // `enviooauth:` link; it waits until the core is up, then goes to it. The
     // core ignores one it did not ask for.
     property string pendingRedirect: ""
     function openRedirect(link) {
@@ -415,7 +415,7 @@ Item {
     Platform.Uri {
         id: redirects
         objectName: "redirectUri"
-        schemes: ["envio-oauth"]
+        schemes: ["enviooauth"]
         sourceFile: links.sourceFile
         onOpened: function(uri) { root.openRedirect(uri) }
     }

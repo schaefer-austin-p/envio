@@ -100,7 +100,7 @@ impl World {
     /// The redirect of the browser, as the URL dispatcher hands it over.
     pub fn redirect(&self, state: &str) {
         self.h.send(Command::OAuthRedirect {
-            url: format!("envio-oauth://callback?code=code-1&state={state}").into(),
+            url: format!("enviooauth://callback?code=code-1&state={state}").into(),
         });
     }
 

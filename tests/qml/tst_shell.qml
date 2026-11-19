@@ -161,9 +161,9 @@ Item {
         function test_an_oauth_redirect_offered_to_the_uri_item_reaches_the_core() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
-            b.shell.redirectUri.offer("envio-oauth:/cb?code=abc")
+            b.shell.redirectUri.offer("enviooauth:/cb?code=abc")
             compare(b.core.called("oauthRedirect").length, 1)
-            compare(b.core.called("oauthRedirect")[0].args[0], "envio-oauth:/cb?code=abc")
+            compare(b.core.called("oauthRedirect")[0].args[0], "enviooauth:/cb?code=abc")
             // Other schemes are not the redirect's.
             b.shell.redirectUri.offer("https://example.org/")
             compare(b.core.called("oauthRedirect").length, 1)
@@ -173,7 +173,7 @@ Item {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
             b.core.ready = false
-            b.shell.redirectUri.offer("envio-oauth:/cb?code=abc")
+            b.shell.redirectUri.offer("enviooauth:/cb?code=abc")
             compare(b.core.called("oauthRedirect").length, 0)
             b.core.ready = true
             compare(b.core.called("oauthRedirect").length, 1)

@@ -169,7 +169,7 @@ pub enum Command {
         email: String,
         account: Option<String>,
     },
-    /// The `envio-oauth://` link the browser sent back.
+    /// The `enviooauth://` link the browser sent back.
     OAuthRedirect { url: SecretString },
     /// The answer to `Event::OAuthConfirm`.
     ConfirmOAuth { accept: bool },
