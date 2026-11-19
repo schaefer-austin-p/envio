@@ -6,17 +6,19 @@
 //! which removes a draft whose server copy the user deleted. A failure
 //! leaves everything to be retried. Copies are found by Message-ID, so no UID is kept.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use envio_mime::{Address, new_message_id};
+use envio_net::NetError;
 use envio_net::imap::Flag;
 use envio_store::{Db, Draft, Drafts, FolderRole, Journal, RefusalKind, StoreError};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
-use crate::error::{ErrorKind, Result};
+use crate::error::{ErrorKind, Result, SyncError};
 use crate::plan::drafts::{can_judge, cut_copy, drafts_to_forget, needs_upload, replaced};
 use crate::plan::message_id::search_id;
+use crate::plan::refusal::classify;
 use crate::server::MailServer;
 
 /// What one account's draft run needs besides the server and the store.
@@ -36,13 +38,16 @@ pub struct DraftsSynced {
     /// Server copies of sent or discarded drafts that are gone now.
     pub deleted: Vec<String>,
     /// The server refused this one (a NO: quota, a busy mailbox): it is
-    /// tried again on later runs, and left alone after `GIVE_UP` refusals
-    /// of the same save.
+    /// tried again on later runs, after a growing wait.
     pub refused: Vec<String>,
     /// The server answered this one with nonsense (a BAD): the run went on
-    /// with the others; the draft is tried again, a few times, then left
-    /// until it changes.
+    /// with the others; the draft is tried again after the same growing
+    /// wait.
     pub failed: Vec<String>,
+    /// Some draft's `(refusal, failed_at_ms)` differs after the run: what
+    /// its row shows may have changed (the kind alone would miss a second
+    /// refusal of the same kind after a newer save).
+    pub reasons_changed: bool,
     /// The account has no Drafts folder: nothing is uploaded (core logs it).
     pub no_folder: bool,
     /// Drafts could not be selected: the cached folder list may be stale.
@@ -79,12 +84,15 @@ pub async fn sync_drafts(
         done.no_folder = true;
         return Ok(done);
     };
-    let mut due: Vec<(String, Draft)> = drafts
+    let mine: Vec<(String, Draft)> = drafts
         .list()?
         .into_iter()
-        .filter(|(id, draft)| {
-            draft.account == run.account && !run.open.contains(id) && needs_upload(draft)
-        })
+        .filter(|(_, draft)| draft.account == run.account)
+        .collect();
+    let before = reasons(&mine);
+    let mut due: Vec<(String, Draft)> = mine
+        .into_iter()
+        .filter(|(id, draft)| !run.open.contains(id) && needs_upload(draft, run.now_ms))
         .collect();
     // The least recently tried first: a draft whose upload drops the
     // connection goes to the back, and cannot starve the others.
@@ -106,7 +114,10 @@ pub async fn sync_drafts(
             Ok(false) => {}
             Err(error) => match error.kind() {
                 ErrorKind::Refused => {
-                    let kind = RefusalKind::Other;
+                    let kind = match &error {
+                        SyncError::Net(NetError::Refused(text)) => classify(text),
+                        _ => RefusalKind::Other,
+                    };
                     drafts.mark_failed(&id, draft.updated_at_ms, 1, kind, run.now_ms)?;
                     done.refused.push(id);
                 }
@@ -139,7 +150,21 @@ pub async fn sync_drafts(
             Err(error) => return Err(error),
         }
     }
+    let after: Vec<_> = drafts
+        .list()?
+        .into_iter()
+        .filter(|(_, draft)| draft.account == run.account)
+        .collect();
+    done.reasons_changed = reasons(&after) != before;
     Ok(done)
+}
+
+/// What a draft's row shows of a refusal: the kind and when it happened.
+fn reasons(drafts: &[(String, Draft)]) -> BTreeMap<String, (Option<RefusalKind>, i64)> {
+    drafts
+        .iter()
+        .map(|(id, d)| (id.clone(), (d.server.refusal, d.server.failed_at_ms)))
+        .collect()
 }
 
 /// Appends the draft's text, then deletes what it replaces. The draft file

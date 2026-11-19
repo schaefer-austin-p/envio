@@ -282,7 +282,7 @@ fn edit_of_an_html_draft_makes_a_detached_copy_and_says_so() {
     // uploads a new draft.
     assert_eq!(server.message_id, None);
     assert_eq!(server.imported_from.as_deref(), Some(MID));
-    assert!(envio_sync::plan::drafts::needs_upload(&files[0].1));
+    assert!(envio_sync::plan::drafts::needs_upload(&files[0].1, 0));
 }
 
 #[test]
