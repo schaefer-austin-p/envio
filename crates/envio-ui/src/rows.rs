@@ -93,6 +93,14 @@ pub struct MessageRowUi {
     pub selected: bool,
     /// The message the reader shows: not the same as selected.
     pub open: bool,
+    /// The local draft's id on a pseudo-row (no server copy yet); empty for
+    /// a server row.
+    pub draft_id: String,
+    /// The row is a local draft the server does not hold yet.
+    pub not_uploaded: bool,
+    /// What a tap opens: "compose" exactly when `draft_id` is set, else
+    /// "reader".
+    pub opens: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -179,6 +187,9 @@ const MESSAGE: &[&str] = &[
     "hasAttachments",
     "selected",
     "open",
+    "draftId",
+    "notUploaded",
+    "opens",
 ];
 const OUTBOX: &[&str] = &[
     "id",
@@ -252,6 +263,9 @@ impl Row {
             (Self::Message(r), "hasAttachments") => Bool(r.has_attachments),
             (Self::Message(r), "selected") => Bool(r.selected),
             (Self::Message(r), "open") => Bool(r.open),
+            (Self::Message(r), "draftId") => s(&r.draft_id),
+            (Self::Message(r), "notUploaded") => Bool(r.not_uploaded),
+            (Self::Message(r), "opens") => s(r.opens),
             (Self::Outbox(r), "id") => s(&r.id),
             (Self::Outbox(r), "account") => s(&r.account),
             (Self::Outbox(r), "subject") => s(&r.subject),
