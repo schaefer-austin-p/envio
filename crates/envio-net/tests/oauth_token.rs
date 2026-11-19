@@ -293,3 +293,132 @@ async fn no_token_code_or_verifier_reaches_a_log_or_a_debug_text() {
         assert!(!all.contains(needle), "{needle} leaked");
     }
 }
+
+// Chunked replies (#308): a token endpoint may answer with
+// `Transfer-Encoding: chunked`.
+
+fn chunked(status: &str, body: &str) -> Vec<u8> {
+    format!("HTTP/1.1 {status}\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n{body}")
+        .into_bytes()
+}
+
+/// `text` as chunks of `size` bytes.
+fn in_chunks(text: &str, size: usize) -> String {
+    let mut out = String::new();
+    for part in text.as_bytes().chunks(size) {
+        out += &format!(
+            "{:x}\r\n{}\r\n",
+            part.len(),
+            std::str::from_utf8(part).unwrap()
+        );
+    }
+    out + "0\r\n\r\n"
+}
+
+#[tokio::test]
+async fn a_chunked_token_reply_is_read() {
+    let body = in_chunks(&ok_body("AT-CHUNKED", "RT-CHUNKED"), 7);
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    let tokens = refreshed(&p, &roots).await.unwrap();
+    assert_eq!(tokens.access.expose_secret(), "AT-CHUNKED");
+    assert_eq!(tokens.refresh.unwrap().expose_secret(), "RT-CHUNKED");
+}
+
+#[tokio::test]
+async fn a_chunked_error_reply_keeps_its_meaning() {
+    let body = in_chunks(r#"{"error":"invalid_grant"}"#, 5);
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("400 Bad Request", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Revoked
+    );
+}
+
+#[tokio::test]
+async fn chunk_extensions_and_trailers_do_not_matter() {
+    let json = ok_body("AT-EXT", "RT-EXT");
+    let (a, b) = json.split_at(10);
+    let body = format!(
+        "{:x};ext=1\r\n{a}\r\n{:X};a;b=\"c\"\r\n{b}\r\n0;done\r\nExpires: never\r\nX-A: b\r\n\r\n",
+        a.len(),
+        b.len()
+    );
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    let tokens = exchange(&p, &roots).await.unwrap();
+    assert_eq!(tokens.access.expose_secret(), "AT-EXT");
+}
+
+#[tokio::test]
+async fn a_truncated_chunk_is_refused_for_good_not_retried() {
+    // The size promises 100 bytes; the server sends 10 and closes cleanly.
+    let body = format!("64\r\n{}", &ok_body("A", "R")[..10]);
+    let (p, roots, seen) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_malformed".to_owned())
+    );
+    assert_eq!(seen.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn a_missing_last_chunk_is_refused_for_good() {
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", "5\r\nhello\r\n"))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_malformed".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn a_bad_chunk_size_is_refused_for_good() {
+    let raw = chunked("200 OK", "xyz\r\n{}\r\n0\r\n\r\n");
+    let (p, roots, _) = fake(vec![Step::Raw(raw)]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_malformed".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn an_oversized_chunk_is_refused_for_good_with_a_bounded_body() {
+    // One chunk over the cap, and far more data behind it than the cap.
+    let big = "A".repeat(CAP * 2);
+    let body = format!("{:x}\r\n{big}\r\n0\r\n\r\n", big.len());
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_too_large".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn many_small_chunks_over_the_cap_are_refused_for_good() {
+    let body = in_chunks(&"A".repeat(CAP + 4096), 1000);
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_too_large".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn an_unsupported_transfer_encoding_is_refused_for_good() {
+    let raw = "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n";
+    let (p, roots, _) = fake(vec![Step::Raw(raw.as_bytes().to_vec())]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Refused("reply_malformed".to_owned())
+    );
+}
+
+#[tokio::test]
+async fn a_content_length_reply_still_works() {
+    let json = ok_body("AT-LEN", "RT-LEN");
+    let raw = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{json}",
+        json.len()
+    );
+    let (p, roots, _) = fake(vec![Step::Raw(raw.into_bytes())]).await;
+    let tokens = refreshed(&p, &roots).await.unwrap();
+    assert_eq!(tokens.access.expose_secret(), "AT-LEN");
+}

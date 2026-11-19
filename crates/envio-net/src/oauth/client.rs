@@ -1,7 +1,7 @@
 //! The thin HTTPS layer of OAuth: one form POST to the provider's token
 //! endpoint over HTTP/1.0 on `tls::connect`. The host and path come from
 //! the `Provider` only. No redirect is followed (a 3xx is a refusal), the
-//! body is capped at `http::MAX_BODY`, and the whole call, connect
+//! body (chunked or not) is capped at `http::MAX_BODY`, and the whole call, connect
 //! included, runs under `COMMAND_TIMEOUT`. Nothing here logs, and the
 //! request body (which holds the secrets) is never put in an error.
 
@@ -94,15 +94,18 @@ async fn round_trip(
     let endpoint = Endpoint::new(&url.host, url.port, Security::Tls);
     let mut stream = tls::connect(&endpoint, roots).await?;
     stream.write_all(request(&url, body).as_bytes()).await?;
-    let (raw, clean) = http::read_reply(&mut stream).await?;
+    let (raw, clean) = http::read_response(&mut stream).await?;
     Ok(match http::parse_response(&raw, clean) {
         Ok((status, reply)) => Ok((status, Zeroizing::new(reply))),
         // A body over the cap is not a token endpoint's reply (a captive
         // page, a wrong host, or a hostile one) and a retry gets the same:
         // final, so the caller does not retry it forever.
         Err(BadReply::TooBig) => Err(TokenError::Refused("reply_too_large".to_owned())),
-        // Cut short, chunked, a bad length or not HTTP is a bad connection:
-        // retry, as for a dropped socket.
+        // Broken chunk framing or an encoding this client cannot read: the
+        // server's fault, and a retry gets the same. Final.
+        Err(BadReply::Malformed) => Err(TokenError::Refused("reply_malformed".to_owned())),
+        // Cut short, a bad length or not HTTP is a bad connection: retry,
+        // as for a dropped socket.
         Err(BadReply::Unreadable) => {
             return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
         }
