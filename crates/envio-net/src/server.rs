@@ -95,7 +95,9 @@ impl fmt::Debug for Fingerprint {
 #[derive(Debug, Clone)]
 pub struct Credentials {
     pub username: String,
+    /// The password, or the access token of a bearer credential.
     pub password: SecretString,
+    bearer: bool,
 }
 
 impl Credentials {
@@ -103,7 +105,21 @@ impl Credentials {
         Self {
             username: username.to_owned(),
             password: SecretString::from(password.to_owned()),
+            bearer: false,
         }
+    }
+
+    /// An OAuth 2.0 access token, sent with XOAUTH2 and never as a
+    /// password.
+    pub fn bearer(username: &str, access_token: &str) -> Self {
+        Self {
+            bearer: true,
+            ..Self::new(username, access_token)
+        }
+    }
+
+    pub fn is_bearer(&self) -> bool {
+        self.bearer
     }
 }
 
@@ -142,5 +158,13 @@ mod tests {
     fn debug_never_shows_the_password() {
         let creds = Credentials::new("alice", "hunter2");
         assert!(!format!("{creds:?}").contains("hunter2"));
+        let bearer = Credentials::bearer("alice", "tok-1234");
+        assert!(!format!("{bearer:?}").contains("tok-1234"));
+    }
+
+    #[test]
+    fn a_bearer_credential_is_not_a_password() {
+        assert!(Credentials::bearer("alice", "t").is_bearer());
+        assert!(!Credentials::new("alice", "t").is_bearer());
     }
 }
