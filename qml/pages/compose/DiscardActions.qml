@@ -9,13 +9,37 @@ Item {
     id: root
     required property Theme theme
     signal discarded()
+    // Save draft (the compose keeps its draft in Drafts and closes); only in the
+    // sheet `openClosing()` shows.
+    signal saved()
+    property bool closing: false
 
-    function open() { more.open() }
+    function open() { closing = false; more.open() }
+    // The pane's Close (X): Save draft and Discard draft.
+    function openClosing() { closing = true; more.open() }
 
     Sheet {
         id: more
         objectName: "discardSheet"
         theme: root.theme
+        ListRow {
+            objectName: "saveDraftRow"
+            visible: root.closing
+            theme: root.theme
+            width: more.width
+            onClicked: { more.close(); root.saved() }
+            Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2.5)
+                y: root.theme.gu(1.75)
+                width: parent.width - root.theme.gu(5)
+                text: qsTr("Save draft")
+                color: root.theme.text
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
+        }
         ListRow {
             objectName: "discardRow"
             iconName: "trash-2"

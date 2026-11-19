@@ -569,7 +569,8 @@ Item {
             const b = bootWide(100)
             b.shell.currentPage.messageRequested(7)
             b.shell.paneCompose = 4
-            compare(find(b.shell, "readerPage"), null)
+            // The reader waits, hidden, under the compose.
+            verify(!b.shell.readerItem.visible, "the reader shows under the compose")
             const page = find(b.shell, "composePage")
             verify(page !== null, "no compose in the pane")
             compare(page.compose, 4)
@@ -703,8 +704,9 @@ Item {
             b.shell.width = thm.gu(70)
             b.shell.width = thm.gu(100)
             compare(b.shell.wide, true)
-            const page = b.shell.currentPage
-            compare(page.objectName, "composePage")
+            tryCompare(b.shell, "depth", 1)
+            compare(b.shell.paneCompose, 4)
+            const page = b.shell.composeItem
             compare(page.compose, 4)
             verify(page.width >= thm.gu(50), "compose is " + page.width + " wide")
             compare(JSON.parse(page.draftJson()).subject, "Plans, edited")
@@ -802,14 +804,18 @@ Item {
             b.shell.destroy()
         }
 
-        function test_narrowing_clears_the_open_message() {
+        function test_narrowing_carries_the_open_message_to_the_stack() {
             const b = bootWide(100)
             b.shell.currentPage.messageRequested(7)
             compare(b.core.openMessage, 7)
+            const reader = b.shell.readerItem
             b.shell.width = thm.gu(80)
             compare(b.shell.wide, false)
-            compare(b.core.openMessage, 0)
-            compare(b.core.messages.get(0).open, false)
+            compare(b.shell.depth, 2)
+            verify(b.shell.currentPage === reader, "the reader is not the top page")
+            compare(reader.messageId, 7)
+            compare(reader.wide, false)
+            compare(b.core.openMessage, 7)
             b.shell.destroy()
         }
 
@@ -840,6 +846,300 @@ Item {
             b.shell.composeOpened(5)
             compare(b.shell.depth, 1)
             compare(b.shell.paneCompose, 5)
+            b.shell.destroy()
+        }
+
+        // ---- T4 (#192): the reader and the compose are reparented, not recreated ----
+
+        function pane(b) { return find(b.shell, "pane") }
+        function longBody() {
+            let lines = []
+            for (let i = 0; i < 90; i++) lines.push("line " + i)
+            return lines.join("\n")
+        }
+
+        function test_compose_survives_narrow_wide_narrow() {
+            const b = wideCompose()
+            const item = b.shell.composeItem
+            verify(item !== null, "no compose item")
+            find(item, "bodyField").text = "Typed body"
+            b.core.reset()
+            b.shell.width = thm.gu(70)
+            b.shell.width = thm.gu(100)
+            b.shell.width = thm.gu(70)
+            verify(b.shell.composeItem === item, "the compose item was replaced")
+            compare(find(item, "bodyField").text, "Typed body")
+            compare(item.compose, 4)
+            compare(b.core.called("closeCompose").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_makes_compose_the_top_page() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            verify(b.shell.currentPage === b.shell.composeItem, "the compose is not the top page")
+            compare(b.shell.depth, 2)
+            compare(b.shell.paneCompose, 0)
+            b.shell.destroy()
+        }
+
+        function test_widening_with_compose_pops_to_list() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.width = thm.gu(100)
+            tryCompare(b.shell, "depth", 1)
+            compare(b.shell.paneCompose, 4)
+            verify(b.shell.composeItem.parent === pane(b), "the compose is not in the pane")
+            verify(b.shell.composeItem.visible)
+            compare(b.shell.composeItem.opacity, 1)
+            b.shell.destroy()
+        }
+
+        function test_narrow_compose_widens_into_the_pane() {
+            // Opened narrow from the list, then the window grows.
+            const b = bootWide(70)
+            b.shell.composeOpened(6)
+            b.core.composeReady(6, composeDraft, "")
+            const item = b.shell.composeItem
+            compare(b.shell.depth, 2)
+            b.shell.width = thm.gu(100)
+            tryCompare(b.shell, "depth", 1)
+            compare(b.shell.paneCompose, 6)
+            verify(b.shell.composeItem === item)
+            compare(find(item, "subjectField").text, "Plans")
+            b.shell.destroy()
+        }
+
+        function openedReader(b, id) {
+            b.shell.currentPage.messageRequested(id)
+            const reader = b.shell.readerItem
+            verify(reader !== null, "no reader item")
+            b.core.messageOpened({ id: id, html: "<p>" + new Array(500).join("Hello again. ") + "</p>", blockedImages: 0, from: "Lucia",
+                fromAddress: "lucia@example.org", to: ["me@example.org"], cc: [], subject: "Plans " + id, date: 1700000000,
+                account: "ann", senderKnown: false, senderVerified: true, attachments: [] })
+            tryVerify(function() { return reader.ready })
+            return reader
+        }
+        function fractionOf(reader) {
+            const flick = find(reader, "readerFlick")
+            return flick.contentY / Math.max(1, flick.contentHeight - flick.height)
+        }
+
+        function test_reader_scroll_fraction_survives() {
+            const b = bootWide(100)
+            const reader = openedReader(b, 7)
+            const flick = find(reader, "readerFlick")
+            waitForRendering(reader)
+            flick.contentY = 0.5 * (flick.contentHeight - flick.height)
+            tryVerify(function() { return Math.abs(reader.scrollFraction - 0.5) < 0.02 })
+            b.shell.width = thm.gu(70)
+            verify(b.shell.readerItem === reader, "the reader item was replaced")
+            verify(b.shell.currentPage === reader)
+            tryVerify(function() { return Math.abs(fractionOf(reader) - 0.5) < 0.02 }, 2000, "fraction " + fractionOf(reader) + " narrow")
+            b.shell.width = thm.gu(100)
+            tryCompare(b.shell, "depth", 1)
+            verify(b.shell.readerItem === reader)
+            tryVerify(function() { return Math.abs(fractionOf(reader) - 0.5) < 0.02 }, 2000, "fraction " + fractionOf(reader) + " wide")
+            compare(reader.messageId, 7)
+            b.shell.destroy()
+        }
+
+        function test_reader_back_on_the_narrowed_page_clears_the_open_row() {
+            const b = bootWide(100)
+            const reader = openedReader(b, 7)
+            b.shell.width = thm.gu(70)
+            reader.backRequested()
+            tryCompare(b.shell, "depth", 1)
+            compare(b.core.openMessage, 0)
+            compare(b.core.messages.get(0).open, false)
+            b.shell.destroy()
+        }
+
+        function test_narrow_reader_widens_into_the_pane() {
+            const b = bootWide(70)
+            b.shell.currentPage.messageRequested(7)
+            const reader = b.shell.currentPage
+            compare(b.shell.depth, 2)
+            b.shell.width = thm.gu(100)
+            tryCompare(b.shell, "depth", 1)
+            verify(b.shell.readerItem === reader)
+            verify(reader.parent === pane(b))
+            compare(reader.wide, true)
+            compare(b.core.openMessage, 7)
+            b.shell.destroy()
+        }
+
+        function test_click_row_with_compose_closes_it_and_opens_message() {
+            const b = wideCompose()
+            // No row was open before the click.
+            compare(b.core.messages.get(0).open, false)
+            compare(b.core.messages.get(1).open, false)
+            b.shell.openMessageFromRow(8)
+            compare(b.core.calls.map(function(c) { return c.name }).filter(function(n) { return n === "closeCompose" || n === "setOpenMessage" }),
+                    ["closeCompose", "setOpenMessage"])
+            compare(b.core.called("closeCompose")[0].args, [4, false])
+            compare(b.shell.paneCompose, 0)
+            compare(b.shell.composeItem, null)
+            compare(b.core.openMessage, 8)
+            compare(b.core.messages.get(1).open, true)
+            const toast = findByName(b.shell, "sentToast")
+            verify(toast !== null)
+            compare(toast.text, qsTr("Draft saved"))
+            b.shell.destroy()
+        }
+
+        function test_no_row_open_while_compose_in_pane() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            tryVerify(function() { return !!findByName(b.shell.currentPage, "openBar") })
+            const bar = findByName(b.shell.currentPage, "openBar")
+            verify(bar.visible, "the open row has no bar")
+            b.shell.composeOpened(4)
+            compare(b.shell.paneCompose, 4)
+            verify(!bar.visible, "a row is marked open while compose is in the pane")
+            // The reader is back, with its row, once the compose is gone.
+            b.shell.paneCompose = 0
+            verify(bar.visible, "the open row does not come back")
+            b.shell.destroy()
+        }
+
+        function test_compose_close_shows_discard_sheet_in_pane() {
+            const b = wideCompose()
+            const page = b.shell.composeItem
+            find(page, "backButton").clicked()
+            const sheet = findByName(page, "discardSheet")
+            verify(sheet !== null, "no sheet")
+            tryVerify(function() { return sheet.opened })
+            verify(findByName(page, "saveDraftRow") !== null, "no Save draft row")
+            compare(b.core.called("closeCompose").length, 0)
+            compare(b.shell.paneCompose, 4)
+            b.shell.destroy()
+        }
+
+        function test_pane_close_send_discard_clear_pane_compose_data() {
+            return [{ tag: "save draft" }, { tag: "discard" }, { tag: "send" }]
+        }
+        function test_pane_close_send_discard_clear_pane_compose(data) {
+            const b = wideCompose()
+            const page = b.shell.composeItem
+            const depth = b.shell.depth
+            if (data.tag === "save draft") findByName(page, "saveDraftRow").clicked()
+            else if (data.tag === "discard") findByName(page, "discardActions").discarded()
+            else b.core.queued(4, "Queued")
+            tryCompare(b.shell, "paneCompose", 0)
+            compare(b.shell.depth, depth)
+            compare(page.done, false)
+            tryVerify(function() { return find(b.shell, "emptyReader") !== null })
+            if (data.tag === "save draft") compare(b.core.called("closeCompose")[0].args, [4, false])
+            if (data.tag === "discard") compare(b.core.called("closeCompose")[0].args, [4, true])
+            b.shell.destroy()
+        }
+
+        function test_stack_close_and_sent_unchanged() {
+            const b = bootWide(70)
+            b.shell.composeOpened(6)
+            b.core.composeReady(6, composeDraft, "")
+            compare(b.shell.depth, 2)
+            b.shell.currentPage.leave()
+            tryCompare(b.shell, "depth", 1)
+            b.shell.composeOpened(7)
+            b.core.composeReady(7, composeDraft, "")
+            compare(b.shell.depth, 2)
+            b.core.queued(7, "Queued")
+            tryCompare(b.shell, "depth", 1)
+            b.shell.composeOpened(8)
+            b.core.composeReady(8, composeDraft, "")
+            findByName(b.shell.currentPage, "discardActions").discarded()
+            tryCompare(b.shell, "depth", 1)
+            b.shell.destroy()
+        }
+
+        // #332: the cursor, the focused field and the scroll position go with the compose.
+        function test_narrowing_keeps_body_cursor_focus_and_scroll() {
+            const b = wideCompose()
+            const page = b.shell.composeItem
+            const body = find(page, "bodyField")
+            body.text = longBody()
+            const input = body.input
+            input.forceActiveFocus()
+            input.cursorPosition = 12
+            const flick = find(page, "composeFlick")
+            tryVerify(function() { return flick.contentHeight > flick.height + 300 })
+            tryVerify(function() { return !page.resizing })
+            flick.contentY = 250
+            b.shell.width = thm.gu(70)
+            verify(b.shell.composeItem === page)
+            tryVerify(function() { return find(page, "bodyField").input.activeFocus }, 2000, "the body lost focus")
+            compare(find(page, "bodyField").input.cursorPosition, 12)
+            tryVerify(function() { return page.viewWanted === null && !page.resizing })
+            fuzzyCompare(flick.contentY, 250, 2)
+            b.shell.width = thm.gu(100)
+            tryVerify(function() { return find(page, "bodyField").input.activeFocus }, 2000, "the body lost focus on widening")
+            compare(find(page, "bodyField").input.cursorPosition, 12)
+            tryVerify(function() { return page.viewWanted === null && !page.resizing })
+            fuzzyCompare(flick.contentY, 250, 2)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_keeps_focus_in_the_subject() {
+            const b = wideCompose()
+            const page = b.shell.composeItem
+            find(page, "subjectField").input.forceActiveFocus()
+            find(page, "subjectField").input.cursorPosition = 3
+            b.shell.width = thm.gu(70)
+            tryVerify(function() { return find(page, "subjectField").input.activeFocus })
+            compare(find(page, "subjectField").input.cursorPosition, 3)
+            verify(!find(page, "bodyField").input.activeFocus)
+            b.shell.destroy()
+        }
+
+        // Review 1281, 1: a message on its way out (Outbox) must not also be
+        // saved as a draft by a row click.
+        function test_row_click_while_sending_leaves_the_compose_alone() {
+            const b = wideCompose()
+            b.shell.composeItem.sending = true
+            b.core.reset()
+            b.shell.openMessageFromRow(8)
+            compare(b.core.called("closeCompose").length, 0)
+            compare(b.core.called("draftChanged").length, 0)
+            compare(b.core.called("setOpenMessage").length, 0)
+            compare(b.shell.paneCompose, 4)
+            verify(b.shell.composeItem !== null)
+            verify(findByName(b.shell, "sentToast").text !== qsTr("Draft saved"), "the toast says the draft is saved")
+            b.shell.destroy()
+        }
+
+        // Review 1281, 2: with Settings on top the reader is not pushed over
+        // it, and Back from Settings leaves the open message alone.
+        function test_narrowing_with_a_page_on_top_does_not_push_the_reader() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            const reader = b.shell.readerItem
+            b.shell.currentPage.settingsRequested()
+            tryVerify(function() { return b.shell.currentPage.objectName === "settingsPage" })
+            const depth = b.shell.depth
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            compare(b.shell.depth, depth)
+            compare(b.shell.currentPage.objectName, "settingsPage")
+            verify(reader.parent === pane(b), "the reader was moved onto the stack")
+            b.shell.currentPage.backRequested()
+            tryCompare(b.shell, "depth", 1)
+            compare(b.core.openMessage, 7)
+            compare(b.core.called("setOpenMessage").filter(function(c) { return c.args[0] === 0 }).length, 0)
+            b.shell.destroy()
+        }
+
+        // Review 1281, 4: the stack is replaced (last account removed): the
+        // reader and compose items go with it.
+        function test_route_drops_the_reader_and_compose_items() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            verify(b.shell.readerItem !== null)
+            b.core.accounts.clear()
+            tryVerify(function() { return b.shell.rootKind === "wizard" })
+            compare(b.shell.readerItem, null)
+            compare(b.shell.composeItem, null)
             b.shell.destroy()
         }
     }

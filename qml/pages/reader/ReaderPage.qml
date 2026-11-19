@@ -77,6 +77,32 @@ Item {
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(wide ? Math.min(width - theme.gu(13), theme.gu(77)) : width - theme.gu(7)))
 
+    // Where the body is scrolled to, 0..1 of (contentHeight - height). The
+    // text lays out again at another width, so a pixel offset would land
+    // elsewhere; the shell calls holdScroll() before it moves this page to
+    // another parent and restoreScroll() after.
+    property real scrollFraction: 0
+    property bool scrollHeld: false
+    property bool restoring: false
+    function holdScroll() { scrollHeld = true }
+    function restoreScroll() {
+        scrollHeld = true
+        restoring = true
+        restoreTimer.restart()
+        Qt.callLater(applyScroll)
+    }
+    function applyScroll() {
+        const room = Math.max(0, flick.contentHeight - flick.height)
+        flick.contentY = scrollFraction * room
+    }
+    // Layout after a width change lands in steps; each one re-applies the
+    // fraction until the page has been still for a moment.
+    Timer {
+        id: restoreTimer
+        interval: 300
+        onTriggered: { root.restoring = false; root.scrollHeld = false }
+    }
+
     // Leaving the page: Back, or a message that is no longer in this list.
     signal backRequested()
     // The compose id `startCompose` returned; the compose page follows it.
@@ -98,6 +124,7 @@ Item {
         // The pane reuses this page for the next message: nothing of the
         // last one stays (scroll, a queued action, a sheet).
         flick.contentY = 0
+        scrollFraction = 0
         pendingMode = ""
         calendarPending = false
         undoId = -1
@@ -291,6 +318,12 @@ Item {
         clip: true
         contentHeight: page.height + root.theme.gu(3)
         boundsBehavior: Flickable.StopAtBounds
+        onContentYChanged: {
+            if (root.scrollHeld) return
+            const room = contentHeight - height
+            root.scrollFraction = room > 0 ? Math.max(0, Math.min(1, contentY / room)) : 0
+        }
+        onContentHeightChanged: if (root.restoring) root.applyScroll()
 
         Column {
             id: page
