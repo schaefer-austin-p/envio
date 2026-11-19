@@ -906,6 +906,44 @@ Item {
             compare(find("bodyMenu").copyOnly, true)
         }
 
+        // #291: the menu must not cover either handle's touch target. Covers
+        // the menu's geometry as opened by holdBody (real Menu and handles,
+        // offscreen); not the Lomiri window and a finger on the device.
+        function overlaps(a, b) {
+            return a.x < b.x + b.width && b.x < a.x + a.width
+                && a.y < b.y + b.height && b.y < a.y + a.height
+        }
+        function menuClearOfHandles(word) {
+            const body = find("bodyText")
+            const r = body.positionToRectangle(body.getText(0, body.length).indexOf(word))
+            root.page.holdBody(r.x + 1, r.y + r.height / 2)
+            compare(body.selectedText, word)
+            const menu = find("bodyMenu")
+            verify(menu.visible || menu.opened)
+            const m = Qt.rect(menu.x, menu.y, menu.width, menu.height)
+            const names = ["startHandle", "endHandle"]
+            for (let i = 0; i < names.length; i++) {
+                const h = find(names[i])
+                const t = thm.touch
+                const c = body.mapFromItem(h, h.width / 2, h.height / 2)
+                const box = Qt.rect(c.x - t / 2, c.y - t / 2, t, t)
+                verify(!overlaps(m, box), names[i] + " is covered: menu " + JSON.stringify(m)
+                       + " handle " + JSON.stringify(box))
+            }
+        }
+        function test_the_menu_clears_the_handles_below_the_first_line() {
+            const v = view([], 0)
+            v.html = "<p>Intro line</p><p>Order 48213 shipped</p><p>More text here</p>"
+            open(v)
+            menuClearOfHandles("48213")
+        }
+        function test_the_menu_clears_the_handles_on_the_first_line() {
+            const v = view([], 0)
+            v.html = "<p>48213 shipped on time</p><p>More text here</p>"
+            open(v)
+            menuClearOfHandles("48213")
+        }
+
         function test_copy_puts_the_selection_on_the_clipboard_as_plain_text() {
             const v = view([], 0)
             v.html = "<p>Code <b>7391</b> inside</p>"

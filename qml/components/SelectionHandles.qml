@@ -25,6 +25,30 @@ Item {
         else edit.select(s, Math.max(p, s + 1))
     }
 
+    // Where the edit menu's top left goes, in `edit`'s coordinates: above the
+    // selection's first line, or below the end handle's touch target when
+    // there is no room above inside `view` (an Item whose box bounds what
+    // the user can see; null means unbounded). The menu never sits on a
+    // handle, so both stay draggable.
+    function menuSpot(menuW, menuH, view) {
+        const a = edit.positionToRectangle(edit.selectionStart)
+        const b = edit.positionToRectangle(edit.selectionEnd)
+        const gap = theme.gu(1)
+        const knob = theme.gu(2.5)
+        const above = a.y - menuH - gap
+        const belowEnd = b.y + b.height + knob / 2 + Math.max(knob, theme.touch) / 2 + gap
+        let y = above
+        if (view) {
+            const top = edit.mapFromItem(view, 0, 0).y
+            const bottom = edit.mapFromItem(view, 0, view.height).y
+            if (above < top && belowEnd + menuH <= bottom) y = belowEnd
+        } else if (above < 0) {
+            y = belowEnd
+        }
+        const x = Math.max(0, Math.min(a.x, edit.width - menuW))
+        return Qt.point(x, y)
+    }
+
     component Handle: Rectangle {
         id: knob
         property bool atStart: false
