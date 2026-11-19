@@ -42,7 +42,7 @@ impl qobject::EnvioCore {
 
     /// Mirror what `Ui` produced, in its order: model changes and signals
     /// are queued (one FIFO on the Qt thread), commands go to the core.
-    pub(crate) fn run(self: Pin<&mut Self>, outs: Vec<Output>) {
+    pub(crate) fn run(mut self: Pin<&mut Self>, outs: Vec<Output>) {
         for out in outs {
             match out {
                 Output::Change(change) => self.as_ref().change_model(change),
@@ -55,7 +55,30 @@ impl qobject::EnvioCore {
                 Output::Send(command) => self.as_ref().send_command_ref(command),
             }
         }
-        self.sync_open_message();
+        self.as_mut().sync_open_message();
+        self.sync_list_flags();
+    }
+
+    /// `listIsDrafts` and `selectionHasLocal` follow `Ui`, queued like
+    /// `sync_open_message`.
+    fn sync_list_flags(self: Pin<&mut Self>) {
+        let (drafts, local) = (
+            self.rust().ui.list_is_drafts(),
+            self.rust().ui.selection_has_local(),
+        );
+        let queued = self.qt_thread().queue(move |mut obj| {
+            if obj.rust().list_is_drafts != drafts {
+                obj.as_mut().rust_mut().list_is_drafts = drafts;
+                obj.as_mut().list_is_drafts_changed();
+            }
+            if obj.rust().selection_has_local != local {
+                obj.as_mut().rust_mut().selection_has_local = local;
+                obj.as_mut().selection_has_local_changed();
+            }
+        });
+        if queued.is_err() {
+            log::info!("EnvioCore is gone; dropped the list flags");
+        }
     }
 
     /// The open message can clear by itself (its row left, the list

@@ -90,6 +90,31 @@ impl Ui {
         }
     }
 
+    /// A local draft changed: the shown list reloads when it is that
+    /// account's Drafts folder (a pseudo-row came or went).
+    pub(super) fn local_drafts_changed(&mut self, account: &str) -> Vec<Output> {
+        let folder = match self.current.as_ref().map(|c| c.list) {
+            Some(ListRef::Folder(id)) => id,
+            _ => return Vec::new(),
+        };
+        match self.folder_roles.get(&folder.0) {
+            Some((a, FolderRole::Drafts)) if a == account => self.messages_changed(&[folder]),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The shown list is a Drafts-role folder (by the role the `Folders`
+    /// event gave it). QML hides Archive and Move there.
+    pub fn list_is_drafts(&self) -> bool {
+        match self.current.as_ref().map(|c| c.list) {
+            Some(ListRef::Folder(id)) => self
+                .folder_roles
+                .get(&id.0)
+                .is_some_and(|(_, r)| *r == FolderRole::Drafts),
+            _ => false,
+        }
+    }
+
     /// A page is not coming: forget that it is outstanding, so refreshes
     /// and paging work again. A failed refresh page ends the walk.
     pub(super) fn messages_failed(
@@ -130,6 +155,13 @@ impl Ui {
                 has_attachments: r.has_attachments,
                 selected: self.selection.contains(&r.id.0),
                 open: self.open == Some(r.id.0),
+                draft_id: r.local_draft.clone().unwrap_or_default(),
+                not_uploaded: r.local_draft.is_some(),
+                opens: if r.local_draft.is_some() {
+                    "compose"
+                } else {
+                    "reader"
+                },
             },
         }
     }
