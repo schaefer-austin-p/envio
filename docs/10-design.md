@@ -110,6 +110,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". Settings → Notifications (0.2.0) sits at the foot, light. |
 | Two panes | `carbon-two-pane` | Tablet and desktop (#192): list left, reader or compose right (wide from 90 gu), multi-select, empty reader, optional drawer column, the breakpoint, hover, right-click menu, shortcut legend, dark rows, Airmail frame (hover value for all four palettes). The open row is the selected fill plus a 3 px accent bar (not multi-select). New: reader Close, empty state, hover role, context menu, shortcuts dialog. |
 | Dark | `*-dark` | Inbox, reader and sync settings in each dark theme. Settings → Notifications (0.2.0) sits at the foot, dark. |
+| Menu and sheet icons | `*-menu-icons` | Lucide icon on every sheet option and menu item (#356): mapping, size, gap, colours, dark, check and radio marks, ISC notice. Mockup only until the implementation step. |
 | App icon | `*-icons` | Chosen: Airmail 2, the postage stamp with envelope, for both themes. |
 
 ## Interaction rules
