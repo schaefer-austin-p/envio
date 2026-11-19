@@ -487,27 +487,27 @@ msgstr ""
 msgid "Write your message"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:36
+#: qml/pages/compose/DiscardActions.qml:37
 msgid "Save draft"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:55
+#: qml/pages/compose/DiscardActions.qml:56
 msgid "Discard draft"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:67
+#: qml/pages/compose/DiscardActions.qml:68
 msgid "Discard this message?"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:68
+#: qml/pages/compose/DiscardActions.qml:69
 msgid "The draft is deleted and cannot be brought back."
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:69
+#: qml/pages/compose/DiscardActions.qml:70
 msgid "Keep editing"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:70
+#: qml/pages/compose/DiscardActions.qml:71
 msgid "Discard"
 msgstr ""
 

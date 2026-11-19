@@ -24,6 +24,7 @@ Item {
         theme: root.theme
         ListRow {
             objectName: "saveDraftRow"
+            iconName: "save"
             visible: root.closing
             theme: root.theme
             width: more.width
