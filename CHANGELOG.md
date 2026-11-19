@@ -14,9 +14,8 @@ All notable changes to Envio are listed here. The format follows
   a prompt, "Sign in again" appears when Microsoft revokes the sign-in, a
   held Outbox message goes out after it, and a mailbox with Authenticated
   SMTP switched off gets a clear message. It is built and tested end to
-  end, but stays off until the owner's Microsoft client ID is put in
-  (#219): until then Microsoft accounts go through the password step, as
-  before.
+  end. The Microsoft client ID is now set (#219 T10), so the sign-in is
+  offered; it has not yet been tried against Microsoft on a phone.
 
 ### Changed
 

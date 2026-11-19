@@ -2,10 +2,20 @@ use super::*;
 use crate::server::Security;
 
 #[test]
-fn microsoft_is_off_while_the_client_id_is_empty() {
-    // The owner's PR that sets the client ID (#219 T10) must update this test.
-    assert_eq!(client_ids::MICROSOFT, "");
-    assert!(Provider::microsoft().is_none());
+fn microsoft_is_on_with_the_registered_client_id() {
+    // A UUID: 8-4-4-4-12 hex digits.
+    let parts: Vec<&str> = client_ids::MICROSOFT.split('-').collect();
+    assert_eq!(
+        parts.iter().map(|p| p.len()).collect::<Vec<_>>(),
+        [8, 4, 4, 4, 12]
+    );
+    assert!(
+        parts
+            .iter()
+            .all(|p| p.chars().all(|c| c.is_ascii_hexdigit()))
+    );
+    let p = Provider::microsoft().expect("Microsoft is offered");
+    assert_eq!(p.client_id, client_ids::MICROSOFT);
 }
 
 #[test]
