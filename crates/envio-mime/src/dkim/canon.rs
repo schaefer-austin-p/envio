@@ -235,16 +235,17 @@ fn empty_b(field: &[u8]) -> Vec<u8> {
 /// The data the signature covers (RFC 6376 3.7, 5.4.2): for each name in
 /// `h=`, the next unused field of that name counting from the bottom (none
 /// left: nothing, which is how over-signing works), canonicalised, then the
-/// DKIM-Signature field itself (found among `fields` by identity and never
-/// selected by `h=`) canonicalised with `b=` emptied and no trailing
-/// CRLF.
-pub(crate) fn signed_data(fields: &[&[u8]], sig_field: &[u8], sig: &Signature) -> Vec<u8> {
+/// DKIM-Signature field itself (`fields[sig_index]`, never selected by `h=`)
+/// canonicalised with `b=` emptied and no trailing CRLF. None when
+/// `sig_index` is out of range.
+pub(crate) fn signed_data(fields: &[&[u8]], sig_index: usize, sig: &Signature) -> Option<Vec<u8>> {
+    let sig_field = *fields.get(sig_index)?;
     // Per name, the field indexes top to bottom: pop() gives the lowest left.
     let mut by_name: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
     for (i, f) in fields.iter().enumerate() {
         // The signature being checked is added last, with `b=` emptied; an
         // `h=dkim-signature` must never select it (RFC 6376 5.4.2).
-        if std::ptr::eq(*f, sig_field) {
+        if i == sig_index {
             continue;
         }
         if let Some(name) = field_name(f) {
@@ -267,5 +268,5 @@ pub(crate) fn signed_data(fields: &[&[u8]], sig_field: &[u8], sig: &Signature) -
     let mut own = canon_field(&emptied, sig.header_canon);
     own.truncate(own.len() - CRLF.len());
     out.extend(own);
-    out
+    Some(out)
 }

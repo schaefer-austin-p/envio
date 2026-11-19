@@ -27,6 +27,14 @@ fn sig(h: &[&str], canon: Canon) -> Signature {
     }
 }
 
+/// `signed_data` for a signature field that is not among the message's
+/// fields yet: it goes at the bottom, as DKIM-Signature fields are added.
+fn signed_data(fields: &[&[u8]], sig_field: &[u8], sig: &Signature) -> Vec<u8> {
+    let mut all = fields.to_vec();
+    all.push(sig_field);
+    super::canon::signed_data(&all, all.len() - 1, sig).unwrap()
+}
+
 fn joined(raw: &[u8], c: Canon) -> Vec<u8> {
     header_fields(raw)
         .iter()
@@ -409,20 +417,35 @@ fn h_dkim_signature_never_selects_the_signature_itself() {
     let own = f[2];
     let s = sig(&["dkim-signature", "from"], SP);
     assert_eq!(
-        signed_data(&f, own, &s),
+        super::canon::signed_data(&f, 2, &s).unwrap(),
         b"DKIM-Signature: other\r\nFrom: a@example.com\r\nDKIM-Signature: v=1; b="
     );
+    assert_eq!(f[2], own);
     // Alone, it contributes only its own emptied copy, once.
     let raw1 = b"DKIM-Signature: v=1; b=QUJD\r\n\r\n";
     let f1 = header_fields(raw1);
     let s1 = sig(&["dkim-signature"], SP);
-    assert_eq!(signed_data(&f1, f1[0], &s1), b"DKIM-Signature: v=1; b=");
+    assert_eq!(
+        super::canon::signed_data(&f1, 0, &s1).unwrap(),
+        b"DKIM-Signature: v=1; b="
+    );
     // Listed twice with one other: the other once, then nothing.
     let s2 = sig(&["dkim-signature", "dkim-signature"], SP);
     assert_eq!(
-        signed_data(&f, own, &s2),
+        super::canon::signed_data(&f, 2, &s2).unwrap(),
         b"DKIM-Signature: other\r\nDKIM-Signature: v=1; b="
     );
+}
+
+#[test]
+fn signature_index_out_of_range_is_none() {
+    let raw = b"From: a@example.com\r\nDKIM-Signature: b=x\r\n\r\n";
+    let f = header_fields(raw);
+    let s = sig(&["from"], SP);
+    assert!(super::canon::signed_data(&f, 2, &s).is_none());
+    assert!(super::canon::signed_data(&f, usize::MAX, &s).is_none());
+    assert!(super::canon::signed_data(&[], 0, &s).is_none());
+    assert!(super::canon::signed_data(&f, 1, &s).is_some());
 }
 
 #[test]

@@ -21,7 +21,7 @@ fn check(header: &str) {
         "body hash"
     );
     // The signed data verifies under the signer's public key.
-    let data = signed_data(&fields, sig_field, &sig);
+    let data = signed_data(&fields, 0, &sig).expect("index in range");
     let key = b64.decode(PUB).unwrap();
     UnparsedPublicKey::new(&RSA_PKCS1_2048_8192_SHA256, key)
         .verify(&data, &sig.signature)
