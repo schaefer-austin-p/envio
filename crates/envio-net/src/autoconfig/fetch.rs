@@ -2,14 +2,13 @@
 //! redirect hop, and every hop under one deadline. The rules are in `http`.
 
 use std::future::Future;
-use std::io;
 use std::time::Duration;
 
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
-use super::http::{self, MAX_BODY, MAX_HEAD, MAX_REDIRECTS, Reply, Url};
 use crate::connect;
 use crate::error::{NetError, Result};
+use crate::http::{self, MAX_REDIRECTS, Reply, Url};
 use crate::server::{Endpoint, Security};
 use crate::tls::{self, Roots};
 
@@ -58,28 +57,10 @@ async fn fetch_once(url: Url, roots: &Roots) -> Result<Reply> {
     let mut stream = tls::connect(&endpoint, roots).await?;
     let (raw, clean) = connect::within(async {
         stream.write_all(http::request(&url).as_bytes()).await?;
-        Ok(read_reply(&mut stream).await?)
+        Ok(http::read_reply(&mut stream).await?)
     })
     .await?;
     Ok(http::finish_reply(&raw, clean))
-}
-
-/// Reads until the reply is complete, the peer closes, or the reply is
-/// over the cap. The flag is false when the peer dropped TCP without
-/// close_notify (rustls reports that as `UnexpectedEof`): what was read may
-/// be cut short.
-async fn read_reply<R: AsyncRead + Unpin>(stream: &mut R) -> io::Result<(Vec<u8>, bool)> {
-    let mut raw = Vec::new();
-    let mut chunk = [0u8; 8192];
-    while !http::reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
-        match stream.read(&mut chunk).await {
-            Ok(0) => break,
-            Ok(n) => raw.extend_from_slice(&chunk[..n]),
-            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok((raw, false)),
-            Err(e) => return Err(e),
-        }
-    }
-    Ok((raw, true))
 }
 
 #[cfg(test)]

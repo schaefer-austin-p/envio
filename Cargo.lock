@@ -595,6 +595,7 @@ dependencies = [
  "futures",
  "hickory-resolver",
  "lettre",
+ "log",
  "quick-xml",
  "rcgen",
  "ring",
@@ -607,6 +608,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "webpki-roots",
+ "zeroize",
 ]
 
 [[package]]
