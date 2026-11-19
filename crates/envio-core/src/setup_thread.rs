@@ -265,7 +265,9 @@ fn setup_event(
         _ => {
             let text = match problem::from_net(error, service) {
                 Problem::SignIn => text::setup::sign_in_failed(),
-                Problem::Certificate(_) => text::status::status(&AccountStatus::Certificate(None)),
+                Problem::Certificate(_) => {
+                    text::status::status(&AccountStatus::Certificate(None), false)
+                }
                 Problem::Refused(reason) => text::notice::refused(&reason),
                 _ if dropped(error) => text::setup::dropped(),
                 _ => text::setup::unreachable(),

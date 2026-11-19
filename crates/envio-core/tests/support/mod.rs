@@ -1,7 +1,9 @@
 //! Shared test harness: a Core over a temp dir with its events in a channel.
 #![allow(dead_code)]
 
+pub mod bearer;
 pub mod fake;
+pub mod rig;
 
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
@@ -34,6 +36,8 @@ pub struct Harness {
     /// `Config.roots` for the next `start_core`: the bundled ones, so a
     /// self-signed test server is untrusted, not "no roots".
     pub roots: envio_net::Roots,
+    /// `Config.oauth` for the next `start_core`.
+    pub oauth: Vec<envio_net::oauth::Provider>,
     sender: Sender<Event>,
 }
 
@@ -47,6 +51,7 @@ impl Harness {
             events,
             foreground: false,
             roots: envio_net::Roots::bundled(),
+            oauth: Vec::new(),
             sender,
         }
     }
@@ -74,6 +79,7 @@ impl Harness {
             cache_dir: self.cache_dir(),
             data_dir: self.data_dir(),
             roots: self.roots.clone(),
+            oauth: self.oauth.clone(),
             log_level: log::LevelFilter::Info,
             foreground: self.foreground,
         }
@@ -154,6 +160,33 @@ impl Harness {
                 .set(&key, SecretString::from(password.to_owned()))
                 .unwrap();
         }
+        key
+    }
+
+    /// An OAuth account whose IMAP and SMTP servers are at the given ports,
+    /// with `refresh` as its stored refresh token; call before `start_core`.
+    pub fn seed_oauth_account(&self, email: &str, ports: (u16, u16), refresh: &str) -> String {
+        let (imap, smtp) = ports;
+        let server = |port| Server {
+            host: "127.0.0.1".into(),
+            port,
+            security: Security::Tls,
+            pin: None,
+        };
+        let settings = AccountSettings {
+            name: "Test".into(),
+            email: email.into(),
+            username: email.into(),
+            imap: server(imap),
+            smtp: server(smtp),
+            auth: Some("microsoft".into()),
+        };
+        let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
+        let key = accounts.add(settings, 1_000).unwrap();
+        let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&self.data_dir()).unwrap();
+        tokens
+            .set(&key, SecretString::from(refresh.to_owned()))
+            .unwrap();
         key
     }
 
