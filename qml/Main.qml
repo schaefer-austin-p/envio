@@ -38,6 +38,7 @@ ApplicationWindow {
         outbox: outboxModel
         suggestions: suggestionsModel
         searchResults: searchModel
+        receiveShares: true
     }
 
     Component.onCompleted: {
