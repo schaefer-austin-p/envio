@@ -5,8 +5,8 @@ import "../platform"
 // A centered dialog over the scrim with a `primary` (filled, listed first)
 // and an optional `secondary` (outlined) action. Either may be the safe
 // default: the certificate prompt makes Cancel its primary. Choosing an
-// action closes the dialog after emitting its signal; the scrim does not
-// dismiss it.
+// action closes the dialog, then emits its signal from the event loop
+// (see choose()); the scrim does not dismiss it.
 QC.Popup {
     id: root
     required property Theme theme
@@ -17,6 +17,20 @@ QC.Popup {
     signal primaryActivated()
     signal secondaryActivated()
     default property alias content: extra.data
+
+    // True from the tap on an action until the dialog opens again: `closed`
+    // then comes from a choice, whose signal follows a moment later.
+    property bool chosen: false
+    onAboutToShow: chosen = false
+    // Close now, emit from the event loop. The signal may pop the page that
+    // owns this dialog: calling close() on a popup whose page is going (it
+    // was after the signal) segfaulted in QtQml's deferred execution (#329),
+    // and the button must not be destroyed inside its own onClicked.
+    function choose(signalFn) {
+        chosen = true
+        close()
+        Qt.callLater(signalFn)
+    }
 
     parent: QC.Overlay.overlay
     modal: true
@@ -74,7 +88,7 @@ QC.Popup {
             theme: root.theme
             primary: true
             text: root.primaryText
-            onClicked: { root.primaryActivated(); root.close() }
+            onClicked: root.choose(root.primaryActivated)
         }
         AppButton {
             objectName: "secondaryAction"
@@ -82,7 +96,7 @@ QC.Popup {
             visible: root.secondaryText !== ""
             theme: root.theme
             text: root.secondaryText
-            onClicked: { root.secondaryActivated(); root.close() }
+            onClicked: root.choose(root.secondaryActivated)
         }
     }
 }

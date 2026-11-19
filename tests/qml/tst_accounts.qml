@@ -112,7 +112,7 @@ Item {
             core.confirmRemove("ann", "2 messages are waiting in the Outbox.")
             tryVerify(function() { return dlg.opened })
             mouseClick(laidOut(dlg, "secondaryAction"))
-            compare(core.called("removeAccount").length, 2)
+            tryVerify(function() { return core.called("removeAccount").length === 2 })
             compare(core.called("removeAccount")[1].args[0], "ann")
             compare(core.called("removeAccount")[1].args[1], true)
         }
@@ -272,7 +272,7 @@ Item {
             const dlg = find("trustDialog", page)
             tryVerify(function() { return dlg.visible })
             mouseClick(laidOut(dlg, "secondaryAction"))
-            compare(core.called("acceptCertificate").length, 1)
+            tryVerify(function() { return core.called("acceptCertificate").length === 1 })
             compare(core.called("acceptCertificate")[0].args, ["ann", "smtp", "abcd"])
         }
         function test_cancel_sends_nothing() {
@@ -280,6 +280,7 @@ Item {
             const dlg = find("trustDialog", page)
             tryVerify(function() { return dlg.visible })
             mouseClick(laidOut(dlg, "primaryAction"))
+            wait(50)  // the deferred signal would have arrived by now
             compare(core.called("acceptCertificate").length, 0)
         }
     }

@@ -190,7 +190,7 @@ Item {
             core.detected("ann@example.org", "Settings found", true, srvJson, "")
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !dlg.visible })
-            compare(wizard.serversConfirmed, true)
+            tryCompare(wizard, "serversConfirmed", true)
             compare(wizard.step, "signin")
             find("passwordField").text = "hunter2"
             mouseClick(find("signInContinue"))
@@ -219,6 +219,7 @@ Item {
             compare(fp.font.family, thm.fontMono)
             mouseClick(primary)
             tryVerify(function() { return !dlg.visible })
+            wait(50)  // the deferred signal would have arrived by now
             compare(core.called("acceptSetupCertificate").length, 0)
             compare(connectCalls().length, 1)
         }
@@ -244,7 +245,7 @@ Item {
                              "4F:2A:91", "4f2a91", "No authority signed it.")
             mouseClick(dialogButton("trustDialog", "secondaryAction"))
             tryVerify(function() { return !find("trustDialog").visible })
-            compare(core.called("acceptSetupCertificate").length, 1)
+            tryVerify(function() { return core.called("acceptSetupCertificate").length === 1 })
             compare(core.called("acceptSetupCertificate")[0].args[0], "smtp")
             compare(core.called("acceptSetupCertificate")[0].args[1], "4f2a91")
             compare(connectCalls().length, 2)
@@ -314,7 +315,7 @@ Item {
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !find("confirmHosts").visible })
             find("passwordField").text = "hunter2"
-            compare(wizard.serversConfirmed, true)
+            tryCompare(wizard, "serversConfirmed", true)
             back()
             compare(wizard.step, "email")
             compare(find("passwordField").text, "")
@@ -456,7 +457,7 @@ Item {
             toSignIn(srvJson, true)
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !find("confirmHosts").visible })
-            compare(wizard.serversConfirmed, true)
+            tryCompare(wizard, "serversConfirmed", true)
             // The same attempt is answered again, with hosts to confirm.
             core.detected("ann@example.org", "Settings found", true, srvJson, "")
             compare(wizard.serversConfirmed, false)
