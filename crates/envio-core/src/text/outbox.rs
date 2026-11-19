@@ -43,3 +43,9 @@ pub fn change_failed() -> String {
 pub fn edit_invite_reply() -> String {
     tr("This reply to an invitation can't be edited. Retry it, or delete it.")
 }
+
+/// Added to the server's text when a Microsoft 365 mailbox refuses SMTP
+/// sign-in with a good token.
+pub fn smtp_disabled_hint() -> String {
+    tr("Ask your administrator to allow Authenticated SMTP for this mailbox, then send again.")
+}
