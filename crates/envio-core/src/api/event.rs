@@ -29,6 +29,45 @@ pub struct NewMail {
     pub first: Option<(String, String)>,
 }
 
+/// What `Detect` says about signing in with a provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OAuthOffer {
+    /// "Microsoft".
+    pub provider: String,
+    /// The suggested account name.
+    pub name_hint: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OAuthFailure {
+    Timeout,
+    Offline,
+    Blocked,
+    Other,
+}
+
+impl OAuthFailure {
+    /// The translated text that goes with it.
+    pub fn text(self) -> String {
+        match self {
+            Self::Timeout => crate::text::oauth::timeout(),
+            Self::Offline => crate::text::oauth::offline(),
+            Self::Blocked => crate::text::oauth::blocked(),
+            Self::Other => crate::text::oauth::other(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OAuthOutcome {
+    /// A new account was saved (`AccountAdded` came first).
+    Added,
+    /// "Sign in again" worked and the account runs again.
+    Resumed,
+    Cancelled,
+    Failed(OAuthFailure),
+}
+
 #[derive(Debug, Clone)]
 pub enum Event {
     /// The store is open; sent at every (re)start of the worker.
@@ -86,6 +125,26 @@ pub enum Event {
         text: String,
         /// The two servers, one per line, whatever the source.
         servers: String,
+        /// Set when the address can sign in with its provider.
+        oauth: Option<OAuthOffer>,
+    },
+    /// Open `url` in the browser (the user signs in there).
+    OAuthBrowser {
+        email: String,
+        url: String,
+        /// For a device-code flow; always `None` for now.
+        user_code: Option<String>,
+    },
+    /// The sign-in is for another address than the one typed: ask.
+    OAuthConfirm {
+        email: String,
+        signed_in_as: Option<String>,
+        text: String,
+    },
+    /// The sign-in ended. `email` is the address it was for.
+    OAuthDone {
+        email: String,
+        outcome: OAuthOutcome,
     },
     /// Adding the account did not work.
     SetupProblem {

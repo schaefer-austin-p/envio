@@ -163,6 +163,18 @@ pub enum Command {
     Detect { email: String },
     /// Check the servers and password, then add the account.
     Connect(Box<ConnectRequest>),
+    /// Sign in with the provider of `email`'s domain in the browser. With
+    /// `account` (the key of an OAuth account) it is "Sign in again".
+    StartOAuth {
+        email: String,
+        account: Option<String>,
+    },
+    /// The `envio-oauth://` link the browser sent back.
+    OAuthRedirect { url: SecretString },
+    /// The answer to `Event::OAuthConfirm`.
+    ConfirmOAuth { accept: bool },
+    /// Give up the sign-in that waits.
+    CancelOAuth,
     /// A new password for an account whose sign-in failed.
     UpdatePassword {
         account: String,
@@ -316,6 +328,10 @@ impl Command {
             Self::Refresh { .. } => "Refresh",
             Self::Detect { .. } => "Detect",
             Self::Connect(_) => "Connect",
+            Self::StartOAuth { .. } => "StartOAuth",
+            Self::OAuthRedirect { .. } => "OAuthRedirect",
+            Self::ConfirmOAuth { .. } => "ConfirmOAuth",
+            Self::CancelOAuth => "CancelOAuth",
             Self::UpdatePassword { .. } => "UpdatePassword",
             Self::AcceptCertificate { .. } => "AcceptCertificate",
             Self::RemoveAccount { .. } => "RemoveAccount",

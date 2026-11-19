@@ -119,6 +119,45 @@ pub fn tokens_reply(access: &str, refresh: &str) -> Reply {
     )
 }
 
+/// A token reply that also carries an id token naming `email` and `upn`.
+pub fn tokens_reply_for(
+    access: &str,
+    refresh: &str,
+    email: Option<&str>,
+    upn: Option<&str>,
+) -> Reply {
+    (
+        200,
+        format!(
+            r#"{{"access_token":"{access}","refresh_token":"{refresh}","expires_in":3599,"id_token":"{}"}}"#,
+            id_token(email, upn)
+        ),
+    )
+}
+
+/// An unsigned JWT with the two identity claims (the core does not verify it).
+pub fn id_token(email: Option<&str>, upn: Option<&str>) -> String {
+    let url = |bytes: &[u8]| {
+        encode(bytes)
+            .trim_end_matches('=')
+            .replace('+', "-")
+            .replace('/', "_")
+    };
+    let mut claims = Vec::new();
+    if let Some(email) = email {
+        claims.push(format!(r#""email":"{email}""#));
+    }
+    if let Some(upn) = upn {
+        claims.push(format!(r#""preferred_username":"{upn}""#));
+    }
+    let payload = format!("{{{}}}", claims.join(","));
+    format!(
+        "{}.{}.sig",
+        url(br#"{"alg":"none"}"#),
+        url(payload.as_bytes())
+    )
+}
+
 /// `invalid_grant`: the refresh token is revoked.
 pub fn revoked_reply() -> Reply {
     (400, r#"{"error":"invalid_grant"}"#.to_owned())

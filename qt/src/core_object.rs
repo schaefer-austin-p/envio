@@ -66,10 +66,32 @@ pub mod qobject {
             needs_confirm: bool,
             setup_json: &QString,
             servers: &QString,
+            oauth_provider: &QString,
         );
         #[qsignal]
         #[cxx_name = "setupProblem"]
         fn setup_problem(self: Pin<&mut EnvioCore>, email: &QString, text: &QString);
+        /// The browser must open `url`; the answer comes back as a link.
+        #[qsignal]
+        #[cxx_name = "oauthBrowser"]
+        fn oauth_browser(self: Pin<&mut EnvioCore>, email: &QString, url: &QString);
+        #[qsignal]
+        #[cxx_name = "oauthConfirm"]
+        fn oauth_confirm(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            signed_in_as: &QString,
+            text: &QString,
+        );
+        /// `outcome` is added, resumed, cancelled or failed; `text` says why when failed.
+        #[qsignal]
+        #[cxx_name = "oauthDone"]
+        fn oauth_done(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            outcome: &QString,
+            text: &QString,
+        );
         #[qsignal]
         #[cxx_name = "trustPrompt"]
         fn trust_prompt(
@@ -171,6 +193,18 @@ pub mod qobject {
         fn ispdb_note(self: &EnvioCore) -> QString;
         #[qinvokable]
         fn detect(self: Pin<&mut EnvioCore>, email: &QString);
+        #[qinvokable]
+        #[cxx_name = "startOAuth"]
+        fn start_oauth(self: Pin<&mut EnvioCore>, email: &QString, account: &QString);
+        #[qinvokable]
+        #[cxx_name = "oauthRedirect"]
+        fn oauth_redirect(self: Pin<&mut EnvioCore>, url: &QString);
+        #[qinvokable]
+        #[cxx_name = "confirmOAuth"]
+        fn confirm_oauth(self: Pin<&mut EnvioCore>, accept: bool);
+        #[qinvokable]
+        #[cxx_name = "cancelOAuth"]
+        fn cancel_oauth(self: Pin<&mut EnvioCore>);
         #[qinvokable]
         fn connect(
             self: Pin<&mut EnvioCore>,

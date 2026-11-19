@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
-use envio_core::{Command, ComposeId, Event, Settings};
+use envio_core::{Command, ComposeId, Event, OAuthOutcome, Settings};
 use envio_ui::{ModelChange, Output, Signal};
 
 use crate::convert;
@@ -112,14 +112,31 @@ impl qobject::EnvioCore {
                 needs_confirm,
                 setup,
                 servers,
+                oauth,
             } => self.detected(
                 &q(&email),
                 &q(&text),
                 needs_confirm,
                 &q(&json::setup_to_json(&setup)),
                 &q(&servers),
+                &q(oauth.as_ref().map_or("", |o| o.provider.as_str())),
             ),
             Signal::SetupProblem { email, text } => self.setup_problem(&q(&email), &q(&text)),
+            Signal::OAuthBrowser { email, url, .. } => self.oauth_browser(&q(&email), &q(&url)),
+            Signal::OAuthConfirm {
+                email,
+                signed_in_as,
+                text,
+            } => self.oauth_confirm(&q(&email), &q(&signed_in_as.unwrap_or_default()), &q(&text)),
+            Signal::OAuthDone { email, outcome } => {
+                let (name, text) = match outcome {
+                    OAuthOutcome::Added => ("added", String::new()),
+                    OAuthOutcome::Resumed => ("resumed", String::new()),
+                    OAuthOutcome::Cancelled => ("cancelled", String::new()),
+                    OAuthOutcome::Failed(why) => ("failed", why.text()),
+                };
+                self.oauth_done(&q(&email), &q(name), &q(&text));
+            }
             Signal::TrustPrompt {
                 email,
                 service,

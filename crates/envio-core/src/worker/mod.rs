@@ -11,6 +11,7 @@ mod folder_order;
 mod inline;
 mod invite;
 mod label;
+mod oauth;
 mod older;
 mod open;
 mod outbox;
@@ -121,6 +122,10 @@ pub(crate) struct Worker<'s> {
     /// Folders whose Load older rows a window change drops with their next
     /// sync; `OlderReset` follows that sync.
     reset_pending: BTreeSet<FolderId>,
+    /// The providers a user can sign in with (`Config.oauth`).
+    providers: Vec<envio_net::oauth::Provider>,
+    /// The sign-in that waits for the browser, if any.
+    oauth: Option<oauth::Attempt>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -253,6 +258,8 @@ impl<'s> Worker<'s> {
             loads: HashMap::new(),
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
+            providers: config.oauth.clone(),
+            oauth: None,
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.

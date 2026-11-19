@@ -39,7 +39,7 @@ pub use api::command::{
     AccountSetup, Answer, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice,
     OutboxDecision, SearchScope, StartFrom, UndoId, UserAction,
 };
-pub use api::event::{Event, NewMail, UndoScope};
+pub use api::event::{Event, NewMail, OAuthFailure, OAuthOffer, OAuthOutcome, UndoScope};
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
     MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,

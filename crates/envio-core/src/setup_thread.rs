@@ -15,8 +15,10 @@ use std::thread;
 
 use envio_net::autoconfig::{self, Found, Internet};
 use envio_net::imap::ImapSession;
+use envio_net::oauth::{self, Provider, TokenError, Tokens};
 use envio_net::smtp::SmtpSession;
 use envio_net::{Endpoint, Fingerprint, NetError, Roots, Untrusted};
+use secrecy::SecretString;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::api::command::{AccountSetup, ConnectRequest};
@@ -45,8 +47,27 @@ pub(crate) struct ProbeJob {
 }
 
 pub(crate) enum SetupJob {
-    Detect { email: String, ticket: u64 },
+    Detect {
+        email: String,
+        ticket: u64,
+    },
     Probe(Box<ProbeJob>),
+    /// Trades the sign-in code for tokens.
+    Exchange(Box<ExchangeJob>),
+}
+
+pub(crate) struct ExchangeJob {
+    pub email: String,
+    pub ticket: u64,
+    pub provider: Provider,
+    pub roots: Roots,
+    pub code: SecretString,
+    pub verifier: SecretString,
+}
+
+pub(crate) struct ExchangeResult {
+    pub ticket: u64,
+    pub result: Result<Tokens, TokenError>,
 }
 
 pub(crate) struct DetectResult {
@@ -66,6 +87,7 @@ pub(crate) struct ProbeResult {
 pub(crate) enum SetupDone {
     Detected(Box<DetectResult>),
     Probed(Box<ProbeResult>),
+    Exchanged(Box<ExchangeResult>),
 }
 
 impl SetupJob {
@@ -73,6 +95,7 @@ impl SetupJob {
         match self {
             SetupJob::Detect { email, .. } => email,
             SetupJob::Probe(job) => &job.request.setup.email,
+            SetupJob::Exchange(job) => &job.email,
         }
     }
 
@@ -83,6 +106,7 @@ impl SetupJob {
             (self, other),
             (SetupJob::Detect { .. }, SetupJob::Detect { .. })
                 | (SetupJob::Probe(_), SetupJob::Probe(_))
+                | (SetupJob::Exchange(_), SetupJob::Exchange(_))
         ) && self.email() == other.email()
     }
 }
@@ -161,6 +185,10 @@ fn failed(job: SetupJob) -> SetupDone {
             ticket,
             result: Err(Problem::Local),
         })),
+        SetupJob::Exchange(job) => SetupDone::Exchanged(Box::new(ExchangeResult {
+            ticket: job.ticket,
+            result: Err(TokenError::Temporary),
+        })),
         SetupJob::Probe(job) => {
             let email = job.request.setup.email.clone();
             let event = Event::SetupProblem {
@@ -203,6 +231,14 @@ async fn do_job(roots: &Roots, job: &SetupJob) -> SetupDone {
             SetupDone::Detected(Box::new(DetectResult {
                 email: email.clone(),
                 ticket: *ticket,
+                result,
+            }))
+        }
+        SetupJob::Exchange(job) => {
+            let result =
+                oauth::exchange_code(&job.provider, &job.roots, &job.code, &job.verifier).await;
+            SetupDone::Exchanged(Box::new(ExchangeResult {
+                ticket: job.ticket,
                 result,
             }))
         }
@@ -340,6 +376,7 @@ mod tests {
             .map(|job| match job {
                 SetupJob::Detect { ticket, .. } => *ticket,
                 SetupJob::Probe(job) => job.ticket,
+                SetupJob::Exchange(job) => job.ticket,
             })
             .collect()
     }
