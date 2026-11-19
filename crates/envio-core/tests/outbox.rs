@@ -325,3 +325,16 @@ fn edit_of_an_unknown_account_is_refused() {
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
     assert!(drafts.list().unwrap().is_empty());
 }
+
+#[test]
+fn edit_of_a_failed_item_tells_the_drafts_list() {
+    let (mut h, key) = unstarted();
+    let item = seed_item(&h, &key, failed());
+    h.start_core();
+    h.send(Command::EditOutbox { item, compose: C });
+    let account = h.wait(|e| match e {
+        Event::LocalDraftsChanged { account } => Some(account.clone()),
+        _ => None,
+    });
+    assert_eq!(account, key);
+}

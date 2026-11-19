@@ -27,6 +27,7 @@ pub fn msg_in(id: i64, date: i64, folder: i64, account: &str) -> MessageRow {
         preview: String::new(),
         date: Some(date),
         flags: Flags::default(),
+        local_draft: None,
     }
 }
 

@@ -11,6 +11,8 @@ mod folder_order;
 mod inline;
 mod invite;
 mod label;
+mod local_list;
+mod local_rows;
 mod oauth;
 mod older;
 mod open;
@@ -122,6 +124,8 @@ pub(crate) struct Worker<'s> {
     /// Folders whose Load older rows a window change drops with their next
     /// sync; `OlderReset` follows that sync.
     reset_pending: BTreeSet<FolderId>,
+    /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
+    local_ids: RefCell<local_rows::LocalIds>,
     /// The providers a user can sign in with (`Config.oauth`).
     providers: Vec<envio_net::oauth::Provider>,
     /// The sign-in that waits for the browser, if any.
@@ -258,6 +262,7 @@ impl<'s> Worker<'s> {
             loads: HashMap::new(),
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
+            local_ids: RefCell::default(),
             providers: config.oauth.clone(),
             oauth: None,
         };

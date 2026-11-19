@@ -1,7 +1,7 @@
 //! Message metadata: envelope, flags, preview, thread references and
 //! whether the body is on disk.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ops::BitOr;
 
 use rusqlite::types::Value;
@@ -281,6 +281,22 @@ impl Db {
             )
             .optional()?
             .ok_or(StoreError::NotFound)
+    }
+
+    /// The Message-IDs of the live messages in `folder`, each `trim()`med;
+    /// NULL and empty ones are skipped.
+    pub fn message_ids_in(&self, folder: FolderId) -> Result<HashSet<String>> {
+        let mut stmt = self.conn().prepare(
+            "SELECT message_id FROM messages WHERE folder_id = ?1 AND message_id IS NOT NULL",
+        )?;
+        let ids = stmt
+            .query_map([folder.0], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(ids
+            .into_iter()
+            .map(|id| id.trim().to_owned())
+            .filter(|id| !id.is_empty())
+            .collect())
     }
 
     /// Every cached copy of a Message-ID in one account's folders.

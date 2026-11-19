@@ -204,9 +204,13 @@ impl DraftBook {
         let was_sent = st.sent.contains(&compose);
         st.closing.remove(&compose);
         st.save_failed.remove(&compose);
-        if let Some(account) = st.accounts.remove(&compose) {
-            st.closed_accounts.insert(account);
+        let account = st.accounts.remove(&compose);
+        if let Some(account) = &account {
+            st.closed_accounts.insert(account.clone());
         }
+        // The Drafts list shows a closed draft's text and a discarded one's
+        // absence; a window that never had a draft changes nothing.
+        let had_draft = st.id_for(compose).is_some() || pending.is_some();
         if discard {
             let id = st
                 .ids
@@ -226,6 +230,9 @@ impl DraftBook {
             if saved && let Some(id) = st.ids.remove(&compose) {
                 st.closed.insert(compose, id);
             }
+        }
+        if had_draft && let Some(account) = account {
+            events.push(Event::LocalDraftsChanged { account });
         }
         events
     }
@@ -402,6 +409,9 @@ impl DraftBook {
                 st.save_failed.remove(&compose);
                 if let Some(draft_id) = created {
                     events.push(Event::DraftSaved { compose, draft_id });
+                    events.push(Event::LocalDraftsChanged {
+                        account: draft.account.clone(),
+                    });
                 }
                 true
             }
@@ -588,7 +598,9 @@ mod tests {
         };
         assert!(path.exists());
         let folder = path.parent().unwrap().to_owned();
-        assert!(book.close(A, true).is_empty());
+        // Only the Drafts list hears of it.
+        let told = book.close(A, true);
+        assert!(matches!(told[..], [Event::LocalDraftsChanged { .. }]));
         assert!(book.drafts().unwrap().list().unwrap().is_empty());
         assert!(!folder.exists());
         assert_eq!(book.next_due(), None);
@@ -629,9 +641,10 @@ mod tests {
         book.opened(A, "acct");
         let events = book.attach(A, &source);
         assert!(matches!(events[0], Event::DraftSaved { .. }));
+        assert!(matches!(events[1], Event::LocalDraftsChanged { .. }));
         let Event::Attached {
             path, name, size, ..
-        } = &events[1]
+        } = &events[2]
         else {
             panic!("not attached: {events:?}");
         };
