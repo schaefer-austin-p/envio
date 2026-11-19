@@ -403,14 +403,16 @@ Item {
             tryVerify(function() { return dlg.opened })
             compare(find("primaryAction", dlg.contentItem).text, "Keep editing")
             mouseClick(laidOut(dlg, "primaryAction"))
+            tryVerify(function() { return !dlg.opened })
             compare(mock.called("closeCompose").length, 0)
             mouseClick(find("moreButton"))
             tryVerify(function() { return shown("discardRow") })
             mouseClick(find("discardRow"))
             tryVerify(function() { return dlg.opened })
             mouseClick(laidOut(dlg, "secondaryAction"))
+            // The signal comes from the event loop, after the dialog closed.
+            tryCompare(closed, "count", 1)
             compare(mock.called("closeCompose").pop().args, [1, true])
-            compare(closed.count, 1)
         }
 
         function test_attached_shows_a_chip() {
