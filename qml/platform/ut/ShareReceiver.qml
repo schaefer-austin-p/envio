@@ -12,9 +12,11 @@ Item {
     signal received(var transfer)
 
     property var waiting: []
+    // The hub; tests hand in a stand-in with the same two signals.
+    property var hub: ContentHub
 
     Connections {
-        target: ContentHub
+        target: root.hub
         // "Share" (a gallery, another app's share sheet) and "Open with
         // another app" (the File Manager: a destination hook) arrive on
         // different signals; both hand over files to keep. Our own picker
