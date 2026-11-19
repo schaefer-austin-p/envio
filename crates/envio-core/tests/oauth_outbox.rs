@@ -369,10 +369,16 @@ fn send_refusal_fails_the_item(refusal: &str, server_text: Option<&str>) {
     );
     // After the restart IMAP logs in first, so the same refusal still fails
     // the item (not a pause) when it is sent again.
+    let attempts = r.peers.smtp_tokens.lock().unwrap().len();
     r.h.send(Command::AppActive(true));
     r.h.send(Command::DecideOutbox {
         item: item.clone(),
         decision: OutboxDecision::Retry,
+    });
+    // First see that the retry ran (SMTP got a new attempt): the Failed row
+    // already in the channel is the old one.
+    wait_until("the retry reached SMTP", || {
+        r.peers.smtp_tokens.lock().unwrap().len() > attempts
     });
     let mut again = Vec::new();
     pump(&r, &mut again, 5, has_failed_row);
