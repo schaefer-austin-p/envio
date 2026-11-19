@@ -69,6 +69,10 @@ pub struct Peers {
     pub smtp_delay_ms: Mutex<u64>,
     /// Messages SMTP accepted.
     pub sent: Mutex<usize>,
+    /// SMTP also advertises PLAIN and LOGIN (a password account's login).
+    pub smtp_passwords: Mutex<bool>,
+    /// The mechanism of every password AUTH line SMTP received, in order.
+    pub smtp_auths: Mutex<Vec<String>>,
 }
 
 impl Peers {
@@ -269,7 +273,17 @@ fn smtp_talk(tls: Stream, peers: &Peers) -> std::io::Result<()> {
         let text = line.trim_end().to_owned();
         let word = text.split(' ').next().unwrap_or("").to_ascii_uppercase();
         let reply = match word.as_str() {
+            "EHLO" if *peers.smtp_passwords.lock().unwrap() => {
+                "250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN XOAUTH2\r\n".to_owned()
+            }
             "EHLO" => "250-fake\r\n250-8BITMIME\r\n250 AUTH XOAUTH2\r\n".to_owned(),
+            "AUTH" if !text.to_ascii_uppercase().starts_with("AUTH XOAUTH2") => {
+                // A password login: the fake takes no password and answers
+                // with the configured refusal at once.
+                let mechanism = text.split(' ').nth(1).unwrap_or("").to_ascii_uppercase();
+                peers.smtp_auths.lock().unwrap().push(mechanism);
+                format!("{}\r\n", peers.smtp_refusal.lock().unwrap())
+            }
             "AUTH" => {
                 let (user, token) = sign_in_of(text.split(' ').nth(2).unwrap_or(""));
                 peers.smtp_tokens.lock().unwrap().push(token.clone());

@@ -243,6 +243,10 @@ impl Worker<'_> {
         if crate::hooks::take_journal_failure(&self.store.paths.journal()) {
             self.store.journal.fail_next_sync();
         }
+        #[cfg(feature = "test-hooks")]
+        if crate::hooks::take_compact_failure(&self.store.paths.journal()) {
+            self.store.journal.fail_next_compact();
+        }
     }
 
     /// Syncs the folders again: an undone flag change leaves the cache
