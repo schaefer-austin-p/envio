@@ -3,6 +3,9 @@
 //! verify ([`key_queries`], [`verify`]). No I/O: the caller does the DNS
 //! lookup and hands the TXT text in.
 
+mod boundary;
+#[cfg(test)]
+mod boundary_tests;
 mod canon;
 #[cfg(test)]
 mod canon_signer_tests;

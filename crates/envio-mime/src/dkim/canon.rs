@@ -19,9 +19,19 @@ fn is_fws(b: u8) -> bool {
     is_wsp(b) || b == b'\r' || b == b'\n'
 }
 
+/// Bytes mail-parser skips between fields (ASCII whitespace but LF).
+fn is_blank_byte(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\r' | 0x0c)
+}
+
 /// The header block: the byte range of each field, and where the body
 /// starts (None when no blank line ends the headers). A line ends at LF, with
 /// or without a CR before it; a line starting with WSP continues the field.
+/// The header block ends at a line that is empty or holds only CR, space,
+/// tab or form feed and is not a continuation: this is mail-parser's rule
+/// (it skips ASCII whitespace but LF before each field and stops at an LF),
+/// so `"\r\r\n"` ends the headers for DKIM as it does for the reader (the
+/// body-injection finding on PR #336).
 fn split_header(raw: &[u8]) -> (Vec<(usize, usize)>, Option<usize>) {
     let mut fields: Vec<(usize, usize)> = Vec::new();
     let mut pos = 0;
@@ -31,12 +41,12 @@ fn split_header(raw: &[u8]) -> (Vec<(usize, usize)>, Option<usize>) {
             None => (raw.len(), raw.len(), false),
         };
         let content = &raw[pos..content_end];
-        let content = content.strip_suffix(b"\r").unwrap_or(content);
-        if terminated && content.is_empty() {
+        let continuation = !fields.is_empty() && is_wsp(raw[pos]);
+        if terminated && !continuation && content.iter().all(|&b| is_blank_byte(b)) {
             return (fields, Some(next));
         }
         match fields.last_mut() {
-            Some(last) if is_wsp(raw[pos]) => last.1 = next,
+            Some(last) if continuation => last.1 = next,
             _ => fields.push((pos, next)),
         }
         pos = next;
@@ -63,10 +73,15 @@ pub(crate) fn field_named(field: &[u8], name: &[u8]) -> bool {
 
 /// The body after the blank line, LF normalised to CRLF.
 pub(crate) fn body(raw: &[u8]) -> Cow<'_, [u8]> {
-    let Some(start) = split_header(raw).1 else {
+    let Some(start) = body_start(raw) else {
         return Cow::Borrowed(&[]);
     };
     normalise_crlf(&raw[start..])
+}
+
+/// Where the body starts: None when no blank line ends the headers.
+pub(crate) fn body_start(raw: &[u8]) -> Option<usize> {
+    split_header(raw).1
 }
 
 fn normalise_crlf(data: &[u8]) -> Cow<'_, [u8]> {

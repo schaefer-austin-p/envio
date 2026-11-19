@@ -5,6 +5,7 @@
 use ring::digest;
 use ring::signature::{self, UnparsedPublicKey};
 
+use super::boundary;
 use super::{
     Algorithm, Canon, KeyRecord, PublicKey, Signature, body, body_hash, field_named, header_fields,
     key_record, signature as parse_signature, signed_data,
@@ -48,8 +49,14 @@ impl Candidate {
 }
 
 /// The lowercased domain of `from`, when the message has exactly one From
-/// mailbox and it is that address (decision 6).
+/// mailbox and it is that address (decision 6), and DKIM and the reader read
+/// the header block alike: every line is a field and both start the body at
+/// the same offset (otherwise a signed message could show unsigned text as
+/// its body).
 fn checked_from_domain(raw: &[u8], from: &str) -> Option<String> {
+    if !boundary::agrees(raw) {
+        return None;
+    }
     let (_, domain) = from.trim().rsplit_once('@')?;
     let domain = domain.trim_end_matches('.').to_ascii_lowercase();
     (single_from_domain(raw).as_deref() == Some(domain.as_str())).then_some(domain)
