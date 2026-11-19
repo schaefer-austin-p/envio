@@ -133,9 +133,15 @@ fn a_revoked_token_pauses_the_account_and_signing_in_again_delivers_the_held_mes
     w.redirect(&state);
     assert_eq!(w.outcome(), OAuthOutcome::Resumed);
     wait_until("the held message is sent", || w.sent() == 1);
-    let rows = outbox(&mut w);
-    // Delivered (the fake IMAP files nothing into Sent).
-    assert_eq!(rows[0].status, OutboxStatus::SentNotFiled, "{rows:?}");
+    // Delivered (the fake IMAP files nothing into Sent). The worker marks
+    // the item after SMTP accepts it, so wait for that, not for one read.
+    let mut rows = Vec::new();
+    wait_until("the item is marked sent", || {
+        rows = outbox(&mut w);
+        rows.first()
+            .is_some_and(|r| r.status == OutboxStatus::SentNotFiled)
+    });
+    assert_eq!(rows.len(), 1, "{rows:?}");
 }
 
 fn outbox(w: &mut World) -> Vec<envio_core::OutboxRow> {
@@ -194,8 +200,10 @@ fn without_a_client_id_the_wizard_path_is_what_it_always_was() {
     // The checked-in constant is empty until #219 T10.
     assert!(Provider::microsoft().is_none());
     let mut h = Harness::unstarted();
-    // As the app builds its `Config`: the real provider, if there is one.
-    h.oauth = Provider::microsoft().into_iter().collect();
+    // The providers the app's `Config` takes (qt/src/lifecycle.rs uses the
+    // same function).
+    h.oauth = envio_core::default_oauth_providers();
+    assert!(h.oauth.is_empty());
     h.start_core();
     let setting = |host: &str| envio_net::autoconfig::Setting {
         endpoint: Endpoint::new(host, 993, Security::Tls),
