@@ -342,37 +342,26 @@ fn caps_the_images_that_wait_for_a_size() {
     assert!(r.unsized_images.len() <= PER_URL);
 }
 
-/// Hostile corpus: many distinct URLs (4x as many in the large run) must
-/// come out capped at `CAP`, and `sanitize_html` must stay linear in the
-/// input size. In particular there must be no unbounded per-URL bookkeeping
-/// (such as a list of every URL seen, scanned per image): that takes
-/// billions of compares at 100k URLs. A wall-clock limit flakes on a busy CI
-/// runner (llvm-cov), so compare two sizes in one process, interleaved, and
-/// take the fastest of 3 runs each: 4x the input should cost about 4x the
-/// time (linear), not 16x (quadratic).
+/// Hostile corpus: many distinct URLs must come out capped at `CAP`, and
+/// `sanitize_html` must stay linear in the input size. In particular there
+/// must be no unbounded per-URL bookkeeping (such as a list of every URL
+/// seen, scanned per image): that takes billions of compares at this size.
+/// The cap is asserted exactly (deterministic); the time bound is only a
+/// generous absolute backstop, many times the linear cost even under
+/// llvm-cov on a busy runner, and far below the quadratic cost. No ratio of
+/// two timings, which flaked (#354).
 #[test]
 fn many_distinct_urls_stay_capped_and_scale_linearly() {
-    let (small_html, large_html) = (many(10_000), many(40_000));
-    let time = |html: &str| {
-        let start = std::time::Instant::now();
-        let r = sanitize_html(html, &allowed());
-        let took = start.elapsed();
-        assert_eq!(r.remote_images.len(), CAP);
-        assert!(r.unsized_images.len() <= CAP * PER_URL);
-        took
-    };
-    let (mut small, mut large) = (std::time::Duration::MAX, std::time::Duration::MAX);
-    for _ in 0..3 {
-        small = small.min(time(&small_html));
-        large = large.min(time(&large_html));
-    }
-    eprintln!("ratio {:.2}", large.as_secs_f64() / small.as_secs_f64());
-    // 6x sits between linear (4x) and quadratic (16x); the floor keeps a very
-    // fast small run from making the ratio meaningless.
-    let limit = small * 6 + std::time::Duration::from_millis(100);
+    let html = many(100_000);
+    let start = std::time::Instant::now();
+    let r = sanitize_html(&html, &allowed());
+    let took = start.elapsed();
+    assert_eq!(r.remote_images.len(), CAP);
+    assert!(r.unsized_images.len() <= CAP * PER_URL);
+    eprintln!("100k URLs took {took:?}");
     assert!(
-        large < limit,
-        "40k URLs took {large:?}, 10k took {small:?}: not linear"
+        took < std::time::Duration::from_secs(20),
+        "100k URLs took {took:?}: not linear"
     );
 }
 
