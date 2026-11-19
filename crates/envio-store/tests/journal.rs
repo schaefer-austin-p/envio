@@ -353,3 +353,27 @@ fn a_torn_forget_intent_line_is_dropped() {
     let journal = Journal::open(&path).unwrap();
     assert_eq!(journal.to_forget("1700").len(), 1);
 }
+
+#[test]
+fn an_intent_added_after_a_torn_line_survives_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let mut journal = Journal::open(&path).unwrap();
+    let first = journal.push(1, target(1), ActionKind::Delete).unwrap();
+    journal.commit(first.seq).unwrap();
+    drop(journal);
+    let mut sidecar = OpenOptions::new()
+        .append(true)
+        .open(dir.path().join("actions.journal.forget"))
+        .unwrap();
+    sidecar.write_all(b"{\"seq\":9,\"at_").unwrap();
+    let mut journal = Journal::open(&path).unwrap();
+    let second = journal.push(2, target(2), ActionKind::Delete).unwrap();
+    journal.commit(second.seq).unwrap();
+    drop(journal);
+    let owed = Journal::open(&path).unwrap().to_forget("1700");
+    assert_eq!(
+        owed.iter().map(|a| a.seq).collect::<Vec<_>>(),
+        [first.seq, second.seq]
+    );
+}

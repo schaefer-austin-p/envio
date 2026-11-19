@@ -10,12 +10,12 @@ use std::collections::BTreeSet;
 
 use envio_mime::{Address, new_message_id};
 use envio_net::imap::Flag;
-use envio_store::{Db, Draft, Drafts, FolderRole, Journal};
+use envio_store::{Db, Draft, Drafts, FolderRole, Journal, StoreError};
 
 use crate::convert::bracketed;
 use crate::draft_mail::draft_eml;
 use crate::error::{ErrorKind, Result};
-use crate::plan::drafts::{cut_copy, drafts_to_forget, needs_upload, replaced};
+use crate::plan::drafts::{can_judge, cut_copy, drafts_to_forget, needs_upload, replaced};
 use crate::plan::message_id::search_id;
 use crate::server::MailServer;
 
@@ -198,23 +198,34 @@ pub fn forget_deleted_drafts(
         return Ok(Vec::new());
     }
     let folders = db.folders(account)?;
-    let ids = drafts_to_forget(&committed, &folders, &drafts.list()?, open);
+    let all = drafts.list()?;
     let mut removed = Vec::new();
-    let mut failed = false;
-    for (id, message_id) in ids {
-        // One draft that cannot be removed must not keep the others.
-        match drafts.forget_if_uploaded(&id, &message_id) {
-            Ok(true) => removed.push(id),
-            Ok(false) => {}
-            Err(error) => {
-                failed = true;
-                log::warn!("draft {id}: removing it after its copy was deleted: {error}");
+    let mut settled = Vec::new();
+    for action in &committed {
+        // Not yet judgeable (cache rebuilt): the intent waits.
+        if !can_judge(action, &folders) {
+            continue;
+        }
+        let mut retry = false;
+        for (id, message_id) in drafts_to_forget(std::slice::from_ref(action), &folders, &all, open)
+        {
+            match drafts.forget_if_uploaded(&id, &message_id) {
+                Ok(true) => removed.push(id),
+                Ok(false) => {}
+                // A retry cannot make a corrupt file readable; it stays.
+                Err(error @ StoreError::BadRecord { .. }) => {
+                    log::warn!("draft {id}: left in place, it cannot be read: {error}");
+                }
+                Err(error) => {
+                    retry = true;
+                    log::warn!("draft {id}: removing it after its copy was deleted: {error}");
+                }
             }
         }
+        if !retry {
+            settled.push(action.seq);
+        }
     }
-    if !failed {
-        let seqs: Vec<u64> = committed.iter().map(|a| a.seq).collect();
-        journal.settle(&seqs)?;
-    }
+    journal.settle(&settled)?;
     Ok(removed)
 }

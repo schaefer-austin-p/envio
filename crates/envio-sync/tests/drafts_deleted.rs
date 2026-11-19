@@ -186,3 +186,46 @@ async fn an_open_draft_keeps_its_file_and_the_intent_is_settled() {
     assert!(forget(&mut store, &open).is_empty());
     assert!(store.drafts.load(&id).is_ok());
 }
+
+#[tokio::test]
+async fn an_intent_the_cache_cannot_judge_waits_until_the_folders_are_back() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    // The cache was rebuilt: no folders known yet.
+    let rebuilt = envio_store::Db::open_in_memory().unwrap();
+    let kept = std::mem::replace(&mut store.db, rebuilt);
+    assert!(forget(&mut store, &BTreeSet::new()).is_empty());
+    assert_eq!(store.journal.to_forget(ACCOUNT).len(), 1);
+    store.db = kept;
+    assert_eq!(forget(&mut store, &BTreeSet::new()), [id]);
+}
+
+#[tokio::test]
+async fn each_intent_settles_on_its_own() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    // A second committed action in a folder the cache does not know.
+    let target = envio_store::MessageRef {
+        account: ACCOUNT.into(),
+        folder: "Elsewhere".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: Some("<z@x>".into()),
+    };
+    let other = store
+        .journal
+        .push(NOW_MS, target, ActionKind::Delete)
+        .unwrap();
+    store.journal.commit(other.seq).unwrap();
+    assert_eq!(forget(&mut store, &BTreeSet::new()), [id]);
+    let left = store.journal.to_forget(ACCOUNT);
+    assert_eq!(left.iter().map(|a| a.seq).collect::<Vec<_>>(), [other.seq]);
+}
