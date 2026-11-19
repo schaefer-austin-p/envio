@@ -124,6 +124,28 @@ Item {
             attachments: attachments.map(function(a) { return a.path })
         })
     }
+    // Everything the page holds, for another page of the same compose (the
+    // pane's page goes when the window narrows). Nothing is sent to the core.
+    function snapshot() {
+        commitAll()
+        return {
+            filled: filled, showCc: showCc, quoted: quoted, keepQuoted: keepQuoted,
+            attachments: attachments.slice(),
+            draft: {
+                account: account, draftId: draftId, to: to.all(), cc: cc.all(), bcc: bcc.all(),
+                subject: subject.text, body: body.text, inReplyTo: inReplyTo, references: references,
+                attachments: []
+            }
+        }
+    }
+    // A page that has not been filled yet gets its composeReady as usual.
+    function restore(state) {
+        if (!state.filled) return
+        fill(state.draft, state.quoted)
+        showCc = state.showCc
+        keepQuoted = state.keepQuoted
+        attachments = state.attachments
+    }
     // Any edit: the core keeps the draft.
     function edited() {
         if (filling || !filled) return

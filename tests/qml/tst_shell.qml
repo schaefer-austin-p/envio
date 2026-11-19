@@ -544,30 +544,87 @@ Item {
             b.shell.destroy()
         }
 
-        function test_narrowing_keeps_the_pane_while_composing() {
+        readonly property var composeDraft: ({ account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "Plans",
+            body: "Hello", inReplyTo: "", references: [], attachments: ["/tmp/a.pdf"] })
+
+        // Compose 4 open in the pane at 100 gu, edited, with an attachment.
+        function wideCompose() {
             const b = bootWide(100)
             b.shell.composeOpened(4)
+            b.core.composeReady(4, composeDraft, "On Monday Bob wrote:\n> hi")
+            const page = find(b.shell, "composePage")
+            find(page, "subjectField").text = "Plans, edited"
+            find(page, "bodyField").text = "Hello again"
+            b.core.reset()
+            return b
+        }
+
+        function test_narrowing_moves_the_compose_to_the_stack() {
+            const b = wideCompose()
             b.shell.width = thm.gu(70)
-            compare(b.shell.wide, true)
-            verify(find(b.shell, "composePage") !== null, "the compose page is gone")
-            compare(b.core.called("closeCompose").length, 0)
-            b.shell.paneCompose = 0
             compare(b.shell.wide, false)
+            compare(b.shell.paneCompose, 0)
+            compare(b.shell.depth, 2)
+            const page = b.shell.currentPage
+            compare(page.objectName, "composePage")
+            compare(page.compose, 4)
+            verify(page.visible)
+            // The full width of the window, not a sliver of the old pane.
+            verify(page.width >= thm.gu(70) - 2, "compose is " + page.width + " wide")
+            const sent = JSON.parse(page.draftJson())
+            compare(sent.subject, "Plans, edited")
+            compare(sent.to, ["Bob <bob@example.org>"])
+            compare(sent.body, "Hello again\n\nOn Monday Bob wrote:\n> hi")
+            compare(sent.attachments, ["/tmp/a.pdf"])
+            compare(b.core.called("closeCompose").length, 0)
+            compare(b.core.called("draftChanged").length, 0)
+            b.shell.width = thm.gu(45)
+            verify(b.shell.currentPage.width >= thm.gu(45) - 2, "compose is " + b.shell.currentPage.width + " wide at 45 gu")
             b.shell.destroy()
         }
 
-        function test_second_compose_while_narrowed_keeps_its_page() {
-            const b = bootWide(100)
-            b.shell.composeOpened(1)
+        function test_compose_content_survives_narrow_then_wide() {
+            const b = wideCompose()
             b.shell.width = thm.gu(70)
+            b.shell.width = thm.gu(100)
             compare(b.shell.wide, true)
-            b.core.reset()
-            b.shell.composeOpened(2)
-            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[1, false]])
-            compare(b.shell.paneCompose, 2)
-            const page = find(b.shell, "composePage")
-            verify(page !== null && page.visible, "compose 2 has no page")
-            compare(page.compose, 2)
+            const page = b.shell.currentPage
+            compare(page.objectName, "composePage")
+            compare(page.compose, 4)
+            verify(page.width >= thm.gu(50), "compose is " + page.width + " wide")
+            compare(JSON.parse(page.draftJson()).subject, "Plans, edited")
+            compare(JSON.parse(page.draftJson()).attachments, ["/tmp/a.pdf"])
+            compare(b.core.called("closeCompose").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_back_from_the_moved_compose_returns_to_the_list() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.currentPage.leave()
+            tryCompare(b.shell, "depth", 1)
+            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[4, false]])
+            b.shell.destroy()
+        }
+
+        function test_pane_compose_is_never_narrower_than_36_gu() {
+            const b = wideCompose()
+            for (const w of [90, 88, 86]) {
+                b.shell.width = thm.gu(w)
+                compare(b.shell.wide, true)
+                verify(find(b.shell, "pane").width >= thm.gu(36), "pane is " + find(b.shell, "pane").width)
+            }
+            b.shell.destroy()
+        }
+
+        function test_second_compose_while_narrowed_goes_on_the_stack() {
+            const b = wideCompose()
+            b.shell.width = thm.gu(70)
+            b.shell.composeOpened(5)
+            compare(b.shell.depth, 3)
+            compare(b.shell.currentPage.compose, 5)
+            verify(b.shell.currentPage.visible)
+            compare(b.core.called("closeCompose").length, 0)
             b.shell.destroy()
         }
 
