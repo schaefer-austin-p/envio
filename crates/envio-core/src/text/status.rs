@@ -15,7 +15,9 @@ pub fn broken(reason: &str) -> String {
     )
 }
 
-pub fn status(status: &AccountStatus) -> String {
+/// `oauth`: the account signs in with a token, so the fix is signing in
+/// again, not a password.
+pub fn status(status: &AccountStatus, oauth: bool) -> String {
     match status {
         AccountStatus::Ready => tr("Ready"),
         AccountStatus::Syncing => tr("Syncing"),
@@ -23,6 +25,7 @@ pub fn status(status: &AccountStatus) -> String {
         AccountStatus::LocalError { .. } => {
             tr("Can't read the saved mail on this phone. Retrying.")
         }
+        AccountStatus::SignInFailed if oauth => tr("Sign in again"),
         AccountStatus::SignInFailed => tr("Sign-in failed, update password"),
         AccountStatus::Certificate(Some(details)) => certificate(details),
         AccountStatus::Certificate(None) => tr("The server certificate needs your attention"),
@@ -83,15 +86,18 @@ mod tests {
     #[test]
     fn offline_text_is_offline_retrying() {
         let offline = AccountStatus::Offline { retry_at_ms: 5 };
-        assert_eq!(status(&offline), "Offline, retrying");
+        assert_eq!(status(&offline, false), "Offline, retrying");
         assert_eq!(
-            status(&AccountStatus::LocalError { retry_at_ms: 5 }),
+            status(&AccountStatus::LocalError { retry_at_ms: 5 }, false),
             "Can't read the saved mail on this phone. Retrying."
         );
         assert_eq!(
-            status(&AccountStatus::SignInFailed),
+            status(&AccountStatus::SignInFailed, false),
             "Sign-in failed, update password"
         );
+        assert_eq!(status(&AccountStatus::SignInFailed, true), "Sign in again");
+        // Only the sign-in text depends on the kind.
+        assert_eq!(status(&offline, true), "Offline, retrying");
     }
 
     #[test]

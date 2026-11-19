@@ -22,7 +22,7 @@ pub use folders::{
     BATCHES_PER_STEP, Options, Synced, WindowMemo, sync_folder, sync_folder_as, sync_folders,
 };
 pub use older::{Older, load_older};
-pub use outbox::{Filed, Sent, file_sent, send_outbox};
+pub use outbox::{Filed, Sent, file_sent, refuse_outbox, send_outbox};
 pub use prefetch::{Prefetched, prefetch_bodies};
 pub use replay::{Replayed, replay};
 pub use search::search_server;

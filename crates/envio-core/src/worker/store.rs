@@ -1,6 +1,8 @@
 //! Everything the worker keeps on disk, opened together.
 
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use envio_store::{
@@ -11,6 +13,7 @@ use envio_sync::Schedule;
 use envio_sync::driver::{Local, Unsent};
 use envio_sync::plan::sync::window_start;
 
+use super::token::TokenCells;
 use crate::api::view::CacheState;
 use crate::core::Config;
 use crate::drafts::DraftBook;
@@ -30,7 +33,9 @@ pub(crate) struct Store {
     pub accounts: Accounts,
     pub secrets: Secrets,
     /// `oauth.json`: refresh tokens of OAuth accounts.
-    pub tokens: OAuthTokens,
+    pub tokens: Rc<RefCell<OAuthTokens>>,
+    /// The access tokens of OAuth accounts (the refresh tokens are in `tokens`).
+    pub token_cells: TokenCells,
     pub schedule: Schedule,
     /// `settings.json`: loaded at open, replaced only after a save worked.
     pub settings: Settings,
@@ -87,6 +92,9 @@ impl Store {
             Opened::Existing => CacheState::Existing,
             Opened::Rebuilt { .. } => CacheState::Rebuilt,
         };
+        let tokens = Rc::new(RefCell::new(
+            OAuthTokens::open(&config.data_dir).map_err(tokens_error)?,
+        ));
         let mut store = Store {
             bodies: Bodies::new(paths.bodies()),
             journal: Journal::open(&paths.journal())?,
@@ -94,7 +102,8 @@ impl Store {
             drafts: book.drafts()?,
             accounts: Accounts::open(&paths.accounts())?,
             secrets: Secrets::open(&config.data_dir).map_err(secrets_error)?,
-            tokens: OAuthTokens::open(&config.data_dir).map_err(tokens_error)?,
+            tokens: Rc::clone(&tokens),
+            token_cells: TokenCells::new(config.oauth.clone(), config.roots.clone(), tokens),
             schedule: Schedule::default(),
             // A file that cannot be read or set aside is not worth refusing
             // mail for: start from the defaults.
