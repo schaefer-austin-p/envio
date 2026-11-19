@@ -336,6 +336,17 @@ impl DraftBook {
         st.ids.insert(compose, draft_id);
     }
 
+    /// The compose that holds `draft_id` open, if any. A window whose close
+    /// is still being saved counts: reading the file now could miss its
+    /// last save.
+    pub fn holder(&self, draft_id: &str) -> Option<ComposeId> {
+        let st = self.lock();
+        st.ids
+            .iter()
+            .find(|(_, id)| id.as_str() == draft_id)
+            .map(|(compose, _)| *compose)
+    }
+
     pub fn next_due(&self) -> Option<i64> {
         self.lock().throttle.next_due()
     }

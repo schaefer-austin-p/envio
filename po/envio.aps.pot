@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 12:04+0100\n"
+"POT-Creation-Date: 2026-11-19 13:05+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -347,17 +347,17 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:233
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:255
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:250
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:272
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:264
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:286
 msgid "Bcc"
 msgstr ""
 
@@ -366,28 +366,28 @@ msgstr ""
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:161
+#: qml/pages/compose/ComposePage.qml:183
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:167
+#: qml/pages/compose/ComposePage.qml:189
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:175 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:197 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:263
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:186
+#: qml/pages/compose/ComposePage.qml:208
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:234
+#: qml/pages/compose/ComposePage.qml:256
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:292
+#: qml/pages/compose/ComposePage.qml:314
 msgid "Write your message"
 msgstr ""
 
@@ -910,10 +910,14 @@ msgid "There is no account to write from"
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:57
-msgid "This draft can not be opened"
+msgid "This draft is already open."
 msgstr ""
 
 #: crates/envio-core/src/text/compose.rs:61
+msgid "This draft can not be opened"
+msgstr ""
+
+#: crates/envio-core/src/text/compose.rs:65
 msgid "Could not save your draft"
 msgstr ""
 

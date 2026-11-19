@@ -59,6 +59,7 @@ pub(super) fn seed(dir: &Path) -> (Config, Seeded) {
         username: "me@example.org".into(),
         imap: server(),
         smtp: server(),
+        auth: None,
     };
     let account = Accounts::open(&paths.accounts())
         .unwrap()
@@ -110,6 +111,7 @@ pub(super) fn add_account(worker: &mut Worker<'_>, name: &str, unread: u32) -> S
         username: format!("{name}@example.org"),
         imap: server(),
         smtp: server(),
+        auth: None,
     };
     let account = worker.store.accounts.add(settings, 2_000).unwrap();
     let db = &worker.store.db;

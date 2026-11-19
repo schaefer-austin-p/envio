@@ -612,6 +612,7 @@ name = "envio-mime"
 version = "0.2.0"
 dependencies = [
  "ammonia",
+ "base64",
  "getrandom 0.4.3",
  "html5ever",
  "idna",

@@ -165,6 +165,7 @@ mod tests {
             name: "Ann".into(),
             email: "ann@example.org".into(),
             username: "ann".into(),
+            auth: None,
         };
         let details = |service| CertDetails {
             service,

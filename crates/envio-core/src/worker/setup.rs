@@ -237,6 +237,7 @@ impl Worker<'_> {
             email: setup.email.clone(),
             username: setup.username.clone(),
             imap: store_server(&setup.imap, pin_for(&accepted, Service::Imap)),
+            auth: None,
             smtp: store_server(&setup.smtp, pin_for(&accepted, Service::Smtp)),
         };
         match self.save_account(settings, request.password) {
@@ -333,6 +334,7 @@ mod tests {
                 username: email.into(),
                 imap: server(),
                 smtp: server(),
+                auth: None,
             },
             label: None,
             broken: None,

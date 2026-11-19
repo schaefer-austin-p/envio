@@ -21,6 +21,7 @@ fn settings(email: &str) -> AccountSettings {
             security: Security::Tls,
             pin: None,
         },
+        auth: None,
     }
 }
 
@@ -104,7 +105,7 @@ fn an_entry_that_does_not_parse_is_broken_with_its_key() {
 fn a_newer_version_still_fails() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, r#"{"version": 3, "accounts": [{"key": "1000"}]}"#).unwrap();
+    fs::write(&path, r#"{"version": 4, "accounts": [{"key": "1000"}]}"#).unwrap();
     assert!(matches!(
         Accounts::open(&path),
         Err(StoreError::BadRecord { .. })
@@ -213,7 +214,7 @@ fn a_damaged_file_is_an_error_and_left_alone() {
 fn a_file_from_a_newer_envio_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, br#"{"version": 3, "accounts": []}"#).unwrap();
+    fs::write(&path, br#"{"version": 4, "accounts": []}"#).unwrap();
     let error = Accounts::open(&path).err().unwrap();
     assert!(matches!(error, StoreError::BadRecord { .. }), "{error:?}");
 }
@@ -329,4 +330,121 @@ fn a_broken_entry_refuses_a_label_and_keeps_its_own() {
     assert_eq!(accounts.get(&bad).unwrap().label(), Some("Work"));
     let reopened = Accounts::open(&path).unwrap();
     assert_eq!(reopened.get(&bad).unwrap().label(), Some("Work"));
+}
+
+#[test]
+fn an_old_file_loads_without_auth_and_saves_without_the_field() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let old = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org",
+      "username": "ada", "imap": {"host": "imap.example.org", "port": 993},
+      "smtp": {"host": "smtp.example.org", "port": 465}}}]}"#;
+    fs::write(&path, old).unwrap();
+    let mut accounts = Accounts::open(&path).unwrap();
+    let settings = accounts.list()[0].settings.clone();
+    assert_eq!(settings.auth, None);
+    assert!(!settings.is_oauth());
+    accounts.update("1000", settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("auth"), "{text}");
+}
+
+#[test]
+fn a_none_auth_round_trips_byte_identical() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let key = accounts.add(settings("ada@example.org"), 1_000).unwrap();
+    let first = fs::read(&path).unwrap();
+    let settings = accounts.get(&key).unwrap().settings.clone();
+    accounts.update(&key, settings).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), first);
+    assert!(!String::from_utf8(first).unwrap().contains("auth"));
+}
+
+#[test]
+fn a_microsoft_account_round_trips_its_auth_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut ms = settings("ada@outlook.example");
+    ms.auth = Some("microsoft".into());
+    let key = accounts.add(ms.clone(), 1_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("\"auth\": \"microsoft\""), "{text}");
+    let reopened = Accounts::open(&path).unwrap();
+    let got = &reopened.get(&key).unwrap().settings;
+    assert_eq!(got, &ms);
+    assert!(got.is_oauth());
+}
+
+#[test]
+fn a_broken_entry_keeps_no_auth_but_stays_raw() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let broken = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@outlook.example", "auth": "microsoft"}}]}"#;
+    fs::write(&path, broken).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    let account = &accounts.list()[0];
+    assert!(account.broken.is_some());
+    assert!(!account.settings.is_oauth());
+}
+
+#[test]
+fn an_account_with_an_unknown_future_auth_kind_is_not_oauth() {
+    let mut s = settings("ada@example.org");
+    s.auth = Some("someday".into());
+    assert!(!s.is_oauth());
+    s.auth = Some("microsoft".into());
+    assert!(s.is_oauth());
+}
+
+fn version_of(path: &std::path::Path) -> u64 {
+    let value: serde_json::Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    value["version"].as_u64().unwrap()
+}
+
+#[test]
+fn a_file_with_an_oauth_account_is_version_3_so_an_older_envio_refuses_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    accounts.add(settings("bob@example.org"), 1_000).unwrap();
+    assert_eq!(version_of(&path), 2);
+    let mut ms = settings("ada@outlook.example");
+    ms.auth = Some("microsoft".into());
+    let key = accounts.add(ms.clone(), 2_000).unwrap();
+    assert_eq!(version_of(&path), 3);
+    // This build reads its own version 3 back.
+    let mut reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&key).unwrap().settings, ms);
+    // Removing the last OAuth account lets password-only users downgrade again.
+    reopened.remove(&key).unwrap();
+    assert_eq!(version_of(&path), 2);
+}
+
+#[test]
+fn a_broken_entry_that_names_an_auth_kind_keeps_the_file_at_version_3() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let text = r#"{"version": 3, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@outlook.example", "auth": "microsoft"}}]}"#;
+    fs::write(&path, text).unwrap();
+    let mut accounts = Accounts::open(&path).unwrap();
+    accounts.add(settings("bob@example.org"), 2_000).unwrap();
+    assert_eq!(version_of(&path), 3);
+    assert!(fs::read_to_string(&path).unwrap().contains("microsoft"));
+}
+
+#[test]
+fn a_version_4_file_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    fs::write(&path, r#"{"version": 4, "accounts": []}"#).unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
 }
