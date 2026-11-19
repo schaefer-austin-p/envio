@@ -24,6 +24,7 @@ mod paths;
 mod prefetch;
 mod private;
 mod rebuild;
+mod refusal;
 mod search;
 mod userdata;
 
@@ -46,6 +47,7 @@ pub use outbox::{NewOutboxItem, Outbox, OutboxItem, OutboxMeta, SendState};
 pub use paths::StorePaths;
 pub use private::{create_private_dir, create_private_file, tighten_once, tighten_tree};
 pub use rebuild::{Opened, open_or_rebuild};
+pub use refusal::RefusalKind;
 pub use search::{BODY_INDEX_BYTES, Within};
 pub use userdata::{
     Contact, DarkMode, ImagesDefault, Settings, ThemeName, load_contacts, load_settings,

@@ -39,6 +39,18 @@ pub struct Config {
     pub dns: Option<Arc<dyn envio_net::dns::TxtLookup>>,
 }
 
+/// The OAuth providers the app offers: Microsoft once its client ID is set
+/// (`client_ids::MICROSOFT`), none before. The app's `Config` takes this.
+pub fn default_oauth_providers() -> Vec<envio_net::oauth::Provider> {
+    providers_from(envio_net::oauth::Provider::microsoft())
+}
+
+fn providers_from(
+    microsoft: Option<envio_net::oauth::Provider>,
+) -> Vec<envio_net::oauth::Provider> {
+    microsoft.into_iter().collect()
+}
+
 impl Config {
     pub fn logs_dir(&self) -> PathBuf {
         self.cache_dir.join("logs")
@@ -176,5 +188,24 @@ impl Drop for Core {
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use envio_net::oauth::Provider;
+
+    #[test]
+    fn the_empty_client_id_offers_no_provider() {
+        assert!(default_oauth_providers().is_empty());
+    }
+
+    #[test]
+    fn a_client_id_offers_microsoft() {
+        let with_id = Provider::microsoft_template().with_client_id("test-client-id");
+        let list = providers_from(Some(with_id));
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].client_id, "test-client-id");
     }
 }

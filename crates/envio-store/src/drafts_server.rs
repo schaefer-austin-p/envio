@@ -11,6 +11,7 @@ use crate::atomic::write_atomic;
 use crate::drafts::{Draft, Drafts};
 use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
+use crate::refusal::RefusalKind;
 
 /// Kept in the draft file. Old files without it load as "never uploaded".
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +29,11 @@ pub struct ServerCopy {
     /// many times in a row: the planner stops retrying that save.
     pub failed_ms: i64,
     pub failures: u32,
+    /// Why the server refused the save `failed_ms` (the kind only), and
+    /// when (ms) the upload last failed: the retry delay counts from it.
+    /// `mark_uploaded` clears both.
+    pub refusal: Option<RefusalKind>,
+    pub failed_at_ms: i64,
     /// When an upload of this draft last ended the run (a lost
     /// connection): the next run tries the others first.
     pub tried_ms: i64,
@@ -354,10 +360,19 @@ impl Drafts {
         Ok(None)
     }
 
-    /// The upload of the save stamped `saved_ms` failed: counts `weight`
-    /// more failures of that save (a newer save starts again from zero).
-    /// False when the draft is gone.
-    pub fn mark_failed(&self, id: &str, saved_ms: i64, weight: u32) -> Result<bool> {
+    /// The upload of the save stamped `saved_ms` failed at `at_ms` for
+    /// `refusal`: counts `weight` more failures of that save (a newer save
+    /// starts again from zero) and replaces the kind. False when the draft
+    /// is gone.
+    #[allow(clippy::too_many_arguments)] // the signature the plan fixes
+    pub fn mark_failed(
+        &self,
+        id: &str,
+        saved_ms: i64,
+        weight: u32,
+        refusal: RefusalKind,
+        at_ms: i64,
+    ) -> Result<bool> {
         self.edit(id, |draft| {
             let server = &mut draft.server;
             let before = if server.failed_ms == saved_ms {
@@ -367,7 +382,25 @@ impl Drafts {
             };
             server.failed_ms = saved_ms;
             server.failures = before.saturating_add(weight);
+            server.refusal = Some(refusal);
+            server.failed_at_ms = at_ms;
         })
+    }
+
+    /// A manual refresh lifts the wait of `account`'s drafts: zeroes their
+    /// `failed_at_ms` (the failure count and the kind stay). How many
+    /// drafts changed.
+    pub fn clear_backoff(&self, account: &str) -> Result<usize> {
+        let mut cleared = 0;
+        for (id, draft) in self.list()? {
+            if draft.account != account || draft.server.failed_at_ms == 0 {
+                continue;
+            }
+            if self.edit(&id, |draft| draft.server.failed_at_ms = 0)? {
+                cleared += 1;
+            }
+        }
+        Ok(cleared)
     }
 
     /// An upload of this draft ended the run at `at_ms` (not counted as a

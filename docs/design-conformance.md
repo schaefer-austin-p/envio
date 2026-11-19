@@ -145,6 +145,21 @@ colour in mail bodies).
 | Both | Trust dialog | red alert glyph, title 20 mono with host on its own line, fingerprint in a tinted mono box at 12, "Issued by . expires" line, stacked buttons | no glyph, title 18 with host inline, plain text, no box, no issuer line (`TrustDialog.qml:28-39`, `AppDialog.qml:43`; p10) | Medium | Box with `selected` fill; add glyph |
 | Carbon | Wizard title | Plex Mono 20 | 18 | Low | R7 |
 
+## Microsoft sign-in (#219)
+
+Board: `docs/design/carbon-ms-oauth.html`, frames 1 to 8 (light; dark on the
+four frames the board shows in dark). Built in T8: `SignInStep.qml` (the
+`microsoft` variant), `BrowserStep.qml`, `NoticeCard.qml`,
+`SignInAgainPage.qml`, the Outbox row's held-send text. Checked so far:
+layout and behaviour by `cargo make qml-test` against the fake core, and the
+end-to-end path by `crates/envio-e2e/tests/oauth_e2e.rs` (no Microsoft
+involved). **Not yet audited:** the phone shots with the real flow, which
+need the client ID (#219 T10). The Microsoft button, the browser step and
+the error cards are never reachable until then (the constant is empty, so
+the wizard never offers them), so no deviation row can be measured on a
+phone. T10 runs the audit process above on these frames and adds the rows
+here.
+
 ## Contacts and settings (Appearance, Sync, Images, About)
 
 | Theme | Element | Board | Built (file:line) | Severity | Suggested fix |
