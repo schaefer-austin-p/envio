@@ -24,7 +24,7 @@ Item {
             objectName: "waitBar"
             width: parent.width
             height: 3
-            radius: 2
+            radius: height / 2
             color: root.theme.hairline
             clip: true
             Rectangle {
