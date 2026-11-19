@@ -115,6 +115,12 @@ pub fn unreachable() -> String {
     tr("Could not reach the server. Check the settings and your connection")
 }
 
+pub fn dropped() -> String {
+    tr(
+        "The server closed the connection. Check the security setting and password, or try again in a moment",
+    )
+}
+
 pub fn not_saved() -> String {
     tr("Could not save the account settings. Check the free storage")
 }
