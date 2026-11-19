@@ -153,7 +153,7 @@ Item {
         confirming: session.state === "confirm"
         onContinued: root.submit()
         onEditServersRequested: { root.forget(); servers.prefill(root.setup); root.step = "servers" }
-        onOauthRequested: { root.error = ""; session.start() }
+        onOauthRequested: { root.error = ""; root.accountName = root.setup.name; session.start() }
         onOauthAnswered: function(accept) { session.answer(accept) }
     }
     BrowserStep {

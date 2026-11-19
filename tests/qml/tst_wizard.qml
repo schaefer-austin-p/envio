@@ -56,6 +56,7 @@ Item {
             wizard.clearPasswords()
             wizard.oauthSession.reset()
             wizard.oauthProvider = ""
+            wizard.accountName = ""
             opened = []
             wizard.oauthSession.uri.opener = function(u) { opened.push(String(u)); return true }
             wizard.step = "email"
@@ -654,6 +655,7 @@ Item {
             core.accountAdded("ann", "ann@example.org")
             core.oauthDone("ann@example.org", "added", "")
             compare(wizard.step, "options")
+            compare(find("accountName").text, "Ann")
             compare(wizard.oauthSession.noticeKind, "")
         }
         function test_back_while_waiting_is_cancel() {
@@ -686,6 +688,8 @@ Item {
             compare(core.called("cancelOAuth").length, 0)
             core.accountAdded("ann", "ann@example.org")
             compare(wizard.step, "options")
+            // The identity-confirm path ends on the same name.
+            compare(find("accountName").text, "Ann")
         }
         function test_each_failure_shows_its_card() {
             const texts = ["Microsoft took too long.", "No connection.", "Microsoft refused.", "Something went wrong."]
@@ -732,6 +736,7 @@ Item {
             compare(wizard.step, "options")
             core.oauthDone("ann@example.org", "added", "")
             compare(wizard.step, "options")
+            compare(find("accountName").text, "Ann")
             compare(wizard.oauthSession.state, "idle")
             compare(wizard.oauthSession.noticeKind, "")
         }
