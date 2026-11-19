@@ -258,6 +258,14 @@ Item {
             b.shell.destroy()
         }
 
+        // bindle's Uri defaults to no schemes; without this the shell would
+        // silently ignore mailto: links.
+        function test_shell_registers_the_mailto_scheme() {
+            const b = boot()
+            verify(b.shell.uriSchemes.indexOf("mailto") >= 0)
+            b.shell.destroy()
+        }
+
         function test_uri_offers_only_mailto_links() {
             const u = uriComponent.createObject(root, { arguments: [] })
             links.target = u

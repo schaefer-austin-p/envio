@@ -95,6 +95,7 @@ Item {
     // A mailto: link waits until the core is up and there is an account to
     // write from; then the core fills the compose from it.
     property alias uriSource: links.sourceFile
+    readonly property var uriSchemes: links.schemes
     property string pendingMailto: ""
     function openMailto(link) {
         pendingMailto = link
