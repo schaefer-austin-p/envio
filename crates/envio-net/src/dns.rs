@@ -165,7 +165,9 @@ impl<R: Clone> Pool<R> {
         };
         let limit = self.limit;
         let answer = txt_with(name, |name| async move {
-            tokio::time::timeout(limit, query(resolver, name)).await.ok()
+            tokio::time::timeout(limit, query(resolver, name))
+                .await
+                .ok()
         })
         .await;
         if answer == TxtAnswer::Unavailable {
@@ -192,7 +194,10 @@ impl Default for SystemTxt {
 impl TxtLookup for SystemTxt {
     fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
         Box::pin(self.pool.lookup(name, |resolver, query| async move {
-            resolver.txt_lookup(query).await.map(|lookup| records_of(&lookup))
+            resolver
+                .txt_lookup(query)
+                .await
+                .map(|lookup| records_of(&lookup))
         }))
     }
 }
@@ -782,7 +787,10 @@ mod tests {
     #[test]
     fn the_answer_section_of_a_lookup_is_passed_through() {
         let records = vec![cname_record(), txt_record("v=DKIM1; p=AB", 120)];
-        let query = Query::query(Name::from_ascii("sel.example.com.").unwrap(), RecordType::TXT);
+        let query = Query::query(
+            Name::from_ascii("sel.example.com.").unwrap(),
+            RecordType::TXT,
+        );
         let lookup = Lookup::new_with_max_ttl(query, records.clone());
         assert_eq!(records_of(&lookup), records);
     }
