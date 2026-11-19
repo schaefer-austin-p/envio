@@ -5,9 +5,8 @@ import "../platform"
 // A centered dialog over the scrim with a `primary` (filled, listed first)
 // and an optional `secondary` (outlined) action. Either may be the safe
 // default: the certificate prompt makes Cancel its primary. Choosing an
-// action emits its signal from the event loop (not from the button's
-// onClicked, see choose()) and closes the dialog after it; the scrim does not
-// dismiss it.
+// action closes the dialog, then emits its signal from the event loop
+// (see choose()); the scrim does not dismiss it.
 QC.Popup {
     id: root
     required property Theme theme
@@ -19,18 +18,18 @@ QC.Popup {
     signal secondaryActivated()
     default property alias content: extra.data
 
-    property bool choosing: false
-    // Emit from the event loop, then close: the signal may pop the page that
-    // owns this dialog, so nothing may run on it afterwards inside the click.
-    // `choosing` keeps a double tap from emitting twice.
+    // True from the tap on an action until the dialog opens again: `closed`
+    // then comes from a choice, whose signal follows a moment later.
+    property bool chosen: false
+    onAboutToShow: chosen = false
+    // Close now, emit from the event loop. The signal may pop the page that
+    // owns this dialog: calling close() on a popup whose page is going (it
+    // was after the signal) segfaulted in QtQml's deferred execution (#329),
+    // and the button must not be destroyed inside its own onClicked.
     function choose(signalFn) {
-        if (choosing) return
-        choosing = true
-        Qt.callLater(function() {
-            root.choosing = false
-            signalFn()
-            if (root) root.close()
-        })
+        chosen = true
+        close()
+        Qt.callLater(signalFn)
     }
 
     parent: QC.Overlay.overlay

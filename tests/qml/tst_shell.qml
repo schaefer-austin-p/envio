@@ -104,9 +104,15 @@ Item {
             // garbage collector and note the page's depth from inside it.
             let depthInClick = -1
             button.clicked.connect(function() { gc(); depthInClick = b.shell.depth })
+            // The dialog must be shut before the signal that pops its page:
+            // closing a popup whose page is going segfaulted on the phone
+            // (#329, in QtQml's deferred execution; offscreen it does not).
+            let openedAtSignal = true
+            ask.secondaryActivated.connect(function() { openedAtSignal = ask.opened })
             tryVerify(function() { return button.width > 0 })
             mouseClick(button)
             tryVerify(function() { return b.shell.depth === 1 }, 3000)
+            compare(openedAtSignal, false, "the dialog was closed before its signal")
             compare(depthInClick, 2, "the page was still on the stack during the click")
             compare(b.core.called("closeCompose").pop().args, [1, true])
             gc()
