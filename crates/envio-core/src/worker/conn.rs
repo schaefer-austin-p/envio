@@ -9,15 +9,18 @@ use std::time::Duration;
 
 use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
+use envio_net::oauth::ProviderKind;
 use envio_net::smtp::SmtpSession;
 use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
 use envio_sync::driver::WindowMemo;
 use futures::future::AbortHandle;
 use futures::stream::FuturesUnordered;
+use secrecy::ExposeSecret;
 use tokio::sync::Notify;
 
 use super::Worker;
 use super::plan::Wants;
+use super::token::{FRESH_MS, Granted, TokenCells, TokenHandle, bearer_send_error};
 use crate::clock::now_ms;
 use crate::health::{AccountStatus, Health};
 use crate::problem::{self, Problem};
@@ -115,45 +118,159 @@ impl Live {
 pub(crate) type IdleFuture =
     Pin<Box<dyn Future<Output = (String, envio_net::Result<(ImapSession, Woke)>)>>>;
 
-pub(crate) async fn connect_imap(
-    account: &Account,
-    secrets: &Secrets,
-    roots: &Roots,
-) -> Result<ImapSession, Problem> {
-    let (endpoint, credentials) = login(account, secrets, Service::Imap)?;
-    ImapSession::open(&endpoint, roots, &credentials)
-        .await
-        .map_err(|e| problem::from_net(&e, Service::Imap))
+/// What a connect needs, resolved without awaiting (clone-cheap handles, no
+/// `&Worker` borrow), so a background future can own it.
+pub(crate) enum LoginSource {
+    Password(envio_net::Credentials),
+    Token(TokenHandle),
+}
+
+pub(crate) struct Login {
+    pub endpoint: envio_net::Endpoint,
+    pub username: String,
+    pub source: LoginSource,
+}
+
+/// Why an SMTP connect failed.
+pub(crate) enum SmtpConnectError {
+    Problem(Problem),
+    /// A token account's SMTP sign-in was refused although the token is good
+    /// (Authenticated SMTP is off for the mailbox): not a sign-in problem;
+    /// the due Outbox items fail with this text.
+    SendRefused(String),
+}
+
+impl From<Problem> for SmtpConnectError {
+    fn from(problem: Problem) -> Self {
+        Self::Problem(problem)
+    }
+}
+
+pub(crate) async fn connect_imap(login: &Login, roots: &Roots) -> Result<ImapSession, Problem> {
+    let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Imap);
+    let handle = match &login.source {
+        LoginSource::Password(credentials) => {
+            return ImapSession::open(&login.endpoint, roots, credentials)
+                .await
+                .map_err(to_problem);
+        }
+        LoginSource::Token(handle) => handle,
+    };
+    let mut refused: Option<Granted> = None;
+    loop {
+        let granted = match &refused {
+            None => handle.access(false).await?,
+            Some(used) => handle.renew(used).await?,
+        };
+        let credentials =
+            envio_net::Credentials::bearer(&login.username, granted.token.expose_secret());
+        match ImapSession::open(&login.endpoint, roots, &credentials).await {
+            Ok(session) => {
+                handle.set_imap_ok();
+                return Ok(session);
+            }
+            // Only a sign-in refusal means the token may have expired; once.
+            Err(envio_net::NetError::SignIn(_))
+                if refused.is_none() && is_old(handle, granted.at_ms) =>
+            {
+                refused = Some(granted);
+            }
+            Err(error) => return Err(to_problem(error)),
+        }
+    }
 }
 
 pub(crate) async fn connect_smtp(
-    account: &Account,
-    secrets: &Secrets,
+    login: &Login,
     roots: &Roots,
-) -> Result<SmtpSession, Problem> {
-    let (endpoint, credentials) = login(account, secrets, Service::Smtp)?;
+) -> Result<SmtpSession, SmtpConnectError> {
     let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Smtp);
-    let mut session = SmtpSession::connect(&endpoint, roots)
-        .await
-        .map_err(to_problem)?;
-    session.login(&credentials).await.map_err(to_problem)?;
-    Ok(session)
+    let handle = match &login.source {
+        LoginSource::Password(credentials) => {
+            let mut session = SmtpSession::connect(&login.endpoint, roots)
+                .await
+                .map_err(to_problem)?;
+            session.login(credentials).await.map_err(to_problem)?;
+            return Ok(session);
+        }
+        LoginSource::Token(handle) => handle,
+    };
+    let mut refused: Option<Granted> = None;
+    loop {
+        let granted = match &refused {
+            None => handle.access(false).await?,
+            Some(used) => handle.renew(used).await?,
+        };
+        let credentials =
+            envio_net::Credentials::bearer(&login.username, granted.token.expose_secret());
+        let mut session = SmtpSession::connect(&login.endpoint, roots)
+            .await
+            .map_err(to_problem)?;
+        let error = match session.login(&credentials).await {
+            Ok(()) => return Ok(session),
+            Err(error) => error,
+        };
+        let old = is_old(handle, granted.at_ms);
+        let error = bearer_send_error(error, !old, handle.imap_ok());
+        match error {
+            envio_net::NetError::Refused(text) if is_send_refusal(&text) => {
+                return Err(SmtpConnectError::SendRefused(text));
+            }
+            envio_net::NetError::SignIn(_) if refused.is_none() && old => refused = Some(granted),
+            error => return Err(to_problem(error).into()),
+        }
+    }
+}
+
+/// The token the attempt used was obtained more than `FRESH_MS` ago.
+fn is_old(handle: &TokenHandle, at_ms: i64) -> bool {
+    handle.age_of(at_ms) > FRESH_MS
+}
+
+/// Whether `bearer_send_error` made this refusal (its text ends in the hint).
+fn is_send_refusal(text: &str) -> bool {
+    text.ends_with(&crate::text::outbox::smtp_disabled_hint())
 }
 
 /// A bad stored pin never connects (it would trust anything); a missing
-/// password is a sign-in problem.
+/// password (or an OAuth account with no provider) is a sign-in problem.
 pub(super) fn login(
     account: &Account,
     secrets: &Secrets,
+    tokens: &TokenCells,
     service: Service,
-) -> Result<(envio_net::Endpoint, envio_net::Credentials), Problem> {
+) -> Result<Login, Problem> {
     let server = match service {
         Service::Imap => &account.settings.imap,
         Service::Smtp => &account.settings.smtp,
     };
     let endpoint = endpoint(server).map_err(|_| Problem::Certificate(None))?;
-    let password = secrets.get(&account.key).ok_or(Problem::SignIn)?;
-    Ok((endpoint, credentials(&account.settings.username, password)))
+    let username = account.settings.username.clone();
+    let source = if account.settings.is_oauth() {
+        let handle = tokens
+            .handle(&account.key, ProviderKind::Microsoft)
+            .ok_or(Problem::SignIn)?;
+        LoginSource::Token(handle)
+    } else {
+        let password = secrets.get(&account.key).ok_or(Problem::SignIn)?;
+        LoginSource::Password(credentials(&username, password))
+    };
+    Ok(Login {
+        endpoint,
+        username,
+        source,
+    })
+}
+
+/// What a paused account's status says, again: asking it for a login changes
+/// nothing about it.
+pub(super) fn paused_problem(status: &AccountStatus) -> Option<Problem> {
+    match status {
+        AccountStatus::SignInFailed => Some(Problem::SignIn),
+        AccountStatus::Certificate(details) => Some(Problem::Certificate(details.clone())),
+        AccountStatus::Removing | AccountStatus::Broken(_) => Some(Problem::Local),
+        _ => None,
+    }
 }
 
 /// The last step may have left another folder selected.
@@ -229,14 +346,33 @@ impl Worker<'_> {
                 return Err(Problem::Temporary);
             }
         }
-        let Some(settings) = self.store.accounts.get(account) else {
-            return Err(Problem::Local);
-        };
-        let session = connect_imap(settings, &self.store.secrets, &self.roots).await?;
+        let login = self.login_for(account, Service::Imap)?;
+        let session = connect_imap(&login, &self.roots).await?;
         if let Some(live) = self.live.get_mut(account) {
             live.idle_capable = Some(session.caps().idle);
         }
         Ok(session)
+    }
+
+    /// The login for `service` of `account`. A paused account is not given
+    /// one: nothing is refreshed or connected for it until `resume`.
+    pub(crate) fn login_for(&self, account: &str, service: Service) -> Result<Login, Problem> {
+        if let Some(problem) = self
+            .live
+            .get(account)
+            .and_then(|live| paused_problem(&live.health.status))
+        {
+            return Err(problem);
+        }
+        let Some(settings) = self.store.accounts.get(account) else {
+            return Err(Problem::Local);
+        };
+        login(
+            settings,
+            &self.store.secrets,
+            &self.store.token_cells,
+            service,
+        )
     }
 
     pub(super) fn inbox(&self, account: &str) -> Result<Option<envio_store::Folder>, Problem> {
@@ -351,6 +487,9 @@ impl Worker<'_> {
 }
 
 #[cfg(test)]
+mod bearer_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
@@ -455,6 +594,15 @@ mod tests {
         assert!(changed_since_sync(synced(5, None), &other));
     }
 
+    fn cells(dir: &std::path::Path) -> TokenCells {
+        let tokens = crate::oauth_tokens::OAuthTokens::open(dir).unwrap();
+        TokenCells::new(
+            Vec::new(),
+            Roots::empty(),
+            std::rc::Rc::new(std::cell::RefCell::new(tokens)),
+        )
+    }
+
     #[tokio::test]
     async fn a_malformed_pin_stops_with_a_certificate_problem() {
         let dir = tempfile::tempdir().unwrap();
@@ -463,7 +611,12 @@ mod tests {
             .set("a1", SecretString::from("pw".to_owned()))
             .unwrap();
         // Port 1 refuses connections: only the pin check gives this error.
-        let result = connect_imap(&account(Some("zz")), &secrets, &Roots::empty()).await;
+        let result = login(
+            &account(Some("zz")),
+            &secrets,
+            &cells(dir.path()),
+            Service::Imap,
+        );
         assert!(matches!(result, Err(Problem::Certificate(None))));
     }
 
@@ -471,8 +624,86 @@ mod tests {
     async fn no_password_is_a_sign_in_problem() {
         let dir = tempfile::tempdir().unwrap();
         let secrets = Secrets::open(dir.path()).unwrap();
-        let result = connect_imap(&account(None), &secrets, &Roots::empty()).await;
+        let result = login(&account(None), &secrets, &cells(dir.path()), Service::Imap);
         assert!(matches!(result, Err(Problem::SignIn)));
+    }
+
+    #[test]
+    fn a_paused_account_is_given_no_login() {
+        use crate::worker::testing::{Sink, open, seed};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let key = &seeded.account;
+        worker
+            .store
+            .secrets
+            .set(key, secrecy::SecretString::from("pw"))
+            .unwrap();
+        worker.live.get_mut(key).unwrap().health.status = AccountStatus::SignInFailed;
+        assert!(matches!(
+            worker.login_for(key, Service::Smtp),
+            Err(Problem::SignIn)
+        ));
+        worker.live.get_mut(key).unwrap().health.status = AccountStatus::Ready;
+        assert!(worker.login_for(key, Service::Imap).is_ok());
+    }
+
+    /// The token cell of a worker with a Microsoft account, and the worker.
+    fn token_worker<'s>(
+        config: &mut crate::Config,
+        sink: &'s crate::worker::testing::Sink,
+        key: &str,
+    ) -> (Worker<'s>, TokenHandle) {
+        use envio_net::oauth::Provider;
+        config.oauth = vec![Provider::microsoft_template()];
+        let worker = crate::worker::testing::open(config, sink);
+        let handle = worker
+            .store
+            .token_cells
+            .handle(key, ProviderKind::Microsoft)
+            .unwrap();
+        (worker, handle)
+    }
+
+    #[test]
+    fn a_failed_step_that_pauses_the_account_stops_its_token_refreshes() {
+        use crate::worker::testing::{Sink, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let key = &seeded.account;
+        let (mut worker, handle) = token_worker(&mut config, &sink, key);
+        crate::worker::run::failed(&mut worker, key, "test", &Problem::Certificate(None));
+        // A refresh would end in SignIn (no stored token): this is the pause.
+        let reply = handle.access(true).now_or_never();
+        assert!(
+            matches!(reply, Some(Err(Problem::Certificate(None)))),
+            "{reply:?}"
+        );
+    }
+
+    #[test]
+    fn reporting_a_paused_account_stops_its_token_refreshes() {
+        use crate::worker::testing::{Sink, seed};
+        use futures::FutureExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let key = &seeded.account;
+        let (mut worker, handle) = token_worker(&mut config, &sink, key);
+        worker.live.get_mut(key).unwrap().health.status = AccountStatus::Certificate(None);
+        worker.report(key, &AccountStatus::Ready);
+        let reply = handle.access(true).now_or_never();
+        assert!(
+            matches!(reply, Some(Err(Problem::Certificate(None)))),
+            "{reply:?}"
+        );
     }
 
     /// Whether going to the background woke the account's IDLE, and whether

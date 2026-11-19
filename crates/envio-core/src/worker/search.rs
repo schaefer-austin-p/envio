@@ -92,16 +92,19 @@ impl Worker<'_> {
         });
         let now = now_ms();
         for (account, folder) in targets {
-            let Some(live) = self.live.get_mut(&account) else {
+            let Some(live) = self.live.get(&account) else {
                 self.search_failed(&account, text::read::search_unavailable());
                 continue;
             };
             // A broken, paused or offline account is not connected for this.
             if live.health.is_paused() || !live.health.can_run(now) {
-                let status = text::status::status(&live.health.status);
+                let status = self.status_text(&account, &live.health.status);
                 self.search_failed(&account, status);
                 continue;
             }
+            let Some(live) = self.live.get_mut(&account) else {
+                continue;
+            };
             match folder {
                 Some(folder) => live.wants.searches.push((folder, query.clone())),
                 None => self.search_failed(&account, text::read::search_unavailable()),
@@ -148,7 +151,7 @@ impl Worker<'_> {
             Problem::Refused(reason) if !reason.is_empty() => text::notice::refused(reason),
             Problem::Refused(_) => text::read::search_unavailable(),
             _ => match self.live.get(account) {
-                Some(live) => text::status::status(&live.health.status),
+                Some(live) => self.status_text(account, &live.health.status),
                 None => text::read::search_unavailable(),
             },
         };

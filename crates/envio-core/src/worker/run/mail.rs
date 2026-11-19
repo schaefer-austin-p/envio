@@ -10,7 +10,7 @@ use crate::clock::now_ms;
 use crate::problem::{self, Problem};
 use crate::servers::Service;
 use crate::worker::Worker;
-use crate::worker::conn::connect_smtp;
+use crate::worker::conn::{SmtpConnectError, connect_smtp};
 
 pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), Problem> {
     let now = now_ms();
@@ -19,10 +19,23 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
     if !due {
         return Ok(());
     }
-    let Some(settings) = worker.store.accounts.get(account) else {
-        return Err(Problem::Local);
+    let login = worker.login_for(account, Service::Smtp)?;
+    let mut smtp = match connect_smtp(&login, &worker.roots).await {
+        Ok(smtp) => smtp,
+        Err(SmtpConnectError::Problem(problem)) => return Err(problem),
+        Err(SmtpConnectError::SendRefused(reason)) => {
+            // The server will not send for this mailbox: the due items fail
+            // with its words, the account stays up and IMAP carries on.
+            let sent = driver::refuse_outbox(&mut worker.store.local(), account, now, &reason)
+                .map_err(|e| problem::from_sync(&e, Service::Smtp))?;
+            if !sent.failed.is_empty() {
+                worker.emit(Event::OutboxChanged);
+                worker.emit_outbox();
+                worker.reshow_open_invite();
+            }
+            return Ok(());
+        }
     };
-    let mut smtp = connect_smtp(settings, &worker.store.secrets, &worker.roots).await?;
     let sent = driver::send_outbox(&mut smtp, &mut worker.store.local(), account, now).await;
     if let Err(error) = smtp.quit().await {
         log::debug!("closing SMTP: {error}");
