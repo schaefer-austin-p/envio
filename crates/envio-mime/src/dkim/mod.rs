@@ -16,8 +16,7 @@ mod signature;
 mod tags;
 mod verify;
 
-pub(crate) use canon::{body, body_hash, header_fields, signed_data};
+pub(crate) use canon::{body, body_hash, field_named, header_fields, signed_data};
 pub(crate) use key::{KeyRecord, PublicKey, key_record};
 pub(crate) use signature::{Algorithm, Canon, Signature, signature};
-pub(crate) use verify::field_named;
 pub use verify::{DkimVerdict, KeyAnswer, key_queries, verify};

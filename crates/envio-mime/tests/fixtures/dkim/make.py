@@ -156,6 +156,26 @@ def main():
     out["xpast"] = sign(message(), rsa, "test", "example.com", expire=1000000000)
     out["length"] = sign(message(), rsa, "test", "example.com", length=True)
     out["agent"] = sign(message(), rsa, "test", "example.com", identity=b"@sub.example.com")
+    out["cte_signed"] = sign(
+        message(extra=b"Content-Transfer-Encoding: 7bit\r\n"),
+        rsa,
+        "test",
+        "example.com",
+        headers=HEADERS + ["content-transfer-encoding"],
+    )
+    # A valid signature that does not cover Content-Transfer-Encoding, then
+    # an unsigned `Content-Transfer-Encoding: base64` added to the header.
+    signed = sign(message(), rsa, "test", "example.com")
+    end = signed.index(b"\r\n\r\n") + 2
+    out["cte_appended"] = signed[:end] + b"Content-Transfer-Encoding: base64\r\n" + signed[end:]
+    # Two Content-Type fields, both listed in h=.
+    out["ct_twice"] = sign(
+        message(extra=b"Content-Type: text/plain; charset=utf-8\r\n"),
+        rsa,
+        "test",
+        "example.com",
+        headers=HEADERS + ["content-type"],
+    )
     for name, data in out.items():
         open(path(name + ".eml"), "wb").write(data)
     spki = rsa_spki_b64("rsa2048.pem")

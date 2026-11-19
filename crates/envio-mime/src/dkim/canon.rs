@@ -52,6 +52,15 @@ pub(crate) fn header_fields(raw: &[u8]) -> Vec<&[u8]> {
     ranges.into_iter().map(|(s, e)| &raw[s..e]).collect()
 }
 
+/// Whether `field` is named `name` (lowercase), case-insensitively, with
+/// optional space before the colon.
+pub(crate) fn field_named(field: &[u8], name: &[u8]) -> bool {
+    let Some(colon) = field.iter().position(|&b| b == b':') else {
+        return false;
+    };
+    field[..colon].trim_ascii_end().eq_ignore_ascii_case(name)
+}
+
 /// The body after the blank line, LF normalised to CRLF.
 pub(crate) fn body(raw: &[u8]) -> Cow<'_, [u8]> {
     let Some(start) = split_header(raw).1 else {

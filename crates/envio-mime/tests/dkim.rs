@@ -330,3 +330,98 @@ proptest! {
         let _ = check(&raw);
     }
 }
+
+/// `eml(name)`'s signature field copied once per selector, above the rest.
+fn with_selectors(name: &str, selectors: &[&str]) -> Vec<u8> {
+    let raw = eml(name);
+    let end = raw.windows(3).position(|w| w == b"\r\nF").unwrap() + 2;
+    let mut m = Vec::new();
+    for s in selectors {
+        m.extend_from_slice(&replace(&raw[..end], "s=test", &format!("s={s}")));
+    }
+    m.extend_from_slice(&raw[end..]);
+    m
+}
+
+#[test]
+fn a_fourth_key_name_is_never_a_need() {
+    let m = with_selectors("relaxed", &["a", "b", "c", "d"]);
+    let gone = |s: &str| (format!("{s}._domainkey.example.com"), KeyAnswer::NoRecord);
+    let keys: HashMap<String, KeyAnswer> = ["a", "b", "c"].into_iter().map(gone).collect();
+    assert_eq!(check_with(&m, FROM, &keys, NOW), DkimVerdict::Fail);
+    // Without the answer for the third, that one is still asked for.
+    let keys: HashMap<String, KeyAnswer> = ["a", "b"].into_iter().map(gone).collect();
+    assert_eq!(
+        check_with(&m, FROM, &keys, NOW),
+        DkimVerdict::NeedKeys(vec!["c._domainkey.example.com".into()])
+    );
+}
+
+fn records(list: Vec<String>) -> HashMap<String, KeyAnswer> {
+    HashMap::from([(
+        "test._domainkey.example.com".into(),
+        KeyAnswer::Records(list),
+    )])
+}
+
+/// A well-formed record that does not verify `relaxed.eml`.
+const OTHER_KEY: &str = "v=DKIM1; k=ed25519; p=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=";
+
+#[test]
+fn every_record_of_a_name_is_tried() {
+    let good = record_of("test._domainkey.example.com");
+    let both = records(vec![OTHER_KEY.into(), good.clone()]);
+    assert_eq!(
+        check_with(&eml("relaxed"), FROM, &both, NOW),
+        DkimVerdict::Pass
+    );
+    let junk = records(vec!["not a record".into(), good]);
+    assert_eq!(
+        check_with(&eml("relaxed"), FROM, &junk, NOW),
+        DkimVerdict::Pass
+    );
+}
+
+#[test]
+fn at_most_five_signature_checks_are_made() {
+    let good = record_of("test._domainkey.example.com");
+    let with = |wrong: usize| {
+        let mut list = vec![OTHER_KEY.to_owned(); wrong];
+        list.push(good.clone());
+        records(list)
+    };
+    assert_eq!(
+        check_with(&eml("relaxed"), FROM, &with(4), NOW),
+        DkimVerdict::Pass
+    );
+    assert_eq!(
+        check_with(&eml("relaxed"), FROM, &with(5), NOW),
+        DkimVerdict::Fail
+    );
+}
+
+#[test]
+fn a_signed_content_transfer_encoding_passes() {
+    assert_eq!(check(&eml("cte_signed")), DkimVerdict::Pass);
+}
+
+#[test]
+fn an_unsigned_content_transfer_encoding_added_below_fails() {
+    let raw = eml("cte_appended");
+    assert!(key_queries(&raw, FROM).is_empty());
+    assert_eq!(check(&raw), DkimVerdict::Fail);
+}
+
+#[test]
+fn every_content_type_field_must_be_signed() {
+    assert_eq!(check(&eml("ct_twice")), DkimVerdict::Pass);
+    // An extra Content-Type above the signed one: DKIM still verifies the
+    // bottom one, but the signature does not cover every such field.
+    let raw = replace(
+        &eml("relaxed"),
+        "\r\nFrom:",
+        "\r\nContent-Type: text/html\r\nFrom:",
+    );
+    assert!(key_queries(&raw, FROM).is_empty());
+    assert_eq!(check(&raw), DkimVerdict::Fail);
+}

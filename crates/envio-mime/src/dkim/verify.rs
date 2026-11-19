@@ -6,8 +6,8 @@ use ring::digest;
 use ring::signature::{self, UnparsedPublicKey};
 
 use super::{
-    Algorithm, Canon, KeyRecord, PublicKey, Signature, body, body_hash, header_fields, key_record,
-    signature as parse_signature, signed_data,
+    Algorithm, Canon, KeyRecord, PublicKey, Signature, body, body_hash, field_named, header_fields,
+    key_record, signature as parse_signature, signed_data,
 };
 use crate::align::aligned;
 use crate::from_field::single_from_domain;
@@ -47,15 +47,6 @@ impl Candidate {
     }
 }
 
-/// Whether `field` is named `name` (lowercase), case-insensitively, with
-/// optional space before the colon.
-pub(crate) fn field_named(field: &[u8], name: &[u8]) -> bool {
-    let Some(colon) = field.iter().position(|&b| b == b':') else {
-        return false;
-    };
-    field[..colon].trim_ascii_end().eq_ignore_ascii_case(name)
-}
-
 /// The lowercased domain of `from`, when the message has exactly one From
 /// mailbox and it is that address (decision 6).
 fn checked_from_domain(raw: &[u8], from: &str) -> Option<String> {
@@ -64,11 +55,27 @@ fn checked_from_domain(raw: &[u8], from: &str) -> Option<String> {
     (single_from_domain(raw).as_deref() == Some(domain.as_str())).then_some(domain)
 }
 
+/// How many times `h=` lists `name`.
+fn listed(sig: &Signature, name: &str) -> usize {
+    sig.signed_headers.iter().filter(|h| *h == name).count()
+}
+
+/// The signature covers every Content-Type and Content-Transfer-Encoding
+/// field of the message: `h=` lists each name at least as often as the
+/// header has it (Content-Type at least once, which signs its absence). An
+/// unsigned one added below would change how the reader decodes the body
+/// (the reader takes the bottom-most of each).
+fn signs_body_headers(fields: &[&[u8]], sig: &Signature) -> bool {
+    let count = |name: &[u8]| fields.iter().filter(|f| field_named(f, name)).count();
+    listed(sig, "content-type") >= count(b"content-type").max(1)
+        && listed(sig, "content-transfer-encoding") >= count(b"content-transfer-encoding")
+}
+
 /// The first five signatures that parse, are aligned with `from_domain` and
-/// (with `need_content_type`) sign Content-Type.
-fn candidates(fields: &[&[u8]], from_domain: &str, need_content_type: bool) -> Vec<Candidate> {
+/// (with `need_body_headers`) cover the body headers.
+fn candidates(fields: &[&[u8]], from_domain: &str, need_body_headers: bool) -> Vec<Candidate> {
     let wanted = |sig: &Signature| {
-        (!need_content_type || sig.signs_content_type()) && aligned(&sig.domain, from_domain)
+        (!need_body_headers || signs_body_headers(fields, sig)) && aligned(&sig.domain, from_domain)
     };
     fields
         .iter()
