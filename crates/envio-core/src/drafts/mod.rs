@@ -4,6 +4,7 @@
 
 mod book;
 mod keeper;
+pub(crate) mod lookup;
 
 pub(crate) use book::DraftBook;
 pub(crate) use keeper::DraftKeeper;

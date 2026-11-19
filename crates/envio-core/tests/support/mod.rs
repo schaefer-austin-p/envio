@@ -144,6 +144,7 @@ impl Harness {
             username: email.into(),
             imap: server(),
             smtp: server(),
+            auth: None,
         };
         let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
         let key = accounts.add(settings, 1_000).unwrap();

@@ -5,6 +5,7 @@ pub mod build_info;
 pub mod core;
 pub mod health;
 pub mod logging;
+pub mod oauth_tokens;
 pub mod paths;
 pub mod problem;
 pub mod secrets;

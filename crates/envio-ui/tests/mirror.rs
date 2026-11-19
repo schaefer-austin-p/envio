@@ -126,6 +126,7 @@ fn an_opened_message_names_its_id() {
         own_colours: false,
         attachments: vec![],
         invite: None,
+        is_draft: false,
     };
     let outs = feed(
         &mut ui,
@@ -186,6 +187,7 @@ fn message_opened_carries_the_invite_card() {
         own_colours: false,
         attachments: vec![],
         invite: Some(card.clone()),
+        is_draft: false,
     };
     let outs = feed(
         &mut ui,
