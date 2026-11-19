@@ -1,6 +1,6 @@
 mod support;
 
-use envio_core::{Command, MessageRowId, UserAction};
+use envio_core::{Command, FolderId, MessageRowId, UserAction};
 use envio_ui::{Model, Row, Ui};
 use support::*;
 
@@ -15,6 +15,16 @@ fn selected_ids(ui: &Ui) -> Vec<i64> {
         .collect();
     ids.sort();
     ids
+}
+
+fn open_ids(ui: &Ui) -> Vec<i64> {
+    ui.rows(Model::Messages)
+        .iter()
+        .filter_map(|r| match r {
+            Row::Message(m) if m.open => Some(m.id),
+            _ => None,
+        })
+        .collect()
 }
 
 fn five() -> Ui {
@@ -63,6 +73,38 @@ fn act_on_open_message_clears_open() {
     let (_, outs) = ui.act_on(vec![4], UserAction::Archive).unwrap();
     assert_eq!(ui.open_message(), Some(1));
     assert!(outs.is_empty());
+}
+
+#[test]
+fn act_on_open_message_keeps_it_open_when_the_row_stays() {
+    for action in [
+        UserAction::MarkRead(true),
+        UserAction::MarkRead(false),
+        UserAction::Flag(true),
+        UserAction::Flag(false),
+    ] {
+        let mut ui = five();
+        ui.set_open(Some(4));
+        let (_, outs) = ui.act_on(vec![4], action).unwrap();
+        assert_eq!(ui.open_message(), Some(4), "{action:?}");
+        assert!(changes(&outs, Model::Messages).is_empty(), "{action:?}");
+        assert_eq!(open_ids(&ui), [4], "{action:?}");
+    }
+}
+
+#[test]
+fn act_on_removing_actions_clear_open() {
+    for action in [
+        UserAction::Archive,
+        UserAction::Delete,
+        UserAction::Move { to: FolderId(2) },
+    ] {
+        let mut ui = five();
+        ui.set_open(Some(4));
+        ui.act_on(vec![4], action).unwrap();
+        assert_eq!(ui.open_message(), None, "{action:?}");
+        assert_eq!(open_ids(&ui), Vec::<i64>::new(), "{action:?}");
+    }
 }
 
 #[test]
