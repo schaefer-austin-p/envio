@@ -30,6 +30,10 @@ pub struct Config {
     pub log_level: log::LevelFilter,
     /// Whether the app is in the foreground at start.
     pub foreground: bool,
+    /// The OAuth providers an account can sign in with (the app passes
+    /// `Provider::microsoft()` when it has a client ID). An OAuth account
+    /// whose provider is not here cannot connect.
+    pub oauth: Vec<envio_net::oauth::Provider>,
 }
 
 impl Config {

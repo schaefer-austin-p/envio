@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 14:00+0100\n"
+"POT-Creation-Date: 2026-11-19 14:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1159,6 +1159,12 @@ msgstr ""
 msgid "This reply to an invitation can't be edited. Retry it, or delete it."
 msgstr ""
 
+#: crates/envio-core/src/text/outbox.rs:50
+msgid ""
+"Ask your administrator to allow Authenticated SMTP for this mailbox, then "
+"send again."
+msgstr ""
+
 #: crates/envio-core/src/text/read.rs:7
 msgid "Image not loaded"
 msgstr ""
@@ -1252,12 +1258,12 @@ msgid "Outgoing (SMTP)"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:63
-#: crates/envio-core/src/text/status.rs:37
+#: crates/envio-core/src/text/status.rs:40
 msgid "incoming mail"
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:64
-#: crates/envio-core/src/text/status.rs:38
+#: crates/envio-core/src/text/status.rs:41
 msgid "outgoing mail"
 msgstr ""
 
@@ -1332,70 +1338,74 @@ msgid ""
 "This account's settings cannot be read ({reason}). Remove it and add it again"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:20
+#: crates/envio-core/src/text/status.rs:22
 msgid "Ready"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:21
+#: crates/envio-core/src/text/status.rs:23
 msgid "Syncing"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:22
+#: crates/envio-core/src/text/status.rs:24
 msgid "Offline, retrying"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:24
+#: crates/envio-core/src/text/status.rs:26
 msgid "Can't read the saved mail on this phone. Retrying."
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:26
-msgid "Sign-in failed, update password"
-msgstr ""
-
 #: crates/envio-core/src/text/status.rs:28
-msgid "The server certificate needs your attention"
+msgid "Sign in again"
 msgstr ""
 
 #: crates/envio-core/src/text/status.rs:29
+msgid "Sign-in failed, update password"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:31
+msgid "The server certificate needs your attention"
+msgstr ""
+
+#: crates/envio-core/src/text/status.rs:32
 msgid "Storage is full, downloads stopped"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:30
+#: crates/envio-core/src/text/status.rs:33
 msgid "Removing account"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:44
+#: crates/envio-core/src/text/status.rs:47
 msgid ""
 "The certificate of the {service} server changed.\n"
 "Old fingerprint: {old}\n"
 "New fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:54
+#: crates/envio-core/src/text/status.rs:57
 msgid ""
 "The certificate of the {service} server is not trusted: {reason}.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:63
+#: crates/envio-core/src/text/status.rs:66
 msgid ""
 "The certificate of the {service} server is not trusted.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:71
+#: crates/envio-core/src/text/status.rs:74
 msgid "self-signed or from an unknown authority"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:72
+#: crates/envio-core/src/text/status.rs:75
 msgid "expired"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:73
+#: crates/envio-core/src/text/status.rs:76
 msgid "issued for another server name"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:74
+#: crates/envio-core/src/text/status.rs:77
 msgid "not valid"
 msgstr ""
 
