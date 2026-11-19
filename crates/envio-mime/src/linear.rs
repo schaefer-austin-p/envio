@@ -308,7 +308,7 @@ fn cell_width(raw: &str) -> Option<u32> {
 /// `div`s: the table and its cells keep `align` and `style`, its own
 /// `tbody`, `thead`, `tfoot`, `tr`, `colgroup` and `col` tags go, and the
 /// content stays in order.
-pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
+pub(crate) fn linearise(html: &str, images: &[Placed], quirks: bool) -> String {
     let verdicts = layout_tables(html, images);
     if !verdicts.contains(&true) {
         return html.to_owned();
@@ -332,7 +332,7 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
                 tables += 1;
                 open.push(linear);
                 if linear {
-                    block(raw, None, true, &mut out);
+                    block(raw, None, Kind::Table { quirks }, &mut out);
                 } else {
                     out.push_str(raw);
                 }
@@ -349,7 +349,7 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
             }
             (true, "tr") if own => row_bg = None,
             (_, "tbody" | "thead" | "tfoot" | "colgroup" | "col") if own => {}
-            (false, "td" | "th") if own => block(raw, row_bg.as_deref(), false, &mut out),
+            (false, "td" | "th") if own => block(raw, row_bg.as_deref(), Kind::Cell, &mut out),
             (true, "td" | "th") if own => out.push_str("</div>"),
             _ => out.push_str(raw),
         }
@@ -358,12 +358,28 @@ pub(crate) fn linearise(html: &str, images: &[Placed]) -> String {
     out
 }
 
+/// What a `div` stands for.
+#[derive(PartialEq, Clone, Copy)]
+enum Kind {
+    Cell,
+    /// A table; `quirks` when the mail has no doctype.
+    Table {
+        quirks: bool,
+    },
+}
+
 /// Writes a `div` start tag with the `align` and `style` of the start tag
 /// `raw`; a `table`'s `align` places the table box, not its text, so it is
-/// dropped. Its `bgcolor` (else `row_bg`, the row's) leads the style as
+/// dropped (in quirks mode it resets the alignment to left). Its `bgcolor` (else `row_bg`, the row's) leads the style as
 /// `background-color`, so the tag's own style still wins.
-fn block(raw: &str, row_bg: Option<&str>, table: bool, out: &mut String) {
+fn block(raw: &str, row_bg: Option<&str>, kind: Kind, out: &mut String) {
+    let table = matches!(kind, Kind::Table { .. });
     out.push_str("<div");
+    // A mail with no doctype is laid out in quirks mode, where a table does
+    // not inherit its parent's text alignment: left until a cell says so.
+    if kind == (Kind::Table { quirks: true }) {
+        out.push_str(" align=\"left\"");
+    }
     if let Some(tag) = parse_tag(raw) {
         let own_bg = bgcolor(&tag.attrs);
         let bg = own_bg.as_deref().or(row_bg);

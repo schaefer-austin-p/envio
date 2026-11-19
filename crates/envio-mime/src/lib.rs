@@ -12,8 +12,10 @@ mod backgrounds;
 mod build;
 mod colours;
 mod content_type;
+mod cssdecl;
 #[allow(dead_code, unused_imports)] // the verifier (T5) is the caller
 mod dkim;
+mod emptydiv;
 mod envelope;
 mod fontsize;
 mod hidden;
