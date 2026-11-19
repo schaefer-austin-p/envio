@@ -205,7 +205,7 @@ fn an_import_is_linked_only_after_its_files_are_in() {
     assert_eq!(done.attachments.len(), 1);
     assert_eq!(fs::read(&done.attachments[0]).unwrap(), b"hello");
     assert_eq!(done.server.message_id.as_deref(), Some(ORIGIN));
-    assert_eq!(done.server.uploaded_ms, 7);
+    assert_eq!(done.server.uploaded_ms, done.updated_at_ms);
     assert_eq!(done.server.imported_from.as_deref(), Some(ORIGIN));
 }
 
@@ -253,4 +253,28 @@ fn an_import_without_a_link_stays_a_plain_copy() {
     let mut expected = plain_copy(7).server;
     expected.detached = true;
     assert_eq!(drafts.load(&id).unwrap().server, expected);
+}
+
+#[test]
+fn a_change_stamped_in_the_millisecond_of_the_stored_draft_is_still_newer() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create_imported(&draft("Copy", 500)).unwrap();
+    // What the import link (or an upload) records: covered up to the stamp.
+    assert!(drafts.mark_uploaded(&id, "<o@x>", 500).unwrap());
+
+    let mut edited = draft("Copy", 500);
+    edited.body = "Changed".into();
+    drafts.save(&id, &edited).unwrap();
+    let saved = drafts.load(&id).unwrap();
+    assert!(
+        saved.updated_at_ms > saved.server.uploaded_ms,
+        "a real edit must not look uploaded: {} vs {}",
+        saved.updated_at_ms,
+        saved.server.uploaded_ms
+    );
+
+    // The same content again changes nothing.
+    drafts.save(&id, &edited).unwrap();
+    assert_eq!(drafts.load(&id).unwrap().updated_at_ms, saved.updated_at_ms);
 }

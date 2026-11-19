@@ -35,6 +35,23 @@ pub struct Draft {
     pub server: ServerCopy,
 }
 
+/// The stamp a save of `new` over `old` gets. A changed draft is stamped
+/// strictly after the stored one: an upload (or an import's link) records
+/// the stamp it covers, and a change in that very millisecond must not
+/// read as already uploaded. An unchanged draft keeps its stamp.
+fn stamp_after(old: &Draft, new: &Draft) -> i64 {
+    let same = Draft {
+        updated_at_ms: old.updated_at_ms,
+        server: old.server.clone(),
+        ..new.clone()
+    } == *old;
+    if same {
+        old.updated_at_ms.max(new.updated_at_ms)
+    } else {
+        new.updated_at_ms.max(old.updated_at_ms.saturating_add(1))
+    }
+}
+
 /// Readable drafts, then the ids of damaged ones.
 type Scan = (Vec<(String, Draft)>, Vec<String>);
 
@@ -127,6 +144,9 @@ impl Drafts {
             Err(StoreError::BadRecord { .. }) => self.salvage_server(id),
             Err(_) => ServerCopy::default(),
         };
+        if let Ok(old) = &old {
+            draft.updated_at_ms = stamp_after(old, &draft);
+        }
         self.write(id, &draft)?;
         let before = old.map(|old| old.attachments).unwrap_or_default();
         self.prune(id, &before, &draft.attachments);
