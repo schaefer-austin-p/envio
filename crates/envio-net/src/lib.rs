@@ -5,6 +5,7 @@
 
 pub mod autoconfig;
 mod connect;
+pub mod dns;
 pub mod error;
 mod http;
 pub mod imap;
