@@ -95,7 +95,11 @@ Control {
     readonly property real frameInset: airmail ? 10 : 0
     // The ring's outer radius at the bottom corners, which meet the phone's
     // rounded display corners.
-    readonly property real frameOuterRadius: airmail ? 30 : 0
+    // Only a phone has rounded display corners; a desktop window is square.
+    // The Suru loader answering (Ubuntu Touch only) says which; only an approximation: UT in
+    // windowed or convergence mode keeps rounded corners. Tests assign it.
+    property bool roundedDisplay: loader.item !== null
+    readonly property real frameOuterRadius: airmail && roundedDisplay ? 30 : 0
     // 0: the top edge meets the system bar (indicator or title bar), straight.
     readonly property real frameTopOuterRadius: 0
     readonly property real frameInnerRadius: airmail ? 20 : 0
