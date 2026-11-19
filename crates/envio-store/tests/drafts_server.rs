@@ -146,3 +146,28 @@ fn imported_from_loads_as_none_from_an_old_file_and_round_trips() {
         Some("<o@x>")
     );
 }
+
+#[test]
+fn forgetting_an_uploaded_draft_removes_it_and_leaves_no_note() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 1)).unwrap();
+    drafts.mark_uploaded(&id, "<a@x>", 1).unwrap();
+    assert!(drafts.forget_if_uploaded(&id, "<a@x>").unwrap());
+    assert!(drafts.load(&id).is_err());
+    assert!(drafts.deletes().unwrap().is_empty());
+    assert!(!drafts.forget_if_uploaded(&id, "<a@x>").unwrap(), "gone");
+}
+
+#[test]
+fn forgetting_rechecks_the_message_id_and_that_nothing_was_saved_since() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("One", 1)).unwrap();
+    drafts.mark_uploaded(&id, "<a@x>", 1).unwrap();
+    assert!(!drafts.forget_if_uploaded(&id, "<b@x>").unwrap());
+    // A save after the upload (maybe after the caller's look): kept.
+    drafts.save(&id, &draft("Two", 2)).unwrap();
+    assert!(!drafts.forget_if_uploaded(&id, "<a@x>").unwrap());
+    assert_eq!(drafts.load(&id).unwrap().subject, "Two");
+}

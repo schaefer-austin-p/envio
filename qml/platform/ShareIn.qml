@@ -33,6 +33,16 @@ Item {
         const t = tracking[compose]
         if (t !== undefined) t.left += count
     }
+    // The user picked `count` files with the attach picker: `transfer` joins
+    // whatever the compose already waits for (or starts the tracking).
+    function expectPick(compose, count, transfer) {
+        if (!transfer) { expect(compose, count); return }
+        if (count <= 0) { finish([transfer]); return }
+        const t = tracking[compose]
+        if (t === undefined) { track(compose, count, [transfer]); return }
+        t.left += count
+        t.transfers.push(transfer)
+    }
     // The compose ended before anything was attached.
     function cancel(compose) {
         const t = tracking[compose]

@@ -21,6 +21,8 @@ use crate::server::MailServer;
 pub struct Replayed {
     /// Actions that reached the server (or whose message is gone).
     pub done: usize,
+    /// Those actions themselves (the Undo window is over for them).
+    pub committed: Vec<Action>,
     /// Refused for good and undone locally; core shows a notice for each.
     pub reverted: Vec<Action>,
     /// Dropped after too many protocol failures: marked done without being
@@ -61,6 +63,7 @@ pub async fn replay(
                 local.journal.done(action.seq)?;
                 local.schedule.succeeded(&key);
                 replayed.done += 1;
+                replayed.committed.push(action);
             }
             Outcome::Revert => {
                 local.journal.done(action.seq)?;

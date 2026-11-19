@@ -21,6 +21,9 @@ section "lint: QML"
 qmllint=$(command -v qmllint || echo /usr/lib/qt5/bin/qmllint)
 find "$root/qml" -path "$root/qml/bindle" -prune -o -name '*.qml' -print0 | xargs -0 -r "$qmllint"
 
+section "lint: bindle.qrc lists every bindle QML file (#229)"
+(cd "$root" && cargo xtask bindle-qrc)
+
 section "lint: QML formats no counts (#3)"
 "$root/tools/ci/no-qml-plurals.sh" --self-test
 
