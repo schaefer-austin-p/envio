@@ -50,6 +50,18 @@ pub struct AccountSettings {
     pub username: String,
     pub imap: Server,
     pub smtp: Server,
+    /// How the account signs in. Absent: a password. `"microsoft"`: OAuth
+    /// 2.0 (the refresh token lives in the core's `oauth.json`, never here).
+    /// A plain string, so this crate needs no OAuth types.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<String>,
+}
+
+impl AccountSettings {
+    /// Whether the account signs in with an OAuth token, not a password.
+    pub fn is_oauth(&self) -> bool {
+        self.auth.as_deref() == Some("microsoft")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -291,6 +303,7 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             username: String::new(),
             imap: server(),
             smtp: server(),
+            auth: None,
         },
         label: value
             .get("label")

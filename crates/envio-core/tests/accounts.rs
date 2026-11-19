@@ -634,3 +634,76 @@ fn set_account_label_saves_it_and_keeps_the_sender_name() {
     assert_eq!(label, "");
     assert_eq!(saved_accounts(&h)[0].label, None);
 }
+
+fn seed_token(h: &Harness, key: &str, token: &str) {
+    let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir()).unwrap();
+    tokens
+        .set(key, SecretString::from(token.to_owned()))
+        .unwrap();
+}
+
+fn token_of(h: &Harness, key: &str) -> Option<String> {
+    envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir())
+        .unwrap()
+        .get(key)
+        .map(|t| t.expose_secret().to_owned())
+}
+
+#[test]
+fn removing_an_account_removes_its_token_and_password_only() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    let other = h.seed_account("bob@example.org", Some("pw2"));
+    seed_token(&h, &key, "rt-ada");
+    seed_token(&h, &other, "rt-bob");
+    h.start_core();
+    started(&h);
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+    assert_eq!(token_of(&h, &other).as_deref(), Some("rt-bob"));
+    let secrets = Secrets::open(&h.data_dir()).unwrap();
+    assert!(secrets.get(&key).is_none());
+    assert!(secrets.get(&other).is_some());
+}
+
+#[test]
+fn a_token_only_account_is_removed_with_its_token() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, None);
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+}
+
+#[test]
+fn a_failed_password_removal_still_removes_the_token() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    // The password file cannot be rewritten: a directory takes its place.
+    let file = h.data_dir().join(envio_core::secrets::FILE_NAME);
+    std::fs::remove_file(&file).unwrap();
+    std::fs::create_dir_all(&file).unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    // The removal reports a problem and stays marked for retry.
+    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+}

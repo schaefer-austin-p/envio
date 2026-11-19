@@ -21,6 +21,7 @@ fn settings(email: &str) -> AccountSettings {
             security: Security::Tls,
             pin: None,
         },
+        auth: None,
     }
 }
 
@@ -329,4 +330,73 @@ fn a_broken_entry_refuses_a_label_and_keeps_its_own() {
     assert_eq!(accounts.get(&bad).unwrap().label(), Some("Work"));
     let reopened = Accounts::open(&path).unwrap();
     assert_eq!(reopened.get(&bad).unwrap().label(), Some("Work"));
+}
+
+#[test]
+fn an_old_file_loads_without_auth_and_saves_without_the_field() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let old = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org",
+      "username": "ada", "imap": {"host": "imap.example.org", "port": 993},
+      "smtp": {"host": "smtp.example.org", "port": 465}}}]}"#;
+    fs::write(&path, old).unwrap();
+    let mut accounts = Accounts::open(&path).unwrap();
+    let settings = accounts.list()[0].settings.clone();
+    assert_eq!(settings.auth, None);
+    assert!(!settings.is_oauth());
+    accounts.update("1000", settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(!text.contains("auth"), "{text}");
+}
+
+#[test]
+fn a_none_auth_round_trips_byte_identical() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let key = accounts.add(settings("ada@example.org"), 1_000).unwrap();
+    let first = fs::read(&path).unwrap();
+    let settings = accounts.get(&key).unwrap().settings.clone();
+    accounts.update(&key, settings).unwrap();
+    assert_eq!(fs::read(&path).unwrap(), first);
+    assert!(!String::from_utf8(first).unwrap().contains("auth"));
+}
+
+#[test]
+fn a_microsoft_account_round_trips_its_auth_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut ms = settings("ada@outlook.example");
+    ms.auth = Some("microsoft".into());
+    let key = accounts.add(ms.clone(), 1_000).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("\"auth\": \"microsoft\""), "{text}");
+    let reopened = Accounts::open(&path).unwrap();
+    let got = &reopened.get(&key).unwrap().settings;
+    assert_eq!(got, &ms);
+    assert!(got.is_oauth());
+}
+
+#[test]
+fn a_broken_entry_keeps_no_auth_but_stays_raw() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let broken = r#"{"version": 2, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@outlook.example", "auth": "microsoft"}}]}"#;
+    fs::write(&path, broken).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    let account = &accounts.list()[0];
+    assert!(account.broken.is_some());
+    assert!(!account.settings.is_oauth());
+}
+
+#[test]
+fn an_account_with_an_unknown_future_auth_kind_is_not_oauth() {
+    let mut s = settings("ada@example.org");
+    s.auth = Some("someday".into());
+    assert!(!s.is_oauth());
+    s.auth = Some("microsoft".into());
+    assert!(s.is_oauth());
 }
