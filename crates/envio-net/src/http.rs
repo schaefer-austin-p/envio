@@ -10,10 +10,16 @@ use std::net::IpAddr;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use zeroize::Zeroizing;
 
+mod chunked;
+use chunked::{Chunked, ResponseScan, dechunk};
+
 /// Autoconfig files are a few KiB; a body over this is not one.
 pub const MAX_BODY: usize = 256 * 1024;
 /// The status line and headers, which are not counted in `MAX_BODY`.
 pub const MAX_HEAD: usize = 16 * 1024;
+/// The most `read_reply` and `read_response` hold: a reply is read until the
+/// buffer passes this.
+const MAX_RAW: usize = MAX_HEAD + MAX_BODY;
 pub const MAX_REDIRECTS: usize = 3;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,8 +33,9 @@ pub struct Url {
 pub enum Reply {
     Body(String),
     Redirect(String),
-    /// `Transfer-Encoding: chunked`: not a framing this client reads.
-    Chunked,
+    /// A Transfer-Encoding of any kind (chunked, gzip, ...): not a framing
+    /// autoconfig reads.
+    TransferEncoded,
     /// Any other status, or a body that is too big or cut short: there is
     /// no file here.
     Nothing,
@@ -115,6 +122,9 @@ struct Head {
     location: Option<String>,
     length: Length,
     chunked: bool,
+    /// A Transfer-Encoding with a coding other than a final `chunked`
+    /// (gzip, a repeated `chunked`): not framing this client can read.
+    bad_encoding: bool,
     body_start: usize,
 }
 
@@ -140,6 +150,7 @@ fn head(raw: &[u8]) -> Option<Head> {
         location: None,
         length: Length::None,
         chunked: false,
+        bad_encoding: false,
         body_start: split + 4,
     };
     for line in lines {
@@ -158,7 +169,11 @@ fn head(raw: &[u8]) -> Option<Head> {
                 (Length::Known(_), Some(_)) => Length::Invalid,
             };
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
-            head.chunked |= value.to_ascii_lowercase().contains("chunked");
+            // Only a lone `chunked` is framing this client reads (any
+            // other coding, or a second `chunked`, is refused).
+            let only_chunked = value.eq_ignore_ascii_case("chunked");
+            head.bad_encoding |= !only_chunked || head.chunked;
+            head.chunked |= only_chunked;
         }
     }
     Some(head)
@@ -172,18 +187,24 @@ pub fn reply_complete(raw: &[u8]) -> bool {
     let Some(head) = head(raw) else {
         return false;
     };
-    head.chunked
-        || match head.length {
-            Length::None => false,
-            Length::Invalid => true,
-            Length::Known(n) => {
-                n > MAX_BODY
-                    || head
-                        .body_start
-                        .checked_add(n)
-                        .is_some_and(|end| raw.len() >= end)
-            }
+    head.chunked || head.bad_encoding || length_complete(&head, raw.len())
+}
+
+/// Whether `raw_len` bytes hold the whole body by `head`'s Content-Length,
+/// or the length is bad or over the cap (both refused). No length is never
+/// complete here: the body runs to the close.
+fn length_complete(head: &Head, raw_len: usize) -> bool {
+    match head.length {
+        Length::None => false,
+        Length::Invalid => true,
+        Length::Known(n) => {
+            n > MAX_BODY
+                || head
+                    .body_start
+                    .checked_add(n)
+                    .is_some_and(|end| raw_len >= end)
         }
+    }
 }
 
 /// Why a reply has no usable body.
@@ -192,8 +213,12 @@ pub enum BadReply {
     /// A body over `MAX_BODY`, declared or read: the server is sending
     /// something that is not what was asked for.
     TooBig,
-    /// Cut short, chunked, a bad length, or not HTTP: a bad connection.
+    /// Cut short, a bad length, or not HTTP: a bad connection.
     Unreadable,
+    /// Broken chunk framing, an unsupported Transfer-Encoding, or a chunked
+    /// body the server ended without its last chunk: the server's fault, and
+    /// a retry gets the same.
+    Malformed,
 }
 
 /// The body of a reply, framed by its Content-Length or the cap.
@@ -215,7 +240,7 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
         return Reply::Nothing;
     };
     match head.status {
-        200 if head.chunked => Reply::Chunked,
+        200 if head.chunked || head.bad_encoding => Reply::TransferEncoded,
         200 => body_of(&head, raw)
             .ok()
             .and_then(|body| String::from_utf8(body.to_vec()).ok())
@@ -230,8 +255,42 @@ pub fn parse_reply(raw: &[u8]) -> Reply {
 /// `clean` is as for [`finish_reply`].
 pub fn parse_response(raw: &[u8], clean: bool) -> Result<(u16, Vec<u8>), BadReply> {
     let head = head(raw).ok_or(BadReply::Unreadable)?;
-    if head.chunked || head.status == 0 {
+    if head.status == 0 {
         return Err(BadReply::Unreadable);
+    }
+    // Bad framing is final, except in a reply that is already "try later"
+    // (429, 5xx): a broken gateway page is retried, as it was before chunked
+    // replies were read.
+    let bad_framing = if head.status == 429 || head.status >= 500 {
+        BadReply::Unreadable
+    } else {
+        BadReply::Malformed
+    };
+    if head.bad_encoding {
+        return Err(bad_framing);
+    }
+    if head.chunked {
+        let rest = &raw[head.body_start..];
+        return match dechunk(rest) {
+            Chunked::Done(ranges, total) => {
+                // One allocation of the exact size: growing would leave an
+                // unzeroed copy of a token behind.
+                let mut body = Vec::with_capacity(total);
+                for r in ranges {
+                    body.extend_from_slice(&rest[r]);
+                }
+                Ok((head.status, body))
+            }
+            Chunked::TooBig => Err(BadReply::TooBig),
+            Chunked::Malformed => Err(bad_framing),
+            // The read stopped at its cap before the last chunk: the chunk
+            // framing counts toward it, but the reply is too big all the same.
+            Chunked::Incomplete if raw.len() > MAX_RAW => Err(BadReply::TooBig),
+            // Ended without its last chunk: a dropped socket may be worth
+            // a retry, a clean close is the server's own framing fault.
+            Chunked::Incomplete if clean => Err(bad_framing),
+            Chunked::Incomplete => Err(BadReply::Unreadable),
+        };
     }
     // An over-cap body is reported even if the stream was cut: the size
     // is what is wrong with it.
@@ -270,9 +329,25 @@ const READ_CAPACITY: usize = MAX_HEAD + MAX_BODY + CHUNK;
 pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
     stream: &mut R,
 ) -> io::Result<(Zeroizing<Vec<u8>>, bool)> {
+    read_until(stream, reply_complete).await
+}
+
+/// [`read_reply`] for a reader of [`parse_response`]: it reads a chunked
+/// reply through its last chunk.
+pub(crate) async fn read_response<R: AsyncRead + Unpin>(
+    stream: &mut R,
+) -> io::Result<(Zeroizing<Vec<u8>>, bool)> {
+    let mut scan = ResponseScan::default();
+    read_until(stream, |raw| scan.complete(raw)).await
+}
+
+async fn read_until<R: AsyncRead + Unpin>(
+    stream: &mut R,
+    mut complete: impl FnMut(&[u8]) -> bool,
+) -> io::Result<(Zeroizing<Vec<u8>>, bool)> {
     let mut raw = Zeroizing::new(Vec::with_capacity(READ_CAPACITY));
     let mut chunk = Zeroizing::new([0u8; CHUNK]);
-    while !reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
+    while !complete(&raw) && raw.len() <= MAX_RAW {
         match stream.read(&mut chunk[..]).await {
             Ok(0) => break,
             Ok(n) => raw.extend_from_slice(&chunk[..n]),
@@ -282,6 +357,12 @@ pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
     }
     Ok((raw, true))
 }
+
+#[cfg(test)]
+use chunked::{MAX_CHUNK_LINE, response_complete};
+
+#[cfg(test)]
+mod chunked_tests;
 
 #[cfg(test)]
 mod tests {
@@ -319,16 +400,9 @@ mod tests {
             parse_response(b"HTTP/1.0 503 X\r\n\r\nhi", true).unwrap().0,
             503
         );
-        // Cut short without a length, chunked, no status: nothing.
+        // Cut short without a length, no status: nothing.
         assert_eq!(
             parse_response(b"HTTP/1.0 200 OK\r\n\r\nhi", false),
-            Err(BadReply::Unreadable)
-        );
-        assert_eq!(
-            parse_response(
-                b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n",
-                true
-            ),
             Err(BadReply::Unreadable)
         );
         assert_eq!(parse_response(b"junk", true), Err(BadReply::Unreadable));
@@ -398,7 +472,7 @@ mod tests {
     #[test]
     fn a_chunked_reply_is_refused() {
         let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n";
-        assert_eq!(parse_reply(raw), Reply::Chunked);
+        assert_eq!(parse_reply(raw), Reply::TransferEncoded);
         assert!(reply_complete(raw));
     }
 

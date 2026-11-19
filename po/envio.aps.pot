@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:236
+#: qml/pages/reader/ReaderPage.qml:247
 msgid "Archive"
 msgstr ""
 
@@ -60,12 +60,12 @@ msgstr ""
 msgid "Junk"
 msgstr ""
 
-#: qml/components/TopBar.qml:29
-msgid "Leave selection"
+#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:241
+msgid "Back"
 msgstr ""
 
-#: qml/components/TopBar.qml:29
-msgid "Back"
+#: qml/components/TopBar.qml:30
+msgid "Leave selection"
 msgstr ""
 
 #. TRANSLATORS: %1 is a file size in bytes, like 812.
@@ -92,8 +92,20 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:415
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:428
 msgid "Try again"
+msgstr ""
+
+#: qml/pages/ReaderPane.qml:13
+msgid "Or press %1 to write one."
+msgstr ""
+
+#: qml/pages/ReaderPane.qml:33
+msgid "Select a message to read it"
+msgstr ""
+
+#: qml/pages/ReaderPane.qml:49
+msgid "Ctrl"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:28 qml/pages/inbox/FoldersDrawer.qml:283
@@ -330,52 +342,52 @@ msgstr ""
 msgid "Remove attachment"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:32 qml/pages/compose/FromRow.qml:59
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/FromRow.qml:59
 #: qml/pages/reader/HeaderBlock.qml:17 crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:32 qml/pages/compose/ComposePage.qml:230
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:259
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:32 qml/pages/compose/ComposePage.qml:247
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:276
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:32 qml/pages/compose/ComposePage.qml:261
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:290
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:32 qml/pages/compose/SubjectRow.qml:27
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/SubjectRow.qml:27
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:159
+#: qml/pages/compose/ComposePage.qml:187
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:165
+#: qml/pages/compose/ComposePage.qml:193
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:173 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:252
+#: qml/pages/compose/ComposePage.qml:201 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/reader/ReaderPage.qml:263
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:184
+#: qml/pages/compose/ComposePage.qml:212
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:231
+#: qml/pages/compose/ComposePage.qml:260
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:289
+#: qml/pages/compose/ComposePage.qml:318
 msgid "Write your message"
 msgstr ""
 
@@ -480,7 +492,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:485
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:499
 msgid "Undo"
 msgstr ""
 
@@ -514,7 +526,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:62 qml/pages/inbox/OutboxRow.qml:114
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:244
+#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:255
 msgid "Delete"
 msgstr ""
 
@@ -596,7 +608,7 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:21
+#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:25
 msgid "Reply"
 msgstr ""
 
@@ -680,11 +692,15 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:393
+#: qml/pages/reader/ReaderPage.qml:241
+msgid "Close"
+msgstr ""
+
+#: qml/pages/reader/ReaderPage.qml:406
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReplyBar.qml:28
+#: qml/pages/reader/ReplyBar.qml:32
 msgid "Forward"
 msgstr ""
 
