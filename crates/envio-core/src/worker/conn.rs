@@ -397,6 +397,7 @@ mod tests {
                 username: "t".into(),
                 imap: server(pin),
                 smtp: server(None),
+                auth: None,
             },
             label: None,
             broken: None,

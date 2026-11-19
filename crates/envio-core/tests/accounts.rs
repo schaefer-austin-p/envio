@@ -634,3 +634,179 @@ fn set_account_label_saves_it_and_keeps_the_sender_name() {
     assert_eq!(label, "");
     assert_eq!(saved_accounts(&h)[0].label, None);
 }
+
+fn seed_token(h: &Harness, key: &str, token: &str) {
+    let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir()).unwrap();
+    tokens
+        .set(key, SecretString::from(token.to_owned()))
+        .unwrap();
+}
+
+fn token_of(h: &Harness, key: &str) -> Option<String> {
+    envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir())
+        .unwrap()
+        .get(key)
+        .map(|t| t.expose_secret().to_owned())
+}
+
+#[test]
+fn removing_an_account_removes_its_token_and_password_only() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    let other = h.seed_account("bob@example.org", Some("pw2"));
+    seed_token(&h, &key, "rt-ada");
+    seed_token(&h, &other, "rt-bob");
+    h.start_core();
+    started(&h);
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+    assert_eq!(token_of(&h, &other).as_deref(), Some("rt-bob"));
+    let secrets = Secrets::open(&h.data_dir()).unwrap();
+    assert!(secrets.get(&key).is_none());
+    assert!(secrets.get(&other).is_some());
+}
+
+#[test]
+fn a_token_only_account_is_removed_with_its_token() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, None);
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::AccountRemoved { account } if *account == key).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+}
+
+#[test]
+fn a_failed_password_removal_still_removes_the_token() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    // The password file cannot be rewritten: a directory takes its place.
+    let file = h.data_dir().join(envio_core::secrets::FILE_NAME);
+    std::fs::remove_file(&file).unwrap();
+    std::fs::create_dir_all(&file).unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    // The removal reports a problem and stays marked for retry.
+    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+}
+
+fn marker_keys(h: &Harness) -> String {
+    std::fs::read_to_string(h.data_dir().join("removing.json")).unwrap_or_default()
+}
+
+#[test]
+fn a_failed_password_removal_keeps_the_marker_until_a_retry_succeeds() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    let file = h.data_dir().join(envio_core::secrets::FILE_NAME);
+    let keep = h.data_dir().join("passwords.kept");
+    std::fs::rename(&file, &keep).unwrap();
+    std::fs::create_dir(&file).unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    drop(h.core.take());
+    assert!(marker_keys(&h).contains(&key), "{}", marker_keys(&h));
+    assert_eq!(token_of(&h, &key), None);
+    std::fs::remove_dir(&file).unwrap();
+    std::fs::rename(&keep, &file).unwrap();
+    h.start_core();
+    started(&h);
+    drop(h.core.take());
+    assert!(Secrets::open(&h.data_dir()).unwrap().get(&key).is_none());
+    assert!(!marker_keys(&h).contains(&key), "{}", marker_keys(&h));
+}
+
+#[test]
+fn a_failed_token_removal_keeps_the_marker_and_still_removes_the_password() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, Some("pw"));
+    seed_token(&h, &key, "rt-ada");
+    h.start_core();
+    started(&h);
+    let file = h.data_dir().join(envio_core::oauth_tokens::FILE_NAME);
+    let keep = h.data_dir().join("oauth.kept");
+    std::fs::rename(&file, &keep).unwrap();
+    std::fs::create_dir(&file).unwrap();
+    h.send(Command::RemoveAccount {
+        account: key.clone(),
+        confirmed: true,
+    });
+    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    drop(h.core.take());
+    assert!(Secrets::open(&h.data_dir()).unwrap().get(&key).is_none());
+    assert!(marker_keys(&h).contains(&key), "{}", marker_keys(&h));
+    // The next start finishes the removal once the file can be written.
+    std::fs::remove_dir(&file).unwrap();
+    std::fs::rename(&keep, &file).unwrap();
+    h.start_core();
+    started(&h);
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+    assert!(!marker_keys(&h).contains(&key), "{}", marker_keys(&h));
+}
+
+#[test]
+fn a_damaged_token_file_opens_empty_and_is_kept_aside() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_account(EMAIL, None);
+    let file = h.data_dir().join(envio_core::oauth_tokens::FILE_NAME);
+    std::fs::write(&file, b"{ not json").unwrap();
+    std::fs::set_permissions(&file, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    h.start_core();
+    let accounts = h.wait(|e| match e {
+        Event::Started { accounts, .. } => Some(accounts.clone()),
+        _ => None,
+    });
+    assert_eq!(accounts.len(), 1, "{accounts:?}");
+    drop(h.core.take());
+    assert_eq!(token_of(&h, &key), None);
+    let asides: Vec<_> = std::fs::read_dir(h.data_dir())
+        .unwrap()
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("oauth.json.damaged")
+        })
+        .collect();
+    assert_eq!(asides.len(), 1);
+    assert_eq!(std::fs::read(asides[0].path()).unwrap(), b"{ not json");
+}
+
+#[test]
+fn a_newer_token_file_stops_the_store_and_is_left_alone() {
+    let mut h = Harness::unstarted();
+    h.seed_account(EMAIL, None);
+    let file = h.data_dir().join(envio_core::oauth_tokens::FILE_NAME);
+    let text = br#"{"version": 9, "tokens": {"a1": "x"}}"#;
+    std::fs::write(&file, text).unwrap();
+    std::fs::set_permissions(&file, std::os::unix::fs::PermissionsExt::from_mode(0o600)).unwrap();
+    h.start_core();
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
+    drop(h.core.take());
+    assert_eq!(std::fs::read(&file).unwrap(), text);
+}
