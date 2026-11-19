@@ -235,11 +235,34 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     let clean = clean.to_string();
     let mut images = Vec::new();
     let mut rendered = crate::images::fit(&clean, options, &mut images);
-    rendered.html = crate::linear::linearise(&rendered.html, &images);
+    rendered.html = crate::linear::linearise(&rendered.html, &images, !has_doctype(html));
+    rendered.html = crate::emptydiv::drop_empty(&rendered.html);
     rendered.html = crate::backgrounds::fill(&rendered.html);
     rendered.html = crate::fontsize::fit(&rendered.html);
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
+}
+
+/// Whether the mail starts with a doctype (after a BOM, whitespace,
+/// comments or an `<?xml ...?>` prolog, which a browser reads as a bogus
+/// comment), so it would be laid out in standards mode.
+fn has_doctype(html: &str) -> bool {
+    let mut rest = html.trim_start_matches(['\u{feff}', ' ', '\t', '\r', '\n']);
+    loop {
+        let skipped = if let Some(tail) = rest.strip_prefix("<!--") {
+            tail.find("-->").map(|end| &tail[end + 3..])
+        } else if let Some(tail) = rest.strip_prefix("<?") {
+            tail.find('>').map(|end| &tail[end + 1..])
+        } else {
+            break;
+        };
+        match skipped {
+            Some(next) => rest = next.trim_start(),
+            None => return false,
+        }
+    }
+    rest.get(..9)
+        .is_some_and(|p| p.eq_ignore_ascii_case("<!doctype"))
 }
 
 /// Runs on every attribute ammonia kept. Links keep their exact address

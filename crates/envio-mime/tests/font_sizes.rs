@@ -111,10 +111,11 @@ fn values_that_cannot_be_parsed_are_dropped() {
 }
 
 #[test]
-fn the_font_shorthand_is_dropped() {
+fn the_font_shorthand_is_expanded_and_its_size_clamped() {
+    // The size is clamped like any other (#341: it used to be dropped whole).
     assert_eq!(
         clean(r#"<div style="font:300% serif;color:red">t</div>"#),
-        r#"<div style="color:red">t</div>"#
+        r#"<div style="font-size:26px;font-family:serif;color:red">t</div>"#
     );
 }
 
