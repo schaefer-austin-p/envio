@@ -382,6 +382,10 @@ Item {
                     theme: root.theme
                     edit: body
                     flick: flick
+                    // The menu would sit on the old selection while a handle
+                    // moves; it comes back beside the new one.
+                    onDragStarted: bodyMenu.close()
+                    onDragFinished: root.showBodyMenu()
                 }
             }
             AttachmentList {

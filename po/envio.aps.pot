@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 13:05+0100\n"
+"POT-Creation-Date: 2026-11-19 13:52+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:424
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:428
 msgid "Try again"
 msgstr ""
 
@@ -347,17 +347,17 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:255
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:258
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:272
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:275
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:286
+#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:289
 msgid "Bcc"
 msgstr ""
 
@@ -366,28 +366,28 @@ msgstr ""
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:183
+#: qml/pages/compose/ComposePage.qml:186
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:189
+#: qml/pages/compose/ComposePage.qml:192
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:197 qml/pages/inbox/SelectionBar.qml:50
+#: qml/pages/compose/ComposePage.qml:200 qml/pages/inbox/SelectionBar.qml:50
 #: qml/pages/reader/ReaderPage.qml:263
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:208
+#: qml/pages/compose/ComposePage.qml:211
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:256
+#: qml/pages/compose/ComposePage.qml:259
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:314
+#: qml/pages/compose/ComposePage.qml:317
 msgid "Write your message"
 msgstr ""
 
@@ -492,7 +492,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:495
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:499
 msgid "Undo"
 msgstr ""
 
@@ -696,7 +696,7 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:402
+#: qml/pages/reader/ReaderPage.qml:406
 msgid "Loading…"
 msgstr ""
 

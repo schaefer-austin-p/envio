@@ -1216,6 +1216,53 @@ Item {
             tryVerify(function() { return find("linkSheet").opened })
         }
 
+        // Review 296: dragging a handle hides the menu; when the drag ends it
+        // comes back beside the longer selection, clear of both handles.
+        function test_the_menu_reopens_clear_of_the_handles_after_a_handle_drag() {
+            const v = view([], 0)
+            v.html = "<p>Intro line</p><p>Order 48213 shipped on time today</p><p>More text here</p>"
+            open(v)
+            const body = find("bodyText")
+            const menu = find("bodyMenu")
+            holdAndCheck("48213")
+            const before = body.selectedText
+            const h = find("endHandle")
+            mousePress(h, h.width / 2, h.height / 2)
+            tryVerify(function() { return !menu.visible }, 2000, "menu still open during the drag")
+            const to = h.mapToItem(body, h.width / 2, h.height / 2)
+            const far = body.mapToItem(h, to.x + thm.gu(12), to.y)
+            mouseMove(h, far.x, far.y)
+            verify(body.selectedText.length > before.length, "selection did not grow")
+            mouseRelease(h, far.x, far.y)
+            tryVerify(function() { return menu.visible }, 2000, "menu did not reopen")
+            tryCompare(menu, "height", menu.openHeight)
+            const m = Qt.rect(menu.x, menu.y, menu.width, menu.height)
+            const names = ["startHandle", "endHandle"]
+            for (let i = 0; i < names.length; i++) {
+                const hh = find(names[i])
+                const c = body.mapFromItem(hh, hh.width / 2, hh.height / 2)
+                const box = Qt.rect(c.x - thm.touch / 2, c.y - thm.touch / 2, thm.touch, thm.touch)
+                verify(!overlaps(m, box), names[i] + " is covered: menu " + JSON.stringify(m)
+                       + " handle " + JSON.stringify(box))
+            }
+        }
+
+        // An edge gesture or overlay can steal the touch: the drag then ends
+        // by cancel, and the menu must still come back. (The test cannot make
+        // Qt cancel a real grab, so it emits the MouseArea's `canceled`.)
+        function test_the_menu_reopens_when_a_handle_drag_is_canceled() {
+            const v = view([], 0)
+            v.html = "<p>Intro line</p><p>Order 48213 shipped on time today</p><p>More text here</p>"
+            open(v)
+            const menu = find("bodyMenu")
+            holdAndCheck("48213")
+            const h = find("endHandle")
+            mousePress(h, h.width / 2, h.height / 2)
+            tryVerify(function() { return !menu.visible }, 2000, "menu still open during the drag")
+            h.children[0].canceled()
+            tryVerify(function() { return menu.visible }, 2000, "menu did not reopen after cancel")
+        }
+
         function test_a_tap_clears_the_selection_handles_and_menu() {
             const v = view([], 0)
             v.html = "<p>Order 48213 shipped</p>"
