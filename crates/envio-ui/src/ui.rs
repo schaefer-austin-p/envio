@@ -235,7 +235,7 @@ impl Ui {
             if cur.first == First::Idle {
                 cur.first = First::Refresh;
             }
-            outs.extend(self.older_reset());
+            // The older row and a Load older batch in flight stay as they are.
             self.mirror.track(&outs);
             return (Command::ListMessages { list, after: None }, outs);
         }
