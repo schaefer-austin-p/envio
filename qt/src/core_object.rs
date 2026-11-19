@@ -43,6 +43,15 @@ pub mod qobject {
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
         // Read-only: `setOpenMessage` below is the (invokable) way to set it.
         #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
+        // Read-only: they follow `Ui` after every change (`sync_list_flags`).
+        #[qproperty(bool, list_is_drafts, cxx_name = "listIsDrafts", READ, NOTIFY)]
+        #[qproperty(
+            bool,
+            selection_has_local,
+            cxx_name = "selectionHasLocal",
+            READ,
+            NOTIFY
+        )]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -388,6 +397,10 @@ pub struct EnvioCoreRust {
     pub(crate) notify_show_text: bool,
     /// The message the reader shows; 0 for none (`Ui::open_message`).
     pub(crate) open_message: i64,
+    /// The shown list is a Drafts-role folder (`Ui::list_is_drafts`).
+    pub(crate) list_is_drafts: bool,
+    /// The selection holds a pseudo-row (`Ui::selection_has_local`).
+    pub(crate) selection_has_local: bool,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,
