@@ -16,7 +16,21 @@ ListRow {
     property bool showAccount: false
 
     objectName: "row-" + model.id
-    selected: model.selected
+    // The open row (the one the reader shows) has the selected fill too.
+    selected: model.selected || model.open === true
+
+    // The open row's 3 px accent bar. Parented to the row, not its content,
+    // so its height (the row's) does not feed back into the row's height.
+    Rectangle {
+        objectName: "openBar"
+        parent: root
+        x: 0
+        y: 0
+        width: 3
+        height: root.height
+        color: root.theme.accent
+        visible: root.model.open === true
+    }
 
     // The slot: an 8 px dot, or the checkbox.
     Rectangle {

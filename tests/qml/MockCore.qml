@@ -20,6 +20,8 @@ Item {
     property int syncDays: 30
     // Whether a notification shows the sender and subject.
     property bool notifyShowText: false
+    // The message the reader shows; 0 for none (`setOpenMessage` sets it).
+    property real openMessage: 0
 
     // What the page called, in order.
     property var calls: []
@@ -91,6 +93,7 @@ Item {
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
     function select(id, on) { record("select", [id, on]) }
+    function setOpenMessage(id) { record("setOpenMessage", [id]); openMessage = id }
     function clearSelection() { record("clearSelection", []) }
     // False: the selected row is gone, nothing was acted on.
     property bool actRuns: true

@@ -6,6 +6,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::net::TcpListener;
 
 use super::certs::Cert;
+use super::fake_imap::{base64_decode, base64_encode};
 
 #[derive(Clone, Copy)]
 pub struct Script {
@@ -30,6 +31,11 @@ pub struct Script {
     pub ehlo_reply: Option<&'static str>,
     /// The reply to DATA.
     pub data_go: &'static str,
+    /// The decoded AUTH XOAUTH2 initial response the server accepts; when
+    /// not empty, XOAUTH2 is advertised in the EHLO sent over TLS.
+    pub xoauth2_accepts: &'static str,
+    /// A refused XOAUTH2 first sends `334 <base64 json>`, then `535 5.7.3`.
+    pub xoauth2_challenge: bool,
 }
 
 impl Default for Script {
@@ -45,6 +51,8 @@ impl Default for Script {
             data_reply: Some("250 queued"),
             ehlo_reply: None,
             data_go: "354 go",
+            xoauth2_accepts: "",
+            xoauth2_challenge: false,
         }
     }
 }
@@ -135,6 +143,31 @@ async fn line<S: AsyncRead + Unpin>(
     }
 }
 
+/// The reply to `AUTH XOAUTH2 <response>`, or `None` when the client went
+/// away. A refusal with `xoauth2_challenge` is the real shape: `334` with a
+/// base64 JSON error, and the `535` only after the client's reply to it.
+async fn xoauth2_reply<S: AsyncRead + AsyncWrite + Unpin>(
+    io: &mut BufReader<S>,
+    log: &Transcript,
+    script: &Script,
+    command: &str,
+) -> Option<String> {
+    let sent = command.split(' ').nth(2).unwrap_or("");
+    if !script.xoauth2_accepts.is_empty()
+        && base64_decode(sent) == Some(script.xoauth2_accepts.as_bytes().to_vec())
+    {
+        return Some("235 2.7.0 Authentication successful\r\n".to_owned());
+    }
+    if script.xoauth2_challenge {
+        let json = base64_encode(br#"{"status":"401"}"#);
+        io.write_all(format!("334 {json}\r\n").as_bytes())
+            .await
+            .ok()?;
+        line(io, true, log).await?;
+    }
+    Some("535 5.7.3 Authentication unsuccessful\r\n".to_owned())
+}
+
 async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
     io: &mut BufReader<S>,
     script: Script,
@@ -144,9 +177,22 @@ async fn secure_part<S: AsyncRead + AsyncWrite + Unpin>(
         let verb = command.split(' ').next().unwrap_or("").to_ascii_uppercase();
         let reply: String = match verb.as_str() {
             "EHLO" => script.ehlo_reply.map_or_else(
-                || "250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN\r\n".to_owned(),
+                || {
+                    let more = if script.xoauth2_accepts.is_empty() {
+                        ""
+                    } else {
+                        " XOAUTH2"
+                    };
+                    format!("250-fake\r\n250-8BITMIME\r\n250 AUTH PLAIN LOGIN{more}\r\n")
+                },
                 str::to_owned,
             ),
+            "AUTH" if command.to_ascii_uppercase().starts_with("AUTH XOAUTH2") => {
+                let Some(reply) = xoauth2_reply(io, log, &script, &command).await else {
+                    return;
+                };
+                reply
+            }
             "AUTH" => format!("{}\r\n", script.auth_reply),
             "MAIL" => match script.mail_reply {
                 Some(reply) => format!("{reply}\r\n"),

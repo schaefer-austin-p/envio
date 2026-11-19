@@ -11,6 +11,7 @@ build_args:
 install_root_data:
 - manifest.json
 - envio.apparmor
+- envio.content-hub
 - envio.desktop
 - envio.url-dispatcher
 - assets

@@ -39,6 +39,13 @@ Menu {
     // A property, not a child: a child Item would become a menu entry.
     readonly property TextEdit plainClip: TextEdit { visible: false; textFormat: TextEdit.PlainText }
 
+    // The height the menu has once open. implicitHeight reads only the
+    // padding while it is closed (the rows are invisible, so they have no
+    // height), so a caller that places the menu before it opens uses this.
+    readonly property real openHeight:
+        ((password ? 0 : copyOnly ? 2 : 3) + (copyOnly ? 0 : 1)) * theme.touch
+        + topPadding + bottomPadding
+
     objectName: "editMenu"
     implicitWidth: theme.gu(25)
     padding: theme.gu(0.75)

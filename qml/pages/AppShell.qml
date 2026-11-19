@@ -53,6 +53,7 @@ Item {
             rootKind = "inbox"
             stack.replace(null, inboxPage)
             startPendingMailto()
+            startPendingShare()
         }
     }
 
@@ -106,6 +107,60 @@ Item {
         pendingMailto = ""
         const id = core.startCompose("mailto", 0, "", link)
         if (id > 0) composeOpened(id)
+    }
+
+    // Files shared in from another app wait the same way (no account: the
+    // wizard shows meanwhile); then a new message opens with them attached.
+    // The core copies each file out of the hub's inbox (attach).
+    // [{ paths, transfer }]
+    property var pendingShare: []
+    // compose id -> paths: attached once the core's worker has recorded the
+    // compose (`composeReady`); attach runs on another thread and fails for a
+    // compose the worker does not know yet.
+    property var shareWaiting: ({})
+    // Main turns this on: only the real app listens to the Content Hub.
+    property bool receiveShares: false
+    function openShared(paths, transfer) {
+        pendingShare = pendingShare.concat([{ paths: paths, transfer: transfer }])
+        startPendingShare()
+    }
+    function startPendingShare() {
+        if (pendingShare.length === 0 || !core.ready || accountCount === 0 || rootKind !== "inbox") return
+        const entries = pendingShare
+        pendingShare = []
+        const id = core.startCompose("new", 0, composeAccount, "")
+        if (id <= 0) return
+        let paths = []
+        for (const e of entries) paths = paths.concat(e.paths)
+        shareIn.track(id, paths.length, entries.map(function(e) { return e.transfer }))
+        const waiting = shareWaiting
+        waiting[id] = paths
+        shareWaiting = waiting
+        composeOpened(id)
+    }
+    // The compose ended before it was ready (refused, or Back): nothing is
+    // attached, so the transfer is done with. Once the files are handed to
+    // the core they settle through its Attached and AttachFailed instead.
+    function dropShare(compose) {
+        if (shareWaiting[compose] === undefined) return
+        delete shareWaiting[compose]
+        shareIn.cancel(compose)
+    }
+    // Attaching follows composeReady, so the page's fill() has run before
+    // any Attached arrives (the attach result is an event queued after it).
+    function attachShared(compose) {
+        const paths = shareWaiting[compose]
+        if (paths === undefined) return
+        delete shareWaiting[compose]
+        for (const p of paths) core.attach(compose, p)
+    }
+
+    // For tests: where a transfer is handed in (`shares.accept(transfer)`).
+    readonly property alias shares: shareIn
+    ShareIn {
+        id: shareIn
+        listening: root.receiveShares
+        onFilesShared: function(paths, transfer) { root.openShared(paths, transfer) }
     }
 
     Platform.Uri {
@@ -292,7 +347,8 @@ Item {
             core: root.core
             accounts: root.accounts
             suggestions: root.suggestions
-            onClosed: stack.pop()
+            onClosed: { root.dropShare(compose); stack.pop() }
+            onAttachStarted: function(count) { shareIn.expect(compose, count) }
             // Queued arrives late: close this page, not whatever is on top
             // by now. A page below the top closes when it is shown again.
             onSent: function(text) {
@@ -320,7 +376,12 @@ Item {
             root.retrying = false
             root.route()
             root.startPendingMailto()
+            root.startPendingShare()
         }
+        function onComposeReady(compose) { root.attachShared(compose) }
+        function onComposeRefused(compose) { root.dropShare(compose) }
+        function onAttached(compose) { shareIn.settle(compose) }
+        function onAttachFailed(compose) { shareIn.settle(compose) }
         function onStoreProblem(text) { root.retrying = false; root.problem = text }
         function onStartFailed(text) { root.retrying = false; root.problem = text }
         // A trust prompt is the setup wizard's; it answers its own. Nothing
@@ -330,6 +391,7 @@ Item {
     onAccountCountChanged: {
         if (core.ready && accountCount === 0) route()
         startPendingMailto()
+        startPendingShare()
     }
 
     Connections {
