@@ -238,3 +238,35 @@ fn switching_to_another_list_still_clears_open() {
     let _ = ui.open_list(ListRef::Folder(FolderId(99)));
     assert_eq!(ui.open_message(), None);
 }
+
+#[test]
+fn reopening_the_same_list_survives_an_event_before_the_page() {
+    let mut ui = three();
+    ui.set_open(Some(2));
+    let _ = ui.open_list(F1);
+    feed(&mut ui, Event::OutboxChanged);
+    assert_eq!(ui.open_message(), Some(2));
+    assert_eq!(open_ids(&ui, Model::Messages), [2]);
+}
+
+#[test]
+fn reopening_the_same_list_keeps_an_open_row_beyond_page_one() {
+    let mut ui = Ui::new();
+    opened(&mut ui, F1, vec![msg(2, 20), msg(1, 10)], false);
+    let _ = ui.more().unwrap();
+    feed(
+        &mut ui,
+        page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true),
+    );
+    ui.set_open(Some(0));
+    let _ = ui.open_list(F1);
+    feed(&mut ui, page(F1, None, vec![msg(2, 20), msg(1, 10)], false));
+    assert_eq!(ui.open_message(), Some(0));
+    assert_eq!(open_ids(&ui, Model::Messages), [0]);
+    // The walk down reads the next page and the row stays.
+    feed(
+        &mut ui,
+        page(F1, Some(cursor(1, 10)), vec![msg(0, 5)], true),
+    );
+    assert_eq!(open_ids(&ui, Model::Messages), [0]);
+}
