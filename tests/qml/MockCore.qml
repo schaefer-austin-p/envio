@@ -22,6 +22,10 @@ Item {
     property bool notifyShowText: false
     // The message the reader shows; 0 for none (`setOpenMessage` sets it).
     property real openMessage: 0
+    // The shown list is a Drafts-role folder; the selection holds a local
+    // draft (a pseudo-row). Both follow `Ui` in the real core.
+    property bool listIsDrafts: false
+    property bool selectionHasLocal: false
 
     // What the page called, in order.
     property var calls: []
@@ -61,7 +65,7 @@ Item {
     signal inviteExportFailed(real id)
     signal undoOffer(real undo, string text, string scope)
     signal undoClosed(real undo)
-    signal composeReady(real compose, var draft, string quoted)
+    signal composeReady(real compose, var draft, string quoted, string note)
     signal draftSaved(real compose)
     signal composeRefused(real compose, string text)
     signal queued(real compose, string text)

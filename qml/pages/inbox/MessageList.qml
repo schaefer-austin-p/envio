@@ -19,6 +19,8 @@ Item {
     property var selectedAccounts: []
     readonly property alias view: list
     signal messageRequested(var message)
+    // A local draft's row (`opens` is "compose"): Compose opens at once.
+    signal draftRequested(string draftId)
 
     function positionViewAtEnd() { list.positionViewAtEnd() }
 
@@ -93,6 +95,7 @@ Item {
             showAccount: root.showAccount
             onClicked: {
                 if (root.selectedCount > 0) root.core.select(row.model.id, !row.model.selected)
+                else if (row.model.opens === "compose") root.draftRequested(row.model.draftId)
                 else root.messageRequested(row.model.id)
             }
             onPressAndHold: if (!row.model.selected) root.core.select(row.model.id, true)

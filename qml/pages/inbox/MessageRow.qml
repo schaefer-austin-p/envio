@@ -136,6 +136,21 @@ ListRow {
             font.family: root.theme.fontUi
             font.pixelSize: 14
         }
+        // A local draft with no server copy (Drafts list). #266 T5 later binds
+        // the text to the reason the core gives.
+        Item {
+            visible: root.model.notUploaded === true
+            width: parent.width
+            // 8 px above the chip: the Column's 3 px plus 5.
+            height: visible ? statusChip.height + 5 : 0
+            StatusChip {
+                id: statusChip
+                objectName: "statusChip"
+                y: 5
+                theme: root.theme
+                text: qsTr("Not uploaded")
+            }
+        }
         Text {
             textFormat: Text.PlainText
             visible: root.showAccount

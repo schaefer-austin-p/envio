@@ -136,6 +136,11 @@ Item {
         if (wide) core.setOpenMessage(message)
         else stack.push(readerPage, { messageId: message })
     }
+    // A tap on a local draft's row: Compose opens on it at once.
+    function openDraft(draftId) {
+        const id = core.startCompose("draft", 0, "", draftId)
+        if (id > 0) composeOpened(id)
+    }
     function newMessage() {
         const id = core.startCompose("new", 0, composeAccount, "")
         if (id > 0) composeOpened(id)
@@ -375,6 +380,7 @@ Item {
             messages: root.messages
             outbox: root.outbox
             onMessageRequested: root.openMessageFromRow(message)
+            onDraftRequested: function(draftId) { root.openDraft(draftId) }
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
             onComposeRequested: root.newMessage()

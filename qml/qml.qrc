@@ -72,6 +72,7 @@
         <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>
         <file>components/KeyChip.qml</file>
+        <file>components/StatusChip.qml</file>
         <file>components/DateText.qml</file>
         <file>components/FolderLabel.qml</file>
         <file>components/AppDialog.qml</file>

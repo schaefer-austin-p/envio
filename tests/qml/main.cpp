@@ -5,6 +5,8 @@
 // Tests also see:
 //  - `corpusDir`, the directory tools/ci/render-corpus.sh filled
 //    (ENVIO_CORPUS_DIR; empty without it);
+//  - `shotsDir`, where a test may save screenshots to compare with the
+//    design boards (ENVIO_SHOTS_DIR; empty without it, then none are saved);
 //  - `netRequests`, which counts every request the QML engine's network
 //    access manager is asked to make (rich Text and Image fetching remote
 //    images go through it). Nothing leaves the machine: each request is
@@ -73,6 +75,8 @@ public slots:
     void qmlEngineAvailable(QQmlEngine *engine) {
         engine->rootContext()->setContextProperty(
             QStringLiteral("corpusDir"), qEnvironmentVariable("ENVIO_CORPUS_DIR"));
+        engine->rootContext()->setContextProperty(
+            QStringLiteral("shotsDir"), qEnvironmentVariable("ENVIO_SHOTS_DIR"));
         engine->rootContext()->setContextProperty(QStringLiteral("netRequests"), &requests);
         engine->setNetworkAccessManagerFactory(&factory);
     }

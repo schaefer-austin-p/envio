@@ -91,7 +91,7 @@ Item {
             b.shell.composeOpened(1)
             compare(b.shell.depth, 2)
             const page = b.shell.currentPage
-            b.core.composeReady(1, { account: "ann", draftId: "", to: [], cc: [], bcc: [], subject: "Hi", body: "Hello", inReplyTo: "", references: [], attachments: [] }, "")
+            b.core.composeReady(1, { account: "ann", draftId: "", to: [], cc: [], bcc: [], subject: "Hi", body: "Hello", inReplyTo: "", references: [], attachments: [] }, "", "")
             tryVerify(function() { return Math.abs(page.x) < 0.01 && page.opacity === 1 })
             tryVerify(function() { const m = findByName(page, "moreButton"); return m && m.width > 0 })
             mouseClick(findByName(page, "moreButton"))
@@ -126,6 +126,17 @@ Item {
             tryVerify(function() { return b.shell.depth === 1 })
             b.shell.newMessage()
             compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
+            compare(b.shell.depth, 2)
+            compare(b.shell.currentPage.compose, 1)
+            b.shell.destroy()
+        }
+
+        // #228: a tap on a local draft's row starts Compose on that draft.
+        function test_tapping_a_local_draft_row_starts_a_draft_compose() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.currentPage.draftRequested("d1")
+            compare(b.core.called("startCompose")[0].args, ["draft", 0, "", "d1"])
             compare(b.shell.depth, 2)
             compare(b.shell.currentPage.compose, 1)
             b.shell.destroy()
@@ -211,7 +222,7 @@ Item {
             compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
             compare(b.shell.depth, 2)
             compare(b.shell.currentPage.compose, 1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").map(function(c) { return c.args }),
                     [[1, "/home/u/.cache/hub/a b.pdf"], [1, "/home/u/.cache/hub/c.png"]])
             b.shell.destroy()
@@ -223,11 +234,11 @@ Item {
             b.shell.shares.accept(newTransfer())
             wait(50)
             compare(b.core.called("attach").length, 0, "the worker does not know the compose yet")
-            b.core.composeReady(2, draft, "")
+            b.core.composeReady(2, draft, "", "")
             compare(b.core.called("attach").length, 0, "another compose's ready")
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").length, 2)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").length, 2, "attached once")
             b.shell.destroy()
         }
@@ -237,7 +248,7 @@ Item {
             tryVerify(function() { return b.shell.depth === 1 })
             const t = newTransfer()
             b.shell.shares.accept(t)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             b.core.attached(1, "/d/a b.pdf", "a b.pdf", 3)
             compare(t.finalized, 0, "one file is still being copied")
             b.core.attachFailed(1, "unreadable")
@@ -252,7 +263,7 @@ Item {
             tryVerify(function() { return b.shell.depth === 1 })
             const t = newTransfer()
             b.shell.shares.accept(t)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             // The user attaches one more file while the shared ones copy.
             b.shell.currentPage.pick(["/p/picked.pdf"])
             b.core.attached(1, "/d/picked.pdf", "picked.pdf", 3)
@@ -267,7 +278,7 @@ Item {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
             b.shell.composeOpened(1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             const t = newTransfer()
             b.shell.currentPage.pick(["/p/a.pdf", "/p/b.png"], t)
             compare(t.finalized, 0, "the copies are not made yet")
@@ -284,7 +295,7 @@ Item {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
             b.shell.composeOpened(1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             const t = newTransfer()
             b.shell.currentPage.pick([], t)
             compare(t.finalized, 1)
@@ -298,7 +309,7 @@ Item {
             b.shell.shares.accept(t)
             b.core.composeRefused(1, "no account")
             compare(t.finalized, 1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").length, 0)
             b.shell.destroy()
         }
@@ -310,7 +321,7 @@ Item {
             b.shell.shares.accept(t)
             b.shell.currentPage.leave()
             compare(t.finalized, 1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").length, 0, "no orphan draft")
             b.shell.destroy()
         }
@@ -360,7 +371,7 @@ Item {
             s.shares.accept(newTransfer())
             compare(c.called("startCompose").length, 0)
             c.ready = true
-            c.composeReady(1, draft, "")
+            c.composeReady(1, draft, "", "")
             tryVerify(function() { return c.called("attach").length === 2 })
             compare(c.called("startCompose").length, 1)
             s.destroy()
@@ -377,7 +388,7 @@ Item {
             wait(50)
             compare(b.core.called("attach").length, 0, "the wizard's Options step comes first")
             b.shell.wizardClosed()
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             compare(b.core.called("attach").length, 2)
             b.shell.destroy()
         }
@@ -645,7 +656,7 @@ Item {
         function test_second_compose_closes_the_first() {
             const b = bootWide(100)
             b.shell.composeOpened(1)
-            b.core.composeReady(1, { to: [], cc: [], bcc: [], subject: "one", body: "", account: "ann", attachments: [] }, "")
+            b.core.composeReady(1, { to: [], cc: [], bcc: [], subject: "one", body: "", account: "ann", attachments: [] }, "", "")
             b.core.reset()
             b.shell.composeOpened(2)
             compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[1, false]])
@@ -666,7 +677,7 @@ Item {
         function wideCompose() {
             const b = bootWide(100)
             b.shell.composeOpened(4)
-            b.core.composeReady(4, composeDraft, "On Monday Bob wrote:\n> hi")
+            b.core.composeReady(4, composeDraft, "On Monday Bob wrote:\n> hi", "")
             const page = find(b.shell, "composePage")
             find(page, "subjectField").text = "Plans, edited"
             find(page, "bodyField").text = "Hello again"
@@ -748,7 +759,7 @@ Item {
         function test_the_pane_composes_picker_transfer_is_finalized() {
             const b = bootWide(100)
             b.shell.composeOpened(1)
-            b.core.composeReady(1, draft, "")
+            b.core.composeReady(1, draft, "", "")
             const t = newTransfer()
             find(b.shell, "composePage").pick(["/p/a.pdf", "/p/b.png"], t)
             compare(t.finalized, 0, "the copies are not made yet")
@@ -762,7 +773,7 @@ Item {
         function test_an_expanded_quote_stays_expanded_after_narrowing() {
             const b = bootWide(100)
             b.shell.composeOpened(1)
-            b.core.composeReady(1, draft, "On Monday Bob wrote:\n> hi")
+            b.core.composeReady(1, draft, "On Monday Bob wrote:\n> hi", "")
             find(find(b.shell, "composePage"), "quoteShow").clicked()
             verify(find(find(b.shell, "composePage"), "quoteText").visible)
             b.shell.width = thm.gu(70)
@@ -827,7 +838,7 @@ Item {
         function test_wide_compose_is_inset_and_capped() {
             const b = bootWide(200)
             b.shell.composeOpened(4)
-            b.core.composeReady(4, { to: [], cc: [], bcc: [], subject: "", body: "", account: "ann", attachments: [] }, "")
+            b.core.composeReady(4, { to: [], cc: [], bcc: [], subject: "", body: "", account: "ann", attachments: [] }, "", "")
             const page = find(b.shell, "composePage")
             const to = find(page, "to")
             compare(to.mapToItem(page, 0, 0).x, thm.gu(5))

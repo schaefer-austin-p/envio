@@ -56,6 +56,9 @@ Item {
     // [{ path, name, size }]
     property var attachments: []
     property string error: ""
+    // What the core says about this compose (an edited copy of a draft); shown
+    // under the top bar while it is open.
+    property string note: ""
 
     function reset() {
         filled = false
@@ -69,6 +72,7 @@ Item {
         keepQuoted = true
         attachments = []
         error = ""
+        note = ""
         fold.reset()
         filling = true
         to.setEntries([]); cc.setEntries([]); bcc.setEntries([])
@@ -80,8 +84,9 @@ Item {
 
     function nameOf(path) { return path.split("/").pop() }
 
-    function fill(draft, quote) {
+    function fill(draft, quote, noteText) {
         filling = true
+        note = noteText || ""
         account = draft.account
         draftId = draft.draftId || ""
         inReplyTo = draft.inReplyTo || ""
@@ -129,7 +134,7 @@ Item {
     function snapshot() {
         commitAll()
         return {
-            filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, keepQuoted: keepQuoted, expanded: fold.expanded,
+            filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, note: note, keepQuoted: keepQuoted, expanded: fold.expanded,
             attachments: attachments.slice(),
             draft: {
                 account: account, draftId: draftId, to: to.all(), cc: cc.all(), bcc: bcc.all(),
@@ -141,7 +146,7 @@ Item {
     // A page that has not been filled yet gets its composeReady as usual.
     function restore(state) {
         if (!state.filled) return
-        fill(state.draft, state.quoted)
+        fill(state.draft, state.quoted, state.note)
         showCc = state.showCc
         keepQuoted = state.keepQuoted
         fold.expanded = state.expanded
@@ -215,10 +220,25 @@ Item {
         }
     }
 
+    // "Editing a copy. The original stays in Drafts." (carbon-draft-edit):
+    // the images-banner style, an info icon and no button. The text is the
+    // core's.
+    Banner {
+        id: noteBanner
+        objectName: "composeNote"
+        anchors.top: bar.bottom
+        width: parent.width
+        theme: root.theme
+        kind: "info"
+        text: root.note
+        visible: root.note !== ""
+        height: visible ? implicitHeight : 0
+    }
+
     Banner {
         id: errorBanner
         objectName: "composeError"
-        anchors.top: bar.bottom
+        anchors.top: noteBanner.bottom
         width: parent.width
         theme: root.theme
         kind: "warning"
@@ -358,8 +378,8 @@ Item {
 
     Connections {
         target: root.core
-        function onComposeReady(compose, draft, quote) {
-            if (compose === root.compose) root.fill(draft, quote)
+        function onComposeReady(compose, draft, quote, noteText) {
+            if (compose === root.compose) root.fill(draft, quote, noteText)
         }
         function onComposeRefused(compose, text) {
             if (compose !== root.compose) return

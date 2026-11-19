@@ -23,6 +23,9 @@ TopBar {
 
     IconButton {
         objectName: "act-archive"
+        // A draft moved anywhere but Trash would leave its file behind: in a
+        // Drafts list Delete is the only way out.
+        visible: !root.core.listIsDrafts
         theme: root.theme
         iconName: "archive"
         text: qsTr("Archive")
@@ -37,6 +40,7 @@ TopBar {
     }
     IconButton {
         objectName: "act-move"
+        visible: !root.core.listIsDrafts
         theme: root.theme
         iconName: "move"
         text: qsTr("Move to folder")
@@ -45,6 +49,8 @@ TopBar {
     }
     IconButton {
         objectName: "act-more"
+        // A local draft has no read or flag state to change.
+        visible: !root.core.selectionHasLocal
         theme: root.theme
         iconName: "more"
         text: qsTr("More actions")
