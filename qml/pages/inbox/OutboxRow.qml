@@ -17,7 +17,10 @@ ListRow {
     signal decided(string item, string decision)
     signal editRequested(string item)
     signal deleteRequested(string item)
+    // The account's name, for the row held for a sign-in (two accounts).
+    property string accountName: ""
     signal accountsRequested()
+    signal signInAgainRequested(string account)
 
     objectName: "outbox-" + model.id
 
@@ -39,7 +42,8 @@ ListRow {
         Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: root.model.to
+            objectName: "to-" + root.model.id
+            text: root.model.signInAgain && root.accountName !== "" ? qsTr("To %1 · %2").arg(root.model.to).arg(root.accountName) : root.model.to
             elide: Text.ElideRight
             color: root.theme.text
             font.family: root.theme.fontUi
@@ -62,7 +66,7 @@ ListRow {
             objectName: "reason-" + root.model.id
             visible: !!root.model.reason
             width: parent.width
-            text: root.model.reason
+            text: !!root.model.signInAgain ? qsTr("Waiting for sign-in. It goes out after you sign in again.") : root.model.reason
             wrapMode: Text.WordWrap
             color: root.theme.accent
             font.family: root.theme.fontUi
@@ -74,10 +78,17 @@ ListRow {
             topPadding: root.theme.gu(0.5)
             AppButton {
                 objectName: "checkCertificate-" + root.model.id
-                visible: !!root.model.reason
+                visible: !!root.model.reason && !root.model.signInAgain
                 theme: root.theme
                 text: root.model.reasonAction
                 onClicked: root.accountsRequested()
+            }
+            AppButton {
+                objectName: "signInAgain-" + root.model.id
+                visible: !!root.model.signInAgain
+                theme: root.theme
+                text: qsTr("Sign in again")
+                onClicked: root.signInAgainRequested(root.model.account)
             }
             AppButton {
                 objectName: "sendAgain-" + root.model.id

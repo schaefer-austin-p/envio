@@ -16,9 +16,11 @@ Item {
     property string currentEmail: ""
     property string currentLabel: ""
     property string currentState: ""
+    property bool currentOAuth: false
     signal backRequested()
     signal addRequested()
     signal updatePasswordRequested(string account, string name)
+    signal signInAgainRequested(string account)
 
     TopBar {
         id: bar
@@ -54,6 +56,7 @@ Item {
                 root.currentEmail = row.model.email
                 root.currentLabel = row.model.label
                 root.currentState = row.model.state
+                root.currentOAuth = !!row.model.oauth
                 actions.open()
             }
             Column {
@@ -141,8 +144,31 @@ Item {
                 font.pixelSize: 16
             }
         }
+        // A Microsoft account whose sign-in was withdrawn: the sheet's first
+        // action, in place of Update password (it has no password).
+        ListRow {
+            objectName: "signInAgainRow"
+            visible: root.currentOAuth && root.currentState === "auth"
+            theme: root.theme
+            width: parent.width
+            onClicked: {
+                actions.close()
+                root.signInAgainRequested(root.current)
+            }
+            Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2.5)
+                y: root.theme.gu(1.75)
+                text: qsTr("Sign in again")
+                color: root.theme.accent
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
+        }
         ListRow {
             objectName: "updatePasswordRow"
+            visible: !root.currentOAuth
             theme: root.theme
             width: parent.width
             onClicked: {
