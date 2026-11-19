@@ -69,6 +69,58 @@ Item {
             return { core: c, shell: s }
         }
 
+        // Depth-first search through data (popups included) and contentItem.
+        function findByName(item, name) {
+            if (item.objectName === name) return item
+            const kids = []
+            if (item.contentItem) kids.push(item.contentItem)
+            const list = item.data !== undefined ? item.data : item.children
+            for (let i = 0; list && i < list.length; i++) kids.push(list[i])
+            for (const k of kids) {
+                const f = findByName(k, name)
+                if (f !== undefined) return f
+            }
+            return undefined
+        }
+
+        // #329: Discard popped the page, and with it the dialog, from inside
+        // the dialog button's onClicked, which segfaulted on the phone.
+        function test_discarding_a_draft_pops_the_page_and_the_app_lives() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            compare(b.shell.depth, 2)
+            const page = b.shell.currentPage
+            b.core.composeReady(1, { account: "ann", draftId: "", to: [], cc: [], bcc: [], subject: "Hi", body: "Hello", inReplyTo: "", references: [], attachments: [] }, "")
+            tryVerify(function() { return Math.abs(page.x) < 0.01 && page.opacity === 1 })
+            tryVerify(function() { const m = findByName(page, "moreButton"); return m && m.width > 0 })
+            mouseClick(findByName(page, "moreButton"))
+            tryVerify(function() { const r = findByName(page, "discardRow"); return r && r.visible && r.width > 0 })
+            mouseClick(findByName(page, "discardRow"))
+            const ask = findByName(page, "discardAsk")
+            tryVerify(function() { return ask.opened })
+            const button = findByName(ask, "secondaryAction")
+            // While the click runs the dialog must still be alive: run the
+            // garbage collector and note the page's depth from inside it.
+            let depthInClick = -1
+            button.clicked.connect(function() { gc(); depthInClick = b.shell.depth })
+            // The dialog must be shut before the signal that pops its page:
+            // closing a popup whose page is going segfaulted on the phone
+            // (#329, in QtQml's deferred execution; offscreen it does not).
+            let openedAtSignal = true
+            ask.secondaryActivated.connect(function() { openedAtSignal = ask.opened })
+            tryVerify(function() { return button.width > 0 })
+            mouseClick(button)
+            tryVerify(function() { return b.shell.depth === 1 }, 3000)
+            compare(openedAtSignal, false, "the dialog was closed before its signal")
+            compare(depthInClick, 2, "the page was still on the stack during the click")
+            compare(b.core.called("closeCompose").pop().args, [1, true])
+            gc()
+            wait(50)
+            compare(b.shell.currentPage.objectName, "inboxPage")
+            b.shell.destroy()
+        }
+
         function test_new_message_pushes_compose() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

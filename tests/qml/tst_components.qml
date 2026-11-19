@@ -276,7 +276,7 @@ Item {
                       2000, "primary action is listed first")
             verify(primary.height >= 44 && secondary.height >= 44)
             mouseClick(primary)
-            compare(dialogPrimary.count, 1)
+            tryCompare(dialogPrimary, "count", 1)
             compare(dialogSecondary.count, 0)
             tryVerify(function() { return !dialog.visible })
         }

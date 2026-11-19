@@ -213,7 +213,7 @@ Item {
         onConfirmed: root.serversConfirmed = true
         onCancelled: { root.forget(); root.step = "email" }
         // Cancel, or dismissing the dialog any other way: back to the address.
-        onClosed: if (!root.serversConfirmed && root.step === "signin") { root.forget(); root.step = "email" }
+        onClosed: if (!confirmHosts.chosen && !root.serversConfirmed && root.step === "signin") { root.forget(); root.step = "email" }
     }
     TrustDialog {
         id: trust
