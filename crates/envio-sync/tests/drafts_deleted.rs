@@ -175,7 +175,7 @@ async fn an_action_still_pending_does_not_forget_its_draft() {
 }
 
 #[tokio::test]
-async fn an_open_draft_keeps_its_file_and_the_intent_is_settled() {
+async fn an_open_draft_keeps_its_file_and_the_intent_until_the_window_closes() {
     let (mut server, mut store) = setup().await;
     let id = uploaded(&mut server, &mut store, "text").await;
     queue(&mut store, ActionKind::Delete);
@@ -185,6 +185,27 @@ async fn an_open_draft_keeps_its_file_and_the_intent_is_settled() {
     let open = BTreeSet::from([id.clone()]);
     assert!(forget(&mut store, &open).is_empty());
     assert!(store.drafts.load(&id).is_ok());
+    assert_eq!(store.journal.to_forget(ACCOUNT).len(), 1, "kept");
+    // Closed without an edit: the next forget removes it.
+    assert_eq!(forget(&mut store, &BTreeSet::new()), [id.as_str()]);
+    assert!(store.drafts.load(&id).is_err());
+    assert!(store.journal.to_forget(ACCOUNT).is_empty());
+}
+
+#[tokio::test]
+async fn a_draft_edited_while_open_is_not_forgotten_when_it_closes() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    let open = BTreeSet::from([id.clone()]);
+    assert!(forget(&mut store, &open).is_empty());
+    store.drafts.save(&id, &draft("edited", 2)).unwrap();
+    assert!(forget(&mut store, &BTreeSet::new()).is_empty());
+    assert_eq!(store.drafts.load(&id).unwrap().body, "edited");
+    assert!(store.journal.to_forget(ACCOUNT).is_empty(), "settled");
 }
 
 #[tokio::test]

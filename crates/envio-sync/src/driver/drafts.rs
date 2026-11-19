@@ -207,8 +207,16 @@ pub fn forget_deleted_drafts(
             continue;
         }
         let mut retry = false;
-        for (id, message_id) in drafts_to_forget(std::slice::from_ref(action), &folders, &all, open)
+        let none = BTreeSet::new();
+        for (id, message_id) in
+            drafts_to_forget(std::slice::from_ref(action), &folders, &all, &none)
         {
+            // An open window keeps its draft; the intent waits for the
+            // window to close, when the uploaded_ms check judges it again.
+            if open.contains(&id) {
+                retry = true;
+                continue;
+            }
             match drafts.forget_if_uploaded(&id, &message_id) {
                 Ok(true) => removed.push(id),
                 Ok(false) => {}
