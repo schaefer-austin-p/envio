@@ -57,6 +57,7 @@ impl Worker<'_> {
                 self.compose_ready(compose, draft, String::new());
             }
             StartFrom::Draft => self.start_from_draft(compose, draft_id),
+            StartFrom::Edit { id } => self.start_edit(compose, id),
             StartFrom::Mailto => self.start_from_mailto(compose, mailto),
             StartFrom::Reply { id, .. } | StartFrom::Forward { id } => {
                 self.start_from_message(compose, id, from);
@@ -73,7 +74,7 @@ impl Worker<'_> {
         });
     }
 
-    fn start_from_draft(&mut self, compose: ComposeId, draft_id: Option<&str>) {
+    pub(super) fn start_from_draft(&mut self, compose: ComposeId, draft_id: Option<&str>) {
         let loaded = draft_id.and_then(|id| match self.store.drafts.load(id) {
             Ok(draft) => Some(compose::from_store(id, &draft)),
             Err(e) => {

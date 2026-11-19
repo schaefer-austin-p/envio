@@ -144,6 +144,10 @@ pub enum StartFrom {
         id: MessageRowId,
     },
     Draft,
+    /// A cached message in a Drafts-role folder.
+    Edit {
+        id: MessageRowId,
+    },
     Mailto,
 }
 

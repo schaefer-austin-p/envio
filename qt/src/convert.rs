@@ -69,7 +69,7 @@ pub fn search_scope(text: &str) -> Option<SearchScope> {
     None
 }
 
-/// "new" (account), "reply", "replyall", "forward" (message id), "draft"
+/// "new" (account), "reply", "replyall", "forward", "edit" (message id), "draft"
 /// (the stored draft id in `extra`) or "mailto" (the URL in `extra`).
 /// Returns the start and the command's `draft_id` and `mailto`.
 pub fn start_from(
@@ -91,6 +91,9 @@ pub fn start_from(
             all: true,
         },
         "forward" => StartFrom::Forward {
+            id: MessageRowId(id),
+        },
+        "edit" => StartFrom::Edit {
             id: MessageRowId(id),
         },
         "draft" => return Some((StartFrom::Draft, Some(extra.to_owned()), None)),
@@ -216,6 +219,18 @@ mod tests {
         assert_eq!(list_ref("sideways", 1), None);
         assert_eq!(decision("shrug"), None);
         assert_eq!(search_scope("folder:x"), None);
+    }
+
+    #[test]
+    fn edit_kind_starts_from_a_message_row() {
+        let (from, draft_id, mailto) = start_from("edit", 7, "", "").unwrap();
+        assert_eq!(
+            from,
+            StartFrom::Edit {
+                id: MessageRowId(7)
+            }
+        );
+        assert_eq!((draft_id, mailto), (None, None));
     }
 
     #[test]
