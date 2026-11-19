@@ -3,8 +3,9 @@
 use std::collections::HashMap;
 
 use envio_mime::Address;
-use envio_store::{Db, FolderId, Message};
+use envio_store::{Db, FolderId, FolderRole, Message};
 
+use super::local_rows::recipients_of;
 use crate::api::view::MessageRow;
 use crate::text;
 
@@ -48,7 +49,7 @@ fn sender(from: &str) -> (String, String) {
     }
 }
 
-fn subject(subject: String) -> String {
+pub(super) fn subject(subject: String) -> String {
     if subject.trim().is_empty() {
         text::read::no_subject()
     } else {
@@ -56,8 +57,13 @@ fn subject(subject: String) -> String {
     }
 }
 
-fn row_of(message: Message, account: String) -> MessageRow {
-    let (from, from_address) = sender(&message.envelope.from);
+fn row_of(message: Message, account: String, drafts: bool) -> MessageRow {
+    // A Drafts folder shows who the message is for, not who sent it.
+    let (from, from_address) = if drafts {
+        recipients_of(&message.envelope.to)
+    } else {
+        sender(&message.envelope.from)
+    };
     MessageRow {
         id: message.id,
         folder: message.folder,
@@ -70,24 +76,26 @@ fn row_of(message: Message, account: String) -> MessageRow {
         preview: message.preview,
         date: (message.envelope.date != 0).then_some(message.envelope.date),
         flags: message.flags,
+        local_draft: None,
     }
 }
 
 /// The rows for `messages`.
 pub(super) fn rows(db: &Db, messages: Vec<Message>) -> Vec<MessageRow> {
-    let mut accounts: HashMap<FolderId, String> = HashMap::new();
+    let mut folders: HashMap<FolderId, (String, bool)> = HashMap::new();
     messages
         .into_iter()
         .map(|message| {
-            let account = accounts
+            let (account, drafts) = folders
                 .entry(message.folder)
                 .or_insert_with(|| {
-                    db.folder(message.folder)
-                        .map(|f| f.account)
-                        .unwrap_or_default()
+                    db.folder(message.folder).map_or_else(
+                        |_| (String::new(), false),
+                        |f| (f.account, f.role == FolderRole::Drafts),
+                    )
                 })
                 .clone();
-            row_of(message, account)
+            row_of(message, account, drafts)
         })
         .collect()
 }
@@ -119,7 +127,7 @@ mod tests {
     }
 
     fn row(from: &str, subject: &str) -> MessageRow {
-        row_of(message(from, subject), "a".into())
+        row_of(message(from, subject), "a".into(), false)
     }
 
     #[test]

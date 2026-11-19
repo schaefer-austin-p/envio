@@ -122,5 +122,14 @@ pub(super) async fn drafts(
     {
         live.relist = true;
     }
+    if !(done.uploaded.is_empty()
+        && done.deleted.is_empty()
+        && done.refused.is_empty()
+        && done.failed.is_empty())
+    {
+        worker.emit(Event::LocalDraftsChanged {
+            account: account.to_owned(),
+        });
+    }
     Ok(())
 }

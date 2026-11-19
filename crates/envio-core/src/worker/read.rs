@@ -281,10 +281,14 @@ impl Worker<'_> {
         match self.store.db.list(list, after, PAGE) {
             Ok(messages) => {
                 let end = messages.len() < PAGE as usize;
+                let mut rows = rows(&self.store.db, messages);
+                if let ListRef::Folder(folder) = list {
+                    rows = self.with_local_drafts(folder, rows, (after, end));
+                }
                 self.emit(Event::Messages {
                     list,
                     after,
-                    rows: rows(&self.store.db, messages),
+                    rows,
                     end,
                 });
             }
