@@ -82,14 +82,16 @@ pub fn parse_token_reply(status: u16, body: &[u8]) -> Result<Tokens, TokenError>
         return Err(TokenError::Temporary);
     }
     let success = (200..300).contains(&status);
-    let reply: Reply = match serde_json::from_slice(body) {
-        Ok(reply) => reply,
-        // A 2xx that is not JSON (a captive portal's page, an empty or cut
-        // reply) is not the provider speaking: try again later, never ask
-        // for a sign-in over it.
-        Err(_) if success => return Err(TokenError::Temporary),
-        Err(_) => return Err(TokenError::Refused("unreadable reply".to_owned())),
+    // A body that is not JSON at all (a captive portal's or proxy's page,
+    // at any status; an empty or cut reply) is not the provider speaking:
+    // try again later, never ask for a sign-in over it. OAuth errors are
+    // always JSON, so this cannot hide `invalid_grant`.
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return Err(TokenError::Temporary);
     };
+    // JSON of the wrong shape is the provider speaking, wrongly.
+    let reply: Reply = serde_json::from_value(json)
+        .map_err(|_| TokenError::Refused("unreadable reply".to_owned()))?;
     if success {
         return tokens(reply);
     }

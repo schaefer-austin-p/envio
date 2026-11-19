@@ -135,7 +135,7 @@ fn other_client_errors_are_refused_with_the_code_only() {
         Some(TokenError::Refused("invalid_request".to_owned()))
     );
     assert!(matches!(reply(401, "{}"), Err(TokenError::Refused(_))));
-    assert!(matches!(reply(404, "nope"), Err(TokenError::Refused(_))));
+    assert!(matches!(reply(404, "nope"), Err(TokenError::Temporary)));
 }
 
 #[test]
@@ -281,14 +281,13 @@ fn no_match_cases() {
 }
 
 #[test]
-fn a_2xx_body_that_is_not_token_json_is_temporary() {
-    let bodies: [&[u8]; 4] = [
+fn a_body_that_is_not_json_is_temporary_at_any_status() {
+    let bodies: [&[u8]; 3] = [
         b"<html>Sign in to the network</html>",
         b"",
         br#"{"access_token":"AT","expires_in":"#,
-        b"null",
     ];
-    for status in [200, 204, 299] {
+    for status in [200, 204, 299, 302, 400, 401, 403, 404] {
         for body in bodies {
             assert_eq!(
                 parse_token_reply(status, body).err(),
@@ -300,16 +299,29 @@ fn a_2xx_body_that_is_not_token_json_is_temporary() {
 }
 
 #[test]
-fn json_that_lacks_a_token_or_a_non_2xx_page_is_still_refused() {
+fn json_that_lacks_a_token_or_has_wrong_types_is_still_refused() {
+    let unreadable = Some(TokenError::Refused("unreadable reply".to_owned()));
     assert_eq!(
         parse_token_reply(200, b"{}").err(),
         Some(TokenError::Refused("no_access_token".to_owned()))
     );
-    for s in [302, 400, 401, 403] {
-        assert_eq!(
-            parse_token_reply(s, b"<html>nope</html>").err(),
-            Some(TokenError::Refused("unreadable reply".to_owned())),
-            "{s}"
-        );
+    for body in [
+        &br#"{"access_token":"AT","expires_in":"3600"}"#[..],
+        b"null",
+        b"[]",
+        br#"{"error":5}"#,
+    ] {
+        for status in [200, 400] {
+            assert_eq!(
+                parse_token_reply(status, body).err(),
+                unreadable,
+                "{status} {body:?}"
+            );
+        }
     }
+    // A JSON error body keeps its mapping at any status.
+    assert_eq!(
+        parse_token_reply(403, br#"{"error":"invalid_client"}"#).err(),
+        Some(TokenError::Refused("invalid_client".to_owned()))
+    );
 }

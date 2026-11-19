@@ -172,6 +172,20 @@ async fn an_html_200_is_temporary_not_a_refusal() {
 }
 
 #[tokio::test]
+async fn a_302_or_403_html_page_is_temporary() {
+    let html = "<html><body>Sign in to your network</body></html>";
+    for status in ["302 Found", "403 Forbidden"] {
+        let reply = format!("HTTP/1.0 {status}\r\nContent-Type: text/html\r\n\r\n{html}");
+        let (p, roots, _) = fake(vec![Step::Raw(reply.into_bytes())]).await;
+        assert_eq!(
+            refreshed(&p, &roots).await.unwrap_err(),
+            TokenError::Temporary,
+            "{status}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn a_chunked_html_200_is_temporary_not_a_refusal() {
     let html = "<html><body>Sign in to your network</body></html>";
     let body = in_chunks(html, 9);
@@ -196,7 +210,7 @@ async fn a_redirect_is_not_followed() {
     let (p, roots) = setup(&ca, port);
 
     let err = refreshed(&p, &roots).await.unwrap_err();
-    assert!(matches!(err, TokenError::Refused(_)), "{err:?}");
+    assert_eq!(err, TokenError::Temporary, "{err:?}");
     assert_eq!(first.requests().len(), 1);
     assert!(
         target_seen.requests().is_empty(),
