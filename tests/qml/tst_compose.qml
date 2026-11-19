@@ -364,6 +364,57 @@ Item {
             compare(find("title", find("topBar")).font.pixelSize, thm.barTitleCompactFont.pixelSize)
         }
 
+        function test_leave_commits_a_typed_address_into_the_draft() {
+            mock.composeReady(1, reply, "", "")
+            find("to").input.text = "cy@example.org"
+            mock.reset()
+            page.leave()
+            const c = mock.called("draftChanged")
+            verify(c.length > 0, "leave handed the core no draft")
+            compare(JSON.parse(c.pop().args[1]).to.length, 2)
+        }
+
+        function test_view_state_round_trips_focus_cursor_and_scroll() {
+            mock.composeReady(1, reply, "", "")
+            find("bodyField").text = new Array(120).join("line\n")
+            const flick = find("composeFlick")
+            tryVerify(function() { return flick.contentHeight > flick.height + 200 })
+            find("bodyField").input.forceActiveFocus()
+            find("bodyField").input.cursorPosition = 7
+            flick.contentY = 150
+            const v = page.viewState()
+            compare(v.focus, "body")
+            compare(v.cursor, 7)
+            find("subjectField").input.forceActiveFocus()
+            flick.contentY = 0
+            page.restoreView(v)
+            tryVerify(function() { return find("bodyField").input.activeFocus })
+            compare(find("bodyField").input.cursorPosition, 7)
+            tryVerify(function() { return Math.abs(flick.contentY - 150) < 2 })
+        }
+
+        function test_wide_close_offers_save_draft_and_discard() {
+            mock.composeReady(1, reply, "", "")
+            page.wide = true
+            mouseClick(find("backButton"))
+            tryVerify(function() { return shown("saveDraftRow") })
+            verify(shown("discardRow"))
+            compare(mock.called("closeCompose").length, 0)
+            // The sheet slides in: click once the row has stopped moving.
+            let lastY = -1
+            tryVerify(function() {
+                const y = find("saveDraftRow").mapToItem(null, 0, 0).y
+                const still = y === lastY
+                lastY = y
+                return still
+            })
+            mouseClick(find("saveDraftRow"))
+            tryVerify(function() { return mock.called("closeCompose").length === 1 })
+            compare(mock.called("closeCompose").pop().args, [1, false])
+            compare(closed.count, 1)
+            page.wide = false
+        }
+
         function test_back_keeps_the_draft() {
             mock.composeReady(1, reply, "", "")
             mouseClick(find("backButton"))
@@ -604,6 +655,45 @@ Item {
             shell.openMailto("mailto:again@example.org")
             compare(shellCore.called("startCompose").length, 2, "a ready core starts at once")
             shell.visible = false
+        }
+
+        // Review 1281, 3: the user's own tap or scroll in the restore window is
+        // not snapped back.
+        function test_restore_view_gives_way_to_the_users_own_tap() {
+            mock.composeReady(1, reply, "", "")
+            const flick = find("composeFlick")
+            find("bodyField").text = new Array(300).join("line of text\n")
+            tryVerify(function() { return flick.contentHeight > flick.height + 200 })
+            find("bodyField").input.forceActiveFocus()
+            page.restoreView({ focus: "body", cursor: 3, contentY: 150 })
+            tryVerify(function() { return Math.abs(flick.contentY - 150) < 2 })
+            // The user taps the subject, then scrolls.
+            find("subjectField").input.forceActiveFocus()
+            compare(page.viewWanted, null)
+            flick.movementStarted()
+            flick.contentY = 20
+            wait(100)
+            compare(flick.contentY, 20)
+            verify(find("subjectField").input.activeFocus, "the focus was taken back")
+        }
+
+        function test_view_state_during_a_pending_restore_is_the_pending_one() {
+            mock.composeReady(1, reply, "", "")
+            const want = { focus: "body", cursor: 4, contentY: 33 }
+            page.restoreView(want)
+            compare(page.viewState(), want)
+            page.userTookOver()
+        }
+
+        // The stack page's X still saves with no sheet; only the pane's
+        // Close (wide) asks.
+        function test_narrow_close_saves_without_a_sheet() {
+            mock.composeReady(1, reply, "", "")
+            page.wide = false
+            mouseClick(find("backButton"))
+            compare(mock.called("closeCompose").pop().args, [1, false])
+            compare(closed.count, 1)
+            verify(!shown("saveDraftRow"), "a sheet was shown")
         }
     }
 }

@@ -752,6 +752,23 @@ Item {
             compare(root.page.undoId, -1)
             verify(!find("readerMore").opened, "the more sheet stays open")
         }
+        function test_scroll_fraction_follows_the_scroll_and_restores() {
+            const longHtml = "<p>" + new Array(400).join("Hello again. ") + "</p>"
+            mock.messageOpened({ id: 5, html: longHtml, blockedImages: 0, from: "Ana Ruiz", fromAddress: "ana@example.org", to: ["me@example.org"],
+                cc: [], subject: "Invoice", date: 1700000000, account: "ann", senderKnown: false, senderVerified: true, attachments: [] })
+            waitForRendering(root.page)
+            const flick = find("readerFlick")
+            compare(root.page.scrollFraction, 0)
+            flick.contentY = 0.5 * (flick.contentHeight - flick.height)
+            fuzzyCompare(root.page.scrollFraction, 0.5, 0.02)
+            // The text re-lays out at another width; the fraction is what counts.
+            root.page.holdScroll()
+            root.page.width = 250
+            waitForRendering(root.page)
+            root.page.restoreScroll()
+            tryVerify(function() { return Math.abs(flick.contentY / (flick.contentHeight - flick.height) - 0.5) < 0.02 })
+            fuzzyCompare(root.page.scrollFraction, 0.5, 0.02)
+        }
         function test_narrow_reader_keeps_its_full_width() {
             open(view([], 0))
             compare(find("bodyCard").width, 400 - thm.gu(4))

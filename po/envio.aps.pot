@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 21:45+0100\n"
+"POT-Creation-Date: 2026-11-19 22:16+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,7 +35,7 @@ msgid "Select all"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:44 qml/pages/inbox/InboxPage.qml:62
+#: qml/pages/inbox/InboxPage.qml:46 qml/pages/inbox/InboxPage.qml:64
 msgid "Inbox"
 msgstr ""
 
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:31
-#: qml/pages/reader/ReaderPage.qml:251
+#: qml/pages/reader/ReaderPage.qml:278
 msgid "Archive"
 msgstr ""
 
@@ -60,7 +60,7 @@ msgstr ""
 msgid "Junk"
 msgstr ""
 
-#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:244
+#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:271
 msgid "Back"
 msgstr ""
 
@@ -88,11 +88,15 @@ msgstr ""
 msgid "%1 GB"
 msgstr ""
 
+#: qml/pages/AppShell.qml:287
+msgid "Draft saved"
+msgstr ""
+
 #: qml/pages/ProblemPage.qml:47
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:432
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:465
 msgid "Try again"
 msgstr ""
 
@@ -434,72 +438,76 @@ msgstr ""
 msgid "Remove attachment"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/FromRow.qml:59
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/FromRow.qml:59
 #: qml/pages/reader/HeaderBlock.qml:17 crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:279
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:344
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:296
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:361
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/ComposePage.qml:310
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:375
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:34 qml/pages/compose/SubjectRow.qml:27
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/SubjectRow.qml:27
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:192
+#: qml/pages/compose/ComposePage.qml:245
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:198
+#: qml/pages/compose/ComposePage.qml:253
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:206 qml/pages/inbox/SelectionBar.qml:56
-#: qml/pages/reader/ReaderPage.qml:267
+#: qml/pages/compose/ComposePage.qml:261 qml/pages/inbox/SelectionBar.qml:56
+#: qml/pages/reader/ReaderPage.qml:294
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:217
+#: qml/pages/compose/ComposePage.qml:272
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:280
+#: qml/pages/compose/ComposePage.qml:345
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:338
+#: qml/pages/compose/ComposePage.qml:403
 msgid "Write your message"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:29
+#: qml/pages/compose/DiscardActions.qml:36
+msgid "Save draft"
+msgstr ""
+
+#: qml/pages/compose/DiscardActions.qml:53
 msgid "Discard draft"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:41
+#: qml/pages/compose/DiscardActions.qml:65
 msgid "Discard this message?"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:42
+#: qml/pages/compose/DiscardActions.qml:66
 msgid "The draft is deleted and cannot be brought back."
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:43
+#: qml/pages/compose/DiscardActions.qml:67
 msgid "Keep editing"
 msgstr ""
 
-#: qml/pages/compose/DiscardActions.qml:44
+#: qml/pages/compose/DiscardActions.qml:68
 msgid "Discard"
 msgstr ""
 
@@ -572,19 +580,19 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:137
+#: qml/pages/inbox/InboxPage.qml:139
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:144
+#: qml/pages/inbox/InboxPage.qml:146
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:207
+#: qml/pages/inbox/InboxPage.qml:210
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:255 qml/pages/reader/ReaderPage.qml:506
+#: qml/pages/inbox/InboxPage.qml:258 qml/pages/reader/ReaderPage.qml:539
 msgid "Undo"
 msgstr ""
 
@@ -600,7 +608,7 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
-#: qml/pages/inbox/MessageRow.qml:151
+#: qml/pages/inbox/MessageRow.qml:153
 msgid "Not uploaded"
 msgstr ""
 
@@ -622,7 +630,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:89 qml/pages/inbox/OutboxRow.qml:125
-#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:259
+#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
@@ -796,11 +804,11 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:244
+#: qml/pages/reader/ReaderPage.qml:271
 msgid "Close"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:410
+#: qml/pages/reader/ReaderPage.qml:443
 msgid "Loading…"
 msgstr ""
 

@@ -13,6 +13,8 @@ Item {
     required property var core
     required property var messages
     property bool showAccount: false
+    // Whether the open row is marked (not while a compose is in the wide pane).
+    property bool showOpen: true
 
     // What is selected now, from the rows' `selected` role.
     property int selectedCount: 0
@@ -93,6 +95,7 @@ Item {
             width: list.width
             selecting: root.selectedCount > 0
             showAccount: root.showAccount
+            showOpen: root.showOpen
             onClicked: {
                 if (root.selectedCount > 0) root.core.select(row.model.id, !row.model.selected)
                 else if (row.model.opens === "compose") root.draftRequested(row.model.draftId)
