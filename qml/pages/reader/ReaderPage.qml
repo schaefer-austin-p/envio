@@ -263,6 +263,7 @@ Item {
         objectName: "imagesBanner"
         visible: root.view !== null && root.view.blockedImages > 0
         height: visible ? implicitHeight : 0
+        senderVerified: root.view !== null && root.view.senderVerified === true
         onLoadRequested: root.load(true)
         onAlwaysRequested: {
             root.core.allowImagesFrom(root.view.fromAddress)

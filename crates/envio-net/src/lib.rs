@@ -7,6 +7,7 @@ pub mod autoconfig;
 mod connect;
 pub mod error;
 pub mod imap;
+pub mod oauth;
 pub mod server;
 pub mod smtp;
 pub mod tls;

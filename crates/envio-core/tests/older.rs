@@ -125,12 +125,16 @@ fn changing_the_window_drops_the_floor_and_resyncs() {
     h.send(Command::LoadOlder { list, tail: None });
     older_loaded(&h, list);
     assert_eq!(settled(&h, &server, list), 10);
-    let before = lines(&server, "UID SEARCH SINCE");
     h.send(Command::SaveSettings(Settings {
         sync_window_days: 7,
         ..Settings::default()
     }));
-    until_lines(&server, "UID SEARCH SINCE", before + 1);
+    // The resync's own outcome, not a `UID SEARCH SINCE` line: the server
+    // sees that line before the rows are stored, and a line of an earlier
+    // sync would do as well (#114, #295). `OlderReset` follows the sync.
+    h.wait(|e| {
+        matches!(e, Event::OlderReset { folder, inbox: true } if *folder == inbox).then_some(())
+    });
     // Resynced without the floor: what Load older fetched is gone again.
     assert_eq!(rows_of(&h, list), 1);
 }

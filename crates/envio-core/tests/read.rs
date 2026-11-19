@@ -421,11 +421,17 @@ fn a_view_has_cc_from_the_message() {
     assert!(!header.sender_known);
 }
 
-#[test]
-fn images_load_by_default_for_an_allowed_sender() {
+const VERIFIED_IMAGE: &[u8] =
+    b"Authentication-Results: mx.example.org; dkim=pass header.d=example.org\r\n\
+From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
+
+/// Opens `raw` with ada@example.org on the "always load" list.
+fn open_with_ada_allowed(raw: &[u8]) -> MessageView {
     let mut h = Harness::unstarted();
-    let key = h.seed_account(ME, Some("pw"));
-    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, REMOTE_IMAGE)]);
+    let key = h.seed_account_on(ME, Some("pw"), ("imap.example.org", 1));
+    h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, raw)]);
     std::fs::create_dir_all(h.data_dir()).unwrap();
     let settings = envio_core::Settings {
         images_from: ["ada@example.org".to_owned()].into(),
@@ -438,10 +444,43 @@ fn images_load_by_default_for_an_allowed_sender() {
         key,
         folder: FolderId(1),
     };
-    let view = s.open(s.id_of("message 1"), ImagesChoice::Default);
+    s.open(s.id_of("message 1"), ImagesChoice::Default)
+}
+
+#[test]
+fn images_load_by_default_for_an_allowed_sender_the_server_verified() {
+    let view = open_with_ada_allowed(VERIFIED_IMAGE);
     assert_eq!(view.blocked_images, 0);
     assert!(view.html.contains("images.example.net/a.png"));
     assert!(view.header.sender_known);
+}
+
+const FOREIGN_RESULTS: &[u8] =
+    b"Authentication-Results: evil.net; dkim=pass header.d=example.org\r\n\
+From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
+
+#[test]
+fn the_view_carries_the_servers_verdict_on_the_sender() {
+    assert!(open_with_ada_allowed(VERIFIED_IMAGE).header.sender_verified);
+    assert!(!open_with_ada_allowed(REMOTE_IMAGE).header.sender_verified);
+}
+
+#[test]
+fn a_header_from_another_host_does_not_earn_the_sender_allow() {
+    let view = open_with_ada_allowed(FOREIGN_RESULTS);
+    assert_eq!(view.blocked_images, 1);
+    assert!(!view.header.sender_known);
+    assert!(!view.header.sender_verified);
+}
+
+#[test]
+fn a_forged_from_does_not_earn_the_sender_allow() {
+    let view = open_with_ada_allowed(REMOTE_IMAGE);
+    assert_eq!(view.blocked_images, 1);
+    assert!(!view.html.contains("images.example.net/a.png"));
+    assert!(!view.header.sender_known);
 }
 
 #[test]

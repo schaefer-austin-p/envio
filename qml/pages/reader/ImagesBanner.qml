@@ -9,6 +9,9 @@ Column {
     required property Theme theme
     signal loadRequested()
     signal alwaysRequested()
+    // The server vouched for the From address; only then does "always for
+    // this sender" do anything (the core ignores the allow otherwise).
+    property bool senderVerified: false
 
     Banner {
         theme: root.theme
@@ -34,6 +37,7 @@ Column {
             }
             AppButton {
                 objectName: "alwaysForSender"
+                visible: root.senderVerified
                 theme: root.theme
                 text: qsTr("Always for this sender")
                 onClicked: root.alwaysRequested()
