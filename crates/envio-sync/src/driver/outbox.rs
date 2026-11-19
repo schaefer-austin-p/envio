@@ -71,6 +71,35 @@ pub async fn send_outbox(
     Ok(sent)
 }
 
+/// The server refuses to send for this account for a reason only the user
+/// or an administrator can fix (a sign-in refusal with a good token): every
+/// due `Send`-step item (the rules of `send_outbox`) becomes `Failed` with
+/// `reason`. Nothing is sent, nothing else is touched.
+pub fn refuse_outbox(
+    local: &mut Local<'_>,
+    account: &str,
+    now_ms: i64,
+    reason: &str,
+) -> Result<Sent> {
+    let mut sent = Sent::default();
+    for item in items(local, account)? {
+        let key = Key::Outbox(item.id.clone());
+        if item_step(&item.meta.state) != ItemStep::Send
+            || held(&item.meta, now_ms)
+            || !local.schedule.is_due(&key, now_ms)
+        {
+            continue;
+        }
+        let state = SendState::Failed {
+            reason: reason.to_owned(),
+        };
+        local.outbox.set_state(&item.id, state)?;
+        local.schedule.succeeded(&key);
+        sent.failed.push(item.id);
+    }
+    Ok(sent)
+}
+
 /// What filing did, by Outbox item id.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Filed {

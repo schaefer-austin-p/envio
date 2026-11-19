@@ -7,7 +7,8 @@ use envio_net::imap::Role;
 use envio_net::smtp::SendError;
 use envio_store::{NewOutboxItem, SendState};
 use envio_sync::ErrorKind;
-use envio_sync::driver::{file_sent, send_outbox, sync_folders};
+use envio_sync::driver::{file_sent, refuse_outbox, send_outbox, sync_folders};
+use envio_sync::schedule::Key;
 use support::fake::{FakeSender, FakeServer, NOW_MS, eml};
 use support::local::{ACCOUNT, Store};
 
@@ -412,4 +413,68 @@ async fn a_padded_message_id_is_searched_trimmed() {
     assert_eq!(filed.removed, [id.as_str()]);
     let trimmed = "search_message_id <out@example.org>".to_owned();
     assert!(server.calls.contains(&trimmed));
+}
+
+#[tokio::test]
+async fn refuse_outbox_fails_the_due_items_with_the_reason() {
+    let mut store = Store::new();
+    let a = queue(&store, "a");
+    let b = queue(&store, "b");
+    let sent = refuse_outbox(&mut store.local(), ACCOUNT, NOW_MS, "no SMTP for you").unwrap();
+    assert_eq!(sent.failed.len(), 2);
+    assert!(sent.failed.contains(&a) && sent.failed.contains(&b));
+    assert!(sent.accepted.is_empty() && sent.unconfirmed.is_empty());
+    assert_eq!(sent.stopped, None);
+    for id in [&a, &b] {
+        assert_eq!(
+            state(&store, id),
+            Some(SendState::Failed {
+                reason: "no SMTP for you".into()
+            })
+        );
+    }
+}
+
+#[tokio::test]
+async fn refuse_outbox_leaves_held_not_due_and_maybe_sent_items_alone() {
+    let mut store = Store::new();
+    let held = queue_held(&store, "held", NOW_MS + 10_000);
+    let backoff = queue(&store, "backoff");
+    store
+        .local()
+        .schedule
+        .failed(Key::Outbox(backoff.clone()), NOW_MS);
+    let maybe = queue(&store, "maybe");
+    store
+        .outbox
+        .set_state(&maybe, SendState::MayHaveBeenSent)
+        .unwrap();
+    let accepted = queue(&store, "accepted");
+    store
+        .outbox
+        .set_state(&accepted, SendState::Accepted)
+        .unwrap();
+    let due = queue(&store, "due");
+    let sent = refuse_outbox(&mut store.local(), ACCOUNT, NOW_MS, "r").unwrap();
+    assert_eq!(sent.failed, [due.as_str()]);
+    assert_eq!(state(&store, &held), Some(SendState::Queued));
+    assert_eq!(state(&store, &backoff), Some(SendState::Queued));
+    assert_eq!(state(&store, &maybe), Some(SendState::MayHaveBeenSent));
+    assert_eq!(state(&store, &accepted), Some(SendState::Accepted));
+}
+
+#[tokio::test]
+async fn refuse_outbox_touches_only_its_account_and_a_send_run_skips_the_failed_item() {
+    let mut store = Store::new();
+    let id = queue(&store, "a");
+    let other = refuse_outbox(&mut store.local(), "someone-else", NOW_MS, "r").unwrap();
+    assert!(other.failed.is_empty());
+    assert_eq!(state(&store, &id), Some(SendState::Queued));
+    refuse_outbox(&mut store.local(), ACCOUNT, NOW_MS, "r").unwrap();
+    let mut sender = FakeSender::default();
+    let sent = send_outbox(&mut sender, &mut store.local(), ACCOUNT, NOW_MS)
+        .await
+        .unwrap();
+    assert!(sent.accepted.is_empty() && sender.attempts.is_empty());
+    assert!(matches!(state(&store, &id), Some(SendState::Failed { .. })));
 }

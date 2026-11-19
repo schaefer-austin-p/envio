@@ -69,7 +69,8 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     // Both go even when one fails; the first failure is reported and the
     // marker keeps the removal to be retried.
     let password = store.secrets.remove(key).map_err(secrets_error);
-    let token = store.tokens.remove(key).map_err(tokens_error);
+    store.token_cells.forget(key);
+    let token = store.tokens.borrow_mut().remove(key).map_err(tokens_error);
     match (password, token) {
         (Err(error), Err(dropped)) => {
             // Only the first error travels on; the second is logged (the
@@ -190,5 +191,33 @@ impl Worker<'_> {
             unsent: counts,
         });
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use envio_net::oauth::{Provider, ProviderKind};
+
+    use crate::worker::testing::{Sink, open, seed};
+
+    #[test]
+    fn removing_an_account_drops_its_cached_token() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut config, seeded) = seed(dir.path());
+        config.oauth = vec![Provider::microsoft_template()];
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let key = &seeded.account;
+        let handle = |worker: &super::super::Worker<'_>| {
+            worker
+                .store
+                .token_cells
+                .handle(key, ProviderKind::Microsoft)
+                .unwrap()
+        };
+        handle(&worker).set_imap_ok();
+        assert!(handle(&worker).imap_ok());
+        super::remove_for_test(&mut worker.store, key);
+        assert!(!handle(&worker).imap_ok(), "the old cell was kept");
     }
 }
