@@ -11,12 +11,13 @@ use crate::clock::now_ms;
 
 impl Worker<'_> {
     /// Starts the lookup of `names` for message `id` when it is the open
-    /// one and no lookup for it runs. `names` are already filtered by
+    /// one and no lookup for it runs (opening A, B, A again leaves A's first
+    /// task running: its answer serves the new open). `names` are already filtered by
     /// `check` (policy, at most 3, none of the failed ones).
     pub(super) fn request_keys(&mut self, id: MessageRowId, names: Vec<String>) {
         if names.is_empty()
             || self.store.open_message != Some(id)
-            || self.store.dkim_in_flight == Some(id)
+            || self.store.dkim_in_flight.contains(&id)
         {
             return;
         }
@@ -24,7 +25,7 @@ impl Worker<'_> {
         let Ok(runtime) = tokio::runtime::Handle::try_current() else {
             return;
         };
-        self.store.dkim_in_flight = Some(id);
+        self.store.dkim_in_flight.insert(id);
         let dns = std::sync::Arc::clone(&self.dns);
         let inputs = self.inputs.clone();
         runtime.spawn(async move {
@@ -48,9 +49,7 @@ impl Worker<'_> {
     /// key was stored: an all-`Unavailable` reply changes nothing.
     pub(super) fn dkim_keys(&mut self, id: MessageRowId, answers: Vec<(String, TxtAnswer)>) {
         // Before anything else, so no branch below can leave it set.
-        if self.store.dkim_in_flight == Some(id) {
-            self.store.dkim_in_flight = None;
-        }
+        self.store.dkim_in_flight.remove(&id);
         let now = now_ms();
         let mut stored = false;
         for (name, answer) in answers {
@@ -151,9 +150,9 @@ mod tests {
         assert_eq!(opened(&sink), 1);
 
         // The lookup came back Unavailable: nothing is shown again.
-        worker.store.dkim_in_flight = Some(id);
+        worker.store.dkim_in_flight.insert(id);
         worker.dkim_keys(id, vec![(NAME.into(), TxtAnswer::Unavailable)]);
-        assert_eq!(worker.store.dkim_in_flight, None);
+        assert!(worker.store.dkim_in_flight.is_empty());
         assert_eq!(opened(&sink), 1, "an all-Unavailable reply renders nothing");
         assert!(worker.failed_for(id).contains(NAME));
         assert!(lookups_of(&worker, id).is_empty());

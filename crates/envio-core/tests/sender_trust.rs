@@ -5,6 +5,7 @@
 mod support;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -19,6 +20,7 @@ const FROM: &str = "bob@example.com";
 const NAME: &str = "test._domainkey.example.com";
 const ED_NAME: &str = "ed._domainkey.example.com";
 const IMAGE: &str = "images.example.net/a.png";
+const IMAGE_URL: &str = "http://images.example.net/a.png";
 
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(format!(
@@ -48,6 +50,8 @@ struct Fake {
     answers: HashMap<String, TxtAnswer>,
     fallback: TxtAnswer,
     calls: Mutex<Vec<String>>,
+    /// While `false`, an answer waits (see `hold`).
+    gate: AtomicBool,
 }
 
 impl Fake {
@@ -56,7 +60,17 @@ impl Fake {
             answers,
             fallback,
             calls: Mutex::new(Vec::new()),
+            gate: AtomicBool::new(true),
         })
+    }
+
+    /// From now on, answers wait until `release`.
+    fn hold(&self) {
+        self.gate.store(false, Ordering::SeqCst);
+    }
+
+    fn release(&self) {
+        self.gate.store(true, Ordering::SeqCst);
     }
 
     fn calls(&self) -> Vec<String> {
@@ -70,13 +84,21 @@ impl TxtLookup for Fake {
     fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
         self.calls.lock().unwrap().push(name.to_owned());
         let answer = self.answers.get(name).unwrap_or(&self.fallback).clone();
-        Box::pin(async move { answer })
+        Box::pin(async move {
+            while !self.gate.load(Ordering::SeqCst) {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+            answer
+        })
     }
 }
 
 struct Open {
     h: Harness,
+    /// The first message.
     id: MessageRowId,
+    /// Every message, by uid order.
+    ids: Vec<MessageRowId>,
     dns: Arc<Fake>,
 }
 
@@ -85,6 +107,10 @@ struct Setup<'a> {
     host: &'a str,
     allowed: bool,
     images_always: bool,
+    /// More messages after `raw`.
+    others: Vec<&'a [u8]>,
+    /// The first message is cached as a partial body.
+    partial: bool,
 }
 
 impl<'a> Setup<'a> {
@@ -94,13 +120,24 @@ impl<'a> Setup<'a> {
             host: "outlook.office365.com",
             allowed: true,
             images_always: false,
+            others: Vec::new(),
+            partial: false,
         }
     }
 
     fn start(self, dns: Arc<Fake>) -> Open {
         let mut h = Harness::unstarted();
         let key = h.seed_account_on(ME, Some("pw"), (self.host, 1));
-        let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, self.raw)]);
+        let mut messages = vec![(1, self.raw)];
+        for (n, raw) in self.others.iter().enumerate() {
+            messages.push((u32::try_from(n).unwrap() + 2, *raw));
+        }
+        let folder = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &messages);
+        if self.partial {
+            let db = envio_store::Db::open(&h.paths().db()).unwrap();
+            db.set_body_state(MessageRowId(1), envio_store::BodyState::Partial)
+                .unwrap();
+        }
         std::fs::create_dir_all(h.data_dir()).unwrap();
         let mut settings = envio_core::Settings::default();
         if self.allowed {
@@ -116,11 +153,22 @@ impl<'a> Setup<'a> {
             list: ListRef::Folder(folder),
             after: None,
         });
-        let id = h.wait(|e| match e {
-            Event::Messages { rows, .. } => Some(rows[0].id),
+        let rows = h.wait(|e| match e {
+            Event::Messages { rows, .. } => Some(rows.clone()),
             _ => None,
         });
-        Open { h, id, dns }
+        let ids: Vec<MessageRowId> = (1..=messages.len())
+            .map(|n| {
+                let subject = format!("message {n}");
+                rows.iter().find(|r| r.subject == subject).unwrap().id
+            })
+            .collect();
+        Open {
+            h,
+            id: ids[0],
+            ids,
+            dns,
+        }
     }
 }
 
@@ -134,12 +182,23 @@ impl Open {
     }
 
     fn open(&self, images: ImagesChoice) -> MessageView {
+        self.open_id(self.id, images)
+    }
+
+    fn open_id(&self, id: MessageRowId, images: ImagesChoice) -> MessageView {
         self.h.send(Command::OpenMessage {
-            id: self.id,
+            id,
             images,
             width_px: 300,
         });
-        self.opened()
+        self.opened_id(id)
+    }
+
+    fn opened_id(&self, id: MessageRowId) -> MessageView {
+        self.h.wait(|e| match e {
+            Event::MessageOpened { id: i, view } if *i == id => Some(view.clone()),
+            _ => None,
+        })
     }
 
     /// Whether a `MessageOpened` came after a pause long enough for any
@@ -323,4 +382,108 @@ Content-Type: text/html; charset=utf-8\r\n\r\n\
     assert!(!view.header.sender_verified && !loaded(&view));
     assert!(!s.shown_again());
     assert!(s.dns.calls().is_empty());
+}
+
+#[test]
+fn an_expired_key_is_looked_up_again_on_the_next_open() {
+    let s = Setup::new(&fixture("html.eml")).start(ok_dns());
+    s.open(ImagesChoice::Default);
+    assert!(s.opened().header.sender_verified);
+    // The key lives at most an hour.
+    s.h.send(Command::AdvanceClock {
+        ms: 2 * 3600 * 1000,
+    });
+    let first = s.open(ImagesChoice::Default);
+    assert!(!first.header.sender_verified, "the cached key had expired");
+    assert!(s.opened().header.sender_verified);
+    assert_eq!(s.dns.calls(), [NAME, NAME]);
+}
+
+#[test]
+fn a_message_verified_while_open_stays_verified_when_its_key_expires() {
+    let s = Setup::new(&fixture("html.eml")).start(ok_dns());
+    s.open(ImagesChoice::Default);
+    let verified = s.opened();
+    assert!(verified.header.sender_verified && loaded(&verified));
+    s.h.send(Command::AdvanceClock {
+        ms: 2 * 3600 * 1000,
+    });
+    // The reader reports the size of the image it loaded; the message is
+    // drawn again, and it must not lose its images for a new lookup.
+    s.h.send(Command::ImageSizes {
+        id: s.id,
+        sizes: [(IMAGE_URL.to_owned(), (1000, 10))].into(),
+    });
+    let again = s.opened();
+    assert!(
+        again.header.sender_verified && loaded(&again),
+        "{}",
+        again.html
+    );
+    assert!(!s.shown_again(), "no flicker, no second verification");
+    assert_eq!(s.dns.calls(), [NAME]);
+}
+
+#[test]
+fn a_partial_body_is_never_looked_up() {
+    let raw = fixture("html.eml");
+    let mut setup = Setup::new(&raw);
+    setup.partial = true;
+    let s = setup.start(ok_dns());
+    let view = s.open(ImagesChoice::Default);
+    assert!(!view.header.sender_verified);
+    assert!(!s.shown_again());
+    assert!(s.dns.calls().is_empty(), "a partial body can never verify");
+}
+
+#[test]
+fn an_answer_for_a_message_that_is_no_longer_open_fills_the_cache_and_changes_nothing() {
+    let plain = b"From: Bob <bob@example.com>\r\nSubject: s\r\n\r\nhi\r\n".to_vec();
+    let raw = fixture("html.eml");
+    let mut setup = Setup::new(&raw);
+    setup.others = vec![&plain];
+    let s = setup.start(ok_dns());
+    let (a, b) = (s.ids[0], s.ids[1]);
+    s.dns.hold();
+    s.open_id(a, ImagesChoice::Default);
+    s.open_id(b, ImagesChoice::Default);
+    s.dns.release();
+    assert!(!s.shown_again(), "the reader no longer shows A");
+    // A's key is in the cache: A is verified at once, with no new lookup.
+    let again = s.open_id(a, ImagesChoice::Default);
+    assert!(again.header.sender_verified && loaded(&again));
+    assert_eq!(s.dns.calls(), [NAME]);
+}
+
+#[test]
+fn one_lookup_task_runs_per_message_however_often_it_is_opened() {
+    let raw = fixture("html.eml");
+    let mut setup = Setup::new(&raw);
+    setup.others = vec![&raw];
+    let s = setup.start(ok_dns());
+    let (a, b) = (s.ids[0], s.ids[1]);
+    s.dns.hold();
+    s.open_id(a, ImagesChoice::Default);
+    s.open_id(b, ImagesChoice::Default);
+    s.open_id(a, ImagesChoice::Default);
+    s.dns.release();
+    let verified = s.opened_id(a);
+    assert!(verified.header.sender_verified);
+    assert!(!s.shown_again());
+    // One for A, one for B: reopening A did not start a second one.
+    assert_eq!(s.dns.calls(), [NAME, NAME]);
+}
+
+#[test]
+fn an_image_size_report_after_a_failed_lookup_neither_renders_nor_looks_up_again() {
+    let s =
+        Setup::new(&fixture("html.eml")).start(Fake::new(HashMap::new(), TxtAnswer::Unavailable));
+    s.open(ImagesChoice::Default);
+    assert!(!s.shown_again());
+    s.h.send(Command::ImageSizes {
+        id: s.id,
+        sizes: [(IMAGE_URL.to_owned(), (1000, 10))].into(),
+    });
+    assert!(!s.shown_again());
+    assert_eq!(s.dns.calls(), [NAME]);
 }

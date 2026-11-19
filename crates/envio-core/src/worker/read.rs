@@ -13,7 +13,7 @@ use envio_store::{BodyState, Cursor, ListRef, Message, MessageRowId, PAGE};
 use super::Worker;
 use super::folder_order::drawer_order;
 use super::rows::{rows, sender_label};
-use super::sender_check::check;
+use super::sender_check::{Check, check};
 use super::userdata::{is_known, loads_images};
 use crate::api::command::ImagesChoice;
 use crate::api::event::Event;
@@ -45,6 +45,10 @@ pub(crate) struct ViewContext<'a> {
     pub keys: &'a super::dkim_keys::KeyCache,
     pub failed: &'a std::collections::BTreeSet<String>,
     pub now_ms: i64,
+    /// The sender was verified earlier in this open (no new check).
+    pub verified: bool,
+    /// The body is a partial one: it can never verify, so no lookup.
+    pub partial: bool,
 }
 
 fn names(list: &[Address]) -> Vec<String> {
@@ -101,16 +105,27 @@ pub(crate) fn render_view(
             ..header
         };
     }
-    let trust = check(
-        raw,
-        &header.from_address,
-        ctx.imap_host,
-        ctx.settings,
-        images,
-        ctx.keys,
-        ctx.failed,
-        ctx.now_ms,
-    );
+    let mut trust = if ctx.verified {
+        Check {
+            verified: true,
+            checkable: true,
+            lookups: Vec::new(),
+        }
+    } else {
+        check(
+            raw,
+            &header.from_address,
+            ctx.imap_host,
+            ctx.settings,
+            images,
+            ctx.keys,
+            ctx.failed,
+            ctx.now_ms,
+        )
+    };
+    if ctx.partial {
+        trust.lookups.clear();
+    }
     let verified = trust.verified;
     header.sender_verified = verified;
     header.sender_checkable = trust.checkable || verified;
@@ -364,6 +379,8 @@ impl Worker<'_> {
             keys: &self.store.keys,
             failed: &failed,
             now_ms: now_ms(),
+            verified: self.verified_for(message.id),
+            partial: message.body == BodyState::Partial,
         };
         let (mut view, unsized_images, lookups) = render_view(raw, images, width_px, &ctx);
         view.is_draft = self
@@ -403,6 +420,7 @@ impl Worker<'_> {
         // Opening it again is the retry of a lookup that failed.
         if let Some(shown) = self.store.shown.as_mut() {
             shown.failed.clear();
+            shown.verified = false;
         }
         let Ok(message) = self.store.db.message(id) else {
             return self.unavailable(id);
@@ -609,6 +627,8 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             keys: &KeyCache::default(),
             failed: &BTreeSet::new(),
             now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -631,6 +651,8 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             keys: &KeyCache::default(),
             failed: &BTreeSet::new(),
             now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -658,6 +680,8 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             keys: &KeyCache::default(),
             failed: &BTreeSet::new(),
             now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,
@@ -690,6 +714,8 @@ Content-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n--XX--\r\n";
             keys: &KeyCache::default(),
             failed: &BTreeSet::new(),
             now_ms: 0,
+            verified: false,
+            partial: false,
             settings: &settings,
             contacts: &[],
             stored: &stored,

@@ -36,6 +36,10 @@ pub(crate) struct Shown {
     /// open; not looked up again until it is opened again. Carried over by
     /// `show()` for the same id, like `sizes`.
     pub failed: BTreeSet<String>,
+    /// The sender was verified during this open: later renders keep it, with
+    /// no new hashing or RSA check and no loss of images when the key's TTL
+    /// ends. `open_message` starts it again.
+    pub verified: bool,
 }
 
 /// Adds to `known` the sizes in `new` that are for an image in `open` (at
@@ -79,6 +83,14 @@ impl Worker<'_> {
             .unwrap_or_default()
     }
 
+    /// Whether message `id` was verified during this open.
+    pub(super) fn verified_for(&self, id: MessageRowId) -> bool {
+        self.store
+            .shown
+            .as_ref()
+            .is_some_and(|s| s.id == id && s.verified)
+    }
+
     /// The reader opens message `id`: sizes reported for another are
     /// dropped.
     pub(super) fn forget_other_shown(&mut self, id: MessageRowId) {
@@ -106,6 +118,7 @@ impl Worker<'_> {
                 open_images,
                 header: view.header.clone(),
                 failed,
+                verified: view.header.sender_verified,
             });
         }
         self.emit(Event::MessageOpened { id, view });
@@ -150,6 +163,9 @@ impl Worker<'_> {
             Err(e) => return log::warn!("reading a cached body: {e}"),
         };
         let (view, open_images, lookups) = self.view(&message, &raw, choice);
+        if let Some(shown) = self.store.shown.as_mut() {
+            shown.verified = view.header.sender_verified;
+        }
         if let Some(shown) = self.store.shown.as_mut()
             && (shown.html != view.html || shown.header != view.header)
         {
