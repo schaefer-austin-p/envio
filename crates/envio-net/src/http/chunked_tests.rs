@@ -349,6 +349,14 @@ fn the_head_is_searched_for_only_in_new_bytes() {
         raw.extend_from_slice(b"yyyyyyyyyy");
         assert!(!scan.complete(&raw));
         assert!(scan.searched() + 3 >= raw.len());
+        // Bytes compared, not just the position: searching from the start
+        // each read would be quadratic, this fails within a few reads.
+        assert!(
+            scan.head_work() <= 2 * raw.len(),
+            "{} bytes compared for {} read",
+            scan.head_work(),
+            raw.len()
+        );
     }
     // A terminator split across two reads is still found.
     raw.extend_from_slice(b"\r\n\r");

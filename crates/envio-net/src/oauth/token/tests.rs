@@ -279,3 +279,37 @@ fn no_match_cases() {
     ));
     assert!(!identity_matches("", &id(Some(""), None)));
 }
+
+#[test]
+fn a_2xx_body_that_is_not_token_json_is_temporary() {
+    let bodies: [&[u8]; 4] = [
+        b"<html>Sign in to the network</html>",
+        b"",
+        br#"{"access_token":"AT","expires_in":"#,
+        b"null",
+    ];
+    for status in [200, 204, 299] {
+        for body in bodies {
+            assert_eq!(
+                parse_token_reply(status, body).err(),
+                Some(TokenError::Temporary),
+                "{status} {body:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn json_that_lacks_a_token_or_a_non_2xx_page_is_still_refused() {
+    assert_eq!(
+        parse_token_reply(200, b"{}").err(),
+        Some(TokenError::Refused("no_access_token".to_owned()))
+    );
+    for s in [302, 400, 401, 403] {
+        assert_eq!(
+            parse_token_reply(s, b"<html>nope</html>").err(),
+            Some(TokenError::Refused("unreadable reply".to_owned())),
+            "{s}"
+        );
+    }
+}

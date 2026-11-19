@@ -160,13 +160,26 @@ async fn a_reply_that_is_not_http_is_temporary() {
 }
 
 #[tokio::test]
-async fn an_html_200_is_not_a_token() {
+async fn an_html_200_is_temporary_not_a_refusal() {
+    // A captive portal answers 200 with its login page. That is not the
+    // provider speaking: retry later, never pause the account.
     let html = "<html><body>Sign in to your network</body></html>";
     let (p, roots, _) = fake(vec![Step::Reply(200, html.into())]).await;
-    assert!(matches!(
-        refreshed(&p, &roots).await,
-        Err(TokenError::Refused(_))
-    ));
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Temporary
+    );
+}
+
+#[tokio::test]
+async fn a_chunked_html_200_is_temporary_not_a_refusal() {
+    let html = "<html><body>Sign in to your network</body></html>";
+    let body = in_chunks(html, 9);
+    let (p, roots, _) = fake(vec![Step::Raw(chunked("200 OK", &body))]).await;
+    assert_eq!(
+        refreshed(&p, &roots).await.unwrap_err(),
+        TokenError::Temporary
+    );
 }
 
 #[tokio::test]

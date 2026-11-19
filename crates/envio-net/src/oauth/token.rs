@@ -81,9 +81,16 @@ pub fn parse_token_reply(status: u16, body: &[u8]) -> Result<Tokens, TokenError>
     if status == 429 || status >= 500 {
         return Err(TokenError::Temporary);
     }
-    let reply: Reply = serde_json::from_slice(body)
-        .map_err(|_| TokenError::Refused("unreadable reply".to_owned()))?;
-    if (200..300).contains(&status) {
+    let success = (200..300).contains(&status);
+    let reply: Reply = match serde_json::from_slice(body) {
+        Ok(reply) => reply,
+        // A 2xx that is not JSON (a captive portal's page, an empty or cut
+        // reply) is not the provider speaking: try again later, never ask
+        // for a sign-in over it.
+        Err(_) if success => return Err(TokenError::Temporary),
+        Err(_) => return Err(TokenError::Refused("unreadable reply".to_owned())),
+    };
+    if success {
         return tokens(reply);
     }
     match reply.error.as_deref() {

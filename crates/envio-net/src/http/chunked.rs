@@ -134,6 +134,8 @@ pub(super) fn dechunk(rest: &[u8]) -> Chunked {
 pub(crate) struct ResponseScan {
     /// How far the head's end has been looked for.
     searched: usize,
+    /// Bytes compared in that search, for the test of its linearity.
+    head_work: usize,
     head: Option<Head>,
     chunks: Dechunker,
 }
@@ -141,7 +143,9 @@ pub(crate) struct ResponseScan {
 impl ResponseScan {
     pub(crate) fn complete(&mut self, raw: &[u8]) -> bool {
         if self.head.is_none() {
-            if !raw[self.searched..].windows(4).any(|w| w == b"\r\n\r\n") {
+            let fresh = &raw[self.searched..];
+            self.head_work += fresh.len();
+            if !fresh.windows(4).any(|w| w == b"\r\n\r\n") {
                 self.searched = raw.len().saturating_sub(3);
                 return false;
             }
@@ -162,6 +166,11 @@ impl ResponseScan {
     #[cfg(test)]
     pub(super) fn searched(&self) -> usize {
         self.searched
+    }
+
+    #[cfg(test)]
+    pub(super) fn head_work(&self) -> usize {
+        self.head_work
     }
 
     #[cfg(test)]
