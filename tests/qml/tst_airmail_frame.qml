@@ -13,6 +13,7 @@ Item {
 
     Theme { id: thm }
     Component { id: coreComponent; MockCore {} }
+    Component { id: freshTheme; Theme { name: "airmail" } }
     AirmailFrame {
         id: frame
         theme: thm
@@ -126,6 +127,17 @@ Item {
             compare(alpha(c, 199, 299), 255)
             compare(alpha(c, 198, 298), 255)
             compare(alpha(c, 100, 150), 0)
+        }
+
+        // The default binding, which init() overrides for the other tests: the
+        // display counts as rounded when the Suru loader answered. The CI image
+        // has the Suru style, so it does here; a platform without it gets
+        // false and radius 0.
+        function test_default_display_follows_the_suru_loader() {
+            const t = freshTheme.createObject(root)
+            compare(t.roundedDisplay, true)
+            compare(t.frameOuterRadius, 30)
+            t.destroy()
         }
 
         function test_rounded_display_keeps_the_bottom_radius() {
