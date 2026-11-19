@@ -221,3 +221,54 @@ fn the_certificate_case_keeps_its_own_button_wording() {
     );
     assert_eq!(actions(&ui), ["Check certificate"]);
 }
+
+fn signin_again(ui: &Ui) -> Vec<bool> {
+    ui.rows(Model::Outbox)
+        .iter()
+        .map(|r| match r {
+            Row::Outbox(o) => o.signin_again,
+            _ => panic!(),
+        })
+        .collect()
+}
+
+#[test]
+fn only_an_oauth_account_that_failed_to_sign_in_is_marked_for_sign_in_again() {
+    let mut ui = Ui::new();
+    let mut ms = info("grace");
+    ms.oauth = true;
+    feed(
+        &mut ui,
+        Event::Started {
+            accounts: vec![ms, info("heidi")],
+            cache: envio_core::CacheState::Existing,
+        },
+    );
+    let Row::Account(a) = &ui.rows(Model::Accounts)[0] else {
+        panic!()
+    };
+    assert!(a.oauth);
+    feed(
+        &mut ui,
+        Event::Outbox {
+            items: vec![
+                queued("1", "grace", OutboxStatus::Queued),
+                queued("2", "heidi", OutboxStatus::Queued),
+            ],
+        },
+    );
+    assert_eq!(signin_again(&ui), [false, false]);
+    status(
+        &mut ui,
+        "grace",
+        AccountStatus::SignInFailed,
+        "Sign in again",
+    );
+    status(
+        &mut ui,
+        "heidi",
+        AccountStatus::SignInFailed,
+        "Sign-in failed",
+    );
+    assert_eq!(signin_again(&ui), [true, false]);
+}

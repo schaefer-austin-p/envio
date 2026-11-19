@@ -229,16 +229,19 @@ fn starting_without_a_provider_is_refused_and_opens_no_browser() {
         email: ME.into(),
         account: None,
     });
-    let mut notices = 0;
+    let mut refused = 0;
     let deadline = Instant::now() + Duration::from_millis(800);
     while Instant::now() < deadline {
         match h.events.recv_timeout(Duration::from_millis(50)) {
-            Ok(Event::Notice { .. }) => notices += 1,
-            Ok(Event::OAuthBrowser { .. } | Event::OAuthDone { .. }) => panic!("a sign-in began"),
+            Ok(Event::OAuthDone { outcome, .. }) => {
+                assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::Unavailable));
+                refused += 1;
+            }
+            Ok(Event::OAuthBrowser { .. }) => panic!("a sign-in began"),
             _ => {}
         }
     }
-    assert_eq!(notices, 1);
+    assert_eq!(refused, 1);
     drop(h.core.take());
 }
 
@@ -260,17 +263,18 @@ fn starting_is_refused_for_other_domains_duplicates_and_password_accounts() {
         tape: Vec::new(),
     };
     let cases = [
-        (ME, None),
-        ("ada@example.org", None),
-        (ME, Some(password_key)),
-        (ME, Some("nobody".to_owned())),
+        (ME, None, OAuthFailure::Duplicate),
+        ("ada@example.org", None, OAuthFailure::Unavailable),
+        (ME, Some(password_key), OAuthFailure::NotOAuth),
+        (ME, Some("nobody".to_owned()), OAuthFailure::NotOAuth),
     ];
-    for (email, account) in cases {
+    for (email, account, why) in cases {
         f.h.send(Command::StartOAuth {
             email: email.into(),
             account,
         });
-        let _ = f.notice();
+        // Every refused start is answered, so the screen does not wait.
+        assert_eq!(f.outcome(), OAuthOutcome::Failed(why), "{email}");
     }
     assert_eq!(f.count("OAuthBrowser"), 0);
     // "Sign in again" for the OAuth account itself begins.
@@ -491,11 +495,10 @@ fn a_token_that_cannot_be_written_takes_the_account_back_out() {
     std::fs::write(blocker.join("keep"), "x").unwrap();
     let state = f.begin(ME);
     f.redirect(&format!("code=c&state={state}"));
-    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::Other));
+    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::NotSaved));
     f.drain();
     assert_eq!(f.count("AccountAdded"), 0);
     assert!(f.saved().is_empty(), "the account stayed");
-    assert!(f.tape.iter().any(|e| e.contains("Notice")));
     let passwords = f.h.data_dir().join("passwords.json");
     assert!(!passwords.exists(), "a password file appeared");
     assert!(blocker.join("keep").exists());
@@ -703,7 +706,7 @@ fn an_account_that_could_not_be_taken_back_out_does_not_block_a_retry() {
     envio_core::hooks::fail_next_account_removal(WHO);
     let state = f.begin(WHO);
     f.redirect(&format!("code=c&state={state}"));
-    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::Other));
+    assert_eq!(f.outcome(), OAuthOutcome::Failed(OAuthFailure::NotSaved));
     assert_eq!(f.saved().len(), 1, "the entry is on disk without a token");
     assert_eq!(f.count("AccountAdded"), 0);
     // The disk is fine again: the same address can sign in, with no
@@ -773,13 +776,9 @@ fn a_token_write_failure_on_sign_in_again_keeps_the_account_paused() {
     std::fs::remove_file(&file).unwrap();
     std::fs::create_dir_all(&file).unwrap();
     let (outcome, mut events) = sign_in_again(&r);
-    assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::Other));
+    assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::NotSaved));
     settle();
     events.extend(r.h.events.try_iter());
-    assert!(
-        events.iter().any(|e| matches!(e, Event::Notice { .. })),
-        "{events:?}"
-    );
     assert!(
         events
             .iter()

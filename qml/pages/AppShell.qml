@@ -218,6 +218,34 @@ Item {
         onOpened: function(uri) { root.openMailto(uri) }
     }
 
+    // The browser's redirect after a Microsoft sign-in comes back as an
+    // `envio-oauth:` link; it waits until the core is up, then goes to it. The
+    // core ignores one it did not ask for.
+    property string pendingRedirect: ""
+    function openRedirect(link) {
+        pendingRedirect = link
+        sendPendingRedirect()
+    }
+    function sendPendingRedirect() {
+        if (pendingRedirect === "" || !core.ready) return
+        const link = pendingRedirect
+        pendingRedirect = ""
+        core.oauthRedirect(link)
+    }
+    Connections {
+        target: root.core
+        function onReadyChanged() { root.sendPendingRedirect() }
+    }
+    Platform.Uri {
+        id: redirects
+        objectName: "redirectUri"
+        schemes: ["envio-oauth"]
+        sourceFile: links.sourceFile
+        onOpened: function(uri) { root.openRedirect(uri) }
+    }
+    // For tests: where a redirect is offered.
+    readonly property alias redirectUri: redirects
+
     // The page that leaves is hidden at once; the new one slides in a little
     // and fades in. The style's own transitions keep both pages (whose roots
     // are transparent) on screen together for about half a second.
@@ -414,6 +442,17 @@ Item {
             onBackRequested: stack.pop()
             onAddRequested: stack.push(wizardPage)
             onUpdatePasswordRequested: stack.push(updatePasswordPage, { account: account, accountName: name })
+            onSignInAgainRequested: stack.push(signInAgainPage, { account: account })
+        }
+    }
+    Component {
+        id: signInAgainPage
+        SignInAgainPage {
+            objectName: "signInAgainPage"
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            onClosed: stack.pop()
         }
     }
     Component {
@@ -431,7 +470,9 @@ Item {
             theme: root.theme
             core: root.core
             outbox: root.outbox
+            accounts: root.accounts
             onAccountsRequested: stack.push(accountsPage)
+            onSignInAgainRequested: function(account) { stack.push(signInAgainPage, { account: account }) }
             onBackRequested: stack.pop()
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }

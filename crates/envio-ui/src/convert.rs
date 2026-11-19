@@ -59,6 +59,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         unread_text: unread_text(info.unread),
         attention: needs_attention(state),
         notify: true,
+        oauth: info.oauth,
         pin: Box::default(),
     }
 }
@@ -132,12 +133,12 @@ pub fn outbox_state(status: &OutboxStatus) -> &'static str {
 }
 
 /// Why a waiting message sits in the Outbox and the button that leads on:
-/// (the account's own words, the button's label). Both empty when nothing
-/// holds it. Two problems do: a changed certificate of the outgoing server,
+/// (the account's own words, the button's label, and whether it is an OAuth
+/// account that must sign in again). Empty when nothing holds it. Two problems do: a changed certificate of the outgoing server,
 /// and a failed sign-in (the status does not say which server, and the
 /// password has to be fixed either way). A changed certificate of the
 /// incoming server alone does not stop sending, so it gives no reason.
-pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String) {
+pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String, bool) {
     if !matches!(r.status, OutboxStatus::Queued) {
         return Default::default();
     }
@@ -145,15 +146,20 @@ pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String)
         return Default::default();
     };
     match a.state.as_str() {
-        "pin" if a.pin.service == "smtp" => {
-            (a.status.clone(), envio_core::check_certificate_label())
-        }
-        "auth" => (a.status.clone(), envio_core::open_accounts_label()),
+        "pin" if a.pin.service == "smtp" => (
+            a.status.clone(),
+            envio_core::check_certificate_label(),
+            false,
+        ),
+        "auth" => (a.status.clone(), envio_core::open_accounts_label(), a.oauth),
         _ => Default::default(),
     }
 }
 
-pub fn outbox_row(r: &OutboxRow, (reason, reason_action): (String, String)) -> Row {
+pub fn outbox_row(
+    r: &OutboxRow,
+    (reason, reason_action, signin_again): (String, String, bool),
+) -> Row {
     let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
@@ -164,6 +170,7 @@ pub fn outbox_row(r: &OutboxRow, (reason, reason_action): (String, String)) -> R
         text: r.text.clone(),
         reason,
         reason_action,
+        signin_again,
     })
 }
 
