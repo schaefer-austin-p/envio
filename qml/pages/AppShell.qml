@@ -93,12 +93,24 @@ Item {
     property bool _wide: false
     function checkWide() {
         if (!theme) return
-        const on = width >= theme.gu(90), off = width < theme.gu(86)
+        const on = width >= theme.gu(90)
+        // A compose in the pane keeps the layout (nothing moves it to the
+        // stack yet: reparenting is T4).
+        const off = width < theme.gu(86) && paneCompose === 0
         if (!_wide && on) _wide = true
-        else if (_wide && off) _wide = false
+        else if (_wide && off) {
+            _wide = false
+            // The narrow list has no reader to go with an open row.
+            if (core.openMessage > 0) core.setOpenMessage(0)
+        }
     }
     onWidthChanged: checkWide()
     onThemeChanged: checkWide()
+    onPaneComposeChanged: checkWide()
+    Connections {
+        target: root.theme
+        function onGridUnitChanged() { root.checkWide() }
+    }
     // The compose the pane shows (an id), 0 for none. `core` has no compose
     // id of its own.
     property int paneCompose: 0
@@ -106,8 +118,12 @@ Item {
     // Compose pages: the core made the compose, the page follows it. Wide,
     // over the list (nothing on top of it), it opens in the pane.
     function composeOpened(compose) {
-        if (wide && stack.depth === 1 && rootKind === "inbox") paneCompose = compose
-        else stack.push(composePage, { compose: compose })
+        if (wide && stack.depth === 1 && rootKind === "inbox") {
+            // One compose in the pane: the one that was there closes first
+            // (its draft stays in Drafts), and its page goes with it.
+            if (paneCompose > 0 && paneCompose !== compose && pane.item !== null) pane.item.leave()
+            paneCompose = compose
+        } else stack.push(composePage, { compose: compose })
     }
     // A tap on a row: the pane when wide, else the reader page.
     function openMessageFromRow(message) {
@@ -229,6 +245,16 @@ Item {
             replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
         }
 
+        // The hairline between the list and the pane.
+        Rectangle {
+            objectName: "paneHairline"
+            visible: pane.visible
+            x: root.theme.gu(50)
+            width: 1
+            height: parent.height
+            color: root.theme.hairline
+            z: 1
+        }
         // The right pane of the wide layout, beside the inbox at the root.
         // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
         // the whole window, so the pane is not shown over them.
@@ -275,6 +301,7 @@ Item {
     Component {
         id: paneComposeC
         ComposePage {
+            wide: true
             theme: root.theme
             core: root.core
             accounts: root.accounts
@@ -299,7 +326,6 @@ Item {
             messages: root.messages
             outbox: root.outbox
             onMessageRequested: root.openMessageFromRow(message)
-            onListChanged: if (root.core.openMessage > 0) root.core.setOpenMessage(0)
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
             onComposeRequested: root.newMessage()
@@ -429,6 +455,15 @@ Item {
                 sentToast.show(text)
             }
         }
+    }
+
+    // Ctrl+N: a new message, from the list.
+    readonly property alias newShortcut: newKey
+    Shortcut {
+        id: newKey
+        sequence: "Ctrl+N"
+        enabled: root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.paneCompose === 0
+        onActivated: root.newMessage()
     }
 
     Toast {

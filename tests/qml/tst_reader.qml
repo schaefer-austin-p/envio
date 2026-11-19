@@ -726,7 +726,31 @@ Item {
             compare(find("bodyCard").width, thm.gu(80))
             compare(root.page.bodyWidth, thm.gu(80) - thm.gu(3))
             root.page.width = thm.gu(60)
-            compare(find("bodyCard").width, thm.gu(60) - thm.gu(4))
+            compare(find("bodyCard").width, thm.gu(60) - thm.gu(10))
+        }
+        function test_wide_reader_column_is_5_gu_from_the_pane_edge() {
+            wideReader()
+            compare(find("bodyCard").mapToItem(root.page, 0, 0).x, thm.gu(5))
+            compare(find("reply").mapToItem(root.page, 0, 0).x, thm.gu(5))
+        }
+        function test_pane_reader_resets_for_the_next_message() {
+            wideReader()
+            const longHtml = "<p>" + new Array(400).join("Hello again. ") + "</p>"
+            mock.messageOpened({ id: 5, html: longHtml, blockedImages: 0, from: "Ana Ruiz", fromAddress: "ana@example.org", to: ["me@example.org"],
+                cc: [], subject: "Invoice", date: 1700000000, account: "ann", senderKnown: false, senderVerified: true, attachments: pdf() })
+            waitForRendering(root.page)
+            const flick = find("readerFlick")
+            flick.contentY = 300
+            root.page.pendingMode = "forward"
+            root.page.calendarPending = true
+            root.page.undoId = 9
+            find("act-more").clicked()
+            root.page.messageId = 6
+            compare(flick.contentY, 0)
+            compare(root.page.pendingMode, "")
+            compare(root.page.calendarPending, false)
+            compare(root.page.undoId, -1)
+            verify(!find("readerMore").opened, "the more sheet stays open")
         }
         function test_narrow_reader_keeps_its_full_width() {
             open(view([], 0))

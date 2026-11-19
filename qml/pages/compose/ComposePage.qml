@@ -19,6 +19,8 @@ Item {
     required property var suggestions
     // The compose id `startCompose` returned.
     property real compose: -1
+    // In the right pane of the wide layout: fields 5 gu in from the edge, 90 gu at most.
+    property bool wide: false
     // The platform's file picker; the tests replace it (the Content Hub only
     // exists on the phone).
     property var importFiles: function() { content.importFiles() }
@@ -208,7 +210,8 @@ Item {
 
         Column {
             id: column
-            width: flick.width
+            width: root.wide ? Math.min(flick.width - root.theme.gu(10), root.theme.gu(90)) : flick.width
+            x: root.wide ? root.theme.gu(5) : 0
             FromRow {
                 width: parent.width
                 labelColumn: root.labelColumn

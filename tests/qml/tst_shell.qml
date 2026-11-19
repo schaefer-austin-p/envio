@@ -378,7 +378,7 @@ Item {
             const empty = find(b.shell, "emptyReader")
             verify(empty !== null, "no empty pane")
             tryVerify(function() { return empty.visible })
-            compare(empty.shortcutHint, qsTr("Or press %1 to write one").arg("Ctrl+N"))
+            compare(empty.shortcutHint, qsTr("Or press %1 to write one."))
             b.shell.destroy()
         }
 
@@ -439,7 +439,9 @@ Item {
             b.shell.currentPage.messageRequested(7)
             compare(b.core.openMessage, 7)
             b.shell.currentPage.showFolder(3, "Archive")
+            // The core clears it (Rust's open_list); the shell does not call setOpenMessage(0) too.
             compare(b.core.openMessage, 0)
+            compare(b.core.called("setOpenMessage").length, 1)
             tryVerify(function() { return find(b.shell, "emptyReader").visible })
             b.shell.destroy()
         }
@@ -456,6 +458,101 @@ Item {
             verify(find(b.shell, "readerPage") !== null, "the reader does not return")
             b.shell.currentPage.showFolder(3, "Archive")
             verify(find(b.shell, "emptyReader") !== null)
+            b.shell.destroy()
+        }
+
+        function test_empty_pane_text_icon_and_keys() {
+            const b = bootWide(100)
+            const empty = find(b.shell, "emptyReader")
+            compare(find(empty, "emptyIcon").name, "mailopen")
+            const title = find(empty, "emptyTitle")
+            compare(title.font.pixelSize, 18)
+            compare(title.font.family, thm.fontUi)
+            verify(title.text.endsWith("."), "the title has no full stop")
+            verify(empty.shortcutHint.endsWith("."), "the hint has no full stop")
+            let keys = []
+            ;(function walk(it) {
+                if (it.objectName === "keyChip") keys.push(it.text)
+                for (let i = 0; i < it.children.length; i++) walk(it.children[i])
+            })(empty)
+            compare(keys, [qsTr("Ctrl"), "N"])
+            b.shell.destroy()
+        }
+
+        function test_hairline_between_list_and_pane() {
+            const b = bootWide(100)
+            const line = find(b.shell, "paneHairline")
+            verify(line !== null && line.visible, "no hairline")
+            compare(line.width, 1)
+            compare(line.x, thm.gu(50))
+            compare(line.color, thm.hairline)
+            b.shell.destroy()
+        }
+        function test_no_hairline_when_narrow() {
+            const b = bootWide(70)
+            verify(!find(b.shell, "paneHairline").visible)
+            b.shell.destroy()
+        }
+
+        function test_second_compose_closes_the_first() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            b.core.composeReady(1, { to: [], cc: [], bcc: [], subject: "one", body: "", account: "ann", attachments: [] }, "")
+            b.core.reset()
+            b.shell.composeOpened(2)
+            compare(b.core.called("closeCompose").map(function(c) { return c.args }), [[1, false]])
+            compare(b.shell.paneCompose, 2)
+            const page = find(b.shell, "composePage")
+            compare(page.compose, 2)
+            verify(!page.filled, "the new compose shows the old one's fields")
+            b.core.reset()
+            page.edited()
+            compare(b.core.called("draftChanged").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_keeps_the_pane_while_composing() {
+            const b = bootWide(100)
+            b.shell.composeOpened(4)
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, true)
+            verify(find(b.shell, "composePage") !== null, "the compose page is gone")
+            compare(b.core.called("closeCompose").length, 0)
+            b.shell.paneCompose = 0
+            compare(b.shell.wide, false)
+            b.shell.destroy()
+        }
+
+        function test_narrowing_clears_the_open_message() {
+            const b = bootWide(100)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            b.shell.width = thm.gu(80)
+            compare(b.shell.wide, false)
+            compare(b.core.openMessage, 0)
+            compare(b.core.messages.get(0).open, false)
+            b.shell.destroy()
+        }
+
+        function test_ctrl_n_opens_a_new_message_in_the_pane() {
+            const b = bootWide(100)
+            verify(b.shell.newShortcut.enabled)
+            b.shell.newShortcut.activated()
+            compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
+            compare(b.shell.paneCompose, 1)
+            // With compose open the key does nothing more.
+            verify(!b.shell.newShortcut.enabled)
+            b.shell.destroy()
+        }
+
+        function test_wide_compose_is_inset_and_capped() {
+            const b = bootWide(200)
+            b.shell.composeOpened(4)
+            b.core.composeReady(4, { to: [], cc: [], bcc: [], subject: "", body: "", account: "ann", attachments: [] }, "")
+            const page = find(b.shell, "composePage")
+            const to = find(page, "to")
+            compare(to.mapToItem(page, 0, 0).x, thm.gu(5))
+            compare(to.width, thm.gu(90))
             b.shell.destroy()
         }
 

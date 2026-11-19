@@ -85,7 +85,8 @@ Item {
     function setAccountLabel(account, label) { record("setAccountLabel", [account, label]) }
     function listFolders(account) { record("listFolders", [account]) }
     function drawerAccount(account) { record("drawerAccount", [account]) }
-    function openList(kind, id) { record("openList", [kind, id]) }
+    // Like Rust's open_list: the open message goes with the old list.
+    function openList(kind, id) { record("openList", [kind, id]); clearOpen() }
     function more() { record("more", []) }
     function loadOlder() { record("loadOlder", []) }
     function loadOlderNearEnd() { record("loadOlderNearEnd", []) }
@@ -93,6 +94,10 @@ Item {
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
     function select(id, on) { record("select", [id, on]) }
+    function clearOpen() {
+        openMessage = 0
+        for (let i = 0; i < messages.count; i++) messages.setProperty(i, "open", false)
+    }
     function setOpenMessage(id) {
         record("setOpenMessage", [id])
         openMessage = id

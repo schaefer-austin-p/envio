@@ -12,9 +12,9 @@ PageFooter {
     signal forwardRequested()
 
     Row {
-        // Under the text column when the pane is wider than the measure.
+        // Under the text column, which starts 5 gu in (the footer body starts at 2).
         width: root.wide ? root.theme.gu(40) + spacing : parent.width
-        x: root.wide ? Math.max(0, (parent.width - Math.min(parent.width, root.theme.gu(80))) / 2) : 0
+        x: root.wide ? root.theme.gu(3) : 0
         spacing: root.theme.gu(1.25)
         AppButton {
             id: reply
