@@ -216,6 +216,10 @@ pub struct MessageHeader {
     pub account: String,
     /// The sender is in the contacts or is allowed to load images.
     pub sender_known: bool,
+    /// The account's server vouched for the From address (see
+    /// `envio_mime::sender_verified`); "always load from this sender" only
+    /// works for such mail.
+    pub sender_verified: bool,
 }
 
 /// One address offered while typing a recipient.

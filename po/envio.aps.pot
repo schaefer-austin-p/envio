@@ -92,7 +92,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:412
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:413
 msgid "Try again"
 msgstr ""
 
@@ -480,7 +480,7 @@ msgstr ""
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:485
+#: qml/pages/inbox/InboxPage.qml:253 qml/pages/reader/ReaderPage.qml:486
 msgid "Undo"
 msgstr ""
 
@@ -582,17 +582,17 @@ msgstr ""
 msgid "Account"
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:16
+#: qml/pages/reader/ImagesBanner.qml:19
 msgid ""
 "Remote images are blocked. They can tell the sender when and where you "
 "opened this."
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:32
+#: qml/pages/reader/ImagesBanner.qml:35
 msgid "Load images"
 msgstr ""
 
-#: qml/pages/reader/ImagesBanner.qml:38
+#: qml/pages/reader/ImagesBanner.qml:42
 msgid "Always for this sender"
 msgstr ""
 
@@ -680,7 +680,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:390
+#: qml/pages/reader/ReaderPage.qml:391
 msgid "Loading…"
 msgstr ""
 

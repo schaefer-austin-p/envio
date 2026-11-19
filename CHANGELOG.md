@@ -19,6 +19,15 @@ All notable changes to Envio are listed here. The format follows
 
 ### Fixed
 
+- "Always load images from this sender" and the known-sender cue now apply
+  only when your own mail provider's `Authentication-Results` header (its
+  authserv-id must match your IMAP server's domain) says the From domain
+  passed DKIM, SPF or DMARC. A forged From address no longer loads images
+  or shows as known. Only the topmost header counts, and only when your
+  server's name is trusted. A server that adds no header of its own, and
+  servers that add an unnamed one (such as Outlook and Exchange), are known
+  gaps (#285). Mail without a verified header is unverified, and "Always
+  for this sender" is hidden on it (#156).
 - Load older no longer comes back with nothing new under your scroll
   position when a batch held only mail dated newer than the last row
   shown (mail imported out of date order): it fetches on to the next

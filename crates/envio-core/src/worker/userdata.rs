@@ -23,18 +23,34 @@ fn matches(contact: &Contact, query: &str) -> bool {
 }
 
 /// Whether remote images load for a sender, with no word from the user.
-pub(super) fn loads_images(settings: &Settings, choice: ImagesChoice, sender: &str) -> bool {
+/// An allowed sender counts only when `verified` (the server vouched for
+/// the From address): a forged From must not earn the allow.
+pub(super) fn loads_images(
+    settings: &Settings,
+    choice: ImagesChoice,
+    sender: &str,
+    verified: bool,
+) -> bool {
     match choice {
         ImagesChoice::Load => true,
         ImagesChoice::Default => {
             settings.images == ImagesDefault::Always
-                || settings.images_from.contains(&sender.trim().to_lowercase())
+                || (verified && settings.images_from.contains(&sender.trim().to_lowercase()))
         }
     }
 }
 
-/// The sender is a saved contact or an allowed image sender.
-pub(super) fn is_known(settings: &Settings, contacts: &[Contact], sender: &str) -> bool {
+/// The sender is a saved contact or an allowed image sender, and the
+/// server vouched for the From address (`verified`).
+pub(super) fn is_known(
+    settings: &Settings,
+    contacts: &[Contact],
+    sender: &str,
+    verified: bool,
+) -> bool {
+    if !verified {
+        return false;
+    }
     let sender = sender.trim().to_lowercase();
     settings.images_from.contains(&sender)
         || contacts
@@ -245,33 +261,44 @@ mod tests {
     }
 
     #[test]
-    fn default_loads_images_for_an_allowed_sender_or_when_always() {
+    fn default_loads_images_for_a_verified_allowed_sender_or_when_always() {
         let ask = settings(ImagesDefault::Ask, &["ada@example.org"]);
-        assert!(loads_images(&ask, ImagesChoice::Default, "Ada@Example.org"));
-        assert!(!loads_images(
-            &ask,
-            ImagesChoice::Default,
-            "eve@example.org"
-        ));
-        assert!(loads_images(&ask, ImagesChoice::Load, "eve@example.org"));
+        let load = |s: &Settings, c, who, v| loads_images(s, c, who, v);
+        assert!(load(&ask, ImagesChoice::Default, "Ada@Example.org", true));
+        assert!(!load(&ask, ImagesChoice::Default, "eve@example.org", true));
+        assert!(load(&ask, ImagesChoice::Load, "eve@example.org", false));
         let always = settings(ImagesDefault::Always, &[]);
-        assert!(loads_images(
+        assert!(load(
             &always,
             ImagesChoice::Default,
-            "eve@example.org"
+            "eve@example.org",
+            false
         ));
     }
 
     #[test]
-    fn a_contact_or_allowed_sender_is_known() {
+    fn an_allowed_sender_is_not_trusted_unverified() {
+        let ask = settings(ImagesDefault::Ask, &["ada@example.org"]);
+        assert!(!loads_images(
+            &ask,
+            ImagesChoice::Default,
+            "ada@example.org",
+            false
+        ));
+    }
+
+    #[test]
+    fn a_contact_or_allowed_sender_is_known_only_when_verified() {
         let contacts = [Contact {
             name: "Bob".into(),
             address: "Bob@example.org".into(),
         }];
         let s = settings(ImagesDefault::Ask, &["ada@example.org"]);
-        assert!(is_known(&s, &contacts, "bob@example.org"));
-        assert!(is_known(&s, &contacts, "ADA@example.org"));
-        assert!(!is_known(&s, &contacts, "eve@example.org"));
+        assert!(is_known(&s, &contacts, "bob@example.org", true));
+        assert!(is_known(&s, &contacts, "ADA@example.org", true));
+        assert!(!is_known(&s, &contacts, "eve@example.org", true));
+        assert!(!is_known(&s, &contacts, "bob@example.org", false));
+        assert!(!is_known(&s, &contacts, "ADA@example.org", false));
     }
 
     #[test]
