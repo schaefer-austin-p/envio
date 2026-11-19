@@ -49,6 +49,16 @@ pub fn no_sender() -> String {
     tr("(no sender)")
 }
 
+/// The line a Drafts row shows in place of the sender: who the draft is for.
+pub fn to_recipients(recipients: &str) -> String {
+    fill(&tr("To: {recipients}"), &[("recipients", recipients)])
+}
+
+/// What `to_recipients` lists for a draft with no recipient yet.
+pub fn no_recipients_listed() -> String {
+    tr("(no recipients)")
+}
+
 /// Shown in a list row whose message has a blank subject.
 pub fn no_subject() -> String {
     tr("(no subject)")

@@ -103,18 +103,28 @@ pub fn bracketed(message_id: &str) -> String {
     format!("<{message_id}>")
 }
 
+/// `Name <email>` for the cached list. A name that holds an address special
+/// (a comma, `@`, quote, bracket) is quoted with `\` escapes, so a reader
+/// can split the comma-joined list again.
+fn shown_address(address: &envio_mime::Address) -> String {
+    match &address.name {
+        Some(name) if name.contains(|c| ",;:@<>()[]\"\\".contains(c)) => {
+            let escaped = name.replace('\\', "\\\\").replace('"', "\\\"");
+            format!("\"{escaped}\" <{}>", address.email)
+        }
+        _ => address.display(),
+    }
+}
+
 fn store_envelope(parsed: &envio_mime::Envelope, arrived: i64) -> Envelope {
-    let shown = |list: &[envio_mime::Address]| {
-        list.iter()
-            .map(envio_mime::Address::display)
-            .collect::<Vec<_>>()
-            .join(", ")
+    let shown = |list: &[envio_mime::Address], one: fn(&envio_mime::Address) -> String| {
+        list.iter().map(one).collect::<Vec<_>>().join(", ")
     };
     Envelope {
         message_id: parsed.message_id.as_deref().map(bracketed),
         subject: parsed.subject.clone(),
-        from: shown(&parsed.from),
-        to: shown(&parsed.to),
+        from: shown(&parsed.from, envio_mime::Address::display),
+        to: shown(&parsed.to, shown_address),
         date: parsed.date.unwrap_or(arrived),
         in_reply_to: parsed.in_reply_to.as_deref().map(bracketed),
         references: parsed.references.iter().map(|id| bracketed(id)).collect(),
@@ -125,6 +135,16 @@ fn store_envelope(parsed: &envio_mime::Envelope, arrived: i64) -> Envelope {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_recipient_name_with_a_special_is_cached_quoted() {
+        let plain = envio_mime::Address::new(Some("Cy"), "cy@example.org");
+        assert_eq!(shown_address(&plain), "Cy <cy@example.org>");
+        let comma = envio_mime::Address::new(Some("jo@x, Inc"), "a@example.org");
+        assert_eq!(shown_address(&comma), r#""jo@x, Inc" <a@example.org>"#);
+        let quote = envio_mime::Address::new(Some(r#"A"B\"#), "a@example.org");
+        assert_eq!(shown_address(&quote), r#""A\"B\\" <a@example.org>"#);
+    }
 
     fn summary(header: &[u8]) -> Summary {
         Summary {

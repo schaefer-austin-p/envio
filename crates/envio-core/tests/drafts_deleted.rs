@@ -127,3 +127,49 @@ fn a_replay_that_fails_after_the_commit_still_forgets_the_draft() {
         "the failed replay left the draft"
     );
 }
+
+#[test]
+fn forgetting_a_deleted_draft_tells_the_drafts_list() {
+    let (mut h, _server, folder, _drafts, _id) = seeded();
+    h.start_core();
+    let list = ListRef::Folder(folder);
+    h.send(Command::ListMessages { list, after: None });
+    let rows = h.wait(|e| match e {
+        Event::Messages { rows, .. } => Some(rows.clone()),
+        _ => None,
+    });
+    h.send(Command::Act {
+        ids: vec![rows[0].id],
+        action: UserAction::Delete,
+    });
+    // The Undo window (5 s) holds the delete back, then the replay runs.
+    let end = Instant::now() + Duration::from_secs(20);
+    loop {
+        let left = end.saturating_duration_since(Instant::now());
+        match h.events.recv_timeout(left) {
+            Ok(Event::LocalDraftsChanged { .. }) => break,
+            Ok(_) => {}
+            Err(_) => panic!("the list was never told"),
+        }
+    }
+}
+
+#[test]
+fn an_upload_attempt_tells_the_drafts_list() {
+    let (mut h, _server, _folder, drafts, _id) = seeded();
+    // A second draft that was never uploaded: the sync tries it. The fake
+    // server's answer decides whether it is uploaded or failed; either
+    // changes what the list shows.
+    let key = drafts.list().unwrap()[0].1.account.clone();
+    drafts
+        .create(&Draft {
+            account: key,
+            to: vec!["ada@example.org".into()],
+            body: "new".into(),
+            updated_at_ms: 6,
+            ..Draft::default()
+        })
+        .unwrap();
+    h.start_core();
+    h.wait(|e| matches!(e, Event::LocalDraftsChanged { .. }).then_some(()));
+}
