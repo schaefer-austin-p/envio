@@ -1,9 +1,10 @@
 //! Keeps the server's Drafts folder in step with the local drafts: a saved
 //! draft that was left is appended (flags \Draft and \Seen), its older copy
 //! is deleted after that, and the copy of a draft that was sent or
-//! discarded is deleted. Local drafts are never touched here beyond the
-//! note of which server copy they have; a failure leaves everything to be
-//! retried. Copies are found by Message-ID, so no UID is kept.
+//! discarded is deleted. Local drafts are not touched here beyond the
+//! note of which server copy they have, except by `forget_deleted_drafts`,
+//! which removes a draft whose server copy the user deleted. A failure
+//! leaves everything to be retried. Copies are found by Message-ID, so no UID is kept.
 
 use std::collections::BTreeSet;
 
@@ -200,8 +201,14 @@ pub fn forget_deleted_drafts(
     }
     let folders = db.folders(account)?;
     let ids = drafts_to_forget(&committed, &folders, &drafts.list()?, open);
-    for id in &ids {
-        drafts.delete(id)?;
+    let mut removed = Vec::new();
+    for (id, message_id) in ids {
+        // One draft that cannot be removed must not keep the others.
+        match drafts.forget_if_uploaded(&id, &message_id) {
+            Ok(true) => removed.push(id),
+            Ok(false) => {}
+            Err(error) => log::warn!("draft {id}: removing it after its copy was deleted: {error}"),
+        }
     }
-    Ok(ids)
+    Ok(removed)
 }

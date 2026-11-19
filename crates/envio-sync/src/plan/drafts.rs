@@ -41,7 +41,7 @@ pub fn replaced<'a>(server: &'a ServerCopy, new: &str) -> Option<&'a str> {
     server.message_id.as_deref().filter(|old| *old != new)
 }
 
-/// Ids of the local drafts whose server copy the user has just deleted (or
+/// Ids (with the Message-ID of the deleted copy) of the local drafts whose server copy the user has just deleted (or
 /// moved to Trash) in the Drafts folder: their files must go, or Upload or
 /// Edit would bring the draft back. `done` are actions the server has now
 /// taken, so an Undo is over. A draft stays when its window is open, or
@@ -52,7 +52,7 @@ pub fn drafts_to_forget(
     folders: &[Folder],
     drafts: &[(String, Draft)],
     open: &BTreeSet<String>,
-) -> Vec<String> {
+) -> Vec<(String, String)> {
     let role_of = |path: &str| folders.iter().find(|f| f.path == path).map(|f| f.role);
     let mut ids = Vec::new();
     for action in done {
@@ -74,9 +74,9 @@ pub fn drafts_to_forget(
                 && server.message_id.as_deref() == Some(message_id)
                 && server.uploaded_ms == draft.updated_at_ms
                 && !open.contains(id)
-                && !ids.contains(id)
+                && !ids.iter().any(|(known, _)| known == id)
             {
-                ids.push(id.clone());
+                ids.push((id.clone(), message_id.to_owned()));
             }
         }
     }
@@ -201,6 +201,9 @@ mod tests {
 
     fn forget(done: &[Action], drafts: &[(String, Draft)]) -> Vec<String> {
         drafts_to_forget(done, &folders(), drafts, &BTreeSet::new())
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
     }
 
     #[test]
@@ -237,6 +240,14 @@ mod tests {
     fn a_draft_with_newer_unsent_edits_is_kept() {
         let done = [action("Drafts", Some("<m@x>"), ActionKind::Delete)];
         assert!(forget(&done, &mine(6, 5)).is_empty());
+    }
+
+    #[test]
+    fn a_draft_of_another_account_with_the_same_message_id_is_kept() {
+        let done = [action("Drafts", Some("<m@x>"), ActionKind::Delete)];
+        let mut others = mine(5, 5);
+        others[0].1.account = "b".into();
+        assert!(forget(&done, &others).is_empty());
     }
 
     #[test]

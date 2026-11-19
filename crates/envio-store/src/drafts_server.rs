@@ -133,6 +133,32 @@ impl Drafts {
         Ok(())
     }
 
+    /// The server copy `message_id` of this draft was deleted by the user
+    /// (and the server has it): removes the draft file and its files, and
+    /// writes no note, since the copy is already gone and a note would
+    /// expunge a copy the user restores later. Checked and done under the
+    /// lock: false, with nothing removed, when the draft is gone, names
+    /// another copy, or has a save the copy lacks (unsent work stays).
+    pub fn forget_if_uploaded(&self, id: &str, message_id: &str) -> Result<bool> {
+        if !is_key(id) {
+            return Err(StoreError::NotFound);
+        }
+        let _held = self.held();
+        let draft = match self.load(id) {
+            Ok(draft) => draft,
+            Err(StoreError::NotFound) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        let server = &draft.server;
+        if server.message_id.as_deref() != Some(message_id)
+            || server.uploaded_ms != draft.updated_at_ms
+        {
+            return Ok(false);
+        }
+        self.remove_locked(id)?;
+        Ok(true)
+    }
+
     /// An upload is about to begin with `message_id`. False when the draft
     /// is gone.
     pub fn mark_uploading(&self, id: &str, message_id: &str) -> Result<bool> {

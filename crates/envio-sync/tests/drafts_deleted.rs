@@ -98,6 +98,8 @@ async fn a_delete_in_drafts_removes_the_local_draft_after_it_reached_the_server(
     assert_eq!(gone, std::slice::from_ref(&id));
     assert!(store.drafts.load(&id).is_err());
     assert!(store.drafts.list().unwrap().is_empty());
+    // No note: a copy the user restores later must not be expunged.
+    assert!(store.drafts.deletes().unwrap().is_empty());
 }
 
 #[tokio::test]

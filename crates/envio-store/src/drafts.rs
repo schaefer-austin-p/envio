@@ -237,6 +237,12 @@ impl Drafts {
         check(id)?;
         let _held = self.held();
         self.note_server_copy(id)?;
+        self.remove_locked(id)
+    }
+
+    /// Removes the draft file and its files with `lock` held, and leaves no
+    /// note for the server copy.
+    pub(crate) fn remove_locked(&self, id: &str) -> Result<()> {
         // A marker first: when the file can't be removed (a disk or
         // permission error), the draft stays hidden and the next start
         // removes it, so a sent draft never comes back. Best effort.

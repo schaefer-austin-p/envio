@@ -222,15 +222,7 @@ pub(super) async fn replay(
         .await
         .map_err(|e| imap_error(&e))?;
     worker.report_replayed(account, &replayed);
-    let open = worker.book.open_drafts();
-    if let Err(error) = driver::forget_deleted_drafts(
-        (&worker.store.db, &worker.store.drafts),
-        account,
-        &replayed.committed,
-        &open,
-    ) {
-        log::warn!("account {account}: removing drafts deleted on the server: {error}");
-    }
+    worker.forget_deleted_drafts(account, &replayed);
     // A replay that stopped, Local included, is the account's problem.
     match replayed.stopped {
         Some(kind) => Err(problem::from_kind(kind)),
@@ -239,6 +231,20 @@ pub(super) async fn replay(
 }
 
 impl Worker<'_> {
+    /// Removes the local drafts whose Drafts-folder copy the replay has
+    /// just deleted or moved to Trash, except drafts open in a window.
+    pub(super) fn forget_deleted_drafts(&mut self, account: &str, replayed: &Replayed) {
+        let open = self.book.open_drafts();
+        if let Err(error) = driver::forget_deleted_drafts(
+            (&self.store.db, &self.store.drafts),
+            account,
+            &replayed.committed,
+            &open,
+        ) {
+            log::warn!("account {account}: removing drafts deleted on the server: {error}");
+        }
+    }
+
     /// Tells the user what a replay reverted or gave up, and has the
     /// folders of those messages synced so the screen shows the server.
     pub(super) fn report_replayed(&mut self, account: &str, replayed: &Replayed) {
@@ -341,5 +347,66 @@ mod tests {
         assert!(sink.events().iter().any(
             |e| matches!(e, Event::MessagesChanged { folders } if folders == &[seeded.folder])
         ));
+    }
+    #[test]
+    fn a_replayed_delete_in_drafts_forgets_the_accounts_closed_drafts_only() {
+        use crate::api::command::{ComposeId, DraftInput};
+        use crate::compose::DRAFT_SAVE_MS;
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker
+            .store
+            .db
+            .upsert_folder(&seeded.account, "Drafts", envio_store::FolderRole::Drafts)
+            .unwrap();
+        let draft = |account: &str, body: &str| envio_store::Draft {
+            account: account.into(),
+            body: body.into(),
+            updated_at_ms: 5,
+            ..envio_store::Draft::default()
+        };
+        let uploaded = |account: &str, body: &str| {
+            let id = worker.store.drafts.create(&draft(account, body)).unwrap();
+            worker.store.drafts.mark_uploaded(&id, "<m@x>", 5).unwrap();
+            id
+        };
+        let closed = uploaded(&seeded.account, "closed");
+        let other = uploaded("someone-else", "other account");
+        // A draft in an open window, with the same Message-ID.
+        let input = DraftInput {
+            account: seeded.account.clone(),
+            body: "open".into(),
+            ..DraftInput::default()
+        };
+        worker.book.changed(ComposeId(7), input, 0);
+        worker.book.save_due(DRAFT_SAVE_MS);
+        let open_id = worker.book.open_drafts().into_iter().next().unwrap();
+        let updated = worker.store.drafts.load(&open_id).unwrap().updated_at_ms;
+        worker
+            .store
+            .drafts
+            .mark_uploaded(&open_id, "<m@x>", updated)
+            .unwrap();
+        let replayed = Replayed {
+            committed: vec![Action {
+                seq: 1,
+                at_ms: 0,
+                target: MessageRef {
+                    account: seeded.account.clone(),
+                    folder: "Drafts".into(),
+                    uidvalidity: 1,
+                    uid: 1,
+                    message_id: Some("<m@x>".into()),
+                },
+                kind: ActionKind::Delete,
+            }],
+            ..Replayed::default()
+        };
+        worker.forget_deleted_drafts(&seeded.account, &replayed);
+        assert!(worker.store.drafts.load(&closed).is_err(), "forgotten");
+        assert!(worker.store.drafts.load(&open_id).is_ok(), "open: kept");
+        assert!(worker.store.drafts.load(&other).is_ok(), "other account");
     }
 }
