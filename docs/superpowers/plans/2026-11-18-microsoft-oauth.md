@@ -197,6 +197,8 @@ impl AccountSettings { pub fn is_oauth(&self) -> bool }
 
 **Files:** new `crates/envio-core/src/worker/token.rs` (the single-flight refresher), `worker/conn.rs` (`login` becomes `Login`, `connect_imap`/`connect_smtp` take it), `worker/open.rs` (the background IDLE open resolves its login inside the future), `worker/run/mail.rs` (Outbox connect), `problem.rs`, `text/status.rs` and `health.rs` (wording), `core.rs` (`Config.oauth: Vec<Provider>`, default `Provider::microsoft()` if any).
 
+**Lasting connection faults (from T3):** the token client maps every TLS and certificate fault to `TokenError::Temporary` (a wrong clock or a captive portal clears by itself), so a lasting one, for example roots that no longer vouch for the token host, retries as `Temporary` indefinitely; T5 must show a lasting offline or connection-problem state for it, not spin silently.
+
 **Produces:**
 ```rust
 /// What a connect needs, resolved without awaiting (clone-cheap handles, no &Worker borrow).

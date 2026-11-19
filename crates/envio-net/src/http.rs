@@ -254,16 +254,24 @@ pub fn finish_reply(raw: &[u8], clean: bool) -> Reply {
     }
 }
 
+const CHUNK: usize = 8192;
+/// The most `read_reply` can hold: it stops once the buffer passes
+/// `MAX_HEAD + MAX_BODY`, and the last read adds at most one chunk.
+const READ_CAPACITY: usize = MAX_HEAD + MAX_BODY + CHUNK;
+
 /// Reads until the reply is complete, the peer closes, or the reply is
 /// over the cap. The flag is false when the peer dropped TCP without
 /// close_notify (rustls reports that as `UnexpectedEof`): what was read may
 /// be cut short.
+///
+/// The reply may hold tokens, so the buffer is zeroed on drop (including on
+/// an early error) and is allocated once at its largest size: growing it
+/// would free the old copy without zeroing it.
 pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
     stream: &mut R,
-) -> io::Result<(Vec<u8>, bool)> {
-    let mut raw = Vec::new();
-    // The reply may hold tokens: no stale copy on the stack.
-    let mut chunk = Zeroizing::new([0u8; 8192]);
+) -> io::Result<(Zeroizing<Vec<u8>>, bool)> {
+    let mut raw = Zeroizing::new(Vec::with_capacity(READ_CAPACITY));
+    let mut chunk = Zeroizing::new([0u8; CHUNK]);
     while !reply_complete(&raw) && raw.len() <= MAX_HEAD + MAX_BODY {
         match stream.read(&mut chunk[..]).await {
             Ok(0) => break,
@@ -278,6 +286,20 @@ pub(crate) async fn read_reply<R: AsyncRead + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_reply_at_the_cap_never_reallocates_the_buffer() {
+        // No Content-Length and more than the cap: read until it stops.
+        let mut wire = b"HTTP/1.0 200 OK\r\n\r\n".to_vec();
+        wire.resize(MAX_HEAD + MAX_BODY + 3 * CHUNK, b'a');
+        let (raw, clean) = read_reply(&mut &wire[..]).await.unwrap();
+        assert!(clean);
+        assert!(raw.len() > MAX_BODY);
+        assert_eq!(
+            raw.capacity(),
+            Vec::<u8>::with_capacity(READ_CAPACITY).capacity()
+        );
+    }
 
     #[test]
     fn an_unclean_end_refuses_a_reply_without_a_length() {

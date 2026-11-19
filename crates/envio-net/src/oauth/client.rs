@@ -95,7 +95,6 @@ async fn round_trip(
     let mut stream = tls::connect(&endpoint, roots).await?;
     stream.write_all(request(&url, body).as_bytes()).await?;
     let (raw, clean) = http::read_reply(&mut stream).await?;
-    let raw = Zeroizing::new(raw);
     Ok(match http::parse_response(&raw, clean) {
         Ok((status, reply)) => Ok((status, Zeroizing::new(reply))),
         // A body over the cap is not a token endpoint's reply (a captive
