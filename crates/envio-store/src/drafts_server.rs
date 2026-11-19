@@ -148,7 +148,18 @@ impl Drafts {
             return Err(StoreError::NotFound);
         }
         let _held = self.held();
-        let draft = match self.load(id) {
+        let loaded = if self
+            .corrupt_next_forget
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+        {
+            Err(StoreError::BadRecord {
+                file: self.path(id).display().to_string(),
+                reason: "injected".into(),
+            })
+        } else {
+            self.load(id)
+        };
+        let draft = match loaded {
             Ok(draft) => draft,
             Err(StoreError::NotFound) => return Ok(false),
             Err(error) => return Err(error),

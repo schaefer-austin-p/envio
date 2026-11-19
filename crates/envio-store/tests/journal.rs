@@ -377,3 +377,21 @@ fn an_intent_added_after_a_torn_line_survives_reopening() {
         [first.seq, second.seq]
     );
 }
+
+#[test]
+fn an_intent_write_cut_short_does_not_swallow_the_retry() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("actions.journal");
+    let mut journal = Journal::open(&path).unwrap();
+    let action = journal.push(0, target(1), ActionKind::Delete).unwrap();
+    // The first attempt writes half the line and fails (a full disk).
+    journal.fail_next_intent_write();
+    assert!(journal.commit(action.seq).is_err());
+    assert_eq!(seqs(&journal), [action.seq], "still pending");
+    // The retry succeeds; before a crash the intent must be on disk whole.
+    journal.commit(action.seq).unwrap();
+    drop(journal);
+    let owed = Journal::open(&path).unwrap().to_forget("1700");
+    assert_eq!(owed.len(), 1, "the intent survives a restart");
+    assert_eq!(owed[0].seq, action.seq);
+}

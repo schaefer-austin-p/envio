@@ -268,3 +268,18 @@ async fn a_transient_io_error_keeps_the_intent_and_a_later_run_forgets_the_draft
     assert!(store.drafts.load(&id).is_err());
     assert!(store.journal.to_forget(ACCOUNT).is_empty());
 }
+
+#[tokio::test]
+async fn a_draft_that_turns_unreadable_is_left_and_its_intent_settles() {
+    let (mut server, mut store) = setup().await;
+    let id = uploaded(&mut server, &mut store, "text").await;
+    queue(&mut store, ActionKind::Delete);
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    // The file is damaged after the listing: a retry cannot fix that.
+    store.drafts.corrupt_next_forget();
+    assert!(forget(&mut store, &BTreeSet::new()).is_empty());
+    assert!(store.drafts.load(&id).is_ok(), "the file is left in place");
+    assert!(store.journal.to_forget(ACCOUNT).is_empty(), "settled");
+}

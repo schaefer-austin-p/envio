@@ -16,6 +16,11 @@ use crate::private::open_private_append;
 pub(crate) struct Intents {
     path: PathBuf,
     actions: Vec<Action>,
+    /// A failed append may have left a fragment without a newline: the
+    /// file is rewritten from memory before the next append.
+    torn: bool,
+    /// Test seam: the next append writes half its line, then fails.
+    short_write: bool,
 }
 
 impl Intents {
@@ -41,7 +46,12 @@ impl Intents {
             Err(error) if error.kind() == io::ErrorKind::NotFound => (Vec::new(), true),
             Err(error) => return Err(error.into()),
         };
-        let intents = Self { path, actions };
+        let intents = Self {
+            path,
+            actions,
+            torn: false,
+            short_write: false,
+        };
         // A torn line would swallow the next one appended to it: rewrite.
         if !clean {
             intents.rewrite()?;
@@ -73,17 +83,38 @@ impl Intents {
         if self.actions.iter().any(|a| a.seq == action.seq) {
             return Ok(());
         }
+        if self.torn {
+            self.rewrite()?;
+            self.torn = false;
+        }
         let mut line = serde_json::to_vec(action).expect("actions always serialize");
         line.push(b'\n');
         let existed = self.path.exists();
-        let mut file = open_private_append(&self.path)?;
-        file.write_all(&line)?;
-        file.sync_data()?;
+        if let Err(error) = self.append(&line) {
+            // Part of the line may be in the file; it would swallow the next.
+            self.torn = true;
+            return Err(error.into());
+        }
         if !existed && let Some(dir) = self.path.parent().filter(|d| !d.as_os_str().is_empty()) {
             File::open(dir)?.sync_all()?;
         }
         self.actions.push(action.clone());
         Ok(())
+    }
+
+    fn append(&mut self, line: &[u8]) -> io::Result<()> {
+        let mut file = open_private_append(&self.path)?;
+        if std::mem::take(&mut self.short_write) {
+            file.write_all(&line[..line.len() / 2])?;
+            return Err(io::Error::other("injected short write"));
+        }
+        file.write_all(line)?;
+        file.sync_data()
+    }
+
+    /// Test seam: the next append writes half its line, then fails.
+    pub fn fail_next_write(&mut self) {
+        self.short_write = true;
     }
 
     /// Drops the intents with these sequence numbers.
@@ -99,9 +130,12 @@ impl Intents {
                 .filter(|a| !seqs.contains(&a.seq))
                 .cloned()
                 .collect(),
+            torn: false,
+            short_write: false,
         };
         kept.rewrite()?;
         self.actions.retain(|a| !seqs.contains(&a.seq));
+        self.torn = false;
         Ok(())
     }
 }

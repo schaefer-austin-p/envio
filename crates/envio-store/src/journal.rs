@@ -203,6 +203,12 @@ impl Journal {
         self.fail_next_sync = true;
     }
 
+    /// Test seam: the next forget intent is written only in part, then fails.
+    #[doc(hidden)]
+    pub fn fail_next_intent_write(&mut self) {
+        self.intents.fail_next_write();
+    }
+
     /// Test seam: makes the next compact fail before it writes.
     #[doc(hidden)]
     pub fn fail_next_compact(&mut self) {

@@ -46,6 +46,8 @@ pub struct Drafts {
     lock: Mutex<()>,
     /// Test seam: the next removal of a draft fails with an I/O error.
     fail_next_remove: AtomicBool,
+    /// Test seam: the next `forget_if_uploaded` finds the file unreadable.
+    pub(crate) corrupt_next_forget: AtomicBool,
 }
 
 impl Drafts {
@@ -62,6 +64,7 @@ impl Drafts {
             dir: dir.to_owned(),
             lock: Mutex::new(()),
             fail_next_remove: AtomicBool::new(false),
+            corrupt_next_forget: AtomicBool::new(false),
         };
         // For `delete`'s markers, made now so a folder that turns read-only
         // later still takes them. Interrupted marker writes go too.
@@ -135,6 +138,13 @@ impl Drafts {
         let before = old.map(|old| old.attachments).unwrap_or_default();
         self.prune(id, &before, &draft.attachments);
         Ok(())
+    }
+
+    /// Test seam: makes the next `forget_if_uploaded` find the draft file
+    /// unreadable, as if it was damaged after the listing.
+    #[doc(hidden)]
+    pub fn corrupt_next_forget(&self) {
+        self.corrupt_next_forget.store(true, Ordering::Relaxed);
     }
 
     /// Test seam: makes the next removal of a draft fail with an I/O error,
