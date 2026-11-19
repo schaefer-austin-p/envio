@@ -211,6 +211,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "senderKnown": h.sender_known,
         "senderVerified": h.sender_verified,
         "attachments": attachments,
+        "isDraft": view.is_draft,
     });
     if let (Some(card), Some(map)) = (&view.invite, value.as_object_mut()) {
         map.insert("invite".into(), invite_value(card));
@@ -343,6 +344,7 @@ mod tests {
             own_colours: false,
             attachments: vec![],
             invite: None,
+            is_draft: false,
         };
         assert_eq!(message_view_value(41, &view)["id"], 41);
     }
@@ -369,6 +371,7 @@ mod tests {
             own_colours: true,
             attachments: vec![],
             invite: None,
+            is_draft: false,
         };
         assert_eq!(message_view_value(1, &view)["senderVerified"], false);
         view.header.sender_verified = true;
@@ -382,6 +385,9 @@ mod tests {
         );
         view.own_colours = false;
         assert_eq!(message_view_value(1, &view)["ownColours"], false);
+        assert_eq!(message_view_value(1, &view)["isDraft"], false);
+        view.is_draft = true;
+        assert_eq!(message_view_value(1, &view)["isDraft"], true);
     }
 
     #[test]
@@ -406,6 +412,7 @@ mod tests {
             own_colours: false,
             attachments: vec![],
             invite: None,
+            is_draft: false,
         };
         assert!(message_view_value(1, &view).get("invite").is_none());
         view.invite = Some(InviteCard {

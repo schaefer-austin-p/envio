@@ -31,6 +31,10 @@ pub struct ServerCopy {
     /// When an upload of this draft last ended the run (a lost
     /// connection): the next run tries the others first.
     pub tried_ms: i64,
+    /// For a draft imported as a copy of a server message (#228): the
+    /// usable Message-ID of that original, so a second Edit reopens the
+    /// copy. The sync planner and `replaced()` ignore it.
+    pub imported_from: Option<String>,
 }
 
 /// A deleted draft whose copy on the server is still to go.

@@ -6,6 +6,7 @@ mod attachment;
 mod compose;
 mod conn;
 mod dispatch;
+mod edit;
 mod folder_order;
 mod inline;
 mod invite;

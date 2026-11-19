@@ -118,3 +118,31 @@ fn deleting_a_draft_never_uploaded_leaves_no_note() {
     drafts.delete(&id).unwrap();
     assert!(drafts.deletes().unwrap().is_empty());
 }
+
+#[test]
+fn imported_from_loads_as_none_from_an_old_file_and_round_trips() {
+    let dir = tempfile::tempdir().unwrap();
+    let drafts = Drafts::open(dir.path()).unwrap();
+    let id = drafts.create(&draft("Old", 1)).unwrap();
+    let old = r#"{"account":"1700","server":{"message_id":"<a@x>","uploaded_ms":1}}"#;
+    fs::write(dir.path().join(format!("{id}.json")), old).unwrap();
+    assert_eq!(drafts.load(&id).unwrap().server.imported_from, None);
+
+    // `create` starts a draft with no server copy, so the file is written.
+    let id = drafts.create(&draft("Copy", 2)).unwrap();
+    let mut copy = draft("Copy", 2);
+    copy.server.imported_from = Some("<o@x>".into());
+    fs::write(
+        dir.path().join(format!("{id}.json")),
+        serde_json::to_string(&copy).unwrap(),
+    )
+    .unwrap();
+    let loaded = drafts.load(&id).unwrap();
+    assert_eq!(loaded.server.imported_from.as_deref(), Some("<o@x>"));
+    // A save of the text keeps it (the draft thread knows nothing of it).
+    drafts.save(&id, &draft("Copy 2", 3)).unwrap();
+    assert_eq!(
+        drafts.load(&id).unwrap().server.imported_from.as_deref(),
+        Some("<o@x>")
+    );
+}

@@ -53,6 +53,10 @@ pub fn no_account() -> String {
     tr("There is no account to write from")
 }
 
+pub fn draft_already_open() -> String {
+    tr("This draft is already open.")
+}
+
 pub fn draft_unavailable() -> String {
     tr("This draft can not be opened")
 }
