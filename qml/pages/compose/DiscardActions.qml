@@ -18,6 +18,8 @@ Item {
         theme: root.theme
         ListRow {
             objectName: "discardRow"
+            iconName: "trash-2"
+            iconColor: root.theme.accent
             theme: root.theme
             width: more.width
             onClicked: { more.close(); discardAsk.open() }
@@ -27,7 +29,7 @@ Item {
                 y: root.theme.gu(1.75)
                 width: parent.width - root.theme.gu(5)
                 text: qsTr("Discard draft")
-                color: root.theme.text
+                color: root.theme.accent
                 font.family: root.theme.fontUi
                 font.pixelSize: 16
                 font.weight: Font.Medium

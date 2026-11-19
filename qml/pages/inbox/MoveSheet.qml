@@ -17,6 +17,19 @@ Sheet {
 
     title: qsTr("Move to folder")
 
+    // The Lucide icon of a folder's role; a folder without one gets a folder.
+    function roleIcon(role) {
+        switch (role) {
+        case "inbox": return "inbox"
+        case "sent": return "send"
+        case "drafts": return "file-pen"
+        case "archive": return "archive"
+        case "trash": return "trash-2"
+        case "junk": return "shield-alert"
+        default: return "folder"
+        }
+    }
+
     function openFor(key) {
         account = key
         core.listFolders(key)
@@ -32,6 +45,9 @@ Sheet {
             theme: root.theme
             width: root.width
             visible: model.account === root.account
+            iconName: root.roleIcon(model.role)
+            // Child folders keep the per-level indent, icon included.
+            iconInset: theme.gu(2.5) + model.depth * theme.gu(2)
             height: visible ? implicitHeight : 0
             onClicked: {
                 root.close()

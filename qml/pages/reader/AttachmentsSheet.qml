@@ -34,14 +34,15 @@ Sheet {
     }
     Repeater {
         model: [
-            { mode: "open", label: qsTr("Open"), caption: qsTr("Pick an app, like Document Viewer") },
-            { mode: "save", label: qsTr("Save"), caption: qsTr("Into Files or another app") },
-            { mode: "share", label: qsTr("Share"), caption: qsTr("Send it with another app") }
+            { mode: "open", label: qsTr("Open"), icon: "external-link", caption: qsTr("Pick an app, like Document Viewer") },
+            { mode: "save", label: qsTr("Save"), icon: "download", caption: qsTr("Into Files or another app") },
+            { mode: "share", label: qsTr("Share"), icon: "share-2", caption: qsTr("Send it with another app") }
         ]
         delegate: ListRow {
             id: row
             required property var modelData
             objectName: "attachment-" + modelData.mode
+            iconName: modelData.icon
             theme: root.theme
             width: root.width
             onClicked: { root.close(); root.chosen(row.modelData.mode) }

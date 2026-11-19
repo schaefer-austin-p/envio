@@ -57,15 +57,16 @@ TopBar {
         theme: root.theme
         Repeater {
             model: [
-                { action: "read", label: qsTr("Mark as read") },
-                { action: "unread", label: qsTr("Mark as unread") },
-                { action: "flag", label: qsTr("Flag") },
-                { action: "unflag", label: qsTr("Remove flag") }
+                { action: "read", label: qsTr("Mark as read"), icon: "mail-open" },
+                { action: "unread", label: qsTr("Mark as unread"), icon: "mail" },
+                { action: "flag", label: qsTr("Flag"), icon: "flag" },
+                { action: "unflag", label: qsTr("Remove flag"), icon: "flag-off" }
             ]
             delegate: ListRow {
                 id: item
                 required property var modelData
                 objectName: "more-" + modelData.action
+                iconName: modelData.icon
                 theme: root.theme
                 width: more.width
                 onClicked: {
