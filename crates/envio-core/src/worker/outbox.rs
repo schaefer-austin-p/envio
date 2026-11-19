@@ -216,6 +216,9 @@ impl Worker<'_> {
         draft.draft_id = Some(draft_id.clone());
         self.compose_ready(compose, draft, (String::new(), String::new()));
         self.emit(Event::DraftSaved { compose, draft_id });
+        self.emit(Event::LocalDraftsChanged {
+            account: item.meta.account.clone(),
+        });
         self.remove_item(id);
         self.emit_outbox();
         self.reshow_open_invite();

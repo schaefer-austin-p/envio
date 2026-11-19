@@ -73,6 +73,8 @@ pub struct MessageRow {
     /// Unix seconds; `None` when the message has no usable date.
     pub date: Option<i64>,
     pub flags: Flags,
+    /// Set on a pseudo-row: the local draft's id (it has no server copy yet).
+    pub local_draft: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

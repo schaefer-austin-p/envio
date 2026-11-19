@@ -71,6 +71,11 @@ pub enum Event {
     MessagesChanged {
         folders: Vec<FolderId>,
     },
+    /// The local drafts of `account` changed in a way the Drafts list shows
+    /// (made, closed, deleted, uploaded). Not sent for throttled saves.
+    LocalDraftsChanged {
+        account: String,
+    },
     /// The Outbox changed (sent, failed, filed).
     OutboxChanged,
     /// The Outbox as it is now (after `ListOutbox`, a send or file step, or

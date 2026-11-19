@@ -11,6 +11,8 @@ mod folder_order;
 mod inline;
 mod invite;
 mod label;
+mod local_list;
+mod local_rows;
 mod older;
 mod open;
 mod outbox;
@@ -121,6 +123,8 @@ pub(crate) struct Worker<'s> {
     /// Folders whose Load older rows a window change drops with their next
     /// sync; `OlderReset` follows that sync.
     reset_pending: BTreeSet<FolderId>,
+    /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
+    local_ids: RefCell<local_rows::LocalIds>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -253,6 +257,7 @@ impl<'s> Worker<'s> {
             loads: HashMap::new(),
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
+            local_ids: RefCell::default(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
