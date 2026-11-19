@@ -13,7 +13,7 @@ use envio_sync::SyncError;
 
 use super::Worker;
 use super::conn::Conn;
-use super::store::{Store, secrets_error};
+use super::store::{Store, secrets_error, tokens_error};
 use crate::api::event::Event;
 use crate::api::view::UnsentCounts;
 use crate::fsutil::write_atomic;
@@ -55,7 +55,7 @@ fn write_marker(store: &Store, keys: &[String]) -> io::Result<()> {
 }
 
 /// Everything held for the account: settings, then pending work and cache,
-/// then the password. Safe to repeat.
+/// then the password and the OAuth token. Safe to repeat.
 fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     match store.accounts.remove(key) {
         Ok(()) | Err(StoreError::NotFound) => {}
@@ -66,7 +66,19 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     // Other accounts' messages share the folder: keep the one on screen.
     let shown = store.open_message.map(|id| id.0.to_string());
     super::inline::clear_except(&store.paths.inline(), shown.as_deref());
-    store.secrets.remove(key).map_err(secrets_error)
+    // Both go even when one fails; the first failure is reported and the
+    // marker keeps the removal to be retried.
+    let password = store.secrets.remove(key).map_err(secrets_error);
+    let token = store.tokens.remove(key).map_err(tokens_error);
+    match (password, token) {
+        (Err(error), Err(dropped)) => {
+            // Only the first error travels on; the second is logged (the
+            // errors carry paths and versions, never a secret).
+            log::error!("removing the OAuth token of {key}: {dropped}");
+            Err(error)
+        }
+        (password, token) => password.and(token),
+    }
 }
 
 #[cfg(test)]

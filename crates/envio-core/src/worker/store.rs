@@ -14,6 +14,7 @@ use envio_sync::plan::sync::window_start;
 use crate::api::view::CacheState;
 use crate::core::Config;
 use crate::drafts::DraftBook;
+use crate::oauth_tokens::{OAuthTokens, TokensError};
 use crate::secrets::{Secrets, SecretsError};
 
 pub(crate) struct Store {
@@ -28,6 +29,8 @@ pub(crate) struct Store {
     pub drafts: Arc<Drafts>,
     pub accounts: Accounts,
     pub secrets: Secrets,
+    /// `oauth.json`: refresh tokens of OAuth accounts.
+    pub tokens: OAuthTokens,
     pub schedule: Schedule,
     /// `settings.json`: loaded at open, replaced only after a save worked.
     pub settings: Settings,
@@ -55,6 +58,20 @@ pub(super) fn secrets_error(error: SecretsError) -> StoreError {
     }
 }
 
+pub(super) fn tokens_error(error: TokensError) -> StoreError {
+    match error {
+        TokensError::Io(e) => StoreError::Io(e),
+        TokensError::Damaged => StoreError::BadRecord {
+            file: crate::oauth_tokens::FILE_NAME.into(),
+            reason: "damaged".into(),
+        },
+        TokensError::Newer(version) => StoreError::BadRecord {
+            file: crate::oauth_tokens::FILE_NAME.into(),
+            reason: format!("version {version} is from a newer envio"),
+        },
+    }
+}
+
 impl Store {
     pub fn open(
         config: &Config,
@@ -77,6 +94,7 @@ impl Store {
             drafts: book.drafts()?,
             accounts: Accounts::open(&paths.accounts())?,
             secrets: Secrets::open(&config.data_dir).map_err(secrets_error)?,
+            tokens: OAuthTokens::open(&config.data_dir).map_err(tokens_error)?,
             schedule: Schedule::default(),
             // A file that cannot be read or set aside is not worth refusing
             // mail for: start from the defaults.

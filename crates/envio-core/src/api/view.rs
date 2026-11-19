@@ -103,6 +103,8 @@ pub struct MessageView {
     pub attachments: Vec<AttachmentRow>,
     /// The meeting card, when the message carries an invite.
     pub invite: Option<InviteCard>,
+    /// The message's folder has the Drafts role.
+    pub is_draft: bool,
 }
 
 /// What kind of invite mail this is.

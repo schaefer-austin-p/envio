@@ -150,6 +150,7 @@ pub(crate) fn render_view(
         own_colours: rendered.own_colours,
         attachments,
         invite,
+        is_draft: false,
     };
     (view, rendered.unsized_images)
 }
@@ -337,7 +338,13 @@ impl Worker<'_> {
             image_sizes: &image_sizes,
             invites: invites.env(),
         };
-        render_view(raw, images, width_px, &ctx)
+        let (mut view, unsized_images) = render_view(raw, images, width_px, &ctx);
+        view.is_draft = self
+            .store
+            .db
+            .folder(message.folder)
+            .is_ok_and(|f| f.role == envio_store::FolderRole::Drafts);
+        (view, unsized_images)
     }
 
     /// A body cached before the list had the attachment mark (migration
