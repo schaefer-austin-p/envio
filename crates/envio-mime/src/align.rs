@@ -13,6 +13,17 @@ use std::net::IpAddr;
 /// `<selector>._domainkey.<domain>`, must query that normalised name, not the
 /// raw text of the header.
 pub fn org_domain(host: &str) -> Option<String> {
+    let ascii = host_name(host)?;
+    let domain = psl::domain(ascii.as_bytes())?;
+    std::str::from_utf8(domain.as_bytes())
+        .ok()
+        .map(str::to_owned)
+}
+
+/// The normalised ASCII host name: trimmed, one trailing dot dropped, IDNA
+/// applied (lowercase, A-labels), and checked as a plausible DNS name with
+/// at least two labels. None for an IP literal in any spelling.
+pub(crate) fn host_name(host: &str) -> Option<String> {
     let host = host.trim().trim_end_matches('.');
     if looks_like_ip(host) {
         return None;
@@ -20,13 +31,16 @@ pub fn org_domain(host: &str) -> Option<String> {
     let ascii = idna::domain_to_ascii(host).ok()?;
     // U+3002 and U+FF0E map to '.', so a trailing one shows up only now.
     let ascii = ascii.trim_end_matches('.');
-    if !valid_host(ascii) {
-        return None;
-    }
-    let domain = psl::domain(ascii.as_bytes())?;
-    std::str::from_utf8(domain.as_bytes())
-        .ok()
-        .map(str::to_owned)
+    valid_host(ascii).then(|| ascii.to_owned())
+}
+
+/// A domain a DKIM signature may claim (`d=`): a [`host_name`] whose public
+/// suffix is on the Public Suffix List. Hosts under an unknown TLD such as
+/// `1.2.3.4a` still have an [`org_domain`] (DMARC alignment is a pure string
+/// rule), but no signature may use them, so no key lookup is made for them.
+pub(crate) fn signing_domain(host: &str) -> Option<String> {
+    let ascii = host_name(host)?;
+    psl::suffix(ascii.as_bytes())?.is_known().then_some(ascii)
 }
 
 /// An IP literal as mail headers spell it: optional brackets, an optional
@@ -203,5 +217,55 @@ mod tests {
         assert_eq!(org_domain("b.ck"), None);
         assert_eq!(org_domain("ck"), None);
         assert!(!aligned("a.b.ck", "c.b.ck"));
+    }
+
+    #[test]
+    fn host_name_is_the_normalised_ascii_name() {
+        assert_eq!(
+            host_name("Mail.Example.COM.").as_deref(),
+            Some("mail.example.com")
+        );
+        assert_eq!(
+            host_name("bücher.example\u{3002}").as_deref(),
+            Some("xn--bcher-kva.example")
+        );
+        for h in [
+            "10.0.0.1",
+            "[::1]",
+            "localhost",
+            "a..b.com",
+            "a@b.com",
+            "b.com:25",
+            "",
+        ] {
+            assert_eq!(host_name(h), None, "{h:?}");
+        }
+    }
+
+    #[test]
+    fn signing_domain_needs_a_known_suffix() {
+        assert_eq!(
+            signing_domain("Football.Example.com.").as_deref(),
+            Some("football.example.com")
+        );
+        assert_eq!(
+            signing_domain("a.github.io").as_deref(),
+            Some("a.github.io")
+        );
+        assert_eq!(
+            signing_domain("x.example.co.uk").as_deref(),
+            Some("x.example.co.uk")
+        );
+        // Unknown TLDs: org_domain still answers, signing_domain does not.
+        assert_eq!(org_domain("1.2.3.4a").as_deref(), Some("3.4a"));
+        for h in [
+            "1.2.3.4a",
+            "example.invalidtld",
+            "host.internal",
+            "0x7f.1",
+            "[::1]",
+        ] {
+            assert_eq!(signing_domain(h), None, "{h:?}");
+        }
     }
 }
