@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 15:57+0100\n"
+"POT-Creation-Date: 2026-11-19 16:06+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -127,7 +127,7 @@ msgid "Rename"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:162
-#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:87
+#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:90
 #: crates/envio-core/src/text/status.rs:28
 msgid "Sign in again"
 msgstr ""
@@ -172,7 +172,7 @@ msgstr ""
 #: qml/pages/accounts/BrowserStep.qml:115
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
 #: qml/pages/accounts/RenameSheet.qml:68 qml/pages/accounts/TrustDialog.qml:21
-#: qml/pages/inbox/OutboxPage.qml:64 qml/pages/reader/AttachmentsSheet.qml:79
+#: qml/pages/inbox/OutboxPage.qml:88 qml/pages/reader/AttachmentsSheet.qml:79
 #: qml/pages/reader/LinkSheet.qml:132 qml/pages/search/SearchPage.qml:193
 msgid "Cancel"
 msgstr ""
@@ -361,8 +361,8 @@ msgstr ""
 msgid "Sign in with Microsoft"
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:163
-#: qml/pages/accounts/SignInStep.qml:229
+#: qml/pages/accounts/SignInAgainPage.qml:164
+#: qml/pages/accounts/SignInStep.qml:230
 msgid "Use this account"
 msgstr ""
 
@@ -555,7 +555,7 @@ msgstr ""
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:28
+#: qml/pages/inbox/FoldersDrawer.qml:158 qml/pages/inbox/OutboxPage.qml:51
 msgid "Outbox"
 msgstr ""
 
@@ -605,40 +605,44 @@ msgstr ""
 msgid "Move to folder"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:52
+#: qml/pages/inbox/OutboxPage.qml:76
 msgid "Nothing waiting to send."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:62
+#: qml/pages/inbox/OutboxPage.qml:86
 msgid "Delete this message?"
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:63
+#: qml/pages/inbox/OutboxPage.qml:87
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxPage.qml:65 qml/pages/inbox/OutboxRow.qml:122
+#: qml/pages/inbox/OutboxPage.qml:89 qml/pages/inbox/OutboxRow.qml:125
 #: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:255
 msgid "Delete"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:66
+#: qml/pages/inbox/OutboxRow.qml:46
+msgid "To %1 · %2"
+msgstr ""
+
+#: qml/pages/inbox/OutboxRow.qml:69
 msgid "Waiting for sign-in. It goes out after you sign in again."
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:94
+#: qml/pages/inbox/OutboxRow.qml:97
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:101
+#: qml/pages/inbox/OutboxRow.qml:104
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:108
+#: qml/pages/inbox/OutboxRow.qml:111
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:115
+#: qml/pages/inbox/OutboxRow.qml:118
 msgid "Edit"
 msgstr ""
 
