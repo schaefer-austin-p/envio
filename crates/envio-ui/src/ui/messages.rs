@@ -138,6 +138,8 @@ impl Ui {
 
     pub(super) fn shown(&self, r: &MessageRow) -> Shown {
         let name = self.names.get(&r.account).cloned().unwrap_or_default();
+        let draft_id = r.local_draft.clone().unwrap_or_default();
+        let local = !draft_id.is_empty();
         Shown {
             cursor: r.cursor,
             row: MessageRowUi {
@@ -155,13 +157,9 @@ impl Ui {
                 has_attachments: r.has_attachments,
                 selected: self.selection.contains(&r.id.0),
                 open: self.open == Some(r.id.0),
-                draft_id: r.local_draft.clone().unwrap_or_default(),
-                not_uploaded: r.local_draft.is_some(),
-                opens: if r.local_draft.is_some() {
-                    "compose"
-                } else {
-                    "reader"
-                },
+                draft_id,
+                not_uploaded: local,
+                opens: if local { "compose" } else { "reader" },
             },
         }
     }

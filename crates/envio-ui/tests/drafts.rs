@@ -149,9 +149,29 @@ fn the_selection_knows_a_local_row_and_loses_it_on_upload() {
     ui.select(-1, true);
     assert!(ui.selection_has_local());
     draft_changed(&mut ui, "a");
-    feed(
+    let outs = feed(
         &mut ui,
         page(DRAFTS, None, vec![msg_in(5, 10, 3, "a")], true),
     );
     assert!(!ui.selection_has_local(), "the pseudo-row left");
+    assert!(
+        !changes(&outs, Model::Messages)
+            .iter()
+            .any(|o| matches!(o, Op::Reset(_))),
+        "the refresh merges, it does not reset"
+    );
+    let rows = ui.rows(Model::Messages);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].value("id"), Some(RowValue::Int(5)));
+    assert_eq!(rows[0].value("selected"), Some(RowValue::Bool(true)));
+}
+
+#[test]
+fn an_empty_draft_id_is_a_server_row() {
+    let mut ui = Ui::new();
+    with_folders(&mut ui);
+    let outs = opened(&mut ui, DRAFTS, vec![local(-1, 20, "")], true);
+    let rows = message_rows(&outs);
+    assert_eq!(rows[0].value("opens"), Some(RowValue::Str("reader".into())));
+    assert_eq!(rows[0].value("notUploaded"), Some(RowValue::Bool(false)));
 }
