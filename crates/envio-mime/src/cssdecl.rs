@@ -128,12 +128,13 @@ pub(crate) fn with_generic(families: &str) -> String {
     }
 }
 
-/// Whether the declarations clearly hide their element: `opacity:0`,
-/// `mso-hide:all`, or a box collapsed to nothing and clipped (`max-height:0`,
+/// Whether the declarations clearly hide their element in a browser:
+/// `opacity:0`, or a box collapsed to nothing and clipped (`max-height:0`,
 /// `height:0` or `max-width:0` with `overflow:hidden`). A zero font size or
 /// line height never hides on its own or in company: it is the newsletter
 /// trick that removes the gap around an image or button, whose content
-/// shows. The last declaration of a property wins.
+/// shows. `mso-hide` is Outlook only, so it hides nothing here. The last
+/// declaration of a property wins.
 pub(crate) fn collapsed(decls: &[(String, String)]) -> bool {
     let get = |name: &str| {
         decls
@@ -151,7 +152,7 @@ pub(crate) fn collapsed(decls: &[(String, String)]) -> bool {
     };
     let clipped = get("overflow").as_deref() == Some("hidden");
     let box_collapsed = zero("max-height") || zero("height") || zero("max-width");
-    zero("opacity") || get("mso-hide").as_deref() == Some("all") || (box_collapsed && clipped)
+    zero("opacity") || (box_collapsed && clipped)
 }
 
 #[cfg(test)]

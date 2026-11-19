@@ -82,8 +82,6 @@ fn each_hiding_style_removes_its_element() {
     for style in [
         "opacity:0",
         "opacity: 0.0 !important",
-        "mso-hide:all",
-        "MSO-HIDE: all",
         "max-height:0;overflow:hidden",
         "max-height:0px; overflow : hidden !important",
         "height:0;overflow:hidden",
@@ -106,6 +104,8 @@ fn visible_look_alikes_are_kept() {
         "opacity:0.5",
         "opacity:1",
         "mso-hide:none",
+        "mso-hide:all",
+        "MSO-HIDE: all",
         "max-height:100px;overflow:hidden",
         "line-height:0",
         "font-size:0;line-height:0",
@@ -273,4 +273,13 @@ fn an_xhtml_prolog_before_the_doctype_keeps_standards_mode() {
     );
     assert!(out.contains("IN-TEXT"), "{out}");
     assert!(!out.contains(r#"align="left""#), "{out}");
+}
+
+#[test]
+fn mso_hide_only_hides_in_outlook_so_the_content_stays() {
+    let out = keeps_with_images(
+        r#"<div style="mso-hide:all">VISIBLE-TEXT <img src="https://x.example/gif.png" width="300" height="100"></div>"#,
+    );
+    assert!(out.contains("VISIBLE-TEXT"), "{out}");
+    assert!(out.contains("gif.png"), "{out}");
 }
