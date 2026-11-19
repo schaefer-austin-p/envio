@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 17:46+0100\n"
+"POT-Creation-Date: 2026-11-19 20:59+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1623,11 +1623,15 @@ msgstr ""
 msgid "Done, but it can not be undone"
 msgstr ""
 
-#: crates/envio-core/src/text/undo.rs:31
+#: crates/envio-core/src/text/undo.rs:33
+msgid "A draft can only be deleted."
+msgstr ""
+
+#: crates/envio-core/src/text/undo.rs:37
 msgid "This account has no Archive folder"
 msgstr ""
 
-#: crates/envio-core/src/text/undo.rs:36
+#: crates/envio-core/src/text/undo.rs:42
 msgid "Could not do that. Nothing was changed"
 msgstr ""
 
