@@ -144,14 +144,14 @@ async fn smtp_wrong_token_is_a_sign_in_error_in_both_failure_shapes() {
         let err = result.unwrap_err();
         assert!(matches!(err, NetError::SignIn(_)), "{challenge}: {err:?}");
         assert!(!sends_password(&lines), "{lines:?}");
+        let text = err.to_string();
+        // Never the client library's wording; the server's own refusal.
+        assert!(!text.contains("internal client error"), "{text}");
+        assert!(text.contains("535"), "{text}");
         if challenge {
-            // lettre never answers a 334 error challenge for XOAUTH2: it
-            // fails on the client side ("does not expect a challenge",
-            // mapped by `client_error`), so the 535 is never read.
-            assert!(
-                lines.last().unwrap().starts_with("AUTH XOAUTH2 "),
-                "{lines:?}"
-            );
+            // RFC 7628: the 334 error challenge is answered with an empty
+            // line, so the server's 535 is read.
+            assert_eq!(lines.last().unwrap(), "", "{lines:?}");
         }
     }
 }
