@@ -86,8 +86,56 @@ Item {
     // The ring's inside, where pages, sheets, dialogs and the problem page lie.
     readonly property Item frameArea: frame.area
 
-    // Compose pages: the core made the compose, the page follows it.
-    function composeOpened(compose) { stack.push(composePage, { compose: compose }) }
+    // Wide layout: the list and a pane side by side from 90 gu, back to the
+    // page stack only below 86 gu, so a window dragged around the edge does
+    // not flap.
+    readonly property bool wide: _wide
+    property bool _wide: false
+    function checkWide() {
+        if (!theme) return
+        const on = width >= theme.gu(90), off = width < theme.gu(86)
+        if (!_wide && on) _wide = true
+        else if (_wide && off) {
+            // A compose in the pane goes to the stack as the top page, with
+            // everything typed; the pane would be too narrow to use. Nothing
+            // closes it in the core.
+            const carried = paneCompose > 0 && pane.item !== null
+                ? { id: paneCompose, state: pane.item.snapshot() } : null
+            _wide = false
+            if (carried !== null) {
+                paneCompose = 0
+                stack.push(composePage, { compose: carried.id }).restore(carried.state)
+            }
+            // The narrow list has no reader to go with an open row.
+            if (core.openMessage > 0) core.setOpenMessage(0)
+        }
+    }
+    onWidthChanged: checkWide()
+    onThemeChanged: checkWide()
+    onPaneComposeChanged: checkWide()
+    Connections {
+        target: root.theme
+        function onGridUnitChanged() { root.checkWide() }
+    }
+    // The compose the pane shows (an id), 0 for none. `core` has no compose
+    // id of its own.
+    property int paneCompose: 0
+
+    // Compose pages: the core made the compose, the page follows it. Wide,
+    // over the list (nothing on top of it), it opens in the pane.
+    function composeOpened(compose) {
+        if (wide && stack.depth === 1 && rootKind === "inbox") {
+            // One compose in the pane: the one that was there closes first
+            // (its draft stays in Drafts), and its page goes with it.
+            if (paneCompose > 0 && paneCompose !== compose && pane.item !== null) pane.item.leave()
+            paneCompose = compose
+        } else stack.push(composePage, { compose: compose })
+    }
+    // A tap on a row: the pane when wide, else the reader page.
+    function openMessageFromRow(message) {
+        if (wide) core.setOpenMessage(message)
+        else stack.push(readerPage, { messageId: message })
+    }
     function newMessage() {
         const id = core.startCompose("new", 0, composeAccount, "")
         if (id > 0) composeOpened(id)
@@ -203,6 +251,29 @@ Item {
             replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
         }
 
+        // The hairline between the list and the pane.
+        Rectangle {
+            objectName: "paneHairline"
+            visible: pane.visible
+            x: root.theme.gu(50)
+            width: 1
+            height: parent.height
+            color: root.theme.hairline
+            z: 1
+        }
+        // The right pane of the wide layout, beside the inbox at the root.
+        // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
+        // the whole window, so the pane is not shown over them.
+        Loader {
+            id: pane
+            objectName: "pane"
+            visible: root.wide && stack.depth === 1 && root.rootKind === "inbox"
+            active: root.wide
+            anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+            width: parent.width - root.theme.gu(50)
+            sourceComponent: root.paneCompose > 0 ? paneComposeC : root.core.openMessage > 0 ? paneReaderC : emptyC
+        }
+
         ProblemPage {
             anchors.fill: parent
             z: 10
@@ -219,16 +290,48 @@ Item {
         }
     }
 
+    Component { id: emptyC; ReaderPane { theme: root.theme } }
+    Component {
+        id: paneReaderC
+        ReaderPage {
+            wide: true
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            folders: root.folders
+            messageId: root.core.openMessage
+            onBackRequested: root.core.setOpenMessage(0)
+            onComposeOpened: function(compose) { root.composeOpened(compose) }
+        }
+    }
+    Component {
+        id: paneComposeC
+        ComposePage {
+            wide: true
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            suggestions: root.suggestions
+            compose: root.paneCompose
+            onClosed: { root.dropShare(compose); root.paneCompose = 0 }
+            onAttachStarted: function(count, transfer) { shareIn.expectPick(compose, count, transfer) }
+            onSent: function(text) { root.paneCompose = 0; sentToast.show(text) }
+        }
+    }
     Component {
         id: inboxPage
         InboxPage {
+            // The list pane when wide, else the whole page (the stack does
+            // not resize an item that sets its own size).
+            width: root.wide ? root.theme.gu(50) : stack.width
+            height: stack.height
             theme: root.theme
             core: root.core
             accounts: root.accounts
             folders: root.folders
             messages: root.messages
             outbox: root.outbox
-            onMessageRequested: stack.push(readerPage, { messageId: message })
+            onMessageRequested: root.openMessageFromRow(message)
             onAccountsRequested: stack.push(accountsPage)
             onOutboxRequested: stack.push(outboxPage)
             onComposeRequested: root.newMessage()
@@ -360,6 +463,15 @@ Item {
         }
     }
 
+    // Ctrl+N: a new message, from the list.
+    readonly property alias newShortcut: newKey
+    Shortcut {
+        id: newKey
+        sequence: "Ctrl+N"
+        enabled: root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.paneCompose === 0
+        onActivated: root.newMessage()
+    }
+
     Toast {
         id: sentToast
         objectName: "sentToast"
@@ -399,5 +511,5 @@ Item {
         target: Qt.application
         function onStateChanged() { root.core.setActive(Qt.application.state === Qt.ApplicationActive) }
     }
-    Component.onCompleted: if (core.ready) route()
+    Component.onCompleted: { checkWide(); if (core.ready) route() }
 }
