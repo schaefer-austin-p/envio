@@ -609,10 +609,12 @@ Item {
 
         function test_pane_compose_is_never_narrower_than_36_gu() {
             const b = wideCompose()
-            for (const w of [90, 88, 86]) {
+            for (const w of [90, 88, 86, 85, 70, 45]) {
                 b.shell.width = thm.gu(w)
-                compare(b.shell.wide, true)
-                verify(find(b.shell, "pane").width >= thm.gu(36), "pane is " + find(b.shell, "pane").width)
+                const pane = find(b.shell, "pane")
+                if (b.shell.wide) verify(pane.width >= thm.gu(36), "pane is " + pane.width + " at " + w + " gu")
+                else compare(b.shell.paneCompose, 0)
+                compare(b.shell.wide, w >= 86)
             }
             b.shell.destroy()
         }
