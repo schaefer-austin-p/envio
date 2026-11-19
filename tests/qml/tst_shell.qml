@@ -607,6 +607,35 @@ Item {
             compare(line.color, thm.hairline)
             b.shell.destroy()
         }
+        function test_wide_list_ends_at_the_hairline() {
+            const b = bootWide(100)
+            const line = find(b.shell, "paneHairline")
+            const page = b.shell.currentPage
+            const right = page.mapToItem(b.shell, page.width, 0).x
+            verify(right <= line.x, "list right edge " + right + " is past the hairline at " + line.x)
+            const stack = find(b.shell, "stack")
+            verify(stack !== null, "no stack")
+            verify(stack.width <= line.x, "stack is " + stack.width + " wide, hairline at " + line.x)
+            b.shell.destroy()
+        }
+        function test_wide_pane_is_opaque() {
+            const b = bootWide(100)
+            const pane = find(b.shell, "pane")
+            const bg = find(pane, "paneBackground")
+            verify(bg !== null, "pane has no background")
+            compare(bg.color, thm.ground)
+            compare(bg.opacity, 1)
+            compare(bg.width, pane.width)
+            b.shell.destroy()
+        }
+        function test_wide_search_keeps_the_full_width() {
+            const b = bootWide(100)
+            b.shell.currentPage.searchRequested(0)
+            tryVerify(function() { return b.shell.depth === 2 })
+            tryVerify(function() { return b.shell.currentPage.width >= thm.gu(100) - 2 },
+                      1000, "search is " + b.shell.currentPage.width + " wide")
+            b.shell.destroy()
+        }
         function test_no_hairline_when_narrow() {
             const b = bootWide(70)
             verify(!find(b.shell, "paneHairline").visible)
