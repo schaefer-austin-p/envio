@@ -43,6 +43,7 @@ pub(super) fn seed(dir: &Path) -> (Config, Seeded) {
         data_dir: dir.join("data"),
         roots: envio_net::Roots::empty(),
         oauth: Vec::new(),
+        dns: None,
         log_level: log::LevelFilter::Info,
         foreground: false,
     };

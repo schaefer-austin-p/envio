@@ -38,6 +38,8 @@ pub struct Harness {
     pub roots: envio_net::Roots,
     /// `Config.oauth` for the next `start_core`.
     pub oauth: Vec<envio_net::oauth::Provider>,
+    /// `Config.dns` for the next `start_core`: a fake resolver.
+    pub dns: Option<Arc<dyn envio_net::dns::TxtLookup>>,
     sender: Sender<Event>,
 }
 
@@ -52,6 +54,7 @@ impl Harness {
             foreground: false,
             roots: envio_net::Roots::bundled(),
             oauth: Vec::new(),
+            dns: None,
             sender,
         }
     }
@@ -80,6 +83,7 @@ impl Harness {
             data_dir: self.data_dir(),
             roots: self.roots.clone(),
             oauth: self.oauth.clone(),
+            dns: self.dns.clone(),
             log_level: log::LevelFilter::Info,
             foreground: self.foreground,
         }

@@ -34,6 +34,9 @@ pub struct Config {
     /// `Provider::microsoft()` when it has a client ID). An OAuth account
     /// whose provider is not here cannot connect.
     pub oauth: Vec<envio_net::oauth::Provider>,
+    /// Where DKIM key lookups go (sender trust, #285); `None` is the system
+    /// resolver. Tests and the end-to-end suite hand in a fake.
+    pub dns: Option<Arc<dyn envio_net::dns::TxtLookup>>,
 }
 
 impl Config {

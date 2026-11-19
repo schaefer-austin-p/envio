@@ -6,6 +6,7 @@ mod attachment;
 mod compose;
 mod conn;
 mod dispatch;
+mod dkim_keys;
 mod edit;
 mod folder_order;
 mod inline;
@@ -24,6 +25,8 @@ mod remove;
 mod rows;
 mod run;
 mod search;
+mod sender_check;
+mod sender_lookup;
 mod setup;
 mod shown;
 mod start;
@@ -42,7 +45,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::alert::PosterSlot;
 use crate::api::command::{Command, ComposeId, ImagesChoice, StartFrom};
@@ -130,6 +133,10 @@ pub(crate) struct Worker<'s> {
     providers: Vec<envio_net::oauth::Provider>,
     /// The sign-in that waits for the browser, if any.
     oauth: Option<oauth::Attempt>,
+    /// Where DKIM keys are looked up (sender trust, #285).
+    dns: Arc<dyn envio_net::dns::TxtLookup>,
+    /// The worker's own queue, for the answers of lookup tasks.
+    inputs: UnboundedSender<Input>,
 }
 
 /// A command and the time (ms) its sender gave it to the core.
@@ -148,6 +155,11 @@ pub(crate) enum Input {
     /// `Core::set_poster` ran: the poster is told the current badge, on the
     /// worker's thread, in order with later unread changes.
     PosterSet,
+    /// A DKIM key lookup for the open message `id` ended (sender trust).
+    DkimKeys {
+        id: MessageRowId,
+        answers: Vec<(String, envio_net::dns::TxtAnswer)>,
+    },
 }
 
 /// Returns on `Shutdown` or when the handle is gone.
@@ -211,6 +223,7 @@ impl<'s> Worker<'s> {
                                         Input::Setup(_) => "setup result",
                                         Input::DraftsSaved => "drafts saved",
                                         Input::PosterSet => "poster set",
+                                        Input::DkimKeys { .. } => "dkim keys",
                                     })
                                     .collect();
                                 log::warn!(
@@ -265,6 +278,11 @@ impl<'s> Worker<'s> {
             local_ids: RefCell::default(),
             providers: config.oauth.clone(),
             oauth: None,
+            dns: config
+                .dns
+                .clone()
+                .unwrap_or_else(|| Arc::new(envio_net::dns::SystemTxt::new())),
+            inputs: setup.inputs(),
         };
         worker.announce(cache);
         // What was sent while the store could not open, in order.
@@ -460,6 +478,10 @@ impl<'s> Worker<'s> {
             }
             Input::PosterSet => {
                 self.poster_set();
+                Flow::Continue
+            }
+            Input::DkimKeys { id, answers } => {
+                self.dkim_keys(id, answers);
                 Flow::Continue
             }
         }
