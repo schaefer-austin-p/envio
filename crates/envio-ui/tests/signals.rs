@@ -286,3 +286,61 @@ fn undo_closed_carries_its_id() {
         ref other => panic!("{other:?}"),
     }
 }
+
+#[test]
+fn the_sign_in_events_become_signals_with_every_field() {
+    use envio_core::{OAuthFailure, OAuthOutcome};
+    let mut ui = Ui::new();
+    let outs = feed(
+        &mut ui,
+        Event::OAuthBrowser {
+            email: "ada@outlook.com".into(),
+            url: "https://login.example/authorize?x=1".into(),
+            user_code: Some("ABCD-1234".into()),
+        },
+    );
+    let Signal::OAuthBrowser {
+        email,
+        url,
+        user_code,
+    } = &signals(&outs)[0]
+    else {
+        panic!("{:?}", signals(&outs));
+    };
+    assert_eq!(email, "ada@outlook.com");
+    assert_eq!(url, "https://login.example/authorize?x=1");
+    assert_eq!(user_code.as_deref(), Some("ABCD-1234"));
+
+    let outs = feed(
+        &mut ui,
+        Event::OAuthConfirm {
+            email: "ada@outlook.com".into(),
+            signed_in_as: Some("bob@outlook.com".into()),
+            text: "Signed in as someone else".into(),
+        },
+    );
+    let Signal::OAuthConfirm {
+        email,
+        signed_in_as,
+        text,
+    } = &signals(&outs)[0]
+    else {
+        panic!("{:?}", signals(&outs));
+    };
+    assert_eq!(email, "ada@outlook.com");
+    assert_eq!(signed_in_as.as_deref(), Some("bob@outlook.com"));
+    assert_eq!(text, "Signed in as someone else");
+
+    let outs = feed(
+        &mut ui,
+        Event::OAuthDone {
+            email: "ada@outlook.com".into(),
+            outcome: OAuthOutcome::Failed(OAuthFailure::Offline),
+        },
+    );
+    let Signal::OAuthDone { email, outcome } = &signals(&outs)[0] else {
+        panic!("{:?}", signals(&outs));
+    };
+    assert_eq!(email, "ada@outlook.com");
+    assert_eq!(*outcome, OAuthOutcome::Failed(OAuthFailure::Offline));
+}
