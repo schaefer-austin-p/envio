@@ -90,7 +90,8 @@ fn shutdown_while_the_store_cannot_open_returns() {
     let mut h = Harness::unstarted();
     std::fs::write(h.data_dir(), b"a file where the data dir should be").unwrap();
     h.start_core();
-    std::thread::sleep(Duration::from_millis(200));
+    // The first open attempt has failed (not merely "200 ms went by").
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
     let core = h.core.take().unwrap();
     let (done, finished) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -108,7 +109,7 @@ fn a_command_sent_while_the_store_cannot_open_runs_after_it_opens() {
     std::fs::write(h.data_dir(), b"a file where the data dir should be").unwrap();
     h.start_core();
     h.send(Command::Crash);
-    std::thread::sleep(Duration::from_millis(200));
+    h.wait(|e| matches!(e, Event::StoreProblem { .. }).then_some(()));
     std::fs::remove_file(h.data_dir()).unwrap();
     h.wait(|e| matches!(e, Event::WorkerRestarted { .. }).then_some(()));
 }
