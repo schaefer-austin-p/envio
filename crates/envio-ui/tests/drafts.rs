@@ -175,3 +175,78 @@ fn an_empty_draft_id_is_a_server_row() {
     assert_eq!(rows[0].value("opens"), Some(RowValue::Str("reader".into())));
     assert_eq!(rows[0].value("notUploaded"), Some(RowValue::Bool(false)));
 }
+
+fn local_text(id: i64, draft: &str, text: &str) -> MessageRow {
+    let mut r = local(id, 20, draft);
+    r.not_uploaded_text = text.into();
+    r
+}
+
+fn text(r: &Row) -> Option<RowValue> {
+    r.value("notUploadedText")
+}
+
+#[test]
+fn not_uploaded_text_is_a_role_with_a_per_row_value() {
+    assert!(Row::role_names(Model::Messages).contains(&"notUploadedText"));
+    let mut ui = Ui::new();
+    with_folders(&mut ui);
+    let mut other = local_text(-2, "d2", "Mailbox full");
+    other.date = Some(15);
+    let outs = opened(
+        &mut ui,
+        DRAFTS,
+        vec![local_text(-1, "d1", "Not uploaded"), other],
+        true,
+    );
+    let rows = message_rows(&outs);
+    assert_eq!(text(&rows[0]), Some(RowValue::Str("Not uploaded".into())));
+    assert_eq!(text(&rows[1]), Some(RowValue::Str("Mailbox full".into())));
+}
+
+#[test]
+fn not_uploaded_text_is_empty_on_a_server_row() {
+    let mut ui = Ui::new();
+    with_folders(&mut ui);
+    let mut server = msg_in(5, 10, 3, "a");
+    server.not_uploaded_text = "stray".into();
+    let outs = opened(&mut ui, DRAFTS, vec![server, local(-1, 20, "")], true);
+    let rows = message_rows(&outs);
+    for r in &rows {
+        assert_eq!(r.value("notUploaded"), Some(RowValue::Bool(false)));
+        assert_eq!(text(r), Some(RowValue::Str(String::new())));
+    }
+}
+
+#[test]
+fn a_changed_reason_updates_the_row_without_a_reset() {
+    let mut ui = Ui::new();
+    with_folders(&mut ui);
+    opened(
+        &mut ui,
+        DRAFTS,
+        vec![local_text(-1, "d1", "Not uploaded")],
+        true,
+    );
+    draft_changed(&mut ui, "a");
+    let outs = feed(
+        &mut ui,
+        page(
+            DRAFTS,
+            None,
+            vec![local_text(-1, "d1", "Mailbox full")],
+            true,
+        ),
+    );
+    let ops = changes(&outs, Model::Messages);
+    assert!(!ops.iter().any(|o| matches!(o, Op::Reset(_))), "{ops:?}");
+    let updated: Vec<&Row> = ops
+        .iter()
+        .filter_map(|o| match o {
+            Op::Update { row, .. } => Some(row),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(updated.len(), 1, "{ops:?}");
+    assert_eq!(text(updated[0]), Some(RowValue::Str("Mailbox full".into())));
+}
