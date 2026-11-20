@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "envio-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "envio-core",
  "envio-mime",
@@ -557,7 +557,7 @@ dependencies = [
 
 [[package]]
 name = "envio-e2e"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "envio-core",
  "envio-mime",
@@ -575,7 +575,7 @@ dependencies = [
 
 [[package]]
 name = "envio-mime"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ammonia",
  "base64",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "envio-net"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-imap",
  "base64",
@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "envio-push-helper"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "gettext-rs",
  "serde_json",
@@ -626,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "envio-store"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "log",
  "rusqlite",
@@ -638,7 +638,7 @@ dependencies = [
 
 [[package]]
 name = "envio-sync"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "envio-mime",
  "envio-net",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "envio-ui"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "envio-core",
  "envio-mime",
@@ -2906,7 +2906,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cargo_metadata",
  "quick-xml",

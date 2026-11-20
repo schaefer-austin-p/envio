@@ -15,7 +15,7 @@
             "push-helper": "push/push-helper.json"
         }
     },
-    "version": "0.2.0",
+    "version": "0.3.0",
     "maintainer": "Austin Schaefer <austin.schaefer@mailo.eu>",
     "framework" : "$ENV{CLICK_FRAMEWORK}"
 }

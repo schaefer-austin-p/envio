@@ -5,11 +5,22 @@ All notable changes to Envio are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
+Release milestone:
+https://code.austinschaefer.com/schaefera/envio/milestone/16
+
 ### Added
 
 - New-mail notifications while Envio runs: a system notification and a
-  launcher badge when mail reaches an Inbox (#144). Envio still cannot wake
-  a suspended phone; that is planned.
+  launcher badge when mail reaches an Inbox (#144). Ubuntu Touch suspends
+  an app in the background, so a notification for mail that arrives while
+  Envio is not on screen needs Envio exempted from suspension (UT Tweak
+  Tool, "Prevent app suspension"); Settings > Notifications explains how.
+  Envio still cannot wake a suspended phone; that is planned.
+- Settings > Notifications: a switch per account (all on at first), and
+  "Show sender and subject". That one is off at first, so a card shows
+  only the account and a count (#144).
 - Drafts go to the server. A draft is uploaded to the account's Drafts
   folder and replaces its older copy, and it is removed when you send or
   delete it (#52, #59, #284). A draft the server refuses (mailbox full,
@@ -72,7 +83,9 @@ All notable changes to Envio are listed here. The format follows
   organisation, and the message must have exactly one From address. A
   forged From address no longer loads images or shows as known. The mail
   server's own `Authentication-Results` header is not trusted. "Always for
-  this sender" is hidden on mail that cannot be verified.
+  this sender" is offered only on mail with a DKIM signature from the From
+  address's domain, and the choice loads images only on messages whose
+  signature verifies.
 - Attaching a file with the picker works again: the picked files are handed
   over once Content Hub has finished (#286).
 - Edit on a draft never loses a label or flag set on the server: such a
@@ -121,6 +134,15 @@ All notable changes to Envio are listed here. The format follows
 - Links written without `https://` (`//example.com/…` or
   `www.example.com/…`) open over https instead of doing nothing, as
   `www.` addresses in plain-text mail already did.
+
+### Known limitations
+
+- A message row can keep its highlight after a touch scroll until the
+  next tap (#397).
+- The wide two-pane layout, hover and the right-click menu have been
+  tested in a desktop window, not yet on a tablet.
+- Very large folders (100,000 messages and more) can make Load older and
+  sync slow (#399).
 
 ## [0.2.0] - 2026-11-15
 
