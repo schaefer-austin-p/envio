@@ -77,9 +77,10 @@ fn params(query: &str) -> Result<Params, RedirectError> {
     Ok(out)
 }
 
-/// Check a redirect against this attempt: exact scheme and host, the
-/// provider's `error` (only its code is kept), the `state` in constant time,
-/// then the code.
+/// Check a redirect against this attempt: exact scheme and host (one optional
+/// `/`, an empty path, may follow the host: morph-browser dispatches
+/// `enviooauth://callback/?...`), the provider's `error` (only its code is
+/// kept), the `state` in constant time, then the code.
 pub fn parse_redirect(
     url: &str,
     expect_state: &str,
@@ -91,6 +92,7 @@ pub fn parse_redirect(
     let url = url.split('#').next().unwrap_or("");
     let query = url
         .strip_prefix(redirect_uri)
+        .map(|rest| rest.strip_prefix('/').unwrap_or(rest))
         .and_then(|rest| rest.strip_prefix('?'))
         .ok_or(RedirectError::Malformed)?;
     let p = params(query)?;

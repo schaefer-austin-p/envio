@@ -182,3 +182,24 @@ fn debug_hides_the_code() {
     let r = parse_redirect("enviooauth://callback?code=CODE-MARKER&state=s", "s", URI).unwrap();
     assert!(!format!("{r:?}").contains("CODE-MARKER"));
 }
+
+#[test]
+fn a_trailing_slash_before_the_query_is_accepted() {
+    // morph-browser dispatches `enviooauth://callback/?...`.
+    let r = parse_redirect("enviooauth://callback/?code=c&state=xyz", "xyz", URI).unwrap();
+    assert_eq!(r.code.expose_secret(), "c");
+    let url = "enviooauth://callback/?code=c&state=bad";
+    assert_eq!(err(url, "xyz"), Some(RedirectError::Mismatch));
+}
+
+#[test]
+fn only_one_empty_path_segment_is_accepted() {
+    for url in [
+        "enviooauth://callback//?code=c&state=xyz",
+        "enviooauth://callback/x?code=c&state=xyz",
+        "enviooauth://callbackx?code=c&state=xyz",
+        "enviooauth://other/?code=c&state=xyz",
+    ] {
+        assert_eq!(err(url, "xyz"), Some(RedirectError::Malformed), "{url}");
+    }
+}
