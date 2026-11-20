@@ -140,6 +140,9 @@ pub mod qobject {
         #[cxx_name = "attachmentSaved"]
         fn attachment_saved(self: Pin<&mut EnvioCore>, path: &QString);
         #[qsignal]
+        #[cxx_name = "listSwitched"]
+        fn list_switched(self: Pin<&mut EnvioCore>, folder: f64);
+        #[qsignal]
         #[cxx_name = "attachmentFailed"]
         fn attachment_failed(self: Pin<&mut EnvioCore>, id: f64);
         #[qsignal]

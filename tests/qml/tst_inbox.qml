@@ -23,6 +23,7 @@ Item {
         anchors.fill: parent
     }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
+    SignalSpy { id: searched; target: page; signalName: "searchRequested" }
     SignalSpy { id: wanted; target: page; signalName: "accountsRequested" }
 
     MockCore { id: shellCore }
@@ -539,6 +540,18 @@ Item {
             compare(core.called("act").pop().args, ["move", 8])
             core.folders.clear()
             core.messages.clear()
+        }
+
+        function test_search_follows_an_automatic_switch_of_the_list() {
+            searched.clear()
+            page.showFolder(-2, "Drafts")
+            // The server gained a Drafts folder: the Ui moves the view to it.
+            core.listSwitched(5)
+            compare(page.folderId, 5)
+            mouseClick(find("searchButton", page))
+            compare(searched.count, 1)
+            compare(searched.signalArguments[0][0], 5)
+            page.showUnified()
         }
 
         function test_movesheet_leaves_out_the_local_drafts_entry() {

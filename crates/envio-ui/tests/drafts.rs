@@ -1,7 +1,7 @@
 mod support;
 
 use envio_core::{Command, Event, FolderId, FolderRole, ListRef, MessageRow};
-use envio_ui::{Model, Op, Output, Row, RowValue, Ui};
+use envio_ui::{Model, Op, Output, Row, RowValue, Signal, Ui};
 use support::*;
 
 const DRAFTS: ListRef = ListRef::Folder(FolderId(3));
@@ -331,6 +331,12 @@ fn the_view_moves_to_the_real_drafts_folder_when_the_server_gains_one() {
         .collect();
     assert_eq!(asked, vec![DRAFTS]);
     assert!(ui.list_is_drafts());
+    // The page is told, so its search scope follows (#303).
+    assert!(
+        outs.iter()
+            .any(|o| matches!(o, Output::Signal(Signal::ListSwitched { folder: 3 }))),
+        "{outs:?}"
+    );
 }
 
 #[test]

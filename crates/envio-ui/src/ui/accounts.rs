@@ -219,6 +219,7 @@ impl Ui {
             // Its drafts show in the real folder now: switch the view.
             let (command, more) = self.open_list(ListRef::Folder(real.id));
             outs.extend(more);
+            outs.push(Output::Signal(Signal::ListSwitched { folder: real.id.0 }));
             outs.push(Output::Send(command));
         }
         outs
