@@ -76,9 +76,9 @@ What it does not do, and why:
 Privacy:
 
 - Remote images are blocked until you decide otherwise. Tracking content is
-  removed. "Always for this sender" is offered on mail with a DKIM
-  signature and applies only while Envio can verify that signature, so a
-  forged From address does not get trusted.
+  removed. "Always for this sender" is offered on mail signed (DKIM)
+  by the sender's domain and applies only while Envio can verify that
+  signature, so a forged From address does not get trusted.
 - Connections use TLS. A self-signed certificate is shown with its
   fingerprint and pinned only if you accept it.
 - No telemetry. Passwords are kept in a file only the app can read, never in
