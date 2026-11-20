@@ -26,6 +26,11 @@ pub enum Signal {
     Notice(String),
     StoreProblem(String),
     WorkerRestarted(String),
+    /// The Ui moved the view to another folder by itself (#303): the page
+    /// follows, so its search scope names the folder shown.
+    ListSwitched {
+        folder: i64,
+    },
     Detected {
         email: String,
         text: String,

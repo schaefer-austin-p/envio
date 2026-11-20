@@ -44,7 +44,9 @@ Sheet {
             objectName: "folder-" + model.id
             theme: root.theme
             width: root.width
-            visible: model.account === root.account
+            // Not the local Drafts entry (#303, a negative id): it has no
+            // server folder to move to.
+            visible: model.account === root.account && model.id > 0
             iconName: root.roleIcon(model.role)
             // Child folders keep the per-level indent, icon included.
             iconInset: theme.gu(2.5) + model.depth * theme.gu(2)

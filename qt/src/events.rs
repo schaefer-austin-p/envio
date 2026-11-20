@@ -143,6 +143,7 @@ impl qobject::EnvioCore {
         match signal {
             Signal::Notice(t) => self.notice(&q(&t)),
             Signal::StoreProblem(t) => self.store_problem(&q(&t)),
+            Signal::ListSwitched { folder } => self.list_switched(crate::variant::js_num(folder)),
             Signal::WorkerRestarted(t) => self.worker_restarted(&q(&t)),
             Signal::Detected {
                 email,

@@ -1,6 +1,6 @@
 //! Accounts and folders.
 
-use envio_core::{AccountInfo, AccountStatus, FolderRow};
+use envio_core::{AccountInfo, AccountStatus, FolderRole, FolderRow, ListRef};
 
 use super::{Output, Ui, change};
 use crate::convert;
@@ -190,6 +190,21 @@ impl Ui {
     }
 
     pub(super) fn folders(&mut self, account: String, folders: &[FolderRow]) -> Vec<Output> {
+        // The local Drafts entry shown (#303) that this list no longer has:
+        // the server gained a Drafts folder.
+        let vanished = match self.current.as_ref().map(|c| c.list) {
+            Some(ListRef::Folder(id))
+                if id.0 < 0
+                    && self
+                        .folder_roles
+                        .get(&id.0)
+                        .is_some_and(|(a, _)| *a == account)
+                    && !folders.iter().any(|f| f.id == id) =>
+            {
+                folders.iter().find(|f| f.role == FolderRole::Drafts)
+            }
+            _ => None,
+        };
         self.folder_roles.retain(|_, (a, _)| *a != account);
         for f in folders {
             self.folder_roles.insert(f.id.0, (account.clone(), f.role));
@@ -199,6 +214,14 @@ impl Ui {
             .map(|f| convert::folder_row(&account, f))
             .collect();
         self.folders_of = Some(account);
-        vec![change(Model::Folders, Op::Reset(rows))]
+        let mut outs = vec![change(Model::Folders, Op::Reset(rows))];
+        if let Some(real) = vanished {
+            // Its drafts show in the real folder now: switch the view.
+            let (command, more) = self.open_list(ListRef::Folder(real.id));
+            outs.extend(more);
+            outs.push(Output::Signal(Signal::ListSwitched { folder: real.id.0 }));
+            outs.push(Output::Send(command));
+        }
+        outs
     }
 }
