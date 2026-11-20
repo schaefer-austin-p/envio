@@ -161,11 +161,17 @@ drafts.
     organisational domains from the public suffix list), exactly one From
     header, `h=` covering from and every content-type and
     content-transfer-encoding field the message has; or
-  - the account's IMAP host is in a short table of exact hosts (Fastmail,
-    iCloud, Yahoo, each with its own authserv-id) and the topmost
-    `Authentication-Results` of that provider says so. Gmail waits for a
-    captured header (#387) and verifies by DKIM until then. There is no
-    Microsoft entry; Outlook, Exchange and self-hosted servers use DKIM.
+  - the account's IMAP host is in a short table of exact hosts, each with
+    its own authserv-id, and the topmost `Authentication-Results` of that
+    provider says so. The table ships empty (see the note below), so for
+    now only DKIM verifies. There is no Microsoft entry; Outlook, Exchange
+    and self-hosted servers use DKIM.
+
+  2026-11-20 note (#387): the fast-path table ships empty for 0.3.0. An
+  entry needs a captured real header from that provider, and none was ever
+  captured (Gmail, Fastmail, iCloud, Yahoo all dropped). In-app DKIM (#285)
+  is the path; entries return one provider at a time, each with its header
+  and test.
 
   A DKIM key lookup runs only for a sender on the Always list and only while
   their message is open, and never when the images are already loaded or

@@ -13,12 +13,15 @@ use crate::from_field::single_from_domain;
 /// Providers the fast path trusts: (exact IMAP host, authserv-id suffixes
 /// that stamp for it). Each entry needs a header captured from that
 /// provider. The one place to extend; Microsoft is deliberately absent.
-const PROVIDERS: &[(&str, &[&str])] = &[
-    // Gmail is left out until a real header is captured (#387).
-    ("imap.fastmail.com", &["messagingengine.com"]),
-    ("imap.mail.me.com", &["icloud.com", "apple.com"]),
-    ("imap.mail.yahoo.com", &["yahoo.com"]),
-];
+///
+/// The table ships empty for 0.3.0 (#387): no provider's header has been
+/// captured for real, so DKIM checked in the app does all the verifying.
+/// An entry comes back with a captured header and its own test, one
+/// provider at a time.
+const PROVIDERS: &[Provider] = &[];
+
+/// One provider: (exact IMAP host, authserv-id suffixes that stamp for it).
+type Provider = (&'static str, &'static [&'static str]);
 
 /// The sender's domain was authenticated by the account's own provider: the
 /// message has exactly one `From:` mailbox whose domain is the one of
@@ -29,6 +32,12 @@ const PROVIDERS: &[(&str, &[&str])] = &[
 /// topmost may come from the sender and are never read, so a topmost header
 /// with an untrusted or missing id leaves the message unverified.
 pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
+    verified_by(PROVIDERS, raw, from, imap_host)
+}
+
+/// [`sender_verified`] against an explicit provider table, so the matcher is
+/// tested without a shipped entry.
+fn verified_by(table: &[Provider], raw: &[u8], from: &str, imap_host: &str) -> bool {
     let Some(domain) = from
         .trim()
         .rsplit_once('@')
@@ -39,7 +48,7 @@ pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
     if single_from_domain(raw).as_deref() != Some(domain.as_str()) {
         return false;
     }
-    let Some(header) = results_of(raw, imap_host) else {
+    let Some(header) = results_of(table, raw, imap_host) else {
         return false;
     };
     split_outside_quotes(&header, |c| c == ';')
@@ -51,7 +60,7 @@ pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
 /// Whether an authserv-id is one of the ids that stamp for `imap_host`: it
 /// equals a listed id or ends with `.` plus it. Hosts compare
 /// case-insensitively and without a trailing dot.
-fn trusted_id(id: &str, imap_host: &str) -> bool {
+fn trusted_id(table: &[Provider], id: &str, imap_host: &str) -> bool {
     let id = id
         .trim()
         .trim_matches('"')
@@ -61,7 +70,7 @@ fn trusted_id(id: &str, imap_host: &str) -> bool {
     if id.is_empty() || host.is_empty() {
         return false;
     }
-    PROVIDERS
+    table
         .iter()
         .filter(|(h, _)| h.eq_ignore_ascii_case(host))
         .flat_map(|(_, ids)| ids.iter())
@@ -78,12 +87,12 @@ fn trusted_id(id: &str, imap_host: &str) -> bool {
 /// topmost header has an untrusted or missing id (Exchange Online and
 /// Outlook.com write none), there is no result, and the headers below it
 /// are never read, since the sender may have written them.
-fn results_of(raw: &[u8], imap_host: &str) -> Option<String> {
+fn results_of(table: &[Provider], raw: &[u8], imap_host: &str) -> Option<String> {
     let value = strip_comments(&headers(raw).into_iter().next()?);
     let id = split_outside_quotes(&value, |c| c == ';')
         .first()
         .and_then(|first| first.split_whitespace().next().map(str::to_owned))?;
-    trusted_id(&id, imap_host).then_some(value)
+    trusted_id(table, &id, imap_host).then_some(value)
 }
 
 /// The unfolded values of every `Authentication-Results` header, topmost
@@ -227,7 +236,18 @@ fn passes(clause: &str, domain: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::sender_verified;
+    use super::{PROVIDERS, Provider, verified_by};
+
+    /// A test-only table of the shape a shipped one would have.
+    const TABLE: &[Provider] = &[
+        ("imap.fastmail.com", &["messagingengine.com"]),
+        ("imap.mail.me.com", &["icloud.com", "apple.com"]),
+        ("imap.mail.yahoo.com", &["yahoo.com"]),
+    ];
+
+    fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
+        verified_by(TABLE, raw, from, imap_host)
+    }
 
     const HOST: &str = "imap.fastmail.com";
 
@@ -552,9 +572,28 @@ mod tests {
     }
 
     #[test]
-    fn gmail_is_not_in_the_table_so_its_header_earns_nothing() {
-        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
-        assert!(!sender_verified(&m, "bob@example.com", "imap.gmail.com"));
+    fn the_shipped_table_is_empty_so_no_provider_header_earns_anything() {
+        assert!(PROVIDERS.is_empty());
+        for (host, id) in [
+            ("imap.fastmail.com", "mx.messagingengine.com"),
+            ("imap.gmail.com", "mx.google.com"),
+            ("imap.mail.me.com", "mx.icloud.com"),
+            ("imap.mail.yahoo.com", "mta.yahoo.com"),
+        ] {
+            let m = mail(&format!(
+                "Authentication-Results: {id}; dkim=pass header.d=example.com\r\n"
+            ));
+            assert!(
+                !super::sender_verified(&m, "bob@example.com", host),
+                "{host}"
+            );
+            // The same header does verify against the test table.
+            assert_eq!(
+                sender_verified(&m, "bob@example.com", host),
+                host != "imap.gmail.com",
+                "{host}"
+            );
+        }
     }
 
     #[test]
