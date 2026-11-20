@@ -369,7 +369,6 @@ fn one_failed_name_does_not_stop_the_other_from_verifying() {
 }
 
 #[test]
-#[ignore = "needs T2: the provider table replaces the registrable-domain rule (#285)"]
 fn a_forged_header_on_a_self_hosted_server_with_no_signature_is_not_verified() {
     let raw = b"Authentication-Results: mx.example.org; dkim=pass header.d=example.com\r\n\
 From: Bob <bob@example.com>\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
