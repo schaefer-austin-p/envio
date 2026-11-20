@@ -69,6 +69,8 @@ impl Worker<'_> {
     /// The (account, folder) pairs `list` loads older mail for.
     fn older_targets(&self, list: ListRef) -> Vec<(String, FolderId)> {
         match list {
+            // A local entry has no server folder to load from.
+            ListRef::Folder(f) if self.local_folders.borrow().account_of(f).is_some() => Vec::new(),
             ListRef::Folder(folder) => match self.store.db.folder(folder) {
                 Ok(f) => vec![(f.account, folder)],
                 Err(e) => {

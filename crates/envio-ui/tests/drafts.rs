@@ -250,3 +250,61 @@ fn a_changed_reason_updates_the_row_without_a_reset() {
     assert_eq!(updated.len(), 1, "{ops:?}");
     assert_eq!(text(updated[0]), Some(RowValue::Str("Mailbox full".into())));
 }
+
+// The local-only Drafts entry (#303): the core lists it as a Drafts-role
+// folder with a negative id, and the UI treats it like any Drafts folder.
+const LOCAL: ListRef = ListRef::Folder(FolderId(-1));
+
+fn with_local_entry(ui: &mut Ui) -> Vec<Output> {
+    let mut entry = folder(-1, FolderRole::Drafts);
+    entry.path = "Drafts".into();
+    entry.name = "Drafts".into();
+    feed(
+        ui,
+        Event::Folders {
+            account: "a".into(),
+            folders: vec![folder(1, FolderRole::Inbox), entry],
+        },
+    )
+}
+
+#[test]
+fn the_local_entry_is_an_ordinary_drafts_row_in_the_drawer() {
+    let mut ui = Ui::new();
+    let outs = with_local_entry(&mut ui);
+    let rows: Vec<Row> = changes(&outs, Model::Folders)
+        .into_iter()
+        .flat_map(|op| match op {
+            Op::Reset(r) => r.clone(),
+            _ => vec![],
+        })
+        .collect();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].value("role"), Some(RowValue::Str("drafts".into())));
+    assert_eq!(rows[1].value("name"), Some(RowValue::Str("Drafts".into())));
+    assert_eq!(rows[1].value("id"), Some(RowValue::Int(-1)));
+}
+
+#[test]
+fn a_local_entry_draft_opens_compose_and_the_list_is_a_drafts_list() {
+    let mut ui = Ui::new();
+    with_local_entry(&mut ui);
+    let mut row = msg_in(-1, 20, -1, "a");
+    row.local_draft = Some("d1".into());
+    let outs = opened(&mut ui, LOCAL, vec![row], true);
+    let rows = message_rows(&outs);
+    assert_eq!(rows[0].value("draftId"), Some(RowValue::Str("d1".into())));
+    assert_eq!(
+        rows[0].value("opens"),
+        Some(RowValue::Str("compose".into()))
+    );
+    assert!(ui.list_is_drafts());
+}
+
+#[test]
+fn local_drafts_changed_refreshes_the_local_entry_list() {
+    let mut ui = Ui::new();
+    with_local_entry(&mut ui);
+    opened(&mut ui, LOCAL, vec![], true);
+    assert_eq!(lists(&draft_changed(&mut ui, "a")), vec![None]);
+}

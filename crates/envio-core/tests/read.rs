@@ -89,7 +89,11 @@ fn list_folders_and_a_page_of_messages() {
         Event::Folders { account, folders } if *account == s.key => Some(folders.clone()),
         _ => None,
     });
-    assert_eq!(folders.len(), 1);
+    // The Inbox, and the local-only Drafts entry (#303): the account's
+    // server has no folder with the Drafts role.
+    assert_eq!(folders.len(), 2);
+    assert_eq!(folders[1].role, FolderRole::Drafts);
+    assert!(folders[1].id.0 < 0);
     assert_eq!(folders[0].id, s.folder);
     assert_eq!(folders[0].name, "INBOX");
     assert_eq!(folders[0].role, FolderRole::Inbox);
