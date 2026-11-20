@@ -77,24 +77,45 @@ pub(crate) fn log_kind(stage: &str, kind: envio_sync::ErrorKind) {
         kind,
         envio_sync::ErrorKind::SignIn | envio_sync::ErrorKind::Certificate
     ) {
-        log::warn!("pause cause: {stage}: {kind:?} (detail in the connect line above)");
+        emit(&format!(
+            "pause cause: {stage}: {kind:?} (detail in the connect line above)"
+        ));
     }
+}
+
+thread_local! {
+    /// The lines this thread emitted, for tests.
+    #[cfg(test)]
+    static SEEN: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The one place a cause line is written.
+fn emit(line: &str) {
+    #[cfg(test)]
+    SEEN.with(|seen| seen.borrow_mut().push(line.to_owned()));
+    log::warn!("{line}");
+}
+
+/// The cause lines this thread emitted since the last call.
+#[cfg(test)]
+pub(crate) fn take_seen() -> Vec<String> {
+    SEEN.with(|seen| std::mem::take(&mut *seen.borrow_mut()))
 }
 
 pub(crate) fn log_net(stage: &str, error: &NetError) {
     if let Some(line) = net_line(stage, error) {
-        log::warn!("{line}");
+        emit(&line);
     }
 }
 
 pub(crate) fn log_token(error: &TokenError) {
     if !matches!(error, TokenError::Temporary) {
-        log::warn!("{}", token_line(error));
+        emit(&token_line(error));
     }
 }
 
 pub(crate) fn log_stage(stage: &str) {
-    log::warn!("pause cause: {stage}");
+    emit(&format!("pause cause: {stage}"));
 }
 
 #[cfg(test)]
@@ -125,6 +146,20 @@ mod tests {
         assert!(!line.contains(secret), "{line}");
         assert!(!line.contains("bob@"), "{line}");
         assert!(line.contains("b…@outlook.com"), "{line}");
+    }
+
+    #[test]
+    fn emitting_a_cause_records_the_line() {
+        take_seen();
+        log_net(
+            IMAP_XOAUTH2,
+            &NetError::SignIn("AUTHENTICATE failed".into()),
+        );
+        log_stage(NO_PROVIDER);
+        let seen = take_seen();
+        assert_eq!(seen.len(), 2, "{seen:?}");
+        assert!(seen[0].starts_with("pause cause: IMAP AUTHENTICATE XOAUTH2"));
+        assert!(seen[1].contains(NO_PROVIDER));
     }
 
     #[test]

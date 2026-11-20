@@ -45,36 +45,48 @@ pub fn server_text(text: &str) -> String {
     }
 }
 
-/// Where the local part just before an `@` begins: plain address
-/// characters, and any quoted pieces (`"alice smith"`, `"a\"b"`, with an
-/// escaped quote not ending the piece) taken whole. An unclosed quote takes
-/// everything before it.
+/// Where the local part just before an `@` begins: every character up to
+/// whitespace, a control character or a delimiter (`<(,;:[`), with quoted
+/// pieces (`"alice smith"`, `"a\"b"`, an escaped quote not ending the piece)
+/// taken whole. A quote left unclosed is not a local part's: it is then read
+/// again with quotes as delimiters (`Some("bob@x.com")`).
 fn local_start(out: &str) -> Option<usize> {
+    match walk_local(out, true) {
+        (start, false) => start,
+        (_, true) => walk_local(out, false).0,
+    }
+}
+
+/// The walk back from the end of `out`, and whether a quote was left open.
+fn walk_local(out: &str, quotes: bool) -> (Option<usize>, bool) {
     let chars: Vec<(usize, char)> = out.char_indices().collect();
     let mut in_quote = false;
     let mut start = None;
     for (n, &(at, c)) in chars.iter().enumerate().rev() {
-        if c == '"' {
+        if c == '"' && quotes {
             let escaped = n > 0 && chars[n - 1].1 == '\\';
             if !escaped {
                 in_quote = !in_quote;
             }
-        } else if !(in_quote || c == '\\' || c.is_alphanumeric() || "._%+-".contains(c)) {
+        } else if !in_quote && (c.is_whitespace() || c.is_control() || "<(,;:[\"".contains(c)) {
             break;
         }
         start = Some(at);
     }
-    start
+    (start, in_quote)
 }
 
-/// `%25` is a `%` and `%40` is an `@`, however often it was encoded; a run
-/// of `@` is one.
+/// `%25` is a `%`, and `%40`, `\u0040`, `&#64;` and `&#x40;` are an `@`,
+/// however often percent-encoded; a run of `@` is one.
 fn decode_at_signs(text: &str) -> String {
     let mut text = text.to_owned();
     while text.contains("%25") {
         text = text.replace("%25", "%");
     }
     let mut text = text.replace("%40", "@");
+    for form in ["\\u0040", "&#64;", "&#x40;", "&#X40;"] {
+        text = text.replace(form, "@");
+    }
     while text.contains("@@") {
         text = text.replace("@@", "@");
     }
@@ -203,6 +215,32 @@ mod tests {
         assert!(!b.contains("alice") && b.contains("a…@x.com"), "{b}");
         let c = server_text("alice%252540x.com");
         assert!(!c.contains("alice"), "{c}");
+    }
+
+    #[test]
+    fn server_text_masks_every_legal_local_part_character() {
+        for (text, first) in [
+            ("NO o'brien@corp.com bad", "o"),
+            ("alice=bob@x.com", "a"),
+            ("a!b#c@x.com", "a"),
+            ("john/doe@x.com", "j"),
+            ("{\"mail\":\"carol.d@x.com\"}", "c"),
+        ] {
+            let out = server_text(text);
+            assert!(out.contains(&format!("{first}…@")), "{text} -> {out}");
+            for leak in ["brien", "bob", "b#c", "oe@", "arol.d"] {
+                assert!(!out.contains(leak), "{text} -> {out}");
+            }
+        }
+        let json = server_text("alice\\u0040x.com");
+        assert_eq!(json, "a…@x.com");
+        assert_eq!(server_text("alice&#64;x.com"), "a…@x.com");
+        assert_eq!(server_text("alice&#x40;x.com"), "a…@x.com");
+        assert_eq!(server_text("alice&#X40;x.com"), "a…@x.com");
+        assert_eq!(
+            server_text("mailto:dan@x.com,eve@y.org"),
+            "mailto:d…@x.com,e…@y.org"
+        );
     }
 
     #[test]

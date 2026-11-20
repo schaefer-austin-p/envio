@@ -255,7 +255,7 @@ pub(super) fn login(
         Service::Smtp => &account.settings.smtp,
     };
     let endpoint = endpoint(server).map_err(|_| {
-        log::warn!("pause cause: the stored server pin is malformed");
+        cause::log_stage("the stored server pin is malformed");
         Problem::Certificate(None)
     })?;
     let username = account.settings.username.clone();
@@ -637,6 +637,18 @@ mod tests {
             Service::Imap,
         );
         assert!(matches!(result, Err(Problem::Certificate(None))));
+    }
+
+    #[tokio::test]
+    async fn the_login_pauses_say_why() {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = Secrets::open(dir.path()).unwrap();
+        crate::cause::take_seen();
+        let result = login(&account(None), &secrets, &cells(dir.path()), Service::Imap);
+        assert!(matches!(result, Err(Problem::SignIn)));
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(seen[0].contains(crate::cause::PASSWORD_MISSING), "{seen:?}");
     }
 
     #[tokio::test]

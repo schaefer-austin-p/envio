@@ -109,6 +109,22 @@ pub fn from_kind(kind: ErrorKind) -> Problem {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn a_sign_in_pause_at_a_stage_emits_its_cause_line() {
+        crate::cause::take_seen();
+        let error = NetError::SignIn("AUTHENTICATE failed".into());
+        let at = |stage| super::from_net_at(stage, &error, Service::Imap);
+        assert_eq!(at(crate::cause::IDLE), Problem::SignIn);
+        assert_eq!(at(crate::cause::OPEN_INBOX), Problem::SignIn);
+        let sync = SyncError::from(NetError::SignIn("no".into()));
+        assert_eq!(super::from_sync(&sync, Service::Imap), Problem::SignIn);
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 3, "{seen:?}");
+        assert!(seen[0].starts_with("pause cause: IMAP IDLE: sign-in refused"));
+        assert!(seen[1].starts_with("pause cause: IMAP open of the Inbox"));
+        assert!(seen[2].starts_with("pause cause: IMAP command during sync"));
+    }
+
+    #[test]
     fn a_protocol_error_line_holds_no_secret_or_address() {
         let tok = "EwBwA8l6BAAUbDba3x2OMJElkF7gJ4z_VbCPEz0AAfj0fmHWqWbTB2xt";
         let line = super::protocol_line(&format!("bad reply for bob@outlook.com {tok}"));

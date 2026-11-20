@@ -105,6 +105,32 @@ fn text(r: Result<super::Granted, Problem>) -> String {
 }
 
 #[tokio::test]
+async fn callers_sharing_a_refused_refresh_log_one_cause_line() {
+    let s = setup(vec![Err(TokenError::Revoked("invalid_grant".into()))]);
+    let h = handle(&s, "a");
+    crate::cause::take_seen();
+    let (one, two) = futures::join!(h.access(false), h.access(false));
+    assert_eq!(one.unwrap_err(), Problem::SignIn);
+    assert_eq!(two.unwrap_err(), Problem::SignIn);
+    assert_eq!(s.fake.calls.get(), 1);
+    let seen = crate::cause::take_seen();
+    assert_eq!(seen.len(), 1, "{seen:?}");
+    assert!(seen[0].contains("error=invalid_grant"), "{seen:?}");
+}
+
+#[tokio::test]
+async fn a_missing_refresh_token_logs_one_line_and_no_provider_error() {
+    let s = setup(vec![Ok(("acc-1", None, 3600))]);
+    s.tokens.borrow_mut().remove("a").unwrap();
+    let h = handle(&s, "a");
+    crate::cause::take_seen();
+    assert_eq!(h.access(false).await.unwrap_err(), Problem::SignIn);
+    let seen = crate::cause::take_seen();
+    assert_eq!(seen.len(), 1, "{seen:?}");
+    assert!(!seen[0].contains("invalid_grant"), "{seen:?}");
+}
+
+#[tokio::test]
 async fn cached_token_is_reused_for_ten_connects() {
     let s = setup(vec![Ok(("acc-1", None, 3600))]);
     let h = handle(&s, "a");
