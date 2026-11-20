@@ -66,18 +66,13 @@ All notable changes to Envio are listed here. The format follows
 ### Fixed
 
 - "Always load images from this sender" and the known-sender cue now apply
-  only when the mail provider's `Authentication-Results` header says the
-  From domain passed DKIM, SPF or DMARC. The provider is recognised by its
-  exact IMAP host: Fastmail, iCloud or Yahoo, and the header's authserv-id
-  must be that provider's own. For every other server, Envio checks the
-  message's DKIM signature itself against the sender's DNS key while the
-  message is open (#285). A forged From address no longer loads images or
-  shows as known. Only the topmost header counts, the message must have
-  exactly one From address, and the signing domain only needs to share the
-  From domain's organisation. A self-hosted or IP-address server's own
-  header is not trusted. Microsoft servers have no provider entry; mail
-  there is checked by its DKIM signature like any other. "Always for this
-  sender" is hidden on mail that cannot be verified (#156).
+  only when Envio itself verifies the message's DKIM signature for the From
+  domain, by looking up the sender's key in DNS while the message is open
+  (#285, #156). The signing domain must share the From domain's
+  organisation, and the message must have exactly one From address. A
+  forged From address no longer loads images or shows as known. The mail
+  server's own `Authentication-Results` header is not trusted. "Always for
+  this sender" is hidden on mail that cannot be verified.
 - Attaching a file with the picker works again: the picked files are handed
   over once Content Hub has finished (#286).
 - Edit on a draft never loses a label or flag set on the server: such a
