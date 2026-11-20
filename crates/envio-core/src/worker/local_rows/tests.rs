@@ -131,6 +131,26 @@ fn a_refused_draft_gives_a_row() {
 }
 
 #[test]
+fn a_pseudo_row_always_has_chip_text() {
+    let rows = rows_of(draft("a", ServerCopy::default(), 5_000), &[], &[]);
+    assert_eq!(rows[0].not_uploaded_text, "Not uploaded");
+}
+
+#[test]
+fn a_refused_draft_row_carries_the_reason() {
+    let mut server = copy(None, None, 0);
+    server.failures = 1;
+    server.failed_ms = 5_000;
+    server.refusal = Some(envio_store::RefusalKind::OverQuota);
+    server.failed_at_ms = 7_000;
+    let rows = rows_of(draft("a", server.clone(), 5_000), &[], &[]);
+    assert_eq!(rows[0].not_uploaded_text, "Mailbox full");
+    // A newer save shows the plain words again.
+    let rows = rows_of(draft("a", server, 6_000), &[], &[]);
+    assert_eq!(rows[0].not_uploaded_text, "Not uploaded");
+}
+
+#[test]
 fn another_accounts_draft_gives_no_row() {
     let d = draft("b", ServerCopy::default(), 5_000);
     assert!(rows_of(d, &[], &[]).is_empty());
@@ -176,6 +196,7 @@ fn row(date: i64, id: i64) -> MessageRow {
         date: Some(date),
         flags: Flags::empty(),
         local_draft: (id < 0).then(|| format!("d{id}")),
+        not_uploaded_text: String::new(),
     }
 }
 

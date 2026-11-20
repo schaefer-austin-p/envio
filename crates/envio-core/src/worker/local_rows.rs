@@ -10,6 +10,7 @@ use envio_store::{Action, Cursor, Draft, Flags, Folder, FolderId, MessageRowId};
 use super::rows::{sender_label, subject};
 use crate::api::view::MessageRow;
 use crate::text;
+use crate::text::draft_chip::chip_text;
 
 /// The negative row id of each local draft, for this session. Cached rows
 /// have positive SQLite rowids, so the two never collide.
@@ -122,6 +123,7 @@ pub(super) fn local_rows(
             date: Some(date),
             flags: Flags::empty(),
             local_draft: Some(draft_id.clone()),
+            not_uploaded_text: chip_text(server, draft.updated_at_ms),
         });
     }
     rows

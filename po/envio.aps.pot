@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-19 22:16+0100\n"
+"POT-Creation-Date: 2026-11-20 09:03+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -608,7 +608,10 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
+#. TRANSLATORS: chip on a draft that is not on the server; keep to about
+#. 20 characters.
 #: qml/pages/inbox/MessageRow.qml:153
+#: crates/envio-core/src/text/draft_chip.rs:10
 msgid "Not uploaded"
 msgstr ""
 
@@ -1066,6 +1069,30 @@ msgid "Finds mail older than the {n} day kept here"
 msgid_plural "Finds mail older than the {n} days kept here"
 msgstr[0] ""
 msgstr[1] ""
+
+#. TRANSLATORS: chip, the server refused the draft because the mailbox is
+#. full; keep to about 20 characters.
+#: crates/envio-core/src/text/draft_chip.rs:16
+msgid "Mailbox full"
+msgstr ""
+
+#. TRANSLATORS: chip, the server does not let drafts be saved in the
+#. Drafts folder; keep to about 20 characters.
+#: crates/envio-core/src/text/draft_chip.rs:22
+msgid "Drafts read-only"
+msgstr ""
+
+#. TRANSLATORS: chip, the server refused the draft because it is too big;
+#. keep to about 20 characters.
+#: crates/envio-core/src/text/draft_chip.rs:28
+msgid "Too large"
+msgstr ""
+
+#. TRANSLATORS: chip, the server refused the draft for another reason;
+#. keep to about 20 characters.
+#: crates/envio-core/src/text/draft_chip.rs:34
+msgid "Server refused"
+msgstr ""
 
 #: crates/envio-core/src/text/invite.rs:9
 msgid "Accepted: {summary}"

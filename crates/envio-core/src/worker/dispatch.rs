@@ -18,6 +18,9 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             Flow::Continue
         }
         Command::Refresh { account } => {
+            // Only here, not in `Worker::refresh`: that also runs on every
+            // foreground resume, which must not lift the wait (#266).
+            worker.lift_draft_waits(account.as_deref());
             worker.refresh(account.as_deref());
             Flow::Continue
         }
@@ -205,3 +208,23 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
     }
 }
+
+impl Worker<'_> {
+    /// A manual refresh lifts the retry wait of the drafts the server
+    /// refused (`account`, or every account); the failure count and the
+    /// reason stay.
+    fn lift_draft_waits(&mut self, account: Option<&str>) {
+        let accounts: Vec<String> = match account {
+            Some(key) => vec![key.to_owned()],
+            None => self.live.keys().cloned().collect(),
+        };
+        for key in accounts {
+            if let Err(error) = self.store.drafts.clear_backoff(&key) {
+                log::warn!("account {key}: lifting the draft retry wait: {error}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
