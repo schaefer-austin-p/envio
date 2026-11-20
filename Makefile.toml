@@ -147,3 +147,19 @@ docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
   -e BUILD_DIR=/src/build-docker -e CARGO_TARGET_DIR=/src/target/docker-qt \
   "${APP_CI_IMAGE}" tests/qml/run.sh
 '''
+
+# The app on this machine's own Qt 5.15, no click and no container (#188).
+# Needs cmake, a C++ toolchain and the Qt 5.15 base, declarative and
+# quickcontrols2 dev packages. Data and cache are the app's XDG folders
+# (~/.local/share/envio.aps, ~/.cache/envio.aps); set XDG_DATA_HOME and
+# XDG_CACHE_HOME for a throwaway run. The window is the phone's 360x640.
+[tasks.run-desktop]
+description = "Build the app natively for this x86_64 desktop and start it"
+script = '''
+set -eu
+export ENVIO_GIT="$(sh tools/stamp.sh)"
+build="${BUILD_DIR:-build/desktop}"
+cmake -S . -B "$build" -DCMAKE_BUILD_TYPE=Release
+cmake --build "$build" -j "$(nproc)"
+exec "$build/envio"
+'''
