@@ -10,6 +10,11 @@ Item {
     required property Theme theme
     required property var core
     property string error: ""
+    // The address was refused (Microsoft, #381): a card, "Change address" in
+    // place of Continue, and no manual setup or ISPDB note (nothing is sent).
+    property string refusedTitle: ""
+    property string refusedText: ""
+    readonly property bool refused: refusedText !== ""
     property bool busy: false
     property alias email: emailField.text
     signal continued()
@@ -54,11 +59,12 @@ Item {
                 theme: root.theme
                 label: qsTr("Email address")
                 inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                onAccepted: if (continueButton.enabled) root.continued()
+                onAccepted: if (continueButton.enabled && !root.refused) root.continued()
             }
             Text {
                 textFormat: Text.PlainText
                 objectName: "ispdbNote"
+                visible: !root.refused
                 width: parent.width
                 text: root.core.ispdbNote()
                 wrapMode: Text.WordWrap
@@ -66,6 +72,15 @@ Item {
                 font.family: root.theme.fontUi
                 font.pixelSize: 13
                 lineHeight: 1.3
+            }
+            NoticeCard {
+                objectName: "refusalCard"
+                visible: root.refused
+                width: parent.width
+                theme: root.theme
+                kind: "info"
+                title: root.refusedTitle
+                text: root.refusedText
             }
             Text {
                 textFormat: Text.PlainText
@@ -83,6 +98,7 @@ Item {
                 width: parent.width
                 theme: root.theme
                 text: qsTr("Set up manually")
+                visible: !root.refused
                 enabled: root.hasAddress
                 onClicked: root.manualRequested()
             }
@@ -100,9 +116,9 @@ Item {
         width: parent.width
         theme: root.theme
         primary: true
-        text: qsTr("Continue")
-        enabled: !root.busy && root.hasAddress
-        onClicked: root.continued()
+        text: root.refused ? qsTr("Change address") : qsTr("Continue")
+        enabled: root.refused || (!root.busy && root.hasAddress)
+        onClicked: root.refused ? emailField.input.forceActiveFocus() : root.continued()
     }
     }
 }

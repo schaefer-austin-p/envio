@@ -41,6 +41,12 @@ pub enum Signal {
         email: String,
         text: String,
     },
+    /// The address cannot be used (Microsoft, #381): a card with a title.
+    SetupRefused {
+        email: String,
+        title: String,
+        text: String,
+    },
     OAuthBrowser {
         email: String,
         url: String,

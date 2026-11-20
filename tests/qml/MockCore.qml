@@ -53,6 +53,7 @@ Item {
     signal workerRestarted(string text)
     signal detected(string email, string text, bool needsConfirm, string setupJson, string servers, string oauthProvider)
     signal setupProblem(string email, string text)
+    signal setupRefused(string email, string title, string text)
     signal oauthBrowser(string email, string url)
     signal oauthConfirm(string email, string signedInAs, string text)
     signal oauthDone(string email, string outcome, string text)

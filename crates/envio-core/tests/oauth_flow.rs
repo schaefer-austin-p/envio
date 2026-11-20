@@ -190,10 +190,10 @@ fn detect_without_a_provider_is_what_it_always_was() {
     let h = Harness::start();
     let setting = |host: &str| Setting {
         endpoint: Endpoint::new(host, 993, Security::Tls),
-        username: "ada@outlook.com".into(),
+        username: "ada@example.org".into(),
     };
     fake_setup(
-        "ada@outlook.com",
+        "ada@example.org",
         SetupFake {
             delay: Duration::ZERO,
             found: Some(Found {
@@ -205,7 +205,7 @@ fn detect_without_a_provider_is_what_it_always_was() {
         },
     );
     h.send(Command::Detect {
-        email: "ada@outlook.com".into(),
+        email: "ada@example.org".into(),
     });
     let (setup, oauth, text) = h.wait(|e| match e {
         Event::Detected {

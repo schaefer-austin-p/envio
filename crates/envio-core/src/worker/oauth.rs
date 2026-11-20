@@ -85,7 +85,7 @@ fn timeout_ms(_email: &str) -> i64 {
 }
 
 impl Worker<'_> {
-    fn provider_of(&self, kind: ProviderKind) -> Option<Provider> {
+    pub(crate) fn provider_of(&self, kind: ProviderKind) -> Option<Provider> {
         self.providers.iter().find(|p| p.kind == kind).cloned()
     }
 
@@ -128,6 +128,26 @@ impl Worker<'_> {
                 provider: provider_name.to_owned(),
                 name_hint,
             }),
+        });
+        true
+    }
+
+    /// A Microsoft address with no Microsoft provider set up (sign-in is off
+    /// until #382, or the build has no client ID): refused before any
+    /// lookup, since autoconfig would only lead to a password that Microsoft
+    /// does not take. `false`: not a Microsoft address, or sign-in is on.
+    pub(crate) fn refuse_microsoft(&mut self, email: &str) -> bool {
+        let Some(kind) = provider_kind_for(email) else {
+            return false;
+        };
+        if self.provider_of(kind).is_some() {
+            return false;
+        }
+        let (title, text) = text::setup::microsoft_refused();
+        self.emit(Event::SetupRefused {
+            email: email.trim().to_owned(),
+            title,
+            text,
         });
         true
     }

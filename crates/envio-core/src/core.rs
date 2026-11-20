@@ -39,9 +39,27 @@ pub struct Config {
     pub dns: Option<Arc<dyn envio_net::dns::TxtLookup>>,
 }
 
-/// The OAuth providers the app offers: Microsoft once its client ID is set
-/// (`client_ids::MICROSOFT`), none if it is empty. The app's `Config` takes this.
+/// Whether the app offers Microsoft sign-in. Off (#381): Microsoft's IMAP
+/// refuses every OAuth session ("User is authenticated but not connected"),
+/// so a Microsoft address is refused at the email step. The OAuth code
+/// stays, behind this one switch, for the Graph backend (#382); turn it on
+/// there.
+const MICROSOFT_SIGN_IN: bool = false;
+
+/// Whether this build offers Microsoft sign-in at all (gate on and a client
+/// ID set). The screens use it to tell an existing Microsoft account that
+/// cannot sign in again from one that can.
+pub fn microsoft_sign_in_offered() -> bool {
+    !default_oauth_providers().is_empty()
+}
+
+/// The OAuth providers the app offers: Microsoft when `MICROSOFT_SIGN_IN` is
+/// on and its client ID is set (`client_ids::MICROSOFT`), else none. The
+/// app's `Config` takes this.
 pub fn default_oauth_providers() -> Vec<envio_net::oauth::Provider> {
+    if !MICROSOFT_SIGN_IN {
+        return Vec::new();
+    }
     providers_from(envio_net::oauth::Provider::microsoft())
 }
 
@@ -197,11 +215,16 @@ mod provider_tests {
     use envio_net::oauth::Provider;
 
     #[test]
-    fn the_registered_client_id_offers_microsoft() {
-        let list = default_oauth_providers();
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].kind, envio_net::oauth::ProviderKind::Microsoft);
-        assert!(!list[0].client_id.is_empty());
+    fn the_app_offers_no_provider_while_microsoft_sign_in_is_off() {
+        // #381 until #382: no provider, so a Microsoft address is refused.
+        assert!(default_oauth_providers().is_empty());
+    }
+
+    #[test]
+    fn the_registered_client_id_is_kept_for_the_graph_backend() {
+        let microsoft = envio_net::oauth::Provider::microsoft().expect("a client ID");
+        assert_eq!(microsoft.kind, envio_net::oauth::ProviderKind::Microsoft);
+        assert!(!microsoft.client_id.is_empty());
     }
 
     #[test]

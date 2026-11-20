@@ -18,6 +18,10 @@ Item {
     property string oauthProvider: ""
     readonly property alias oauthSession: session
     property string error: ""
+    // The address cannot be used (Microsoft, #381): shown as a card on the
+    // email step until the address is edited.
+    property string refusedTitle: ""
+    property string refusedText: ""
     property bool busy: false
     // The address `detect` was asked about; an answer for another is stale.
     property string asked: ""
@@ -58,6 +62,8 @@ Item {
         asked = ""
         attempting = false
         error = ""
+        refusedTitle = ""
+        refusedText = ""
     }
     function back() {
         // The core is storing the account: Back would drop its AccountAdded.
@@ -128,6 +134,8 @@ Item {
         anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "email"
         error: root.error
+        refusedTitle: root.refusedTitle
+        refusedText: root.refusedText
         busy: root.busy
         onContinued: root.detect()
         // Editing the address ends the attempt for the old one.
@@ -245,6 +253,18 @@ Item {
             if (!root.current(email)) return
             root.busy = false
             root.error = text
+        }
+        function onSetupRefused(email, title, text) {
+            if (!root.current(email)) return
+            root.busy = false
+            root.refusedTitle = title
+            root.refusedText = text
+            // Manual setup skips Detect: the refusal comes back from Connect,
+            // so the card is shown where the address is.
+            if (root.step === "servers") {
+                root.clearPasswords()
+                root.step = "email"
+            }
         }
         function onTrustPrompt(email, service, host, title, fingerprint, hex, text) {
             if (!root.current(email) || !root.busy || !root.connecting) return
