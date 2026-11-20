@@ -293,12 +293,13 @@ mod tests {
     #[test]
     fn a_header_from_the_provider_verifies_without_a_lookup() {
         let mut raw =
-            b"Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n".to_vec();
+            b"Authentication-Results: mx.messagingengine.com; dkim=pass header.d=example.com\r\n"
+                .to_vec();
         raw.extend(fixture("relaxed.eml"));
         let c = check(
             &raw,
             FROM,
-            "imap.gmail.com",
+            "imap.fastmail.com",
             &allowed(),
             ImagesChoice::Default,
             &KeyCache::default(),

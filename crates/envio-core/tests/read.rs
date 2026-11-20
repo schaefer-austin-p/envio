@@ -422,14 +422,14 @@ fn a_view_has_cc_from_the_message() {
 }
 
 const VERIFIED_IMAGE: &[u8] =
-    b"Authentication-Results: mx.google.com; dkim=pass header.d=example.org\r\n\
+    b"Authentication-Results: mx.messagingengine.com; dkim=pass header.d=example.org\r\n\
 From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
 Content-Type: text/html; charset=utf-8\r\n\r\n\
 <p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
 
 /// Opens `raw` with ada@example.org on the "always load" list.
 fn open_with_ada_allowed(raw: &[u8]) -> MessageView {
-    open_with_ada_allowed_on("imap.gmail.com", raw)
+    open_with_ada_allowed_on("imap.fastmail.com", raw)
 }
 
 /// Opens `raw` from an account on IMAP host `host`, with ada@example.org on
