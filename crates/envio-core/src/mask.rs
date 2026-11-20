@@ -17,7 +17,7 @@ pub fn address(email: &str) -> String {
 /// backslashes or control characters surround it. Cut at 200 characters.
 pub fn server_text(text: &str) -> String {
     const MIN_RUN: usize = 24;
-    let masked = mask_addresses(&text.replace("%40", "@"));
+    let masked = mask_addresses(&decode_at_signs(text));
     let mut out = String::new();
     let mut run = String::new();
     let flush = |run: &mut String, out: &mut String| {
@@ -45,29 +45,52 @@ pub fn server_text(text: &str) -> String {
     }
 }
 
-/// Where a quoted local part (`"alice smith"` just before an `@`) begins.
-fn quoted_local_start(out: &str) -> Option<usize> {
-    let inner = out.strip_suffix('"')?;
-    inner.rfind('"')
+/// Where the local part just before an `@` begins: plain address
+/// characters, and any quoted pieces (`"alice smith"`, `"a\"b"`, with an
+/// escaped quote not ending the piece) taken whole. An unclosed quote takes
+/// everything before it.
+fn local_start(out: &str) -> Option<usize> {
+    let chars: Vec<(usize, char)> = out.char_indices().collect();
+    let mut in_quote = false;
+    let mut start = None;
+    for (n, &(at, c)) in chars.iter().enumerate().rev() {
+        if c == '"' {
+            let escaped = n > 0 && chars[n - 1].1 == '\\';
+            if !escaped {
+                in_quote = !in_quote;
+            }
+        } else if !(in_quote || c == '\\' || c.is_alphanumeric() || "._%+-".contains(c)) {
+            break;
+        }
+        start = Some(at);
+    }
+    start
+}
+
+/// `%25` is a `%` and `%40` is an `@`, however often it was encoded; a run
+/// of `@` is one.
+fn decode_at_signs(text: &str) -> String {
+    let mut text = text.to_owned();
+    while text.contains("%25") {
+        text = text.replace("%25", "%");
+    }
+    let mut text = text.replace("%40", "@");
+    while text.contains("@@") {
+        text = text.replace("@@", "@");
+    }
+    text
 }
 
 /// Every `local@domain` (the characters an address is made of on both sides
 /// of an `@`) becomes `l…@domain`; a lone `@` stays.
 fn mask_addresses(text: &str) -> String {
-    let local = |c: char| c.is_alphanumeric() || "._%+-".contains(c);
     let domain = |c: char| c.is_alphanumeric() || ".-".contains(c);
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::new();
     let mut i = 0;
     while i < chars.len() {
         if chars[i] == '@' {
-            let start = quoted_local_start(&out).or_else(|| {
-                out.char_indices()
-                    .rev()
-                    .take_while(|(_, c)| local(*c))
-                    .last()
-                    .map(|(at, _)| at)
-            });
+            let start = local_start(&out);
             let mut end = i + 1;
             while end < chars.len() && domain(chars[end]) {
                 end += 1;
@@ -162,6 +185,24 @@ mod tests {
         assert!(!encoded.contains("alice"), "{encoded}");
         let umlaut = server_text("jörg@outlook.de");
         assert_eq!(umlaut, "j…@outlook.de");
+    }
+
+    #[test]
+    fn server_text_masks_a_local_part_with_several_quoted_pieces() {
+        let a = server_text("\"alice\".\"smith\"@x.com");
+        assert_eq!(a, "a…@x.com");
+        let b = server_text("hi \"a\\\"b\"@x.com");
+        assert_eq!(b, "hi a…@x.com");
+    }
+
+    #[test]
+    fn server_text_masks_repeated_and_double_encoded_at_signs() {
+        let a = server_text("alice%40%40x.com");
+        assert!(!a.contains("alice") && a.contains("a…@x.com"), "{a}");
+        let b = server_text("alice%2540x.com");
+        assert!(!b.contains("alice") && b.contains("a…@x.com"), "{b}");
+        let c = server_text("alice%252540x.com");
+        assert!(!c.contains("alice"), "{c}");
     }
 
     #[test]
