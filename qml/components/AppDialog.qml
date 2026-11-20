@@ -14,6 +14,8 @@ QC.Popup {
     property string message: ""
     property string primaryText: ""
     property string secondaryText: ""
+    // The secondary action as a compact button at the right, not full width.
+    property bool compactActions: false
     signal primaryActivated()
     signal secondaryActivated()
     default property alias content: extra.data
@@ -103,7 +105,8 @@ QC.Popup {
         }
         AppButton {
             objectName: "secondaryAction"
-            width: parent.width
+            width: root.compactActions ? implicitWidth : parent.width
+            x: root.compactActions ? parent.width - width : 0
             visible: root.secondaryText !== ""
             theme: root.theme
             text: root.secondaryText

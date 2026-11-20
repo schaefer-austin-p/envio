@@ -89,7 +89,15 @@ Item {
             verify(all("keyChip", dialog.contentItem).length >= 8)
             // Close is the outlined action; there is no filled one.
             verify(!find("primaryAction", dialog.contentItem).visible)
-            verify(find("secondaryAction", dialog.contentItem).visible)
+            const close = find("secondaryAction", dialog.contentItem)
+            verify(close.visible)
+            // Design review: rules under the rows, a compact Close at the right,
+            // a narrow centred card.
+            compare(all("shortcutRule", dialog.contentItem).length, 6)
+            verify(close.width < dialog.contentItem.width / 2)
+            compare(close.x + close.width, dialog.contentItem.width)
+            verify(dialog.width <= thm.gu(45) + 1)
+            verify(Math.abs(dialog.x - (dialog.parent.width - dialog.width) / 2) < 1)
             dialog.close()
             settings.visible = false
         }

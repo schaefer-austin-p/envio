@@ -27,7 +27,8 @@ ListRow {
     Rectangle {
         objectName: "focusOutline"
         parent: root
-        anchors.fill: parent
+        // Inset: off the pane edge and divider, and clear of the 3 px open bar.
+        anchors { fill: parent; leftMargin: 4; topMargin: 2; rightMargin: 2; bottomMargin: 2 }
         color: "transparent"
         border.width: 2
         border.color: root.theme.text

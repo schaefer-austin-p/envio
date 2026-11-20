@@ -8,6 +8,10 @@ AppDialog {
     objectName: "shortcutsDialog"
     title: qsTr("Keyboard shortcuts")
     secondaryText: qsTr("Close")
+    compactActions: true
+    // A narrow card, centred (the mockup's ~340 px of content).
+    width: parent ? Math.min(parent.width - 2 * theme.frameInset - theme.gu(4), theme.gu(45)) : 0
+    x: parent ? (parent.width - width) / 2 : 0
 
     // Each row: what it does and the chips of its keys.
     readonly property var rows: [
@@ -26,7 +30,13 @@ AppDialog {
             required property var modelData
             objectName: "shortcutRow"
             width: parent.width
-            height: Math.max(label.implicitHeight, chips.height) + root.theme.gu(0.5)
+            height: Math.max(label.implicitHeight, chips.height) + root.theme.gu(0.5) + 1
+            Rectangle {
+                objectName: "shortcutRule"
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: 1
+                color: root.theme.hairline
+            }
             Text {
                 id: label
                 anchors { left: parent.left; right: chips.left; rightMargin: root.theme.gu(1); verticalCenter: parent.verticalCenter }
