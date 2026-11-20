@@ -106,8 +106,36 @@ pub fn from_kind(kind: ErrorKind) -> Problem {
     }
 }
 
+/// A replay or send that stopped early: its kind becomes the account's
+/// problem, and a pause says in which step (`cause::log_kind`).
+pub(crate) fn from_stopped(stage: &str, stopped: Option<ErrorKind>) -> Result<(), Problem> {
+    match stopped {
+        Some(kind) => {
+            crate::cause::log_kind(stage, kind);
+            Err(from_kind(kind))
+        }
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_stopped_replay_or_send_that_pauses_emits_its_cause_line() {
+        crate::cause::take_seen();
+        assert_eq!(
+            super::from_stopped("replay", Some(ErrorKind::SignIn)),
+            Err(Problem::SignIn)
+        );
+        assert!(super::from_stopped("replay", None).is_ok());
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(
+            seen[0].starts_with("pause cause: replay: SignIn"),
+            "{seen:?}"
+        );
+    }
+
     #[test]
     fn a_sign_in_pause_at_a_stage_emits_its_cause_line() {
         crate::cause::take_seen();

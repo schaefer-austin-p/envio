@@ -17,6 +17,14 @@ pub fn address(email: &str) -> String {
 /// backslashes or control characters surround it. Cut at 200 characters.
 pub fn server_text(text: &str) -> String {
     const MIN_RUN: usize = 24;
+    const MAX_INPUT: usize = 1024;
+    // Masking is quadratic in the input, and the server's text is unbounded:
+    // work on the first 1 KB only. A cut address keeps its `@` and is still
+    // masked; a cut token is still a run; the cut is marked.
+    let (text, cut) = match text.char_indices().nth(MAX_INPUT) {
+        Some((at, _)) => (&text[..at], true),
+        None => (text, false),
+    };
     let masked = mask_addresses(&decode_at_signs(text));
     let mut out = String::new();
     let mut run = String::new();
@@ -38,8 +46,10 @@ pub fn server_text(text: &str) -> String {
     }
     flush(&mut run, &mut out);
     if out.chars().count() > 200 {
-        let cut: String = out.chars().take(200).collect();
-        format!("{cut}…")
+        let short: String = out.chars().take(200).collect();
+        format!("{short}…")
+    } else if cut {
+        format!("{out}…")
     } else {
         out
     }
@@ -135,6 +145,21 @@ pub fn subject(subject: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_huge_at_dense_server_text_is_cut_and_masked_in_bounded_time() {
+        let began = std::time::Instant::now();
+        let out = server_text(&"a@b ".repeat(64 * 1024));
+        assert!(began.elapsed() < std::time::Duration::from_millis(200));
+        assert!(out.ends_with('…') && out.chars().count() <= 201, "{out}");
+        // A cut inside an address or a token still hides it.
+        let tok = "x".repeat(40);
+        let long = format!("{}bob@example.com {tok}", " ".repeat(1010));
+        let out = server_text(&long);
+        assert!(!out.contains("bob@") && !out.contains(&tok), "{out}");
+        let cut_tok = format!("{}{tok}", " ".repeat(1000));
+        assert!(!server_text(&cut_tok).contains("xxxx"), "run redacted");
+    }
 
     #[test]
     fn an_address_keeps_only_its_first_letter_and_domain() {
