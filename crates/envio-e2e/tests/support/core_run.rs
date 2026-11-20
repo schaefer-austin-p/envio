@@ -233,7 +233,10 @@ impl CoreRun {
                 Event::Folders { folders, .. } => Some(folders.clone()),
                 _ => None,
             });
-            if let Some(row) = folders.iter().find(|f| f.role == role) {
+            // Before the first sync stored the folder list, the core shows a
+            // local stand-in for Drafts (negative id, no server folder):
+            // not what a test that appends to the server folder means.
+            if let Some(row) = folders.iter().find(|f| f.role == role && f.id.0 > 0) {
                 return (row.id, row.path.clone());
             }
             assert!(Instant::now() < end, "no {role:?} folder");
