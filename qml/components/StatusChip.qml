@@ -11,8 +11,10 @@ Rectangle {
     required property Theme theme
     property string text: ""
     property string iconName: "uploadoff"
+    // The widest the chip may be; a longer label elides on its one line.
+    property real maxWidth: Infinity
 
-    implicitWidth: row.implicitWidth + theme.gu(2)
+    implicitWidth: Math.min(row.implicitWidth + theme.gu(2), maxWidth)
     implicitHeight: 24
     width: implicitWidth
     height: implicitHeight
@@ -35,6 +37,10 @@ Rectangle {
         Text {
             objectName: "statusChipText"
             textFormat: Text.PlainText
+            elide: Text.ElideRight
+            maximumLineCount: 1
+            width: Math.min(implicitWidth, Math.max(0, root.maxWidth - root.theme.gu(2) - row.spacing
+                                                       - (root.iconName !== "" ? 14 : 0)))
             text: root.text
             font.capitalization: Font.AllUppercase
             color: root.theme.text
