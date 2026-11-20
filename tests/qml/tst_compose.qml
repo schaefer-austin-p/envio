@@ -91,7 +91,7 @@ Item {
         }
         function test_body_and_quote_take_the_body_roles(data) {
             thm.name = data.airmail ? "airmail" : "carbon"
-            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
+            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             const input = find("textBlockInput")
             compare(input.font.family, thm.fontBody)
             compare(input.font.pixelSize, thm.bodySize)
@@ -103,7 +103,7 @@ Item {
         }
 
         function test_ready_fills_fields_and_folds_quote() {
-            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi")
+            mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             compare(find("to").entries, ["Bob <bob@example.org>"])
             compare(find("subjectField").text, "Re: Plans")
             compare(find("bodyField").text, "Hello")
@@ -115,13 +115,13 @@ Item {
             compare(find("quoteText").text, "On Monday Bob wrote:\n> hi")
             compare(mock.called("draftChanged").length, 0, "filling is not an edit")
             mock.composeReady(1, { account: "ann", to: [], cc: ["c@example.org"], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             verify(shown("ccField"), "a filled Cc shows")
             verify(!shown("quoteShow"), "no quote, no fold")
         }
 
         function test_every_edit_sends_draft_changed() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("subjectField").text = "Plans"
             compare(lastDraft().subject, "Plans")
             find("bodyField").text = "Hello again"
@@ -142,14 +142,14 @@ Item {
         }
 
         function test_comma_commits_a_typed_address() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             const to = find("to")
             to.input.text = "dave@example.org,"
             compare(to.entries, ["Bob <bob@example.org>", "dave@example.org"])
         }
 
         function test_typing_asks_for_suggestions() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("to").input.text = "bo"
             tryVerify(function() { return mock.called("autocomplete").length > 0 }, 2000)
             compare(mock.called("autocomplete").pop().args, ["bo"])
@@ -157,7 +157,7 @@ Item {
 
         function test_choosing_a_suggestion_adds_a_chip() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
             mock.suggestions.append({ name: "Bo", address: "bo@example.org", fromContacts: false, lastSeen: 100, query: "bo" })
             find("to").input.text = "bo"
@@ -179,7 +179,7 @@ Item {
         function test_suggestion_address_uses_the_address_font(data) {
             thm.name = data.airmail ? "airmail" : "carbon"
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
             find("to").input.text = "bo"
             tryVerify(function() { return shown("suggestion-0") }, 2000)
@@ -188,7 +188,7 @@ Item {
 
         function test_an_answer_to_an_earlier_query_is_not_shown() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             // The answer to "ada" is still in the model when "b" is typed.
             mock.suggestions.append({ name: "Ada", address: "ada@example.org", fromContacts: true, lastSeen: 0, query: "ada" })
             find("to").input.text = "b"
@@ -204,7 +204,7 @@ Item {
 
         function test_only_the_field_that_asked_shows_suggestions() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             find("showCc").clicked()
             waitForRendering(page)
             mock.suggestions.append({ name: "Bob", address: "bob@example.org", fromContacts: true, lastSeen: 0, query: "bo" })
@@ -221,7 +221,7 @@ Item {
         // #138: Cc Bcc sits in the To row, Subject is a row like it.
         function test_cc_bcc_button_is_in_the_to_row() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const btn = find("showCc")
             verify(shown("showCc"))
@@ -238,7 +238,7 @@ Item {
 
         function test_subject_is_an_inline_row_without_a_box() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             compare(find("subjectField").field.framed, false)
             const label = find("subjectLabel")
@@ -259,7 +259,7 @@ Item {
         function test_header_values_share_one_column_after_the_labels() {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [],
                                    subject: "Re: FW: a long subject that fills the whole row and more",
-                                   body: "", inReplyTo: "", references: [], attachments: [] }, "")
+                                   body: "", inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const col = page.labelColumn
             verify(col >= thm.gu(9.5), "at least margin + 52 px label + gap, as designed")
@@ -279,7 +279,7 @@ Item {
         function test_long_chip_uses_the_line_beside_cc_bcc_at_360() {
             root.width = 360
             mock.composeReady(1, { account: "ann", to: ["Bartholomew Longname <bartholomew.longname@example.org>"], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const to = find("to")
             const chip = find("to-remove-0")
@@ -293,13 +293,13 @@ Item {
         }
 
         function test_typed_text_is_in_the_draft() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("to").input.text = "dave@exa"
             compare(lastDraft().to, ["Bob <bob@example.org>", "dave@exa"])
         }
 
         function test_refused_send_keeps_the_page() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mouseClick(find("sendButton"))
             const c = mock.called("send")
             compare(c.length, 1)
@@ -314,7 +314,7 @@ Item {
         }
 
         function test_queued_closes_the_page() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mock.queued(2, "Sent")
             compare(sent.count, 0, "another compose's queue is not ours")
             mock.queued(1, "Sent")
@@ -323,7 +323,7 @@ Item {
         }
 
         function test_send_appends_the_quote_unless_removed() {
-            mock.composeReady(1, reply, "> old")
+            mock.composeReady(1, reply, "> old", "")
             mouseClick(find("sendButton"))
             compare(JSON.parse(mock.called("send").pop().args[1]).body, "Hello\n\n> old")
             mock.composeRefused(1, "Try again.")
@@ -336,7 +336,7 @@ Item {
         }
 
         function test_typed_but_uncommitted_address_is_sent() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("to").input.text = "last@example.org"
             mouseClick(find("sendButton"))
             compare(JSON.parse(mock.called("send").pop().args[1]).to, ["Bob <bob@example.org>", "last@example.org"])
@@ -347,7 +347,7 @@ Item {
         }
         function test_bar_close_and_send(data) {
             thm.name = data.airmail ? "airmail" : "carbon"
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             compare(find("topBar").height, thm.barHeight)
             const close = find("backButton")
             compare(close.iconName, "close")
@@ -365,7 +365,7 @@ Item {
         }
 
         function test_leave_commits_a_typed_address_into_the_draft() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("to").input.text = "cy@example.org"
             mock.reset()
             page.leave()
@@ -375,7 +375,7 @@ Item {
         }
 
         function test_view_state_round_trips_focus_cursor_and_scroll() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             find("bodyField").text = new Array(120).join("line\n")
             const flick = find("composeFlick")
             tryVerify(function() { return flick.contentHeight > flick.height + 200 })
@@ -394,7 +394,7 @@ Item {
         }
 
         function test_wide_close_offers_save_draft_and_discard() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             page.wide = true
             mouseClick(find("backButton"))
             tryVerify(function() { return shown("saveDraftRow") })
@@ -416,7 +416,7 @@ Item {
         }
 
         function test_back_keeps_the_draft() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mouseClick(find("backButton"))
             compare(mock.called("closeCompose").pop().args, [1, false])
             compare(closed.count, 1)
@@ -432,7 +432,7 @@ Item {
         // The discard sheet rests above a keyboard that covers the screen's
         // bottom (simulated rectangle: the offscreen platform has no keyboard).
         function test_discard_sheet_sits_above_the_keyboard() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             const sheet = find("discardSheet")
             sheet.keyboard = Qt.rect(0, 450, 400, 250)
             mouseClick(find("moreButton"))
@@ -446,7 +446,7 @@ Item {
         }
 
         function test_discard_asks_then_discards() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mouseClick(find("moreButton"))
             tryVerify(function() { return shown("discardRow") })
             mouseClick(find("discardRow"))
@@ -468,7 +468,7 @@ Item {
         }
 
         function test_attached_shows_a_chip() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mock.attached(2, "/p/other.pdf", "other.pdf", 10)
             verify(!shown("attachment-0"), "another compose's file")
             mock.attached(1, "/p/a.pdf", "a.pdf", 2048)
@@ -484,13 +484,13 @@ Item {
         function test_filled_attachments_show_as_chips() {
             const d = JSON.parse(JSON.stringify(reply))
             d.attachments = ["/cache/forward-1/report.pdf"]
-            mock.composeReady(1, d, "")
+            mock.composeReady(1, d, "", "")
             verify(shown("attachment-0"))
             compare(find("attachmentName-0").text, "report.pdf")
         }
 
         function test_picked_files_are_attached() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             page.pick(["/home/a.txt", "/home/b.txt"])
             const c = mock.called("attach")
             compare(c.length, 2)
@@ -499,7 +499,7 @@ Item {
         }
 
         function test_attach_button_imports() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             let asked = 0
             page.importFiles = function() { asked++ }
             mouseClick(find("attachButton"))
@@ -507,14 +507,14 @@ Item {
         }
 
         function test_attach_failed_says_so() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mock.attachFailed(1, "Could not read that file.")
             tryVerify(function() { return find("composeToast").visible })
             compare(find("composeToast").text, "Could not read that file.")
         }
 
         function test_from_picks_the_account() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             compare(find("fromValue").text, "ann@example.org")
             mouseClick(find("fromRow"))
             tryVerify(function() { return shown("account-work") })
@@ -525,7 +525,7 @@ Item {
 
         function test_from_sheet_keeps_the_sender_name_and_adds_the_label() {
             mock.accounts.setProperty(1, "label", "Office")
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mouseClick(find("fromRow"))
             tryVerify(function() { return shown("account-work") })
             const text = find("accountText-work")
@@ -539,7 +539,7 @@ Item {
         // Phone shot: the accounts in "Send from" sat at the sheet's left
         // edge and at the top of their rows.
         function test_from_sheet_rows_line_up_with_its_title() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             mouseClick(find("fromRow"))
             tryVerify(function() { return shown("account-work") })
             waitForRendering(page)
@@ -560,7 +560,7 @@ Item {
             return everything(item, []).filter(function(o) { return o.objectName === "chevron" })[0]
         }
         function test_from_row_shows_a_down_chevron_when_it_opens_a_picker() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             const row = find("fromRow")
             const c = chevronIn(row)
             verify(c !== undefined)
@@ -572,7 +572,7 @@ Item {
         }
         function test_from_row_has_no_chevron_with_one_account() {
             mock.accounts.remove(1)
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             tryVerify(function() { return chevronIn(find("fromRow")) === undefined })
         }
 
@@ -580,7 +580,7 @@ Item {
         // To row kept a second, empty line below a chip.
         function test_from_and_suggestions_keep_the_page_margin() {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const margin = thm.gu(2)
             compare(find("fromLabel").mapToItem(page, 0, 0).x, margin)
@@ -596,7 +596,7 @@ Item {
         // second address typed next went nowhere.
         function test_enter_keeps_focus_in_the_field() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const to = find("to")
             to.input.forceActiveFocus()
@@ -621,7 +621,7 @@ Item {
         // not be forced back open.
         function test_enter_on_an_empty_field_does_not_take_focus_back() {
             mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const to = find("to")
             to.input.forceActiveFocus()
@@ -636,7 +636,7 @@ Item {
 
         function test_recipient_row_is_one_line_beside_a_chip() {
             mock.composeReady(1, { account: "ann", to: ["Bob <bob@example.org>"], cc: [], bcc: [], subject: "", body: "",
-                                   inReplyTo: "", references: [], attachments: [] }, "")
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
             waitForRendering(page)
             const to = find("to")
             const one = find("fromRow").height
@@ -661,7 +661,7 @@ Item {
         // Review 1281, 3: the user's own tap or scroll in the restore window is
         // not snapped back.
         function test_restore_view_gives_way_to_the_users_own_tap() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             const flick = find("composeFlick")
             find("bodyField").text = new Array(300).join("line of text\n")
             tryVerify(function() { return flick.contentHeight > flick.height + 200 })
@@ -679,7 +679,7 @@ Item {
         }
 
         function test_view_state_during_a_pending_restore_is_the_pending_one() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             const want = { focus: "body", cursor: 4, contentY: 33 }
             page.restoreView(want)
             compare(page.viewState(), want)
@@ -689,7 +689,7 @@ Item {
         // The stack page's X still saves with no sheet; only the pane's
         // Close (wide) asks.
         function test_narrow_close_saves_without_a_sheet() {
-            mock.composeReady(1, reply, "")
+            mock.composeReady(1, reply, "", "")
             page.wide = false
             mouseClick(find("backButton"))
             compare(mock.called("closeCompose").pop().args, [1, false])

@@ -27,6 +27,7 @@ Item {
     property int undoId: 0
 
     signal messageRequested(var message)
+    signal draftRequested(string draftId)
     signal composeRequested()
     // The folder the list shows, -1 for a unified or not yet opened one.
     property int folderId: -1
@@ -193,6 +194,7 @@ Item {
         showOpen: root.showOpen
         anchors { top: banners.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         onMessageRequested: root.messageRequested(message)
+        onDraftRequested: function(draftId) { root.draftRequested(draftId) }
     }
 
     PageFooter {

@@ -35,7 +35,7 @@ msgid "Select all"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:45 qml/pages/inbox/InboxPage.qml:63
+#: qml/pages/inbox/InboxPage.qml:46 qml/pages/inbox/InboxPage.qml:64
 msgid "Inbox"
 msgstr ""
 
@@ -51,8 +51,8 @@ msgstr ""
 msgid "Trash"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:28
-#: qml/pages/reader/ReaderPage.qml:274
+#: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:31
+#: qml/pages/reader/ReaderPage.qml:278
 msgid "Archive"
 msgstr ""
 
@@ -60,7 +60,7 @@ msgstr ""
 msgid "Junk"
 msgstr ""
 
-#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:268
+#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:271
 msgid "Back"
 msgstr ""
 
@@ -96,7 +96,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:461
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:465
 msgid "Try again"
 msgstr ""
 
@@ -443,17 +443,17 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:324
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:344
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:341
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:361
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:355
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:375
 msgid "Bcc"
 msgstr ""
 
@@ -462,28 +462,28 @@ msgstr ""
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:240
+#: qml/pages/compose/ComposePage.qml:245
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:248
+#: qml/pages/compose/ComposePage.qml:253
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:256 qml/pages/inbox/SelectionBar.qml:50
-#: qml/pages/reader/ReaderPage.qml:290
+#: qml/pages/compose/ComposePage.qml:261 qml/pages/inbox/SelectionBar.qml:56
+#: qml/pages/reader/ReaderPage.qml:294
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:267
+#: qml/pages/compose/ComposePage.qml:272
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:325
+#: qml/pages/compose/ComposePage.qml:345
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:383
+#: qml/pages/compose/ComposePage.qml:403
 msgid "Write your message"
 msgstr ""
 
@@ -580,19 +580,19 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:138
+#: qml/pages/inbox/InboxPage.qml:139
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:145
+#: qml/pages/inbox/InboxPage.qml:146
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:208
+#: qml/pages/inbox/InboxPage.qml:210
 msgid "New message"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:256 qml/pages/reader/ReaderPage.qml:532
+#: qml/pages/inbox/InboxPage.qml:258 qml/pages/reader/ReaderPage.qml:539
 msgid "Undo"
 msgstr ""
 
@@ -608,8 +608,12 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
-#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/SelectionBar.qml:42
-#: qml/pages/reader/ReaderMore.qml:19
+#: qml/pages/inbox/MessageRow.qml:153
+msgid "Not uploaded"
+msgstr ""
+
+#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/SelectionBar.qml:46
+#: qml/pages/reader/ReaderMore.qml:22
 msgid "Move to folder"
 msgstr ""
 
@@ -626,7 +630,7 @@ msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:89 qml/pages/inbox/OutboxRow.qml:125
-#: qml/pages/inbox/SelectionBar.qml:35 qml/pages/reader/ReaderPage.qml:282
+#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
@@ -650,23 +654,23 @@ msgstr ""
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:118
+#: qml/pages/inbox/OutboxRow.qml:118 qml/pages/reader/ReplyBar.qml:47
 msgid "Edit"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:60
+#: qml/pages/inbox/SelectionBar.qml:66
 msgid "Mark as read"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:61
+#: qml/pages/inbox/SelectionBar.qml:67
 msgid "Mark as unread"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:62 qml/pages/reader/ReaderMore.qml:20
+#: qml/pages/inbox/SelectionBar.qml:68 qml/pages/reader/ReaderMore.qml:23
 msgid "Flag"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:63 qml/pages/reader/ReaderMore.qml:21
+#: qml/pages/inbox/SelectionBar.qml:69 qml/pages/reader/ReaderMore.qml:24
 msgid "Remove flag"
 msgstr ""
 
@@ -716,7 +720,7 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:25
+#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:29
 msgid "Reply"
 msgstr ""
 
@@ -792,23 +796,23 @@ msgstr ""
 msgid "Open this link?"
 msgstr ""
 
-#: qml/pages/reader/ReaderMore.qml:18
+#: qml/pages/reader/ReaderMore.qml:21
 msgid "Reply all"
 msgstr ""
 
-#: qml/pages/reader/ReaderMore.qml:22
+#: qml/pages/reader/ReaderMore.qml:25
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:268
+#: qml/pages/reader/ReaderPage.qml:271
 msgid "Close"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:439
+#: qml/pages/reader/ReaderPage.qml:443
 msgid "Loading…"
 msgstr ""
 
-#: qml/pages/reader/ReplyBar.qml:32
+#: qml/pages/reader/ReplyBar.qml:37
 msgid "Forward"
 msgstr ""
 

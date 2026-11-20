@@ -145,6 +145,9 @@ Item {
         }
         if (leave) backRequested()
     }
+    // A Drafts-role message (the core says so): Edit replaces Reply and
+    // Forward, and Archive and Move are gone.
+    readonly property bool isDraft: view !== null && view.isDraft === true
     function compose(kind) {
         const id = core.startCompose(kind, messageId, view.account, "")
         if (id > 0) composeOpened(id)
@@ -269,6 +272,7 @@ Item {
         onBackClicked: root.backRequested()
         IconButton {
             objectName: "act-archive"
+            visible: !root.isDraft
             theme: root.theme
             iconName: "archive"
             text: qsTr("Archive")
@@ -468,6 +472,8 @@ Item {
         theme: root.theme
         visible: root.view !== null
         wide: root.wide
+        isDraft: root.isDraft
+        onEditRequested: root.compose("edit")
         onReplyRequested: root.compose("reply")
         onForwardRequested: root.forward()
     }
@@ -483,6 +489,7 @@ Item {
     ReaderMore {
         id: more
         theme: root.theme
+        isDraft: root.isDraft
         onReplyAllRequested: root.compose("replyall")
         onMoveRequested: {
             moveSheet.openFor(root.view.account)
