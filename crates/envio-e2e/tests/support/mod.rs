@@ -3,6 +3,8 @@
 #![allow(dead_code)]
 
 pub mod core_run;
+pub mod drafts;
+pub mod labels;
 pub mod proxy;
 pub mod ui_help;
 
