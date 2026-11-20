@@ -8,6 +8,7 @@ use envio_core::{
 };
 use envio_store::{Draft, Drafts, Envelope, NewMessage};
 use support::Harness;
+use support::fake::{Kind, TlsServer, serve};
 
 const ME: &str = "me@example.org";
 const MID: &str = "<d1@example.org>";
@@ -21,6 +22,8 @@ struct Seeded {
     /// The cached message in the Drafts folder, and one in the Inbox.
     in_drafts: MessageRowId,
     in_inbox: MessageRowId,
+    /// The server the account talks to (its log shows what was asked).
+    server: TlsServer,
 }
 
 /// Sets the Message-ID of the cached message `uid` of `folder`.
@@ -51,12 +54,25 @@ fn seeded() -> Seeded {
 
 /// Both folders hold `raw`, cached as the message with `message_id`.
 fn seeded_with(raw: &[u8], message_id: Option<&str>) -> Seeded {
+    seeded_on(raw, message_id, Kind::Unflagged, Some(&[]))
+}
+
+/// Like `seeded_with`, on a server of `kind`, with `cached` as the cache's
+/// keywords of the Drafts message (`None`: not known yet).
+fn seeded_on(raw: &[u8], message_id: Option<&str>, kind: Kind, cached: Option<&[&str]>) -> Seeded {
     let mut h = Harness::unstarted();
-    let key = h.seed_account(ME, Some("pw"));
+    let server = serve(kind);
+    let key = h.seed_account_at(ME, Some("pw"), server.port);
+    h.pin_imap(&key, &server.hex);
     let drafts_folder = h.seed_folder_with(&key, "Drafts", FolderRole::Drafts, &[(1, raw)]);
     let inbox = h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, raw)]);
     give_message_id(&h, drafts_folder, 1, message_id);
     give_message_id(&h, inbox, 1, message_id);
+    if let Some(words) = cached {
+        let words: Vec<String> = words.iter().map(|w| (*w).to_owned()).collect();
+        let db = envio_store::Db::open(&h.paths().db()).unwrap();
+        db.set_keywords(drafts_folder, 1, &words).unwrap();
+    }
     h.start_core();
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
     let id_in = |folder: FolderId| {
@@ -77,6 +93,7 @@ fn seeded_with(raw: &[u8], message_id: Option<&str>) -> Seeded {
         drafts,
         in_drafts,
         in_inbox,
+        server,
     }
 }
 
@@ -523,4 +540,90 @@ fn an_incomplete_import_is_dropped_and_imported_again() {
         s.drafts.deletes().unwrap().is_empty(),
         "no note for the original"
     );
+}
+
+// Edit links the import to the original only when the server, asked now,
+// says the original has no keywords (#324 T4).
+
+/// The FLAGS-only fetches the server was sent.
+fn flag_fetches(s: &Seeded) -> usize {
+    s.server
+        .log
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|l| l.contains("UID FETCH") && !l.contains("BODY"))
+        .count()
+}
+
+/// The one import, and whether it is linked to the original.
+fn only_import(s: &Seeded) -> (Draft, bool) {
+    let files = s.files();
+    assert_eq!(files.len(), 1, "one draft");
+    let draft = files[0].1.clone();
+    let linked = draft.server.message_id.as_deref() == Some(MID);
+    assert_eq!(draft.server.imported_from.as_deref(), Some(MID));
+    (draft, linked)
+}
+
+#[test]
+fn a_keyword_set_since_the_last_sync_makes_the_import_a_copy() {
+    let s = seeded_on(RAW, Some(MID), Kind::Forwarded, Some(&[]));
+    s.edit(ComposeId(1), s.in_drafts);
+    let (_, note) = s.ready_with_note(ComposeId(1));
+    assert_ne!(note, "", "a copy says so");
+    assert_eq!(flag_fetches(&s), 1, "the live check was made");
+    let (_, linked) = only_import(&s);
+    assert!(!linked, "the original stays on the server");
+    // The answer refreshed the cache.
+    let db = envio_store::Db::open(&s.h.paths().db()).unwrap();
+    let folder = db.message(s.in_drafts).unwrap().folder;
+    assert_eq!(
+        db.keywords_of(folder, 1).unwrap(),
+        Some(vec!["$Forwarded".to_owned()])
+    );
+}
+
+#[test]
+fn unknown_or_known_keywords_detach_without_asking_the_server() {
+    for cached in [None, Some(&["$Label1"][..])] {
+        let s = seeded_on(RAW, Some(MID), Kind::Unflagged, cached);
+        s.edit(ComposeId(1), s.in_drafts);
+        s.ready(ComposeId(1));
+        assert_eq!(flag_fetches(&s), 0, "no network for {cached:?}");
+        assert!(!only_import(&s).1, "{cached:?} stays on the server");
+    }
+}
+
+#[test]
+fn no_keywords_in_the_cache_and_on_the_server_links_the_import() {
+    let s = seeded();
+    s.edit(ComposeId(1), s.in_drafts);
+    let (_, note) = s.ready_with_note(ComposeId(1));
+    assert_eq!(note, "");
+    assert_eq!(flag_fetches(&s), 1);
+    assert!(only_import(&s).1, "linked, as before");
+}
+
+#[test]
+fn a_refused_flags_fetch_detaches_and_does_not_refuse_the_edit() {
+    let s = seeded_on(RAW, Some(MID), Kind::FlagsRefused, Some(&[]));
+    s.edit(ComposeId(1), s.in_drafts);
+    s.ready(ComposeId(1));
+    assert_eq!(flag_fetches(&s), 1);
+    assert!(!only_import(&s).1);
+}
+
+#[test]
+fn two_edits_of_one_message_during_the_check_make_one_draft() {
+    let s = seeded();
+    s.edit(ComposeId(1), s.in_drafts);
+    s.edit(ComposeId(2), s.in_drafts);
+    s.ready(ComposeId(1));
+    // The second finds the first's import, which is open: refused.
+    s.h.wait(|e| match e {
+        Event::ComposeRefused { compose, .. } if *compose == ComposeId(2) => Some(()),
+        _ => None,
+    });
+    assert_eq!(s.files().len(), 1, "one draft, not two");
 }

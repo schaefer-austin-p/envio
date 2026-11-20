@@ -35,9 +35,14 @@ pub(crate) struct Source<'a> {
     pub name: &'a str,
     /// The cached row's Message-ID, with angle brackets.
     pub message_id: Option<&'a str>,
-    /// The cached row's flags are \Seen and \Draft at most (it does not
-    /// know keywords or labels; those are lost when the original goes).
+    /// The cached row's system flags are \Seen and \Draft at most (the
+    /// others are lost when the original goes).
     pub plain_flags: bool,
+    /// The keywords the server just reported for the original (a live
+    /// check, never the cache): `None` when not confirmed. Only `Some([])`
+    /// lets the draft stand in for the original; a keyword or a label is
+    /// lost when the original goes.
+    pub keywords: Option<&'a [String]>,
     /// The file name an attachment gets in the draft, from its name and
     /// index.
     pub safe_name: fn(&str, usize) -> String,
@@ -145,7 +150,8 @@ fn loses_nothing(
             envio_mime::content_type_for(&name) == a.content_type
         })
     });
-    layout.plain_shape
+    src.keywords.is_some_and(super::harmless::only_server_made)
+        && layout.plain_shape
         && !layout.repeated
         && layout.in_reply_to_ids <= 1
         && layout.bcc.is_empty()
@@ -176,6 +182,7 @@ mod tests {
             name: "",
             message_id,
             plain_flags: true,
+            keywords: Some(&[]),
             safe_name: safe,
         }
     }
@@ -380,6 +387,38 @@ Content-Disposition: inline; filename=\"i.png\"\r\nContent-Transfer-Encoding: ba
         };
         let got = draft_from_raw(&plain(""), &src, 5).unwrap();
         assert_detached(&got, "flags");
+    }
+
+    #[test]
+    fn a_keyword_on_the_original_is_never_replaced() {
+        let words = ["$Forwarded".to_owned()];
+        let src = Source {
+            keywords: Some(&words),
+            ..source(Some(MID))
+        };
+        let got = draft_from_raw(&plain(""), &src, 5).unwrap();
+        assert_detached(&got, "keywords");
+    }
+
+    #[test]
+    fn the_servers_own_attachment_keyword_does_not_stop_the_replacement() {
+        let words = ["$HasNoAttachment".to_owned()];
+        let src = Source {
+            keywords: Some(&words),
+            ..source(Some(MID))
+        };
+        let got = draft_from_raw(&plain(""), &src, 5).unwrap();
+        assert_eq!(got.link.as_deref(), Some(MID));
+    }
+
+    #[test]
+    fn a_message_with_unconfirmed_keywords_is_never_replaced() {
+        let src = Source {
+            keywords: None,
+            ..source(Some(MID))
+        };
+        let got = draft_from_raw(&plain(""), &src, 5).unwrap();
+        assert_detached(&got, "unconfirmed keywords");
     }
 
     #[test]
