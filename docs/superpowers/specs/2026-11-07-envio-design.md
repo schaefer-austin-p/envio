@@ -120,7 +120,11 @@ second implementation, not a rewrite.
   searches Sent for its Message-ID and moves it if found, otherwise asks:
   Send again, or Move to Sent. Envio never resends on its own.
 - **Drafts** are files outside the database, saved within about 1 s of a
-  change, and uploaded to the Drafts folder when compose is left.
+  change, and uploaded to the Drafts folder when compose is left. A server
+  draft that carries IMAP keywords, or whose keywords are not known or cannot
+  be checked live, is never replaced by Edit: Edit saves a new draft and the
+  original stays (the server's own `$HasAttachment` and `$HasNoAttachment` do
+  not count).
 - **Search:** FTS5 over local mail; "Search on server" runs IMAP SEARCH and
   merges the results.
 
