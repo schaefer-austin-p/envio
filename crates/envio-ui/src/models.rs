@@ -14,6 +14,9 @@ pub enum Model {
 
 /// One change to a model, in the order a Qt list model applies it.
 #[derive(Debug, Clone, PartialEq)]
+// Boxing the row would change every Op consumer (qt/ included); Ops are
+// short-lived, so the size gap costs nothing.
+#[allow(clippy::large_enum_variant)]
 pub enum Op {
     Reset(Vec<Row>),
     Insert { at: usize, rows: Vec<Row> },

@@ -98,6 +98,9 @@ pub struct MessageRowUi {
     pub draft_id: String,
     /// The row is a local draft the server does not hold yet.
     pub not_uploaded: bool,
+    /// The chip text of a local draft (core fills it); empty exactly when
+    /// `not_uploaded` is false.
+    pub not_uploaded_text: String,
     /// What a tap opens: "compose" exactly when `draft_id` is set, else
     /// "reader".
     pub opens: &'static str,
@@ -189,6 +192,7 @@ const MESSAGE: &[&str] = &[
     "open",
     "draftId",
     "notUploaded",
+    "notUploadedText",
     "opens",
 ];
 const OUTBOX: &[&str] = &[
@@ -265,6 +269,7 @@ impl Row {
             (Self::Message(r), "open") => Bool(r.open),
             (Self::Message(r), "draftId") => s(&r.draft_id),
             (Self::Message(r), "notUploaded") => Bool(r.not_uploaded),
+            (Self::Message(r), "notUploadedText") => s(&r.not_uploaded_text),
             (Self::Message(r), "opens") => s(r.opens),
             (Self::Outbox(r), "id") => s(&r.id),
             (Self::Outbox(r), "account") => s(&r.account),

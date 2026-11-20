@@ -159,6 +159,11 @@ impl Ui {
                 open: self.open == Some(r.id.0),
                 draft_id,
                 not_uploaded: local,
+                not_uploaded_text: if local {
+                    r.not_uploaded_text.clone()
+                } else {
+                    String::new()
+                },
                 opens: if local { "compose" } else { "reader" },
             },
         }
