@@ -159,8 +159,8 @@ drafts.
   - one DKIM signature on the message verifies in the app against the key
     in DNS, its `d=` aligned with the From domain (DMARC's relaxed rule,
     organisational domains from the public suffix list), exactly one From
-    header, `h=` covering from, content-type and content-transfer-encoding;
-    or
+    header, `h=` covering from and every content-type and
+    content-transfer-encoding field the message has; or
   - the account's IMAP host is in a short table of exact hosts (Gmail,
     Fastmail, iCloud, Yahoo, each with its own authserv-id) and the topmost
     `Authentication-Results` of that provider says so. There is no
