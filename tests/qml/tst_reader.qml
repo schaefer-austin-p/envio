@@ -88,7 +88,8 @@ Item {
             return { id: 5, html: "<p>Hello</p>", blockedImages: blocked, from: "Ana Ruiz",
                      fromAddress: "ana@example.org", to: ["me@example.org"], cc: [],
                      subject: "Invoice 0042", date: 1700000000, account: "ann",
-                     senderKnown: false, senderVerified: true, attachments: attachments }
+                     senderKnown: false, senderVerified: true, senderCheckable: false,
+                     attachments: attachments }
         }
         function pdf() { return [{ index: 0, name: "invoice.pdf", mime: "application/pdf", size: 86016 }] }
         function open(v) {
@@ -549,15 +550,33 @@ Item {
             mouseClick(find("alwaysForSender"))
             compare(mock.called("allowImagesFrom").length, 1)
             compare(mock.called("allowImagesFrom")[0].args, ["ana@example.org"])
-            // The sender is known now, so a plain open shows the images.
+            // This message loads its images now (this message only); later
+            // mail from the sender goes through the core's check.
             const calls = mock.called("open")
             compare(calls.length, 1)
-            compare(calls[0].args[1], false)
+            compare(calls[0].args[0], 5)
+            compare(calls[0].args[1], true)
+        }
+
+        function test_always_for_sender_shows_for_checkable_unverified_mail() {
+            const v = view([], 1)
+            v.senderVerified = false
+            v.senderCheckable = true
+            open(v)
+            verify(shown("alwaysForSender"))
+            mock.reset()
+            mouseClick(find("alwaysForSender"))
+            compare(mock.called("allowImagesFrom").length, 1)
+            compare(mock.called("allowImagesFrom")[0].args, ["ana@example.org"])
+            const calls = mock.called("open")
+            compare(calls.length, 1)
+            compare(calls[0].args[1], true)
         }
 
         function test_always_for_sender_is_hidden_for_unverified_mail() {
             const v = view([], 1)
             v.senderVerified = false
+            v.senderCheckable = false
             open(v)
             verify(shown("imagesBanner"))
             verify(shown("loadImages"))
