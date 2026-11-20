@@ -426,15 +426,21 @@ fn a_view_has_cc_from_the_message() {
 }
 
 const VERIFIED_IMAGE: &[u8] =
-    b"Authentication-Results: mx.example.org; dkim=pass header.d=example.org\r\n\
+    b"Authentication-Results: mx.google.com; dkim=pass header.d=example.org\r\n\
 From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
 Content-Type: text/html; charset=utf-8\r\n\r\n\
 <p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
 
 /// Opens `raw` with ada@example.org on the "always load" list.
 fn open_with_ada_allowed(raw: &[u8]) -> MessageView {
+    open_with_ada_allowed_on("imap.gmail.com", raw)
+}
+
+/// Opens `raw` from an account on IMAP host `host`, with ada@example.org on
+/// the "always load" list.
+fn open_with_ada_allowed_on(host: &'static str, raw: &[u8]) -> MessageView {
     let mut h = Harness::unstarted();
-    let key = h.seed_account_on(ME, Some("pw"), ("imap.example.org", 1));
+    let key = h.seed_account_on(ME, Some("pw"), (host, 1));
     h.seed_folder_with(&key, "INBOX", FolderRole::Inbox, &[(1, raw)]);
     std::fs::create_dir_all(h.data_dir()).unwrap();
     let settings = envio_core::Settings {
@@ -474,6 +480,18 @@ fn the_view_carries_the_servers_verdict_on_the_sender() {
 #[test]
 fn a_header_from_another_host_does_not_earn_the_sender_allow() {
     let view = open_with_ada_allowed(FOREIGN_RESULTS);
+    assert_eq!(view.blocked_images, 1);
+    assert!(!view.header.sender_known);
+    assert!(!view.header.sender_verified);
+}
+
+#[test]
+fn an_unknown_server_s_own_header_no_longer_earns_the_sender_allow() {
+    let raw: &[u8] = b"Authentication-Results: mx.example.org; dkim=pass header.d=example.org\r\n\
+From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
+    let view = open_with_ada_allowed_on("imap.example.org", raw);
     assert_eq!(view.blocked_images, 1);
     assert!(!view.header.sender_known);
     assert!(!view.header.sender_verified);

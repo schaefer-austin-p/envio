@@ -1,40 +1,44 @@
 //! Whether the receiving server vouched for the From address, read from its
-//! `Authentication-Results` header (RFC 8601). Envio checks no DKIM or SPF
-//! itself; it only believes the verdict of the account's own mail provider.
+//! `Authentication-Results` header (RFC 8601). This is the provider fast
+//! path, one of two ways a sender is verified; the other is DKIM checked in
+//! the app (`dkim`). The fast path believes the header only for a short
+//! table of providers, matched by exact IMAP host (plan #285, decision 4);
+//! every other host, self-hosted, IP-address and Microsoft ones included,
+//! verifies by DKIM or not at all.
 
-/// Providers whose `Authentication-Results` authserv-id is on another domain
-/// than the IMAP host: (registrable domain of the IMAP host, registrable
-/// domains that stamp for it). The one place to extend.
-const PROVIDER_STAMPS: &[(&str, &[&str])] = &[
-    // imap.gmail.com stamps as mx.google.com.
-    ("gmail.com", &["google.com"]),
-    ("googlemail.com", &["google.com"]),
-    // outlook.office365.com stamps as *.outlook.com / *.protection.outlook.com.
-    ("office365.com", &["outlook.com"]),
-    // imap.mail.me.com stamps as *.icloud.com or *.apple.com.
-    ("me.com", &["icloud.com", "apple.com"]),
-    // imap.mail.yahoo.com stamps as *.yahoo.com.
-    ("yahoo.com", &["yahoo.com"]),
-    // imap.fastmail.com stamps as mx*.messagingengine.com.
-    ("fastmail.com", &["messagingengine.com"]),
+use crate::align::aligned;
+use crate::dkim::{field_named, header_fields};
+use crate::from_field::single_from_domain;
+
+/// Providers the fast path trusts: (exact IMAP host, authserv-id suffixes
+/// that stamp for it). Each entry needs a header captured from that
+/// provider. The one place to extend; Microsoft is deliberately absent.
+const PROVIDERS: &[(&str, &[&str])] = &[
+    ("imap.gmail.com", &["mx.google.com"]),
+    ("imap.fastmail.com", &["messagingengine.com"]),
+    ("imap.mail.me.com", &["icloud.com", "apple.com"]),
+    ("imap.mail.yahoo.com", &["yahoo.com"]),
 ];
 
-/// Second-level labels that sit under a two-letter country code (co.uk,
-/// com.au), so the registrable domain has three labels. Not a full public
-/// suffix list.
-const SECOND_LEVEL: &[&str] = &["co", "com", "org", "net", "gov", "edu", "ac", "ne", "or"];
-
-/// The sender's domain was authenticated by the account's own server: the
-/// topmost `Authentication-Results` header, and only when its authserv-id
-/// belongs to the provider of `imap_host`, holds a `dmarc=pass`, or a
-/// `dkim=pass` or `spf=pass` for a domain that matches the `from` address's
-/// domain. Headers below it may come from the sender and are never read, so
-/// a topmost header with an untrusted or missing id leaves the message
-/// unverified.
+/// The sender's domain was authenticated by the account's own provider: the
+/// message has exactly one `From:` mailbox whose domain is the one of
+/// `from`, `imap_host` is in [`PROVIDERS`], and the topmost
+/// `Authentication-Results` header, with an authserv-id of that provider,
+/// holds a `dmarc=pass`, or a `dkim=pass` or `spf=pass` for a domain that
+/// aligns with it (relaxed, under the public suffix list). Headers below the
+/// topmost may come from the sender and are never read, so a topmost header
+/// with an untrusted or missing id leaves the message unverified.
 pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
-    let Some(domain) = from.trim().rsplit_once('@').map(|(_, d)| d.to_lowercase()) else {
+    let Some(domain) = from
+        .trim()
+        .rsplit_once('@')
+        .map(|(_, d)| d.trim().trim_end_matches('.').to_ascii_lowercase())
+    else {
         return false;
     };
+    if single_from_domain(raw).as_deref() != Some(domain.as_str()) {
+        return false;
+    }
     let Some(header) = results_of(raw, imap_host) else {
         return false;
     };
@@ -44,33 +48,29 @@ pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
         .any(|clause| passes(clause, &domain))
 }
 
-/// The last two labels of `host`, or three when the second-to-last is a
-/// well-known second-level label under a two-letter country code.
-fn registrable(host: &str) -> String {
-    let host = host.trim().trim_end_matches('.').to_lowercase();
-    let labels: Vec<&str> = host.split('.').collect();
-    let n = labels.len();
-    let keep = if n >= 3 && labels[n - 1].len() == 2 && SECOND_LEVEL.contains(&labels[n - 2]) {
-        3
-    } else {
-        2
-    };
-    labels[n.saturating_sub(keep)..].join(".")
-}
-
-/// Whether an authserv-id belongs to the provider of `imap_host`.
+/// Whether an authserv-id is one of the ids that stamp for `imap_host`: it
+/// equals a listed id or ends with `.` plus it. Hosts compare
+/// case-insensitively and without a trailing dot.
 fn trusted_id(id: &str, imap_host: &str) -> bool {
-    let id = id.trim().trim_matches('"');
-    if id.is_empty() || imap_host.trim().is_empty() {
+    let id = id
+        .trim()
+        .trim_matches('"')
+        .trim_end_matches('.')
+        .to_lowercase();
+    let host = imap_host.trim().trim_end_matches('.');
+    if id.is_empty() || host.is_empty() {
         return false;
     }
-    let (id_reg, host_reg) = (registrable(id), registrable(imap_host));
-    if id_reg == host_reg {
-        return true;
-    }
-    PROVIDER_STAMPS
+    PROVIDERS
         .iter()
-        .any(|(host, stamps)| *host == host_reg && stamps.contains(&id_reg.as_str()))
+        .filter(|(h, _)| h.eq_ignore_ascii_case(host))
+        .flat_map(|(_, ids)| ids.iter())
+        .any(|listed| {
+            id == *listed
+                || id
+                    .strip_suffix(listed)
+                    .is_some_and(|head| head.ends_with('.'))
+        })
 }
 
 /// The comment-free value of the topmost `Authentication-Results` header,
@@ -87,31 +87,20 @@ fn results_of(raw: &[u8], imap_host: &str) -> Option<String> {
 }
 
 /// The unfolded values of every `Authentication-Results` header, topmost
-/// first.
+/// first. The header block ends where DKIM and the reader end it, and a
+/// field name is read by the same rule (plan #285, decision 9), so a body
+/// line never counts as a header.
 fn headers(raw: &[u8]) -> Vec<String> {
-    let text = String::from_utf8_lossy(raw);
-    let mut values: Vec<String> = Vec::new();
-    let mut inside = false;
-    for line in text.lines() {
-        if line.is_empty() {
-            break;
-        }
-        if line.starts_with([' ', '\t']) {
-            if inside && let Some(v) = values.last_mut() {
-                v.push(' ');
-                v.push_str(line.trim());
-            }
-            continue;
-        }
-        inside = false;
-        if let Some((name, rest)) = line.split_once(':')
-            && name.trim().eq_ignore_ascii_case("authentication-results")
-        {
-            values.push(rest.trim().to_owned());
-            inside = true;
-        }
-    }
-    values
+    header_fields(raw)
+        .into_iter()
+        .filter(|f| field_named(f, b"authentication-results"))
+        .filter_map(|field| {
+            let text = String::from_utf8_lossy(field);
+            let (_, rest) = text.split_once(':')?;
+            let unfolded: Vec<&str> = rest.lines().map(str::trim).collect();
+            Some(unfolded.join(" ").trim().to_owned())
+        })
+        .collect()
 }
 
 /// Replaces each RFC 5322 comment (nested, with backslash escapes) outside
@@ -225,12 +214,7 @@ fn passes(clause: &str, domain: &str) -> bool {
             .find(|(k, _)| k == name)
             .map(|(_, v)| v.as_deref())
     };
-    let aligned = |d: &str| {
-        domain == d
-            || domain
-                .strip_suffix(d)
-                .is_some_and(|head| head.ends_with('.'))
-    };
+    let aligned = |d: &str| aligned(d, domain);
     match method.as_str() {
         "dmarc" => prop("header.from").is_none_or(|d| d.is_some_and(aligned)),
         "dkim" => prop("header.d")
@@ -245,221 +229,387 @@ fn passes(clause: &str, domain: &str) -> bool {
 mod tests {
     use super::sender_verified;
 
-    const HOST: &str = "imap.me.org";
+    const HOST: &str = "imap.gmail.com";
 
     fn mail(results: &str) -> Vec<u8> {
-        format!("{results}From: bob@corp.com\r\nSubject: x\r\n\r\nbody").into_bytes()
+        mail_from(results, "bob@example.com")
+    }
+
+    fn mail_from(results: &str, from: &str) -> Vec<u8> {
+        format!("{results}From: {from}\r\nSubject: x\r\n\r\nbody").into_bytes()
     }
 
     #[test]
     fn no_header_is_not_verified() {
-        assert!(!sender_verified(&mail(""), "bob@corp.com", HOST));
+        assert!(!sender_verified(&mail(""), "bob@example.com", HOST));
     }
 
     #[test]
     fn dkim_pass_for_the_from_domain_verifies() {
-        let m = mail("Authentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n");
-        assert!(sender_verified(&m, "Bob@Corp.com", HOST));
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(sender_verified(&m, "Bob@Example.com", HOST));
     }
 
     #[test]
     fn dkim_pass_for_another_domain_does_not() {
-        let m = mail("Authentication-Results: mx.me.org; dkim=pass header.d=evil.net\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.net\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_failed_check_does_not_verify() {
-        let m =
-            mail("Authentication-Results: mx.me.org; dkim=fail header.d=corp.com; spf=none\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m = mail(
+            "Authentication-Results: mx.google.com; dkim=fail header.d=example.com; spf=none\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn spf_and_dmarc_pass_verify_and_folded_lines_are_joined() {
         let m = mail(
-            "Authentication-Results: mx.me.org;\r\n spf=pass smtp.mailfrom=bob@mail.corp.com;\r\n dmarc=fail header.from=corp.com\r\n",
+            "Authentication-Results: mx.google.com;\r\n spf=pass smtp.mailfrom=bob@mail.example.net;\r\n dmarc=fail header.from=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
-        let m = mail("Authentication-Results: mx.me.org;\r\n dmarc=pass header.from=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
-        let m =
-            mail("Authentication-Results: mx.me.org;\r\n spf=pass smtp.mailfrom=bob@corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        let m = mail(
+            "Authentication-Results: mx.google.com;\r\n dmarc=pass header.from=example.com\r\n",
+        );
+        assert!(sender_verified(&m, "bob@example.com", HOST));
+        let m = mail(
+            "Authentication-Results: mx.google.com;\r\n spf=pass smtp.mailfrom=bob@example.com\r\n",
+        );
+        assert!(sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn dmarc_pass_for_another_header_from_does_not_verify() {
-        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=evil.net\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m =
+            mail("Authentication-Results: mx.google.com; dmarc=pass header.from=example.net\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn dmarc_pass_without_header_from_verifies() {
         // DMARC passes only for the From domain, so a pass with no property
         // to compare still speaks for the sender (RFC 7489 section 3.1).
-        let m = mail("Authentication-Results: mx.me.org; dmarc=pass\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
-    }
-
-    #[test]
-    fn dmarc_header_from_alignment_matches_dkim_and_spf() {
-        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=sub.corp.com\r\n");
-        assert!(sender_verified(&m, "bob@sub.corp.com", HOST));
-        // A parent header domain covers a subdomain sender, as for dkim.
-        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@sub.corp.com", HOST));
-        // A subdomain header domain does not cover the parent sender.
-        let m = mail("Authentication-Results: mx.me.org; dmarc=pass header.from=sub.corp.com\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m = mail("Authentication-Results: mx.google.com; dmarc=pass\r\n");
+        assert!(sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn only_the_topmost_header_counts() {
         let m = mail(
-            "Authentication-Results: mx.me.org; dkim=fail header.d=corp.com\r\nAuthentication-Results: evil.net; dkim=pass header.d=corp.com\r\n",
+            "Authentication-Results: mx.google.com; dkim=fail header.d=example.com\r\nAuthentication-Results: example.net; dkim=pass header.d=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
-    }
-
-    #[test]
-    fn a_subdomain_sender_matches_a_parent_signing_domain_but_not_a_suffix_trick() {
-        let m = mail("Authentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@mail.corp.com", HOST));
-        assert!(!sender_verified(&m, "bob@evilcorp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_foreign_authserv_id_is_not_trusted_even_topmost() {
-        let m = mail("Authentication-Results: evil.net; dkim=pass header.d=corp.com\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        let m = mail("Authentication-Results: example.net; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         let m = mail(
-            "Authentication-Results: evil.net; dkim=pass header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=fail header.d=corp.com\r\n",
+            "Authentication-Results: example.net; dkim=pass header.d=example.com\r\nAuthentication-Results: mx.google.com; dkim=fail header.d=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn an_untrusted_topmost_header_hides_the_ones_below_it() {
         let m = mail(
-            "Authentication-Results: evil.net; dkim=pass header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=none\r\n",
+            "Authentication-Results: example.net; dkim=pass header.d=example.com\r\nAuthentication-Results: mx.google.com; dkim=none\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         let m = mail(
-            "Authentication-Results: evil.net; dkim=fail header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
+            "Authentication-Results: example.net; dkim=fail header.d=example.com\r\nAuthentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn an_id_less_exchange_header_on_top_hides_a_forged_trusted_one_below() {
         let m = mail(
-            "Authentication-Results: spf=pass (sender IP is 1.2.3.4) smtp.mailfrom=corp.com; dkim=pass header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
+            "Authentication-Results: spf=pass (sender IP is 1.2.3.4) smtp.mailfrom=example.com; dkim=pass header.d=example.com\r\nAuthentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_trusted_failing_header_on_top_is_not_overridden_by_a_forged_pass_below() {
         let m = mail(
-            "Authentication-Results: mx.me.org; dkim=fail header.d=corp.com\r\nAuthentication-Results: mx.me.org; dkim=pass header.d=corp.com\r\n",
+            "Authentication-Results: mx.google.com; dkim=fail header.d=example.com\r\nAuthentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
-    }
-
-    #[test]
-    fn a_matching_authserv_id_is_trusted_by_registrable_domain() {
-        let m = mail("Authentication-Results: mx.mail.me.org; dkim=pass header.d=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", "imap.me.org"));
-        assert!(!sender_verified(&m, "bob@corp.com", "imap.other.org"));
-        assert!(!sender_verified(&m, "bob@corp.com", ""));
-        let m = mail("Authentication-Results: mx.me.co.uk; dkim=pass header.d=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", "imap.me.co.uk"));
-        assert!(!sender_verified(&m, "bob@corp.com", "imap.you.co.uk"));
-    }
-
-    #[test]
-    fn the_provider_map_covers_gmail() {
-        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", "imap.gmail.com"));
-        assert!(!sender_verified(&m, "bob@corp.com", "imap.me.org"));
-        let m = mail(
-            "Authentication-Results: x.protection.outlook.com; spf=pass smtp.mailfrom=corp.com\r\n",
-        );
-        assert!(sender_verified(&m, "bob@corp.com", "outlook.office365.com"));
-    }
-
-    #[test]
-    fn the_provider_map_covers_fastmail() {
-        let m = mail(
-            "Authentication-Results: mx3.messagingengine.com; dkim=pass header.d=corp.com\r\n",
-        );
-        assert!(sender_verified(&m, "bob@corp.com", "imap.fastmail.com"));
-        let m = mail("Authentication-Results: mx3.other.net; dkim=pass header.d=corp.com\r\n");
-        assert!(!sender_verified(&m, "bob@corp.com", "imap.fastmail.com"));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_header_without_an_authserv_id_does_not_verify() {
-        // Some Exchange Online headers start straight at the results.
+        // Some Exchange Online headers start straight at the results. On a
+        // table host, so only the id check can refuse them.
         let m = mail(
-            "Authentication-Results: dkim=pass header.d=corp.com; spf=pass smtp.mailfrom=corp.com\r\n",
+            "Authentication-Results: dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com\r\n",
         );
-        assert!(!sender_verified(
-            &m,
-            "bob@corp.com",
-            "outlook.office365.com"
-        ));
-        let m = mail("Authentication-Results: ; dkim=pass header.d=corp.com\r\n");
-        assert!(!sender_verified(
-            &m,
-            "bob@corp.com",
-            "outlook.office365.com"
-        ));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        let m = mail("Authentication-Results: ; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_semicolon_in_a_comment_does_not_split_the_header() {
         let m = mail(
-            "Authentication-Results: mx.me.org; dkim=pass (2048-bit key; unprotected) header.d=corp.com\r\n",
+            "Authentication-Results: mx.google.com; dkim=pass (2048-bit key; unprotected) header.d=example.com\r\n",
         );
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
+        assert!(sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_comment_holding_a_forged_property_is_not_read() {
         let m = mail(
-            "Authentication-Results: mx.me.org; spf=pass (domain of \"a smtp.mailfrom=x@corp.com b\"@evil.net designates 1.2.3.4 as permitted) smtp.mailfrom=evil.net\r\n",
+            "Authentication-Results: mx.google.com; spf=pass (domain of \"a smtp.mailfrom=x@example.com b\"@example.net designates 1.2.3.4 as permitted) smtp.mailfrom=example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         let m = mail(
-            "Authentication-Results: mx.me.org; spf=pass (nested (smtp.mailfrom=x@corp.com) \\) smtp.mailfrom=x@corp.com) smtp.mailfrom=evil.net\r\n",
+            "Authentication-Results: mx.google.com; spf=pass (nested (smtp.mailfrom=x@example.com) \\) smtp.mailfrom=x@example.com) smtp.mailfrom=example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         // Standalone tokens: read as the first property if comments stayed.
         let m = mail(
-            "Authentication-Results: mx.me.org; spf=pass ( smtp.mailfrom=corp.com ) smtp.mailfrom=evil.net\r\n",
+            "Authentication-Results: mx.google.com; spf=pass ( smtp.mailfrom=example.com ) smtp.mailfrom=example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         let m = mail(
-            "Authentication-Results: mx.me.org; dkim=pass (header.d=corp.com ) header.d=evil.net\r\n",
+            "Authentication-Results: mx.google.com; dkim=pass (header.d=example.com ) header.d=example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
     fn a_quoted_local_part_holding_a_property_is_not_read() {
         let m = mail(
-            "Authentication-Results: mx.me.org; spf=pass smtp.mailfrom=\"x@corp.com b\"@evil.net\r\n",
+            "Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=\"x@example.com b\"@example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         // A quoted local part holding a `;` must not start a new clause.
         let m = mail(
-            "Authentication-Results: mx.me.org; spf=pass smtp.mailfrom=\"a; dkim=pass header.d=corp.com b\"@evil.net\r\n",
+            "Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=\"a; dkim=pass header.d=example.com b\"@example.net\r\n",
         );
-        assert!(!sender_verified(&m, "bob@corp.com", HOST));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        let m = mail(
+            "Authentication-Results: mx.google.com; spf=pass smtp.mailfrom=\"bob\"@example.com\r\n",
+        );
+        assert!(sender_verified(&m, "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn dmarc_header_from_alignment_is_relaxed_both_ways() {
+        let m = mail_from(
+            "Authentication-Results: mx.google.com; dmarc=pass header.from=sub.example.com\r\n",
+            "bob@sub.example.com",
+        );
+        assert!(sender_verified(&m, "bob@sub.example.com", HOST));
+        // A parent header domain covers a subdomain sender.
+        let m = mail_from(
+            "Authentication-Results: mx.google.com; dmarc=pass header.from=example.com\r\n",
+            "bob@sub.example.com",
+        );
+        assert!(sender_verified(&m, "bob@sub.example.com", HOST));
+        // Relaxed alignment (decision 5): a subdomain header domain covers
+        // the parent sender too, they share an organisational domain.
+        let m = mail(
+            "Authentication-Results: mx.google.com; dmarc=pass header.from=sub.example.com\r\n",
+        );
+        assert!(sender_verified(&m, "bob@example.com", HOST));
         let m =
-            mail("Authentication-Results: mx.me.org; spf=pass smtp.mailfrom=\"bob\"@corp.com\r\n");
-        assert!(sender_verified(&m, "bob@corp.com", HOST));
+            mail("Authentication-Results: mx.google.com; dmarc=pass header.from=example.net\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn a_sibling_subdomain_aligns_but_a_suffix_trick_does_not() {
+        let m = mail_from(
+            "Authentication-Results: mx.google.com; dkim=pass header.d=mail.example.com\r\n",
+            "bob@news.example.com",
+        );
+        assert!(sender_verified(&m, "bob@news.example.com", HOST));
+        let m = mail_from(
+            "Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n",
+            "bob@evilexample.com",
+        );
+        assert!(!sender_verified(&m, "bob@evilexample.com", HOST));
+    }
+
+    #[test]
+    fn an_ip_host_never_takes_the_fast_path() {
+        // Comment 8528: the old rule took the last two labels of the host.
+        for id in ["mx.0.1", "mx.10.0.0.1", "10.0.0.1"] {
+            let m = mail(&format!(
+                "Authentication-Results: {id}; dkim=pass header.d=example.com\r\n"
+            ));
+            assert!(!sender_verified(&m, "bob@example.com", "10.0.0.1"), "{id}");
+        }
+    }
+
+    #[test]
+    fn a_forged_header_on_a_server_that_stamps_nothing_is_not_verified() {
+        // Verified under #278 by "same registrable domain as the host".
+        let m = mail("Authentication-Results: mx.example.org; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", "imap.example.org"));
+        assert!(!sender_verified(&m, "bob@example.com", "mx.example.org"));
+    }
+
+    #[test]
+    fn alignment_is_relaxed_under_the_public_suffix_list() {
+        let m =
+            mail("Authentication-Results: mx.google.com; dkim=pass header.d=mail.example.com\r\n");
+        assert!(sender_verified(&m, "bob@example.com", HOST));
+        // duckdns.org is a public suffix: two tenants do not share a domain.
+        let m = mail_from(
+            "Authentication-Results: mx.google.com; dkim=pass header.d=evil.duckdns.org\r\n",
+            "bob@victim.duckdns.org",
+        );
+        assert!(!sender_verified(&m, "bob@victim.duckdns.org", HOST));
+    }
+
+    #[test]
+    fn microsoft_hosts_have_no_fast_path() {
+        for host in ["outlook.office365.com", "imap-mail.outlook.com"] {
+            for results in [
+                "Authentication-Results: spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com\r\n",
+                "Authentication-Results: x.protection.outlook.com; dkim=pass header.d=example.com\r\n",
+                "Authentication-Results: mx.outlook.com; spf=pass smtp.mailfrom=example.com\r\n",
+            ] {
+                assert!(!sender_verified(&mail(results), "bob@example.com", host));
+            }
+        }
+    }
+
+    #[test]
+    fn two_from_fields_or_two_mailboxes_are_never_verified() {
+        let ar = "Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n";
+        let two =
+            format!("{ar}From: bob@example.com\r\nFrom: eve@example.net\r\nSubject: x\r\n\r\nb");
+        assert!(!sender_verified(two.as_bytes(), "bob@example.com", HOST));
+        assert!(!sender_verified(two.as_bytes(), "eve@example.net", HOST));
+        let m = mail_from(ar, "bob@example.com, eve@example.net");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        // The From shown must be the one parsed.
+        let m = mail_from(ar, "eve@example.net");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        // No From at all.
+        let none = format!("{ar}Subject: x\r\n\r\nb");
+        assert!(!sender_verified(none.as_bytes(), "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn an_id_must_equal_a_listed_id_or_end_with_a_dot_and_it() {
+        let on = |id: &str, host: &str| {
+            let m = mail(&format!(
+                "Authentication-Results: {id}; dkim=pass header.d=example.com\r\n"
+            ));
+            sender_verified(&m, "bob@example.com", host)
+        };
+        assert!(on("mx.google.com", "imap.gmail.com"));
+        assert!(on("a.mx.google.com", "imap.gmail.com"));
+        assert!(!on("mx.google.com.evil.example", "imap.gmail.com"));
+        assert!(!on("evilmx.google.com", "imap.gmail.com"));
+        assert!(!on("google.com", "imap.gmail.com"));
+        assert!(!on("mx.example.net", "imap.gmail.com"));
+    }
+
+    #[test]
+    fn the_host_matches_exactly_ignoring_case_and_a_trailing_dot() {
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
+        for host in [
+            "imap.gmail.com",
+            "IMAP.Gmail.COM",
+            "imap.gmail.com.",
+            " imap.gmail.com ",
+        ] {
+            assert!(sender_verified(&m, "bob@example.com", host), "{host}");
+        }
+        for host in [
+            "",
+            "gmail.com",
+            "imap.googlemail.com",
+            "evil.imap.gmail.com",
+            "imap.gmail.com.evil.example",
+            "imap.me.org",
+        ] {
+            assert!(!sender_verified(&m, "bob@example.com", host), "{host}");
+        }
+    }
+
+    #[test]
+    fn each_table_provider_verifies_only_its_own_ids() {
+        let cases = [
+            ("imap.gmail.com", "mx.google.com", "mx.example.net"),
+            (
+                "imap.fastmail.com",
+                "mx3.messagingengine.com",
+                "mx3.other.example.net",
+            ),
+            ("imap.mail.me.com", "mx.icloud.com", "mx.example.net"),
+            ("imap.mail.me.com", "relay.apple.com", "mx.example.net"),
+            ("imap.mail.yahoo.com", "mta.yahoo.com", "mx.example.net"),
+        ];
+        for (host, id, other) in cases {
+            let good = mail(&format!(
+                "Authentication-Results: {id}; dkim=pass header.d=example.com\r\n"
+            ));
+            let bad = mail(&format!(
+                "Authentication-Results: {other}; dkim=pass header.d=example.com\r\n"
+            ));
+            assert!(sender_verified(&good, "bob@example.com", host), "{host}");
+            assert!(!sender_verified(&bad, "bob@example.com", host), "{host}");
+        }
+        // An id of one provider does not work on another's host.
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", "imap.fastmail.com"));
+    }
+
+    #[test]
+    fn a_header_in_the_body_after_a_bare_cr_boundary_is_not_read() {
+        // `\r\r\n` ends the header block for DKIM and the reader; a
+        // line-based parser would read the body line as the topmost header.
+        let ar = "Authentication-Results: mx.google.com; dkim=pass header.d=example.com";
+        let m = format!("From: bob@example.com\r\nSubject: x\r\n\r\r\n{ar}\r\n\r\nbody");
+        assert!(!sender_verified(m.as_bytes(), "bob@example.com", HOST));
+        let m = format!("From: bob@example.com\r\nSubject: x\r\n\r\n{ar}\r\n");
+        assert!(!sender_verified(m.as_bytes(), "bob@example.com", HOST));
+        // The same header above the boundary does verify.
+        let m = format!("{ar}\r\nFrom: bob@example.com\r\n\r\r\nbody");
+        assert!(sender_verified(m.as_bytes(), "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn a_spaced_or_odd_header_name_is_read_as_dkim_reads_it() {
+        let m = mail("Authentication-Results : mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(sender_verified(&m, "bob@example.com", HOST));
+        let m =
+            mail("Authentication-Results\x0c: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn the_from_domain_is_normalised_like_the_parsed_one() {
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(sender_verified(&m, "bob@Example.COM", HOST));
+        assert!(sender_verified(&m, "bob@example.com.", HOST));
+        assert!(sender_verified(&m, " bob@EXAMPLE.com. ", HOST));
+    }
+
+    #[test]
+    fn a_quote_inside_a_comment_does_not_hide_its_closing_parenthesis() {
+        // RFC 5322 3.2.2: a comment holds ctext, quoted-pairs and nested
+        // comments only. A `"` is plain ctext there, so the first
+        // unescaped `)` ends the comment and the property after it is real.
+        let m = mail(
+            "Authentication-Results: mx.google.com; spf=pass (a \" ) smtp.mailfrom=example.net (\" ) smtp.mailfrom=example.com\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        // A quoted-pair keeps the comment open, so what follows it is text.
+        let m = mail(
+            "Authentication-Results: mx.google.com; spf=pass (a \\) smtp.mailfrom=example.com) smtp.mailfrom=example.net\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 }
