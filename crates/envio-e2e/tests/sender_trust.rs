@@ -7,13 +7,14 @@
 mod support;
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use envio_core::api::view::MessageView;
 use envio_core::{Command, Event, FolderRole, ImagesChoice};
 use envio_net::dns::{TxtAnswer, TxtLookup};
-use futures::future::BoxFuture;
 use log::LevelFilter;
 use support::core_run::{CoreRun, NET, password, setup};
 use support::stalwart::Stalwart;
@@ -55,7 +56,7 @@ impl Fake {
 }
 
 impl TxtLookup for Fake {
-    fn txt<'a>(&'a self, name: &'a str) -> BoxFuture<'a, TxtAnswer> {
+    fn txt<'a>(&'a self, name: &'a str) -> Pin<Box<dyn Future<Output = TxtAnswer> + Send + 'a>> {
         self.asked.lock().unwrap().push(name.to_owned());
         let answer = match self.answers.get(name) {
             Some(record) => TxtAnswer::Records {
