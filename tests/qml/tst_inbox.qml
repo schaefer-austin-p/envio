@@ -898,8 +898,10 @@ Item {
         // hovered and row 12's menu open, in a light and a dark theme.
         function test_shots_of_hover_and_menu() {
             if (shotsDir === "") skip("no ENVIO_SHOTS_DIR")
-            for (const mode of ["light", "dark"]) {
-                thm.darkMode = mode
+            for (const variant of ["light", "dark", "airmail-light", "airmail-dark"]) {
+                const mode = variant
+                thm.name = variant.indexOf("airmail") === 0 ? "airmail" : "carbon"
+                thm.darkMode = variant.slice(-4) === "dark" ? "dark" : "light"
                 core.messages.clear()
                 core.messages.append(message(11, false, true))
                 core.messages.append(message(12))
@@ -925,6 +927,7 @@ Item {
                 tryVerify(function() { return !menu.visible })
                 ground.destroy()
             }
+            thm.name = "carbon"
             thm.darkMode = "system"
         }
 

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 15:25+0100\n"
+"POT-Creation-Date: 2026-11-20 15:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -51,7 +51,7 @@ msgstr ""
 msgid "Trash"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:20 qml/pages/inbox/RowMenu.qml:126
+#: qml/components/FolderLabel.qml:20 qml/pages/inbox/RowMenu.qml:146
 #: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:278
 msgid "Archive"
 msgstr ""
@@ -81,12 +81,12 @@ msgid "Enter"
 msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
-#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/RowMenu.qml:135
+#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/RowMenu.qml:155
 #: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/RowMenu.qml:135
+#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/RowMenu.qml:155
 msgid "Del"
 msgstr ""
 
@@ -656,7 +656,7 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
-#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/RowMenu.qml:122
+#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/RowMenu.qml:142
 #: qml/pages/inbox/SelectionBar.qml:46 qml/pages/reader/ReaderMore.qml:22
 msgid "Move to folder"
 msgstr ""
@@ -697,15 +697,15 @@ msgstr ""
 msgid "Edit"
 msgstr ""
 
-#: qml/pages/inbox/RowMenu.qml:113
+#: qml/pages/inbox/RowMenu.qml:133
 msgid "Select"
 msgstr ""
 
-#: qml/pages/inbox/RowMenu.qml:118 qml/pages/inbox/SelectionBar.qml:66
+#: qml/pages/inbox/RowMenu.qml:138 qml/pages/inbox/SelectionBar.qml:66
 msgid "Mark as read"
 msgstr ""
 
-#: qml/pages/inbox/RowMenu.qml:118 qml/pages/inbox/SelectionBar.qml:67
+#: qml/pages/inbox/RowMenu.qml:138 qml/pages/inbox/SelectionBar.qml:67
 msgid "Mark as unread"
 msgstr ""
 

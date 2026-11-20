@@ -44,14 +44,34 @@ QC.Popup {
     modal: true
     closePolicy: QC.Popup.CloseOnEscape | QC.Popup.CloseOnPressOutside
     QC.Overlay.modal: Item {}
-    width: theme.gu(26)
-    padding: 4
+    width: theme.gu(30)
+    topPadding: 6
+    bottomPadding: 6
+    leftPadding: 0
+    rightPadding: 0
 
-    background: Rectangle {
-        color: root.theme.surface
-        radius: root.theme.fieldRadius
-        border.width: 1
-        border.color: root.theme.field
+    background: Item {
+        // A soft drop shadow (the board's 0 8px 24px): a stack of growing,
+        // faint rounded rectangles, offset down.
+        Repeater {
+            model: 6
+            Rectangle {
+                required property int index
+                x: -index * 2
+                y: 6 - index * 2
+                width: parent.width + index * 4
+                height: parent.height + index * 4
+                radius: root.theme.fieldRadius
+                color: root.theme.dark ? Qt.rgba(0, 0, 0, 0.08) : Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.035)
+            }
+        }
+        Rectangle {
+            anchors.fill: parent
+            color: root.theme.surface
+            radius: root.theme.fieldRadius
+            border.width: 1
+            border.color: root.theme.field
+        }
     }
 
     component Entry: Item {
@@ -66,7 +86,7 @@ QC.Popup {
         width: parent ? parent.width : 0
         height: 40
         Rectangle {
-            anchors.fill: parent
+            anchors { fill: parent; leftMargin: 4; rightMargin: 4 }
             radius: root.theme.chipRadius
             color: area.containsMouse ? root.theme.hover : "transparent"
         }
@@ -76,7 +96,7 @@ QC.Popup {
             anchors.verticalCenter: parent.verticalCenter
             theme: root.theme
             name: entry.icon
-            size: root.theme.iconSize
+            size: 18
             color: entry.danger ? root.theme.accent : root.theme.text
         }
         Text {
