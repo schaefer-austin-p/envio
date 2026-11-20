@@ -40,3 +40,5 @@ all-accounts-off state. The command text is a TODO until confirmed on the phone.
 Also (#356): the archive, trash, send, pencil, check and external-link glyphs in
 `carbon-` and `airmail-` inbox, compose and reading are Lucide 0.460.0 now, as in
 the app; `*-menu-icons` has the mapping for every sheet and menu item.
+
+Also (#381): `carbon-ms-refused` and `airmail-ms-refused`, the email step when the address is a Microsoft one (light and dark): the info notice "Microsoft accounts aren't supported yet" and one "Change address" button. A second frame, labelled "Follow-up: #384 (MX lookup)", shows the custom-domain wording. Microsoft is dropped from step 1's provider list in both `*-wizard` boards, and `carbon-ms-oauth` is parked until #382.
