@@ -133,3 +133,24 @@ fn every_redirect_scheme_is_letters_and_digits_only() {
         );
     }
 }
+
+#[test]
+fn the_dispatcher_and_the_app_shell_declare_every_redirect_scheme() {
+    // The scheme lives in three places: the provider's redirect_uri, the
+    // click's url-dispatcher file and AppShell.qml's UriHandler. If one
+    // drifts, the browser's redirect never reaches the app (#367).
+    let dispatcher = include_str!("../../../../../envio.url-dispatcher");
+    let shell = include_str!("../../../../../qml/pages/AppShell.qml");
+    let providers = [Provider::microsoft_template()];
+    for p in &providers {
+        let (scheme, _) = p.redirect_uri.split_once("://").expect("has a scheme");
+        assert!(
+            dispatcher.contains(&format!("\"protocol\": \"{scheme}\"")),
+            "envio.url-dispatcher lacks {scheme}"
+        );
+        assert!(
+            shell.contains(&format!("schemes: [\"{scheme}\"]")),
+            "AppShell.qml lacks {scheme}"
+        );
+    }
+}
