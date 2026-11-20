@@ -6,7 +6,7 @@ import "iconShapes.js" as Shapes
 // Suru) is needed. The shapes are in iconShapes.js (mostly Lucide, ISC; see
 // NOTICES.md); `name` is one of its `names`: back, forward, down, close,
 // check, plus, send, search, menu, alert, info, archive, trash, move, more,
-// flag, clip, mail, mailopen, pencil, offline, external, and the Lucide
+// flag, clip, mail, mailopen, pencil, offline, external, uploadoff, and the Lucide
 // names of the sheet and menu items (trash-2, folder-input, external-link,
 // ...).
 Canvas {

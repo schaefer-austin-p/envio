@@ -16,6 +16,7 @@ mod invites;
 mod journal;
 mod journal_forget;
 mod journal_replay;
+mod keywords;
 mod lookup;
 mod messages;
 mod migrate;

@@ -12,15 +12,18 @@ Sheet {
     // true to flag the message, false to remove the flag.
     signal flagRequested(bool flagged)
     signal contactRequested()
+    // A draft has no Reply all, and no Move (it could leave its file behind).
+    property bool isDraft: false
 
     Repeater {
+        // `pick` names the action, so filtering leaves the cases alone.
         model: [
             { name: "moreReplyAll", label: qsTr("Reply all"), pick: 0, icon: "reply-all" },
             { name: "moreMove", label: qsTr("Move to folder"), pick: 1, icon: "folder-input" },
             { name: "moreFlag", label: qsTr("Flag"), pick: 2, icon: "flag" },
             { name: "moreUnflag", label: qsTr("Remove flag"), pick: 3, icon: "flag-off" },
             { name: "moreContact", label: qsTr("Add sender to Contacts"), pick: 4, icon: "user-plus" }
-        ]
+        ].filter(function(item) { return !root.isDraft || (item.pick !== 0 && item.pick !== 1) })
         delegate: ListRow {
             id: row
             required property var modelData
