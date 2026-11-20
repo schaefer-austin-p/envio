@@ -4,8 +4,17 @@
 use envio_net::imap::{Flag, MessageFlags, Role, Summary};
 use envio_store::{Envelope, Flags, FolderRole, Message, NewMessage};
 
-/// The store's flag bits from the server's flags. Keywords are not
-/// cached.
+/// The server's keywords, sorted and deduplicated, for the cache's
+/// keywords column.
+pub fn keyword_list(flags: &MessageFlags) -> Vec<String> {
+    let mut words = flags.keywords.clone();
+    words.sort();
+    words.dedup();
+    words
+}
+
+/// The store's flag bits from the server's flags. Keyword bits do not
+/// exist: keywords go beside the bits, see `keyword_list`.
 pub fn store_flags(flags: &MessageFlags) -> Flags {
     [
         (flags.seen, Flags::SEEN),
@@ -155,6 +164,18 @@ mod tests {
             modseq: Some(9),
             header: header.to_vec(),
         }
+    }
+
+    #[test]
+    fn keyword_list_is_sorted_and_deduplicated() {
+        let none = MessageFlags::from_flags([Flag::Seen]);
+        assert!(keyword_list(&none).is_empty());
+        let flags = MessageFlags::from_flags([
+            Flag::Keyword("$b".into()),
+            Flag::Keyword("$a".into()),
+            Flag::Keyword("$b".into()),
+        ]);
+        assert_eq!(keyword_list(&flags), ["$a", "$b"]);
     }
 
     #[test]

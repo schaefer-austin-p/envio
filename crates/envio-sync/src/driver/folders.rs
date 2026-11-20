@@ -1,5 +1,6 @@
 //! Folder list and folder sync, and fetching one body on open.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use envio_mime::Address;
@@ -261,10 +262,16 @@ pub(super) fn store_summaries(
     pending: &Pending,
 ) -> Result<Vec<MessageRowId>> {
     let rows = rows(summaries, pending);
+    let by_uid: HashMap<u32, &Summary> = summaries.iter().map(|s| (s.uid, s)).collect();
     Ok(local.db.step(|db| {
         let mut ids = Vec::with_capacity(rows.len());
         for row in &rows {
             ids.push(db.upsert_message(id, row)?);
+            // Never NULL after a fetch: a summary without keywords is a
+            // known empty list.
+            if let Some(summary) = by_uid.get(&row.uid) {
+                db.set_keywords(id, row.uid, &crate::convert::keyword_list(&summary.flags))?;
+            }
         }
         // For autocomplete: every sender and recipient, as of the
         // message's date.
@@ -310,17 +317,26 @@ async fn check_flags(
 }
 
 /// Stores the server's flags for cached messages, pending changes on top;
-/// \Deleted ones leave the cache. Returns how many changed.
+/// \Deleted ones leave the cache. Keywords are refreshed too but not
+/// counted: they change nothing the list shows. Returns how many changed.
 pub(super) fn apply_flags(
     local: &Local<'_>,
     id: FolderId,
     updates: &[FlagUpdate],
     pending: &Pending,
 ) -> Result<usize> {
-    let changes = plan_flags(&local.db.flags_by_uid(id)?, updates, pending);
+    let changes = plan_flags(
+        &local.db.flags_by_uid(id)?,
+        &local.db.keywords_by_uid(id)?,
+        updates,
+        pending,
+    );
     local.db.step(|db| {
         for (uid, flags) in &changes.set {
             db.set_flags(id, *uid, *flags)?;
+        }
+        for (uid, words) in &changes.keywords {
+            db.set_keywords(id, *uid, words)?;
         }
         db.delete_messages(id, &changes.remove)
     })?;

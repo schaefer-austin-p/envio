@@ -3,7 +3,7 @@
 mod support;
 
 use envio_net::NetError;
-use envio_net::imap::{Caps, Role};
+use envio_net::imap::{Caps, Flag, MessageFlags, Role};
 use envio_store::{ActionKind, Flags};
 use envio_sync::driver::{record, replay, sync_folder, sync_folders};
 use envio_sync::{ErrorKind, UNDO_MS};
@@ -358,4 +358,26 @@ async fn stopped_reports_protocol_not_temporary() {
     assert_eq!(protocol.stopped, Some(ErrorKind::Protocol));
     let timeout = failing_run(&mut server, &mut store, &mut now, NetError::Timeout).await;
     assert_eq!(timeout.stopped, Some(ErrorKind::Temporary));
+}
+
+#[tokio::test]
+async fn a_refused_flag_change_also_refreshes_the_messages_keywords() {
+    let mut server = FakeServer::new();
+    let mut store = synced(&mut server, &["a"]).await;
+    let inbox = store.folder("INBOX").id;
+    assert_eq!(store.db.keywords_of(inbox, 1).unwrap(), Some(vec![]));
+    server.set_flags(
+        "INBOX",
+        1,
+        MessageFlags::from_flags([Flag::Keyword("$Forwarded".into())]),
+    );
+    take(&mut store, 1, read());
+    server.fail_on("store_flags", NetError::Refused("read-only".into()));
+    replay(&mut server, &mut store.local(), ACCOUNT, LATER)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.db.keywords_of(inbox, 1).unwrap(),
+        Some(vec!["$Forwarded".to_owned()])
+    );
 }
