@@ -30,11 +30,16 @@ pub enum Problem {
     Local,
 }
 
+/// The log line for a protocol error: the server's text, masked.
+fn protocol_line(text: &str) -> String {
+    format!("protocol error: {}", crate::mask::server_text(text))
+}
+
 pub fn from_net(error: &NetError, service: Service) -> Problem {
     match error {
         NetError::Io(_) | NetError::Timeout | NetError::Busy(_) => Problem::Temporary,
         NetError::Protocol(text) => {
-            log::warn!("protocol error: {text}");
+            log::warn!("{}", protocol_line(text));
             Problem::Temporary
         }
         NetError::SignIn(_) => Problem::SignIn,
@@ -103,6 +108,14 @@ pub fn from_kind(kind: ErrorKind) -> Problem {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_protocol_error_line_holds_no_secret_or_address() {
+        let tok = "EwBwA8l6BAAUbDba3x2OMJElkF7gJ4z_VbCPEz0AAfj0fmHWqWbTB2xt";
+        let line = super::protocol_line(&format!("bad reply for bob@outlook.com {tok}"));
+        assert!(!line.contains(tok) && !line.contains("bob@"), "{line}");
+        assert!(line.starts_with("protocol error: "), "{line}");
+    }
+
     use super::*;
 
     fn fp(n: u8) -> Fingerprint {

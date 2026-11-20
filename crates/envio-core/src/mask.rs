@@ -13,11 +13,11 @@ pub fn address(email: &str) -> String {
 
 /// A server's reply text, safe for a log. It fails closed: addresses are
 /// masked, then any run of 24 or more token characters (letters, digits and
-/// `._-+/=~`) is dropped wherever it sits, whatever quotes, braces, `%`,
+/// `._-+/=~!$*`) is dropped wherever it sits, whatever quotes, braces, `%`,
 /// backslashes or control characters surround it. Cut at 200 characters.
 pub fn server_text(text: &str) -> String {
     const MIN_RUN: usize = 24;
-    let masked = mask_addresses(text);
+    let masked = mask_addresses(&text.replace("%40", "@"));
     let mut out = String::new();
     let mut run = String::new();
     let flush = |run: &mut String, out: &mut String| {
@@ -29,7 +29,7 @@ pub fn server_text(text: &str) -> String {
         run.clear();
     };
     for c in masked.chars() {
-        if c.is_ascii_alphanumeric() || "._-+/=~".contains(c) {
+        if c.is_ascii_alphanumeric() || "._-+/=~!$*".contains(c) {
             run.push(c);
         } else {
             flush(&mut run, &mut out);
@@ -45,28 +45,39 @@ pub fn server_text(text: &str) -> String {
     }
 }
 
+/// Where a quoted local part (`"alice smith"` just before an `@`) begins.
+fn quoted_local_start(out: &str) -> Option<usize> {
+    let inner = out.strip_suffix('"')?;
+    inner.rfind('"')
+}
+
 /// Every `local@domain` (the characters an address is made of on both sides
 /// of an `@`) becomes `l…@domain`; a lone `@` stays.
 fn mask_addresses(text: &str) -> String {
-    let local = |c: char| c.is_ascii_alphanumeric() || "._%+-".contains(c);
-    let domain = |c: char| c.is_ascii_alphanumeric() || ".-".contains(c);
+    let local = |c: char| c.is_alphanumeric() || "._%+-".contains(c);
+    let domain = |c: char| c.is_alphanumeric() || ".-".contains(c);
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::new();
     let mut i = 0;
     while i < chars.len() {
         if chars[i] == '@' {
-            let start = out
-                .char_indices()
-                .rev()
-                .take_while(|(_, c)| local(*c))
-                .last()
-                .map(|(at, _)| at);
+            let start = quoted_local_start(&out).or_else(|| {
+                out.char_indices()
+                    .rev()
+                    .take_while(|(_, c)| local(*c))
+                    .last()
+                    .map(|(at, _)| at)
+            });
             let mut end = i + 1;
             while end < chars.len() && domain(chars[end]) {
                 end += 1;
             }
             if let Some(start) = start.filter(|_| end > i + 1) {
-                let first: String = out[start..].chars().take(1).collect();
+                let first: String = out[start..]
+                    .chars()
+                    .find(|c| *c != '"')
+                    .into_iter()
+                    .collect();
                 out.truncate(start);
                 out.push_str(&first);
                 out.push('…');
@@ -133,6 +144,24 @@ mod tests {
         let out = server_text("for Bob Smith <bob@outlook.com>, retry");
         assert!(out.contains("<b…@outlook.com>"), "{out}");
         assert!(!out.contains("bob@"), "{out}");
+    }
+
+    #[test]
+    fn server_text_redacts_a_microsoft_refresh_token_split_by_punctuation() {
+        let tok = "M.C507_BAY.0.U.-CrWbd9Pq!Gh7nV$sLk2*AbCdEfGhIjKlMnOp";
+        let out = server_text(&format!("refresh {tok} end"));
+        assert_eq!(out, "refresh <redacted> end");
+    }
+
+    #[test]
+    fn server_text_masks_quoted_encoded_and_non_ascii_addresses() {
+        let quoted = server_text("for \"alice smith\"@outlook.com now");
+        assert_eq!(quoted, "for a…@outlook.com now");
+        let encoded = server_text("user alice%40outlook.com failed");
+        assert!(encoded.contains("a…@outlook.com"), "{encoded}");
+        assert!(!encoded.contains("alice"), "{encoded}");
+        let umlaut = server_text("jörg@outlook.de");
+        assert_eq!(umlaut, "j…@outlook.de");
     }
 
     #[test]
