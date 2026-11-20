@@ -23,7 +23,22 @@ ListRow {
     // The keyboard-focus row (Up/Down): hover fill and a 2 px outline in the
     // text colour, apart from the open row's fill and accent bar.
     readonly property bool kbdFocus: model.kbdFocus === true
-    cued: kbdFocus
+    // Mouse hover fills like the keyboard cue; touch gives none (no sticky
+    // hover after a tap). `selected` and the open fill win over it.
+    readonly property bool pointerOver: hover.hovered
+    cued: kbdFocus || pointerOver
+    // The row's context request (right-click), at a point in the row.
+    signal contextRequested(int id, real x, real y)
+    HoverHandler {
+        id: hover
+        objectName: "rowHover"
+        acceptedDevices: PointerDevice.Mouse
+    }
+    TapHandler {
+        objectName: "rowRightClick"
+        acceptedButtons: Qt.RightButton
+        onTapped: function(point) { root.contextRequested(root.model.id, point.position.x, point.position.y) }
+    }
     Rectangle {
         objectName: "focusOutline"
         parent: root

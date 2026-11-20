@@ -156,7 +156,7 @@ Item {
         count: list.selectedCount
         canMove: list.selectedAccounts.length === 1
         onLeaveRequested: root.core.clearSelection()
-        onMoveRequested: move.openFor(list.selectedAccounts[0])
+        onMoveRequested: { move.targets = []; move.openFor(list.selectedAccounts[0]) }
     }
 
     AccountTabs {
@@ -194,6 +194,7 @@ Item {
         showOpen: root.showOpen
         anchors { top: banners.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         onMessageRequested: root.messageRequested(message)
+        onMoveRequested: function(id, account) { move.targets = [id]; move.openFor(account) }
         onDraftRequested: function(draftId) { root.draftRequested(draftId) }
     }
 

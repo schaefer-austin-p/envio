@@ -24,6 +24,9 @@ Item {
     // A local draft's row (`opens` is "compose"): Compose opens at once.
     signal draftRequested(string draftId)
 
+    // The row menu's Move to folder: the message and its account.
+    signal moveRequested(int id, string account)
+
     function positionViewAtEnd() { list.positionViewAtEnd() }
 
     function recount() {
@@ -110,8 +113,27 @@ Item {
                 else if (row.model.opens === "compose") root.draftRequested(row.model.draftId)
                 else root.messageRequested(row.model.id)
             }
+            onContextRequested: function(id, px, py) {
+                // A local draft has no server copy to act on.
+                if (row.model.opens === "compose") return
+                const at = row.mapToItem(rowMenu.parent, px, py)
+                rowMenu.messageId = id
+                rowMenu.unread = row.model.unread === true
+                rowMenu.account = row.model.account
+                rowMenu.openAt(at.x, at.y)
+            }
             onPressAndHold: if (!row.model.selected) root.core.select(row.model.id, true)
             Component.onCompleted: if (row.index > list.count - 10) root.core.more()
         }
+    }
+
+    RowMenu {
+        id: rowMenu
+        theme: root.theme
+        onSelectRequested: root.core.select(messageId, true)
+        onMarkRequested: function(read) { root.core.actOn([messageId], read ? "read" : "unread", 0) }
+        onMoveRequested: root.moveRequested(messageId, account)
+        onArchiveRequested: root.core.actOn([messageId], "archive", 0)
+        onDeleteRequested: root.core.actOn([messageId], "delete", 0)
     }
 }

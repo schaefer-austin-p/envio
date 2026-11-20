@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.2
+import QtQuick.Window 2.15
 import "../../qml/platform"
 import "../../qml/platform/stampTint.js" as StampTint
 import "../../qml/pages"
@@ -833,6 +834,244 @@ Item {
             tryVerify(function() { return banner.visible })
             compare(banner.text, "waiting 1")
             core.outbox.clear()
+        }
+
+        // ---- hover and the right-click menu (#192 T6) ----
+
+        function rightClick(id) {
+            const before = find("rowMenu", page)
+            tryVerify(function() { return !before.visible })
+            // An earlier test may have scrolled the list.
+            find("messageList", page).positionViewAtBeginning()
+            waitForRendering(page)
+            const row = find("row-" + id, page)
+            tryVerify(function() { return row.y >= 0 && row.height > 0 })
+            mouseClick(row, 40, row.height / 2, Qt.RightButton)
+            return find("rowMenu", page)
+        }
+        function closeMenu() {
+            const menu = find("rowMenu", page)
+            menu.close()
+            tryVerify(function() { return !menu.visible })
+        }
+        function cleanup() {
+            for (const name of ["rowMenu", "moveSheet"]) {
+                const popup = find(name, page)
+                if (!popup.visible) continue
+                popup.close()
+                tryVerify(function() { return !popup.visible })
+            }
+        }
+        function fill(id) { return find("row-" + id, page).background.color }
+
+        // With ENVIO_SHOTS_DIR: the window (menu included) with row 13
+        // hovered and row 12's menu open, in a light and a dark theme.
+        function test_shots_of_hover_and_menu() {
+            if (shotsDir === "") skip("no ENVIO_SHOTS_DIR")
+            for (const mode of ["light", "dark"]) {
+                thm.darkMode = mode
+                core.messages.clear()
+                core.messages.append(message(11, false, true))
+                core.messages.append(message(12))
+                core.messages.append(message(13))
+                core.messages.append(message(14))
+                waitForRendering(page)
+                const ground = Qt.createQmlObject('import QtQuick 2.15; Rectangle { z: -1; anchors.fill: parent }', root)
+                ground.color = thm.ground
+                const win = root.Window.window.contentItem
+                mouseMove(find("row-13", page), 30, 20)
+                tryCompare(find("row-13", page), "pointerOver", true)
+                waitForRendering(win)
+                let done = false
+                win.grabToImage(function(res) { res.saveToFile(shotsDir + "/hover-" + mode + ".png"); done = true })
+                tryVerify(function() { return done })
+                const menu = rightClick(12)
+                tryVerify(function() { return menu.opened })
+                waitForRendering(win)
+                done = false
+                win.grabToImage(function(res) { res.saveToFile(shotsDir + "/menu-" + mode + ".png"); done = true })
+                tryVerify(function() { return done })
+                menu.close()
+                tryVerify(function() { return !menu.visible })
+                ground.destroy()
+            }
+            thm.darkMode = "system"
+        }
+
+        function test_hover_uses_hover_role() {
+            core.messages.append(message(11))
+            core.messages.append(message(12))
+            waitForRendering(page)
+            mouseMove(find("row-12", page), 30, 10)
+            tryCompare(find("row-12", page), "pointerOver", true)
+            compare(fill(12), thm.hover)
+            verify(fill(11) !== thm.hover, "only the hovered row fills")
+            mouseMove(find("row-11", page), 30, 10)
+            tryCompare(find("row-12", page), "pointerOver", false)
+            compare(fill(11), thm.hover)
+            thm.name = "airmail"
+            compare(fill(11), thm.hover)
+            thm.name = "carbon"
+        }
+
+        function test_hover_does_not_override_open_or_selected_fill() {
+            core.messages.append(message(11, false, true))
+            core.messages.append(message(12, true))
+            core.messages.append(message(13))
+            waitForRendering(page)
+            mouseMove(find("row-11", page), 30, 10)
+            tryCompare(find("row-11", page), "pointerOver", true)
+            compare(fill(11), thm.selected)
+            mouseMove(find("row-12", page), 30, 10)
+            tryCompare(find("row-12", page), "pointerOver", true)
+            compare(fill(12), thm.selected)
+            // Hover is not a state of the data.
+            compare(core.messages.get(0).open, true)
+            compare(core.messages.get(2).selected, false)
+            mouseMove(find("row-13", page), 30, 10)
+            tryCompare(find("row-13", page), "pointerOver", true)
+            compare(core.messages.get(2).selected, false)
+            compare(core.messages.get(2).open, false)
+            compare(core.called("select").length, 0)
+        }
+
+        function test_right_click_opens_menu_with_five_entries() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            const menu = rightClick(11)
+            tryVerify(function() { return menu.opened })
+            for (const name of ["select", "mark", "move", "archive", "delete"])
+                verify(find("menu-" + name, menu.contentItem).visible, name)
+            compare(find("menu-select", menu.contentItem).children.length > 0, true)
+            compare(findText("Select", menu.contentItem).text, "Select")
+            compare(findText("Move to folder", menu.contentItem).text, "Move to folder")
+            compare(findText("Archive", menu.contentItem).text, "Archive")
+            compare(findText("Delete", menu.contentItem).text, "Delete")
+            // A left click opens the message, not the menu.
+            closeMenu()
+            mouseClick(find("row-11", page), 40, 10)
+            compare(opened.count, 1)
+            verify(!menu.visible)
+        }
+
+        function test_menu_closes_on_escape_and_outside_click() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            const menu = rightClick(11)
+            tryVerify(function() { return menu.opened })
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !menu.visible })
+            rightClick(11)
+            tryVerify(function() { return menu.opened })
+            mouseClick(page, root.width - 5, root.height - 5)
+            tryVerify(function() { return !menu.visible })
+            compare(core.called("actOn").length, 0)
+        }
+
+        function test_menu_archive_acts_on_clicked_row_only() {
+            for (let i = 1; i <= 4; i++) core.messages.append(message(i, i <= 2))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            waitForRendering(page)
+            const menu = rightClick(4)
+            tryVerify(function() { return menu.opened })
+            mouseClick(find("menu-archive", menu.contentItem))
+            compare(core.called("actOn").pop().args, [[4], "archive", 0])
+            compare(core.called("act").length, 0)
+            compare(core.called("select").length, 0)
+            compare(core.called("clearSelection").length, 0)
+            compare(core.messages.get(0).selected, true)
+            compare(core.messages.get(1).selected, true)
+            compare(core.messages.get(3).selected, false)
+            tryVerify(function() { return !menu.visible })
+        }
+
+        function test_menu_delete_acts_on_clicked_row() {
+            core.messages.append(message(7))
+            waitForRendering(page)
+            const menu = rightClick(7)
+            tryVerify(function() { return menu.opened })
+            mouseClick(find("menu-delete", menu.contentItem))
+            compare(core.called("actOn").pop().args, [[7], "delete", 0])
+        }
+
+        function test_menu_select_starts_multiselect() {
+            core.messages.append(message(11))
+            core.messages.append(message(12))
+            waitForRendering(page)
+            const menu = rightClick(12)
+            tryVerify(function() { return menu.opened })
+            mouseClick(find("menu-select", menu.contentItem))
+            compare(core.called("select").pop().args, [12, true])
+            compare(core.called("actOn").length, 0)
+        }
+
+        function test_menu_delete_is_accent_colour() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            const menu = rightClick(11)
+            tryVerify(function() { return menu.opened })
+            compare(find("label", find("menu-delete", menu.contentItem)).color, thm.accent)
+            verify(find("label", find("menu-archive", menu.contentItem)).color !== thm.accent)
+            compare(findText("Del", menu.contentItem).text, "Del")
+        }
+
+        function test_long_press_still_selects() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            const row = find("row-11", page)
+            mousePress(row, 20, row.height / 2)
+            wait(Qt.styleHints.mousePressAndHoldInterval + 300)
+            mouseRelease(row, 20, row.height / 2)
+            compare(core.called("select").pop().args, [11, true])
+            verify(!find("rowMenu", page).visible)
+        }
+
+        function test_menu_mark_label_follows_unread() {
+            const read = message(11)
+            read.unread = false
+            core.messages.append(read)
+            core.messages.append(message(12))
+            waitForRendering(page)
+            let menu = rightClick(11)
+            tryVerify(function() { return menu.opened })
+            compare(findText("Mark as unread", menu.contentItem).text, "Mark as unread")
+            mouseClick(find("menu-mark", menu.contentItem))
+            compare(core.called("actOn").pop().args, [[11], "unread", 0])
+            tryVerify(function() { return !menu.visible })
+            menu = rightClick(12)
+            tryVerify(function() { return menu.opened })
+            compare(findText("Mark as read", menu.contentItem).text, "Mark as read")
+            mouseClick(find("menu-mark", menu.contentItem))
+            compare(core.called("actOn").pop().args, [[12], "read", 0])
+        }
+
+        function test_menu_move_uses_target_ids_and_keeps_checked_rows() {
+            for (let i = 1; i <= 4; i++) core.messages.append(message(i, i <= 2))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            core.reset()
+            waitForRendering(page)
+            const menu = rightClick(4)
+            tryVerify(function() { return menu.opened })
+            mouseClick(find("menu-move", menu.contentItem))
+            compare(core.called("listFolders").pop().args, ["ann"])
+            const sheet = find("moveSheet", page)
+            tryVerify(function() { return sheet.opened })
+            compare(sheet.targets, [4])
+            core.folders.append({ id: 8, account: "ann", name: "Trips 2026", role: "", unread: 0, depth: 0 })
+            mouseClick(find("folder-8", sheet.contentItem))
+            compare(core.called("actOn").pop().args, [[4], "move", 8])
+            compare(core.called("act").length, 0)
+            compare(core.called("select").length, 0)
+            compare(core.called("clearSelection").length, 0)
+            compare(core.messages.get(0).selected, true)
+            compare(core.messages.get(1).selected, true)
+            // The selection bar's Move goes back to the selection path.
+            tryVerify(function() { return !sheet.visible })
+            core.reset()
+            mouseClick(find("act-move", page))
+            tryVerify(function() { return sheet.opened })
+            compare(sheet.targets, [])
+            core.folders.clear()
         }
 
         Component {
