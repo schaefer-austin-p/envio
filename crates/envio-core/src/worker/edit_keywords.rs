@@ -9,6 +9,7 @@ use envio_store::{Flags, Folder, Message, MessageRowId};
 use super::Worker;
 use crate::api::command::ComposeId;
 use crate::clock::now_ms;
+use crate::drafts::harmless::only_server_made;
 use crate::drafts::import::{Source, draft_from_raw};
 use crate::text;
 
@@ -41,8 +42,9 @@ impl Worker<'_> {
             }
         };
         // No network for an Edit that detaches anyway.
-        let may_link =
-            plain_flags && matches!(cached.as_deref(), Some([])) && self.would_link(original, raw);
+        let may_link = plain_flags
+            && cached.as_deref().is_some_and(only_server_made)
+            && self.would_link(original, raw);
         if !may_link {
             return self.import_draft(compose, original, (cached.as_deref(), raw));
         }

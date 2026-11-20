@@ -150,7 +150,7 @@ fn loses_nothing(
             envio_mime::content_type_for(&name) == a.content_type
         })
     });
-    matches!(src.keywords, Some([]))
+    src.keywords.is_some_and(super::harmless::only_server_made)
         && layout.plain_shape
         && !layout.repeated
         && layout.in_reply_to_ids <= 1
@@ -398,6 +398,17 @@ Content-Disposition: inline; filename=\"i.png\"\r\nContent-Transfer-Encoding: ba
         };
         let got = draft_from_raw(&plain(""), &src, 5).unwrap();
         assert_detached(&got, "keywords");
+    }
+
+    #[test]
+    fn the_servers_own_attachment_keyword_does_not_stop_the_replacement() {
+        let words = ["$HasNoAttachment".to_owned()];
+        let src = Source {
+            keywords: Some(&words),
+            ..source(Some(MID))
+        };
+        let got = draft_from_raw(&plain(""), &src, 5).unwrap();
+        assert_eq!(got.link.as_deref(), Some(MID));
     }
 
     #[test]
