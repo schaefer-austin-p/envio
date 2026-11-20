@@ -1,6 +1,10 @@
 //! The local-only Drafts entry (#303) as the worker lists it.
 
-use envio_store::{Draft, FolderId, FolderRole, ListRef};
+use std::sync::Mutex;
+
+use envio_store::{Draft, FolderRole, ListRef};
+
+use crate::api::command::SearchScope;
 
 use crate::api::event::Event;
 use crate::api::view::{FolderRow, MessageRow};
@@ -155,15 +159,70 @@ fn unified_inbox_does_not_list_local_drafts() {
 }
 
 #[test]
-fn load_older_on_the_local_entry_asks_no_server() {
+fn load_older_on_the_local_entry_is_done_at_once_with_no_failure() {
     let r = rig();
     let mut w = open(&r.config, &r.sink);
     w.list_folders(&r.seeded.account);
     let entry = local_entries(&folders(&r.sink))[0].id;
     w.load_older(ListRef::Folder(entry), None);
+    let events = r.sink.events();
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            Event::OlderLoaded { list, fetched: 0, exhausted: true }
+                if *list == ListRef::Folder(entry)
+        )),
+        "{events:?}"
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::OlderFailed { .. }))
+    );
     assert!(
         w.live.values().all(|l| l.wants.older.is_empty()),
         "no server fetch is wanted"
     );
-    assert_ne!(entry, FolderId(0));
+}
+
+/// Warnings the test logger saw.
+static WARNINGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+struct Capture;
+
+impl log::Log for Capture {
+    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+        true
+    }
+    fn log(&self, record: &log::Record<'_>) {
+        if record.level() <= log::Level::Warn {
+            WARNINGS.lock().unwrap().push(record.args().to_string());
+        }
+    }
+    fn flush(&self) {}
+}
+
+#[test]
+fn a_server_search_of_the_local_entry_asks_no_server_and_finds_no_missing_folder() {
+    // Only this test installs a logger in the unit-test binary.
+    log::set_logger(&Capture).expect("no other test sets a logger");
+    log::set_max_level(log::LevelFilter::Warn);
+    let r = rig();
+    let mut w = open(&r.config, &r.sink);
+    w.list_folders(&r.seeded.account);
+    let entry = local_entries(&folders(&r.sink))[0].id;
+    w.search_server(SearchScope::Folder(entry), "q".into());
+    assert!(
+        r.sink.events().iter().any(|e| matches!(
+            e,
+            Event::SearchResults { server: true, rows, .. } if rows.is_empty()
+        )),
+        "answered at once with nothing"
+    );
+    assert!(w.live.values().all(|l| l.wants.searches.is_empty()));
+    let seen = WARNINGS.lock().unwrap().clone();
+    assert!(
+        !seen.iter().any(|m| m.contains("finding the folder")),
+        "the entry is known, not a missing folder: {seen:?}"
+    );
 }

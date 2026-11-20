@@ -37,6 +37,18 @@ pub(crate) struct Load {
 
 impl Worker<'_> {
     pub(super) fn load_older(&mut self, list: ListRef, tail: Option<i64>) {
+        // The local Drafts entry (#303) has no server folder: nothing older
+        // exists, so its row goes to Done at once, with no failure notice.
+        if let ListRef::Folder(f) = list
+            && self.local_folders.borrow().account_of(f).is_some()
+        {
+            self.emit(Event::OlderLoaded {
+                list,
+                fetched: 0,
+                exhausted: true,
+            });
+            return;
+        }
         let targets = self.older_targets(list);
         let mut load = Load {
             tail,
@@ -69,8 +81,6 @@ impl Worker<'_> {
     /// The (account, folder) pairs `list` loads older mail for.
     fn older_targets(&self, list: ListRef) -> Vec<(String, FolderId)> {
         match list {
-            // A local entry has no server folder to load from.
-            ListRef::Folder(f) if self.local_folders.borrow().account_of(f).is_some() => Vec::new(),
             ListRef::Folder(folder) => match self.store.db.folder(folder) {
                 Ok(f) => vec![(f.account, folder)],
                 Err(e) => {

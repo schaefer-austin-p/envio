@@ -253,10 +253,10 @@ fn a_changed_reason_updates_the_row_without_a_reset() {
 
 // The local-only Drafts entry (#303): the core lists it as a Drafts-role
 // folder with a negative id, and the UI treats it like any Drafts folder.
-const LOCAL: ListRef = ListRef::Folder(FolderId(-1));
+const LOCAL: ListRef = ListRef::Folder(FolderId(-2));
 
 fn with_local_entry(ui: &mut Ui) -> Vec<Output> {
-    let mut entry = folder(-1, FolderRole::Drafts);
+    let mut entry = folder(-2, FolderRole::Drafts);
     entry.path = "Drafts".into();
     entry.name = "Drafts".into();
     feed(
@@ -282,14 +282,14 @@ fn the_local_entry_is_an_ordinary_drafts_row_in_the_drawer() {
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[1].value("role"), Some(RowValue::Str("drafts".into())));
     assert_eq!(rows[1].value("name"), Some(RowValue::Str("Drafts".into())));
-    assert_eq!(rows[1].value("id"), Some(RowValue::Int(-1)));
+    assert_eq!(rows[1].value("id"), Some(RowValue::Int(-2)));
 }
 
 #[test]
 fn a_local_entry_draft_opens_compose_and_the_list_is_a_drafts_list() {
     let mut ui = Ui::new();
     with_local_entry(&mut ui);
-    let mut row = msg_in(-1, 20, -1, "a");
+    let mut row = msg_in(-1, 20, -2, "a");
     row.local_draft = Some("d1".into());
     let outs = opened(&mut ui, LOCAL, vec![row], true);
     let rows = message_rows(&outs);
@@ -307,4 +307,37 @@ fn local_drafts_changed_refreshes_the_local_entry_list() {
     with_local_entry(&mut ui);
     opened(&mut ui, LOCAL, vec![], true);
     assert_eq!(lists(&draft_changed(&mut ui, "a")), vec![None]);
+}
+
+#[test]
+fn the_view_moves_to_the_real_drafts_folder_when_the_server_gains_one() {
+    let mut ui = Ui::new();
+    with_local_entry(&mut ui);
+    opened(&mut ui, LOCAL, vec![], true);
+    // The account's folders again: now with a real Drafts folder, no entry.
+    let outs = feed(
+        &mut ui,
+        Event::Folders {
+            account: "a".into(),
+            folders: vec![folder(1, FolderRole::Inbox), folder(3, FolderRole::Drafts)],
+        },
+    );
+    let asked: Vec<ListRef> = outs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Send(Command::ListMessages { list, .. }) => Some(*list),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked, vec![DRAFTS]);
+    assert!(ui.list_is_drafts());
+}
+
+#[test]
+fn the_view_stays_when_the_local_entry_is_still_listed() {
+    let mut ui = Ui::new();
+    with_local_entry(&mut ui);
+    opened(&mut ui, LOCAL, vec![], true);
+    let outs = with_local_entry(&mut ui);
+    assert!(lists(&outs).is_empty());
 }

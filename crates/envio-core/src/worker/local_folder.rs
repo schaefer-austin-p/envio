@@ -21,7 +21,8 @@ impl Default for LocalFolders {
         Self {
             by_account: HashMap::new(),
             by_id: HashMap::new(),
-            next: -1,
+            // Below -1: QML uses -1 for "no folder" (the unified list).
+            next: -2,
         }
     }
 }
@@ -100,5 +101,14 @@ mod tests {
         assert_ne!(a, b);
         assert_eq!(l.account_of(b), Some("b"));
         assert_eq!(l.account_of(FolderId(3)), None);
+    }
+
+    #[test]
+    fn no_local_id_is_minus_one_the_qml_no_folder_sentinel() {
+        let mut l = LocalFolders::default();
+        for n in 0..50 {
+            let id = l.id_of(&format!("acct{n}"));
+            assert!(id.0 < -1, "{id:?}");
+        }
     }
 }

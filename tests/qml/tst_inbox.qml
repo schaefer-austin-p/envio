@@ -541,6 +541,23 @@ Item {
             core.messages.clear()
         }
 
+        function test_movesheet_leaves_out_the_local_drafts_entry() {
+            core.messages.append(message(11, true))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            mouseClick(find("act-move", page))
+            const sheet = find("moveSheet", page)
+            tryVerify(function() { return sheet.opened })
+            // #303: the local Drafts entry has a negative id and no server folder.
+            core.folders.append({ id: -2, account: "ann", name: "Drafts", role: "drafts", unread: 0, depth: 0 })
+            core.folders.append({ id: 8, account: "ann", name: "Trips 2026", role: "", unread: 0, depth: 0 })
+            compare(find("folder-8", sheet.contentItem).visible, true)
+            compare(find("folder--2", sheet.contentItem).visible, false)
+            sheet.close()
+            tryVerify(function() { return !sheet.opened })
+            core.folders.clear()
+            core.messages.clear()
+        }
+
         function test_movesheet_without_targets_uses_selection_act() {
             core.messages.append(message(11, true))
             tryVerify(function() { return find("selectionBar", page).visible })
