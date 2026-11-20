@@ -306,11 +306,13 @@ Item {
         visible: root.view !== null && root.view.blockedImages > 0
         height: visible ? implicitHeight : 0
         senderVerified: root.view !== null && root.view.senderVerified === true
+        senderCheckable: root.view !== null && root.view.senderCheckable === true
         onLoadRequested: root.load(true)
         onAlwaysRequested: {
             root.core.allowImagesFrom(root.view.fromAddress)
-            // The sender is allowed now, so a plain open shows the images.
-            root.load(false)
+            // This message only, as "Load images" does: it may not be
+            // verified yet. Later mail goes through the core's check.
+            root.load(true)
         }
     }
 
