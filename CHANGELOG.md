@@ -37,7 +37,7 @@ All notable changes to Envio are listed here. The format follows
 
 - Microsoft addresses (Outlook.com, Hotmail, Live, MSN and their country
   domains, and `*.onmicrosoft.com`) are refused when you add an account. A
-  message says that support for them comes in a later version (#381). An
+  message says that support for them comes in a later version (#381); it is planned for 0.4.0. An
   existing Microsoft account is shown as not supported and can be removed.
 - Newsletters look closer to the sender's design: headings, inner
   alignment, font shorthand and sans-serif faces are kept, empty spacer

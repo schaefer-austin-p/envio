@@ -58,7 +58,7 @@ What works in 0.3.0:
 - Search on the phone, and search on the server for older mail.
 - Select several messages with a long press. Archive, delete, move, mark read
   or flag them. Undo is one tap.
-- Newsletters and HTML mail keep their layout.
+- Newsletters and HTML mail look closer to the sender's design.
 - Two themes, Carbon and Airmail, each in light and dark.
 
 What it does not do, and why:
