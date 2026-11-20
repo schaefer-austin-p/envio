@@ -12,6 +12,7 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0002_message_size.sql"),
     include_str!("../migrations/0003_search_addresses.sql"),
     include_str!("../migrations/0004_attachment_mark_name_key.sql"),
+    include_str!("../migrations/0005_message_keywords.sql"),
 ];
 
 /// The schema version of a fully migrated database.
@@ -231,6 +232,29 @@ mod tests {
         for (index, name) in names.iter().enumerate() {
             assert!(name.starts_with(&format!("{:04}_", index + 1)), "{name}");
         }
+    }
+
+    #[test]
+    fn rows_cached_before_0005_survive_it_with_unknown_keywords() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..4]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role, uidvalidity, uidnext)
+                 VALUES ('1700', 'INBOX', 'inbox', 7, 43);
+             INSERT INTO messages (folder_id, uid, message_id, subject, date, flags, preview)
+                 VALUES (1, 42, '<a@example.org>', 'Plans', 1800000000, 5, 'p');",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn), 5);
+        let row: (u32, String, i64, Option<String>) = conn
+            .query_row(
+                "SELECT uid, subject, flags, keywords FROM messages",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(row, (42, "Plans".into(), 5, None));
     }
 
     #[test]
