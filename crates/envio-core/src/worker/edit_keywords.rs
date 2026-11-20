@@ -43,8 +43,12 @@ impl Worker<'_> {
         // No network for an Edit that detaches anyway.
         let may_link =
             plain_flags && matches!(cached.as_deref(), Some([])) && self.would_link(original, raw);
-        if !may_link || !self.ask_server(id) {
+        if !may_link {
             return self.import_draft(compose, original, (cached.as_deref(), raw));
+        }
+        if !self.ask_server(id) {
+            // The check cannot run: the cache alone never links.
+            return self.import_draft(compose, original, (None, raw));
         }
         self.awaiting_keywords
             .entry(id)

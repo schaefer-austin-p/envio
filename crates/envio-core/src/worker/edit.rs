@@ -319,4 +319,32 @@ Subject: server text\r\nMessage-ID: <d1@example.org>\r\n\r\nserver body\r\n";
         assert!(worker.awaiting_keywords.is_empty());
         assert!(!worker.live[&account].wants.keywords.contains(&id));
     }
+
+    #[test]
+    fn an_account_that_cannot_run_the_check_detaches_the_edit_at_once() {
+        use crate::health::AccountStatus;
+        for status in [
+            AccountStatus::SignInFailed,
+            AccountStatus::Offline {
+                retry_at_ms: i64::MAX,
+            },
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let sink = Sink::default();
+            let (mut worker, id) = editing(dir.path(), &sink, BodyState::Missing);
+            let folder = worker.store.db.message(id).unwrap().folder;
+            worker.store.db.set_keywords(folder, 1, &[]).unwrap();
+            let account = worker.account_of(id).unwrap();
+            worker.live.get_mut(&account).unwrap().health.status = status.clone();
+            worker.compose_body_fetched(id, Some(RAW), true);
+            assert!(worker.awaiting_keywords.is_empty(), "{status:?}");
+            assert!(worker.live[&account].wants.keywords.is_empty());
+            assert_eq!(linked(&worker), Some(false), "{status:?} detaches");
+            assert!(
+                said(&sink)
+                    .iter()
+                    .any(|e| matches!(e, Event::ComposeReady { .. }))
+            );
+        }
+    }
 }
