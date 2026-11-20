@@ -40,5 +40,8 @@ fn token_errors_become_the_failure_the_wizard_shows() {
         failure_of(&TokenError::Refused("x".into())),
         OAuthFailure::Blocked
     );
-    assert_eq!(failure_of(&TokenError::Revoked), OAuthFailure::Other);
+    assert_eq!(
+        failure_of(&TokenError::Revoked("invalid_grant".into())),
+        OAuthFailure::Other
+    );
 }

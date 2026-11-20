@@ -16,6 +16,7 @@ pub mod servers;
 pub mod hooks;
 
 mod alert;
+mod cause;
 mod clock;
 mod compose;
 mod drafts;

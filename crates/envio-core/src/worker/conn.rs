@@ -21,6 +21,7 @@ use tokio::sync::Notify;
 use super::Worker;
 use super::plan::Wants;
 use super::token::{FRESH_MS, Granted, TokenCells, TokenHandle, bearer_send_error};
+use crate::cause;
 use crate::clock::now_ms;
 use crate::health::{AccountStatus, Health};
 use crate::problem::{self, Problem};
@@ -147,12 +148,15 @@ impl From<Problem> for SmtpConnectError {
 }
 
 pub(crate) async fn connect_imap(login: &Login, roots: &Roots) -> Result<ImapSession, Problem> {
-    let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Imap);
+    let to_problem = |stage: &str, e: envio_net::NetError| {
+        cause::log_net(stage, &e);
+        problem::from_net(&e, Service::Imap)
+    };
     let handle = match &login.source {
         LoginSource::Password(credentials) => {
             return ImapSession::open(&login.endpoint, roots, credentials)
                 .await
-                .map_err(to_problem);
+                .map_err(|e| to_problem(cause::IMAP_LOGIN, e));
         }
         LoginSource::Token(handle) => handle,
     };
@@ -175,7 +179,7 @@ pub(crate) async fn connect_imap(login: &Login, roots: &Roots) -> Result<ImapSes
             {
                 refused = Some(granted);
             }
-            Err(error) => return Err(to_problem(error)),
+            Err(error) => return Err(to_problem(cause::IMAP_XOAUTH2, error)),
         }
     }
 }
@@ -184,13 +188,19 @@ pub(crate) async fn connect_smtp(
     login: &Login,
     roots: &Roots,
 ) -> Result<SmtpSession, SmtpConnectError> {
-    let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Smtp);
+    let to_problem = |stage: &str, e: envio_net::NetError| {
+        cause::log_net(stage, &e);
+        problem::from_net(&e, Service::Smtp)
+    };
     let handle = match &login.source {
         LoginSource::Password(credentials) => {
             let mut session = SmtpSession::connect(&login.endpoint, roots)
                 .await
-                .map_err(to_problem)?;
-            session.login(credentials).await.map_err(to_problem)?;
+                .map_err(|e| to_problem(cause::SMTP_LOGIN, e))?;
+            session
+                .login(credentials)
+                .await
+                .map_err(|e| to_problem(cause::SMTP_LOGIN, e))?;
             return Ok(session);
         }
         LoginSource::Token(handle) => handle,
@@ -205,7 +215,7 @@ pub(crate) async fn connect_smtp(
             envio_net::Credentials::bearer(&login.username, granted.token.expose_secret());
         let mut session = SmtpSession::connect(&login.endpoint, roots)
             .await
-            .map_err(to_problem)?;
+            .map_err(|e| to_problem(cause::SMTP_XOAUTH2, e))?;
         let error = match session.login(&credentials).await {
             Ok(()) => return Ok(session),
             Err(error) => error,
@@ -217,7 +227,7 @@ pub(crate) async fn connect_smtp(
                 return Err(SmtpConnectError::SendRefused(text));
             }
             envio_net::NetError::SignIn(_) if refused.is_none() && old => refused = Some(granted),
-            error => return Err(to_problem(error).into()),
+            error => return Err(to_problem(cause::SMTP_XOAUTH2, error).into()),
         }
     }
 }
@@ -244,15 +254,24 @@ pub(super) fn login(
         Service::Imap => &account.settings.imap,
         Service::Smtp => &account.settings.smtp,
     };
-    let endpoint = endpoint(server).map_err(|_| Problem::Certificate(None))?;
+    let endpoint = endpoint(server).map_err(|_| {
+        cause::log_stage("the stored server pin is malformed");
+        Problem::Certificate(None)
+    })?;
     let username = account.settings.username.clone();
     let source = if account.settings.is_oauth() {
         let handle = tokens
             .handle(&account.key, ProviderKind::Microsoft)
-            .ok_or(Problem::SignIn)?;
+            .ok_or_else(|| {
+                cause::log_stage(cause::NO_PROVIDER);
+                Problem::SignIn
+            })?;
         LoginSource::Token(handle)
     } else {
-        let password = secrets.get(&account.key).ok_or(Problem::SignIn)?;
+        let password = secrets.get(&account.key).ok_or_else(|| {
+            cause::log_stage(cause::PASSWORD_MISSING);
+            Problem::SignIn
+        })?;
         LoginSource::Password(credentials(&username, password))
     };
     Ok(Login {
@@ -419,7 +438,7 @@ impl Worker<'_> {
             }
             Err(error) => {
                 live.conn = Conn::Closed;
-                let problem = problem::from_net(&error, Service::Imap);
+                let problem = problem::from_net_at(cause::IDLE, &error, Service::Imap);
                 super::run::failed(self, account, "idle", &problem);
                 // Nobody waiting for a body of this account gets it soon.
                 self.open_failed(Some(account));
@@ -618,6 +637,18 @@ mod tests {
             Service::Imap,
         );
         assert!(matches!(result, Err(Problem::Certificate(None))));
+    }
+
+    #[tokio::test]
+    async fn the_login_pauses_say_why() {
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = Secrets::open(dir.path()).unwrap();
+        crate::cause::take_seen();
+        let result = login(&account(None), &secrets, &cells(dir.path()), Service::Imap);
+        assert!(matches!(result, Err(Problem::SignIn)));
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(seen[0].contains(crate::cause::PASSWORD_MISSING), "{seen:?}");
     }
 
     #[tokio::test]

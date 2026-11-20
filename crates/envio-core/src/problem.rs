@@ -30,11 +30,16 @@ pub enum Problem {
     Local,
 }
 
+/// The log line for a protocol error: the server's text, masked.
+fn protocol_line(text: &str) -> String {
+    format!("protocol error: {}", crate::mask::server_text(text))
+}
+
 pub fn from_net(error: &NetError, service: Service) -> Problem {
     match error {
         NetError::Io(_) | NetError::Timeout | NetError::Busy(_) => Problem::Temporary,
         NetError::Protocol(text) => {
-            log::warn!("protocol error: {text}");
+            log::warn!("{}", protocol_line(text));
             Problem::Temporary
         }
         NetError::SignIn(_) => Problem::SignIn,
@@ -57,6 +62,12 @@ pub fn from_net(error: &NetError, service: Service) -> Problem {
     }
 }
 
+/// `from_net` for a failure at `stage`, written to the log first.
+pub(crate) fn from_net_at(stage: &str, error: &NetError, service: Service) -> Problem {
+    crate::cause::log_net(stage, error);
+    from_net(error, service)
+}
+
 pub fn from_store(error: &StoreError) -> Problem {
     if error.is_disk_full() {
         Problem::DiskFull
@@ -69,7 +80,16 @@ pub fn from_store(error: &StoreError) -> Problem {
 
 pub fn from_sync(error: &SyncError, service: Service) -> Problem {
     match error {
-        SyncError::Net(error) => from_net(error, service),
+        SyncError::Net(error) => {
+            crate::cause::log_net(
+                match service {
+                    Service::Imap => "IMAP command during sync",
+                    Service::Smtp => "SMTP command during send",
+                },
+                error,
+            );
+            from_net(error, service)
+        }
         SyncError::Store(error) => from_store(error),
     }
 }
@@ -86,8 +106,60 @@ pub fn from_kind(kind: ErrorKind) -> Problem {
     }
 }
 
+/// A replay or send that stopped early: its kind becomes the account's
+/// problem, and a pause says in which step (`cause::log_kind`).
+pub(crate) fn from_stopped(stage: &str, stopped: Option<ErrorKind>) -> Result<(), Problem> {
+    match stopped {
+        Some(kind) => {
+            crate::cause::log_kind(stage, kind);
+            Err(from_kind(kind))
+        }
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_stopped_replay_or_send_that_pauses_emits_its_cause_line() {
+        crate::cause::take_seen();
+        assert_eq!(
+            super::from_stopped("replay", Some(ErrorKind::SignIn)),
+            Err(Problem::SignIn)
+        );
+        assert!(super::from_stopped("replay", None).is_ok());
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(
+            seen[0].starts_with("pause cause: replay: SignIn"),
+            "{seen:?}"
+        );
+    }
+
+    #[test]
+    fn a_sign_in_pause_at_a_stage_emits_its_cause_line() {
+        crate::cause::take_seen();
+        let error = NetError::SignIn("AUTHENTICATE failed".into());
+        let at = |stage| super::from_net_at(stage, &error, Service::Imap);
+        assert_eq!(at(crate::cause::IDLE), Problem::SignIn);
+        assert_eq!(at(crate::cause::OPEN_INBOX), Problem::SignIn);
+        let sync = SyncError::from(NetError::SignIn("no".into()));
+        assert_eq!(super::from_sync(&sync, Service::Imap), Problem::SignIn);
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 3, "{seen:?}");
+        assert!(seen[0].starts_with("pause cause: IMAP IDLE: sign-in refused"));
+        assert!(seen[1].starts_with("pause cause: IMAP open of the Inbox"));
+        assert!(seen[2].starts_with("pause cause: IMAP command during sync"));
+    }
+
+    #[test]
+    fn a_protocol_error_line_holds_no_secret_or_address() {
+        let tok = "EwBwA8l6BAAUbDba3x2OMJElkF7gJ4z_VbCPEz0AAfj0fmHWqWbTB2xt";
+        let line = super::protocol_line(&format!("bad reply for bob@outlook.com {tok}"));
+        assert!(!line.contains(tok) && !line.contains("bob@"), "{line}");
+        assert!(line.starts_with("protocol error: "), "{line}");
+    }
+
     use super::*;
 
     fn fp(n: u8) -> Fingerprint {
