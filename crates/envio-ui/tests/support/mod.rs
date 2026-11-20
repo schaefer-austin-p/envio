@@ -28,6 +28,7 @@ pub fn msg_in(id: i64, date: i64, folder: i64, account: &str) -> MessageRow {
         date: Some(date),
         flags: Flags::default(),
         local_draft: None,
+        not_uploaded_text: String::new(),
     }
 }
 

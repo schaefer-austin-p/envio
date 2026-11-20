@@ -77,6 +77,9 @@ pub struct MessageRow {
     pub flags: Flags,
     /// Set on a pseudo-row: the local draft's id (it has no server copy yet).
     pub local_draft: Option<String>,
+    /// The words of a pseudo-row's "not uploaded" chip: "Not uploaded", or
+    /// the refusal in at most four words. Empty on a server row.
+    pub not_uploaded_text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

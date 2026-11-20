@@ -77,6 +77,7 @@ fn row_of(message: Message, account: String, drafts: bool) -> MessageRow {
         date: (message.envelope.date != 0).then_some(message.envelope.date),
         flags: message.flags,
         local_draft: None,
+        not_uploaded_text: String::new(),
     }
 }
 

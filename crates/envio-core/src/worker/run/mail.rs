@@ -4,6 +4,7 @@ use envio_mime::Address;
 use envio_net::imap::ImapSession;
 use envio_sync::driver;
 use envio_sync::plan::outbox::files_itself;
+use envio_sync::server::MailServer;
 
 use crate::api::event::Event;
 use crate::clock::now_ms;
@@ -92,6 +93,17 @@ pub(super) async fn drafts(
     account: &str,
     session: &mut ImapSession,
 ) -> Result<(), Problem> {
+    sync_drafts_on(worker, account, session).await
+}
+
+/// `drafts` over any server. The list is told when what a draft row shows
+/// changed, also when the run ends in an error: a refusal stored before a
+/// lost connection must still reach it.
+async fn sync_drafts_on(
+    worker: &mut Worker<'_>,
+    account: &str,
+    server: &mut impl MailServer,
+) -> Result<(), Problem> {
     let Some(settings) = worker.store.accounts.get(account) else {
         return Err(Problem::Local);
     };
@@ -104,9 +116,14 @@ pub(super) async fn drafts(
         open: &open,
         now_ms: now_ms(),
     };
-    let done = driver::sync_drafts(session, &worker.store.db, &worker.store.drafts, &run)
-        .await
-        .map_err(|e| problem::from_sync(&e, Service::Imap))?;
+    let mut done = driver::DraftsSynced::default();
+    let result = driver::sync_drafts_into(
+        server,
+        (&worker.store.db, &worker.store.drafts),
+        &run,
+        &mut done,
+    )
+    .await;
     if done.no_folder {
         log::info!("account {account}: no Drafts folder, drafts are not uploaded");
     }
@@ -122,14 +139,13 @@ pub(super) async fn drafts(
     {
         live.relist = true;
     }
-    if !(done.uploaded.is_empty()
-        && done.deleted.is_empty()
-        && done.refused.is_empty()
-        && done.failed.is_empty())
-    {
+    if done.reasons_changed || !(done.uploaded.is_empty() && done.deleted.is_empty()) {
         worker.emit(Event::LocalDraftsChanged {
             account: account.to_owned(),
         });
     }
-    Ok(())
+    result.map_err(|e| problem::from_sync(&e, Service::Imap))
 }
+
+#[cfg(test)]
+mod tests;
