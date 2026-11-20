@@ -20,6 +20,22 @@ ListRow {
     objectName: "row-" + model.id
     // The open row (the one the reader shows) has the selected fill too.
     selected: model.selected || (showOpen && model.open === true)
+    // The keyboard-focus row (Up/Down): hover fill and a 2 px outline in the
+    // text colour, apart from the open row's fill and accent bar.
+    readonly property bool kbdFocus: model.kbdFocus === true
+    cued: kbdFocus
+    // The list follows the focus (a row may sit just outside the view).
+    signal focusShown()
+    onKbdFocusChanged: if (kbdFocus) focusShown()
+    Rectangle {
+        objectName: "focusOutline"
+        parent: root
+        anchors.fill: parent
+        color: "transparent"
+        border.width: 2
+        border.color: root.theme.text
+        visible: root.kbdFocus
+    }
 
     // The open row's 3 px accent bar. Parented to the row, not its content,
     // so its height (the row's) does not feed back into the row's height.

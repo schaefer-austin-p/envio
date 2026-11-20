@@ -56,6 +56,7 @@ impl qobject::EnvioCore {
             }
         }
         self.as_mut().sync_open_message();
+        self.as_mut().sync_focus_message();
         self.sync_list_flags();
     }
 
@@ -96,6 +97,20 @@ impl qobject::EnvioCore {
         });
         if queued.is_err() {
             log::info!("EnvioCore is gone; dropped the open message");
+        }
+    }
+
+    /// `focusMessage` follows `Ui` like `openMessage`.
+    fn sync_focus_message(self: Pin<&mut Self>) {
+        let focus = self.rust().ui.focus_message().unwrap_or(0);
+        let queued = self.qt_thread().queue(move |mut obj| {
+            if obj.rust().focus_message != focus {
+                obj.as_mut().rust_mut().focus_message = focus;
+                obj.as_mut().focus_message_changed();
+            }
+        });
+        if queued.is_err() {
+            log::info!("EnvioCore is gone; dropped the focus message");
         }
     }
 

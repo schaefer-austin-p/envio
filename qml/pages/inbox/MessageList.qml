@@ -101,6 +101,7 @@ Item {
                 else if (row.model.opens === "compose") root.draftRequested(row.model.draftId)
                 else root.messageRequested(row.model.id)
             }
+            onFocusShown: list.positionViewAtIndex(row.index, ListView.Contain)
             onPressAndHold: if (!row.model.selected) root.core.select(row.model.id, true)
             Component.onCompleted: if (row.index > list.count - 10) root.core.more()
         }

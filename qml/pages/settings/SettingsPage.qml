@@ -15,6 +15,7 @@ Item {
     signal imagesRequested()
     signal accountsRequested()
     signal aboutRequested()
+    readonly property alias shortcuts: shortcutsDialog
 
     TopBar {
         id: bar
@@ -34,15 +35,17 @@ Item {
                 { key: "notifications", label: qsTr("Notifications") },
                 { key: "images", label: qsTr("Load remote images") },
                 { key: "accounts", label: qsTr("Accounts") },
-                { key: "about", label: qsTr("About") }
+                { key: "about", label: qsTr("About") },
+                { key: "shortcuts", label: qsTr("Keyboard shortcuts") }
             ]
             delegate: ListRow {
                 id: row
                 required property var modelData
-                objectName: "row-" + modelData.key
+                objectName: modelData.key === "shortcuts" ? "shortcutsRow" : "row-" + modelData.key
                 theme: root.theme
                 width: parent.width
-                chevron: true
+                // The dialog opens in place: no page to go to.
+                chevron: modelData.key !== "shortcuts"
                 onClicked: {
                     switch (modelData.key) {
                     case "appearance": root.appearanceRequested(); break
@@ -50,6 +53,7 @@ Item {
                     case "notifications": root.notificationsRequested(); break
                     case "images": root.imagesRequested(); break
                     case "accounts": root.accountsRequested(); break
+                    case "shortcuts": shortcutsDialog.open(); break
                     default: root.aboutRequested()
                     }
                 }
@@ -67,4 +71,6 @@ Item {
             }
         }
     }
+
+    ShortcutsDialog { id: shortcutsDialog; theme: root.theme }
 }

@@ -678,14 +678,46 @@ Item {
         }
     }
 
-    // Ctrl+N: a new message, from the list.
+    // Ctrl+N: a new message, from the list. Wide, the ShortcutLayer has it.
     readonly property alias newShortcut: newKey
     Shortcut {
         id: newKey
         sequence: "Ctrl+N"
-        enabled: root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.paneCompose === 0
+        enabled: !root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.paneCompose === 0
         onActivated: root.newMessage()
     }
+
+    // The wide layout's keys (frame 7). Not over a page (Search, Settings,
+    // Outbox) and not under the shortcuts dialog.
+    readonly property alias shortcuts: keys
+    readonly property alias shortcutsDialog: help
+    ShortcutLayer {
+        id: keys
+        active: root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && !help.opened
+        onMoveFocus: function(delta) { root.core.stepFocus(delta) }
+        onOpenFocusedRequested: {
+            const id = Number(root.core.openFocused())
+            if (id > 0) root.openMessageFromRow(id)
+        }
+        // The open message, not the checked rows; nothing while a compose
+        // fills the pane (no message is shown then).
+        onDeleteRequested: {
+            const id = Number(root.core.openMessage)
+            if (root.paneCompose === 0 && id > 0) root.core.actOn([id], "delete", 0)
+        }
+        onNewRequested: if (root.paneCompose === 0) root.newMessage()
+        onReplyRequested: {
+            const r = root.readerItem
+            if (root.paneCompose === 0 && r !== null && r.parent === pane && r.view !== null && !r.isDraft) r.compose("reply")
+        }
+        // Compose asks first (Discard or Save draft); else the reader closes.
+        onCloseRequested: {
+            if (root.paneCompose > 0 && root.composeItem !== null) root.composeItem.askClose()
+            else if (Number(root.core.openMessage) > 0) root.core.setOpenMessage(0)
+        }
+        onHelpRequested: help.open()
+    }
+    ShortcutsDialog { id: help; theme: root.theme }
 
     Toast {
         id: sentToast

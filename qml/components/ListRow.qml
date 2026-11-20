@@ -19,6 +19,8 @@ AbstractButton {
     property string chevronDirection: "forward"
     readonly property real chevronSpace: theme.gu(6)
     property bool selected: false
+    // The keyboard-focus row: the hover fill (the caller draws the outline).
+    property bool cued: false
     property bool separator: true
     property string iconName: ""
     property real iconSize: theme.iconSize
@@ -37,7 +39,7 @@ AbstractButton {
     leftPadding: iconName !== "" ? iconSize + iconGap : 0
 
     background: Rectangle {
-        color: root.selected || root.down ? root.theme.selected : "transparent"
+        color: root.selected || root.down ? root.theme.selected : (root.cued ? root.theme.hover : "transparent")
         Rectangle {
             visible: root.separator
             anchors.bottom: parent.bottom

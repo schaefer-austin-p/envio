@@ -85,6 +85,7 @@ QC.Popup {
         AppButton {
             objectName: "primaryAction"
             width: parent.width
+            visible: root.primaryText !== ""
             theme: root.theme
             primary: true
             text: root.primaryText

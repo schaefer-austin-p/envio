@@ -206,6 +206,19 @@ impl qobject::EnvioCore {
         self.run(outs);
     }
 
+    /// Move the keyboard-focus row `delta` rows (Up/Down).
+    pub fn step_focus(mut self: Pin<&mut Self>, delta: i32) {
+        let outs = self.as_mut().rust_mut().ui.step_focus(delta);
+        self.run(outs);
+    }
+
+    /// The message Enter opens: the focused row, else the open message; 0
+    /// for neither.
+    pub fn open_focused(&self) -> i64 {
+        let ui = &self.rust().ui;
+        ui.focus_message().or(ui.open_message()).unwrap_or(0)
+    }
+
     pub fn clear_selection(mut self: Pin<&mut Self>) {
         let outs = self.as_mut().rust_mut().ui.clear_selection();
         self.run(outs);
