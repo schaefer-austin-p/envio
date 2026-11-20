@@ -3,12 +3,10 @@
 //! local file is imported from the server (Decision 4). The import waits for
 //! the whole body as Forward does, so attachments come along.
 
-use envio_store::{Flags, FolderRole, MessageRowId};
+use envio_store::{FolderRole, MessageRowId};
 
 use super::Worker;
 use crate::api::command::{ComposeId, StartFrom};
-use crate::clock::now_ms;
-use crate::drafts::import::{Source, draft_from_raw};
 use crate::drafts::lookup::draft_for;
 use crate::text;
 
@@ -27,6 +25,18 @@ impl Worker<'_> {
         compose: ComposeId,
         id: MessageRowId,
         raw: Option<&[u8]>,
+    ) {
+        self.edit_checked(compose, id, (raw, None));
+    }
+
+    /// `edit_or_import`, with `live` the answer of the keyword check once
+    /// it is made: `Some(None)` when the server could not say (see
+    /// `edit_keywords`).
+    pub(super) fn edit_checked(
+        &mut self,
+        compose: ComposeId,
+        id: MessageRowId,
+        (raw, live): (Option<&[u8]>, Option<Option<&[String]>>),
     ) {
         let unavailable = text::read::message_unavailable();
         let Ok(message) = self.store.db.message(id) else {
@@ -98,71 +108,9 @@ impl Worker<'_> {
             }
         }
         match raw {
-            Some(raw) => {
-                let plain_flags =
-                    message.flags.without(Flags::SEEN | Flags::DRAFT) == Flags::empty();
-                self.import_draft(compose, (&folder.account, message_id, plain_flags), raw);
-            }
+            Some(raw) => self.import_or_check(compose, (&message, &folder), (raw, live)),
             None => self.start_from_message(compose, id, StartFrom::Edit { id }),
         }
-    }
-
-    /// Makes a local draft of the server draft's bytes and opens it. The
-    /// store does it all or nothing and links the copy to the original
-    /// only after its files are in (see `Drafts::import`); a failure
-    /// refuses, with the original untouched.
-    fn import_draft(
-        &mut self,
-        compose: ComposeId,
-        (account, message_id, plain_flags): (&str, Option<&str>, bool),
-        raw: &[u8],
-    ) {
-        let Some((identity, name)) = self
-            .store
-            .accounts
-            .get(account)
-            .map(|a| (a.settings.email.clone(), a.settings.name.clone()))
-        else {
-            return self.compose_refused(compose, text::compose::no_account());
-        };
-        let source = Source {
-            account,
-            identity: &identity,
-            name: &name,
-            message_id,
-            plain_flags,
-            safe_name: super::read::safe_file_name,
-        };
-        let Some(imported) = draft_from_raw(raw, &source, now_ms()) else {
-            return self.compose_refused(compose, text::read::message_unavailable());
-        };
-        let made = self.store.drafts.import(
-            &imported.draft,
-            imported.link.as_deref(),
-            |drafts, id, draft| {
-                for a in &imported.attachments {
-                    let name =
-                        super::read::safe_file_name(a.filename.as_deref().unwrap_or(""), a.index);
-                    draft
-                        .attachments
-                        .push(drafts.keep_bytes(id, &name, &a.bytes)?);
-                }
-                Ok(())
-            },
-        );
-        let (id, linked) = match made {
-            Ok(made) => made,
-            Err(e) => {
-                log::warn!("importing a draft: {e}");
-                return self.compose_refused(compose, text::compose::draft_unavailable());
-            }
-        };
-        let note = if linked {
-            String::new()
-        } else {
-            text::compose::editing_a_copy()
-        };
-        self.start_from_draft(compose, Some(&id), note);
     }
 }
 
@@ -237,7 +185,10 @@ Subject: server text\r\nMessage-ID: <d1@example.org>\r\n\r\nserver body\r\n";
         let dir = tempfile::tempdir().unwrap();
         let sink = Sink::default();
         let (mut worker, id) = editing(dir.path(), &sink, BodyState::Missing);
+        let folder = worker.store.db.message(id).unwrap().folder;
+        worker.store.db.set_keywords(folder, 1, &[]).unwrap();
         worker.compose_body_fetched(id, Some(RAW), true);
+        worker.keywords_checked(id, Some(Vec::new()));
         let ready = said(&sink).into_iter().find_map(|e| match e {
             Event::ComposeReady { draft, note, .. } => Some((draft, note)),
             _ => None,
@@ -275,5 +226,97 @@ Subject: server text\r\nMessage-ID: <d1@example.org>\r\n\r\nserver body\r\n";
         assert!(worker.whole_again.contains(&id));
         assert!(said(&sink).is_empty(), "{:?}", said(&sink));
         assert!(worker.store.drafts.list().unwrap().is_empty());
+    }
+
+    /// An Edit whose body arrived, the cache knowing no keywords: parked
+    /// for the live check.
+    fn parked<'a>(dir: &std::path::Path, sink: &'a Sink) -> (Worker<'a>, MessageRowId, String) {
+        let (mut worker, id) = editing(dir, sink, BodyState::Missing);
+        let folder = worker.store.db.message(id).unwrap().folder;
+        worker.store.db.set_keywords(folder, 1, &[]).unwrap();
+        worker.compose_body_fetched(id, Some(RAW), true);
+        let account = worker.account_of(id).unwrap();
+        (worker, id, account)
+    }
+
+    fn linked(worker: &Worker<'_>) -> Option<bool> {
+        let drafts = worker.store.drafts.list().unwrap();
+        let (_, draft) = drafts.first()?;
+        Some(draft.server.message_id.as_deref() == Some(MID))
+    }
+
+    #[test]
+    fn an_edit_that_could_link_waits_for_the_live_keyword_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (worker, id, account) = parked(dir.path(), &sink);
+        assert_eq!(worker.awaiting_keywords.get(&id).map(Vec::len), Some(1));
+        assert!(worker.live[&account].wants.keywords.contains(&id));
+        assert!(said(&sink).is_empty(), "{:?}", said(&sink));
+        assert_eq!(linked(&worker), None, "nothing is imported yet");
+    }
+
+    #[test]
+    fn unknown_keywords_detach_at_once_without_a_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id) = editing(dir.path(), &sink, BodyState::Missing);
+        worker.compose_body_fetched(id, Some(RAW), true);
+        let account = worker.account_of(id).unwrap();
+        assert!(worker.awaiting_keywords.is_empty());
+        assert!(worker.live[&account].wants.keywords.is_empty());
+        assert_eq!(linked(&worker), Some(false));
+    }
+
+    #[test]
+    fn only_an_empty_fresh_list_links_the_parked_edit() {
+        for (fresh, want) in [
+            (Some(vec![]), true),
+            (Some(vec!["$Forwarded".to_owned()]), false),
+            (None, false),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let sink = Sink::default();
+            let (mut worker, id, account) = parked(dir.path(), &sink);
+            worker.keywords_checked(id, fresh.clone());
+            assert_eq!(linked(&worker), Some(want), "{fresh:?}");
+            assert!(worker.awaiting_keywords.is_empty());
+            assert!(worker.live[&account].wants.keywords.is_empty());
+            assert!(
+                said(&sink)
+                    .iter()
+                    .any(|e| matches!(e, Event::ComposeReady { .. })),
+                "{:?}",
+                said(&sink)
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_check_detaches_the_parked_edit_and_never_refuses_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id, account) = parked(dir.path(), &sink);
+        worker.keywords_failed(Some(&account));
+        assert_eq!(linked(&worker), Some(false));
+        assert!(worker.live[&account].wants.keywords.is_empty());
+        let said = said(&sink);
+        assert!(said.iter().any(|e| matches!(e, Event::ComposeReady { .. })));
+        assert!(
+            !said
+                .iter()
+                .any(|e| matches!(e, Event::ComposeRefused { .. }))
+        );
+        assert!(!worker.awaiting_keywords.contains_key(&id));
+    }
+
+    #[test]
+    fn a_closed_window_stops_waiting_for_the_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let sink = Sink::default();
+        let (mut worker, id, account) = parked(dir.path(), &sink);
+        worker.forget_waiting(C);
+        assert!(worker.awaiting_keywords.is_empty());
+        assert!(!worker.live[&account].wants.keywords.contains(&id));
     }
 }

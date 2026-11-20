@@ -82,13 +82,18 @@ impl Worker<'_> {
                 && !disk_full
                 && !live.health.is_paused()
                 && live.health.can_run(now)
-                && let Some(id) = live.wants.bodies.first().copied()
+                && let Some(step) = live
+                    .wants
+                    .bodies
+                    .first()
+                    .map(|id| Step::Body(*id))
+                    .or_else(|| live.wants.keywords.first().map(|id| Step::Keywords(*id)))
             {
                 if let Conn::Idling(stop) = &live.conn {
                     stop.notify_one();
                     return None;
                 }
-                return Some(Step::Body(id));
+                return Some(step);
             }
             // The one prefetch rule: `has_wants` and `steps` both ask it.
             let env = Env {

@@ -490,6 +490,7 @@ impl Worker<'_> {
     /// for `None`) will get it soon.
     pub(super) fn open_failed(&mut self, account: Option<&str>) {
         self.compose_failed(account);
+        self.keywords_failed(account);
         let waiting: Vec<MessageRowId> = self
             .opening
             .keys()

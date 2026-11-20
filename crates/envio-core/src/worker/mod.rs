@@ -9,6 +9,7 @@ mod conn;
 mod dispatch;
 mod dkim_keys;
 mod edit;
+mod edit_keywords;
 mod folder_order;
 mod inline;
 mod invite;
@@ -102,6 +103,9 @@ pub(crate) struct Worker<'s> {
     book: Arc<DraftBook>,
     /// Replies and forwards waiting for a body.
     composing: BTreeMap<MessageRowId, Vec<(ComposeId, StartFrom)>>,
+    /// Edits of a server draft waiting for the live keyword check of its
+    /// original, with the original's bytes (see `edit_keywords`).
+    awaiting_keywords: BTreeMap<MessageRowId, Vec<(ComposeId, Vec<u8>)>>,
     /// Messages whose running body step found a forward that needs the
     /// whole message (see `Worker::wait_for_whole`).
     whole_again: BTreeSet<MessageRowId>,
@@ -265,6 +269,7 @@ impl<'s> Worker<'s> {
             undo: UndoBook::default(),
             book: Arc::clone(book),
             composing: BTreeMap::new(),
+            awaiting_keywords: BTreeMap::new(),
             whole_again: BTreeSet::new(),
             open_again: BTreeSet::new(),
             setup: Arc::clone(setup),

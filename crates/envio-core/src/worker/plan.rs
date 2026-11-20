@@ -30,6 +30,9 @@ pub struct Wants {
     /// Bodies in `bodies` that must come whole, however big (a forward
     /// carries the attachments).
     pub whole: BTreeSet<MessageRowId>,
+    /// Messages whose keywords the server is asked for now: an Edit of a
+    /// server draft waits to learn that it has none (see `edit_keywords`).
+    pub keywords: Vec<MessageRowId>,
     /// Attachments of big messages (stored without them) the user asked to
     /// save: fetched from the server one by one.
     pub parts: Vec<PartWant>,
@@ -73,6 +76,8 @@ pub enum Step {
     /// One attachment (by index) of a message stored without its
     /// attachments, fetched to be saved.
     Part(MessageRowId, usize),
+    /// The live flags and keywords of one message, for an Edit.
+    Keywords(MessageRowId),
     /// One batch of older mail ("Load older") in a folder.
     Older(FolderId),
     /// "Search on server" in one folder (the account is the step's).
@@ -97,6 +102,7 @@ impl Step {
             Step::Folders => "folders",
             Step::Body(_) => "body",
             Step::Part(..) => "part",
+            Step::Keywords(_) => "keywords",
             Step::Older(_) => "older",
             Step::SearchServer { .. } => "search",
             Step::Replay => "replay",
@@ -154,6 +160,8 @@ pub fn steps(wants: &Wants, folders: &[Folder], env: &Env) -> Vec<Step> {
                 query: query.clone(),
             }),
     );
+    // One FETCH of FLAGS, no download: it runs even with a full disk.
+    out.extend(wants.keywords.iter().map(|id| Step::Keywords(*id)));
     if !disk_full {
         out.extend(wants.bodies.iter().map(|id| Step::Body(*id)));
         out.extend(wants.parts.iter().map(|p| Step::Part(p.id, p.index)));
@@ -339,6 +347,22 @@ mod tests {
         assert_eq!(
             steps(&wants, &folders(), &env()),
             [Step::Folders, Step::Replay, Step::Send, Step::File]
+        );
+    }
+
+    #[test]
+    fn a_keyword_check_runs_even_with_a_full_disk() {
+        let wants = Wants {
+            keywords: vec![MessageRowId(7)],
+            ..Wants::default()
+        };
+        let full = Env {
+            disk_full: true,
+            ..env()
+        };
+        assert_eq!(
+            steps(&wants, &folders(), &full),
+            [Step::Folders, Step::Keywords(MessageRowId(7))]
         );
     }
 
