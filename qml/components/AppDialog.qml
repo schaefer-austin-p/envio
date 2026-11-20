@@ -32,6 +32,16 @@ QC.Popup {
         Qt.callLater(signalFn)
     }
 
+    // Counted in theme.popupsUp while shown (also when destroyed shown).
+    property bool counted: false
+    onVisibleChanged: syncCount()
+    Component.onDestruction: { visible = false; syncCount() }
+    function syncCount() {
+        if (visible === counted) return
+        counted = visible
+        theme.popupsUp += visible ? 1 : -1
+    }
+
     parent: QC.Overlay.overlay
     modal: true
     closePolicy: QC.Popup.CloseOnEscape

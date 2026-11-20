@@ -693,11 +693,13 @@ Item {
     readonly property alias shortcutsDialog: help
     ShortcutLayer {
         id: keys
-        active: root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && !help.opened
+        active: root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.theme.popupsUp === 0
         onMoveFocus: function(delta) { root.core.stepFocus(delta) }
         onOpenFocusedRequested: {
             const id = Number(root.core.openFocused())
-            if (id > 0) root.openMessageFromRow(id)
+            const draft = String(root.core.draftIdOf(id))
+            if (draft !== "") root.openDraft(draft)
+            else if (id > 0) root.openMessageFromRow(id)
         }
         // The open message, not the checked rows; nothing while a compose
         // fills the pane (no message is shown then).

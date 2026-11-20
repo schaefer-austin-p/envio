@@ -281,6 +281,9 @@ pub mod qobject {
         #[cxx_name = "openFocused"]
         fn open_focused(self: &EnvioCore) -> i64;
         #[qinvokable]
+        #[cxx_name = "draftIdOf"]
+        fn draft_id_of(self: &EnvioCore, id: i64) -> QString;
+        #[qinvokable]
         #[cxx_name = "clearSelection"]
         fn clear_selection(self: Pin<&mut EnvioCore>);
         #[qinvokable]

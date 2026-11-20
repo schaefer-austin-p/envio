@@ -182,6 +182,12 @@ impl ShownList {
         })
     }
 
+    /// The local draft's id behind a shown row, if it has one.
+    pub fn draft_of(&self, id: i64) -> Option<String> {
+        let row = &self.rows.iter().find(|s| s.row.id == id)?.row;
+        (!row.draft_id.is_empty()).then(|| row.draft_id.clone())
+    }
+
     /// The shown ids, in order.
     pub fn ids(&self) -> Vec<i64> {
         self.rows.iter().map(|s| s.row.id).collect()

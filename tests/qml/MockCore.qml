@@ -124,8 +124,16 @@ Item {
         focusMessage = messages.get(to).id
         for (let i = 0; i < n; i++) messages.setProperty(i, "kbdFocus", i === to)
     }
+    // The local draft behind a row (empty for a server message).
+    function draftIdOf(id) {
+        for (let i = 0; i < messages.count; i++) {
+            const r = messages.get(i)
+            if (r.id === id) return r.draftId === undefined ? "" : r.draftId
+        }
+        return ""
+    }
     // The id Enter opens: the focused row, else the open message.
-    function openFocused() { record("openFocused", []); return focusMessage > 0 ? focusMessage : openMessage }
+    function openFocused() { record("openFocused", []); return focusMessage !== 0 ? focusMessage : openMessage }
     function clearFocus() {
         focusMessage = 0
         for (let i = 0; i < messages.count; i++) messages.setProperty(i, "kbdFocus", false)

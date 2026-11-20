@@ -11,6 +11,17 @@ impl Ui {
         self.focus
     }
 
+    /// The message Enter opens: the focused row, else the open message.
+    pub fn open_focused(&self) -> Option<i64> {
+        self.focus.or(self.open)
+    }
+
+    /// The local draft behind a shown row of the message list; `None` for
+    /// a server message.
+    pub fn draft_id_of(&self, id: i64) -> Option<String> {
+        self.current.as_ref()?.shown.draft_of(id)
+    }
+
     /// Move the focus `delta` rows (stopping at the ends); from no focus
     /// either direction lands on the first row. Returns the row updates.
     pub fn step_focus(&mut self, delta: i32) -> Vec<Output> {

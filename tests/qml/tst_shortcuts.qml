@@ -32,7 +32,8 @@ Item {
         function message(id) {
             return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train", date: 0, dateBucket: "time", unread: true,
-                     flagged: false, hasAttachments: false, selected: false, open: false, kbdFocus: false }
+                     flagged: false, hasAttachments: false, selected: false, open: false, kbdFocus: false,
+                     draftId: "", opens: "reader", notUploaded: false, notUploadedText: "" }
         }
         function find(item, name) {
             if (item.objectName === name) return item
@@ -239,6 +240,98 @@ Item {
             tryVerify(function() { return b.shell.shortcutsDialog.opened })
             // While it is up the layer is off (Esc closes the dialog).
             verify(!b.shell.shortcuts.active)
+            b.shell.destroy()
+        }
+
+        // Every key the layer owns is off while any sheet or dialog is up, so
+        // none of them reaches the message behind it (and Esc closes the sheet).
+        function checkKeysOff(b, what) {
+            const k = b.shell.shortcuts
+            verify(!k.active, what + ": layer active")
+            for (const key of [k.upKey, k.downKey, k.openKey, k.deleteKey, k.newKey, k.replyKey, k.closeKey, k.helpKey])
+                verify(!key.enabled, what + ": a key is still enabled")
+        }
+        function test_keys_off_under_a_sheet() {
+            const b = boot(100)
+            b.shell.composeOpened(4)
+            b.core.composeReady(4, composeDraft, "", "")
+            const sheet = findByName(find(b.shell, "composePage"), "discardSheet")
+            b.shell.shortcuts.closeKey.activated()
+            tryVerify(function() { return sheet.opened })
+            checkKeysOff(b, "sheet")
+            sheet.close()
+            tryVerify(function() { return !sheet.visible })
+            verify(b.shell.shortcuts.active)
+            verify(b.shell.shortcuts.deleteKey.enabled)
+            b.shell.destroy()
+        }
+        function test_keys_off_under_a_dialog() {
+            const b = boot(100)
+            b.shell.shortcuts.helpKey.activated()
+            tryVerify(function() { return b.shell.shortcutsDialog.opened })
+            checkKeysOff(b, "dialog")
+            b.shell.shortcutsDialog.close()
+            tryVerify(function() { return !b.shell.shortcutsDialog.visible })
+            verify(b.shell.shortcuts.active)
+            b.shell.destroy()
+        }
+        function test_keys_come_back_when_a_sheet_is_destroyed_open() {
+            const b = boot(100)
+            b.shell.composeOpened(4)
+            b.core.composeReady(4, composeDraft, "", "")
+            const sheet = findByName(find(b.shell, "composePage"), "discardSheet")
+            b.shell.shortcuts.closeKey.activated()
+            tryVerify(function() { return sheet.opened })
+            verify(!b.shell.shortcuts.active)
+            b.core.queued(4, "Queued")
+            tryCompare(b.shell, "paneCompose", 0)
+            tryVerify(function() { return b.shell.shortcuts.active })
+            b.shell.destroy()
+        }
+
+        function test_enter_on_a_local_draft_row_opens_its_compose() {
+            const b = boot(100)
+            const d = message(-5)
+            d.draftId = "d-1"
+            d.opens = "compose"
+            b.core.messages.insert(0, d)
+            b.shell.shortcuts.downKey.activated()
+            compare(b.core.focusMessage, -5)
+            b.shell.shortcuts.openKey.activated()
+            compare(b.core.called("startCompose")[0].args, ["draft", 0, "", "d-1"])
+            compare(b.core.called("setOpenMessage").length, 0)
+            b.shell.destroy()
+        }
+
+        function manyRows(b, n) {
+            for (let i = 0; i < n; i++) b.core.messages.append(message(100 + i))
+        }
+        function test_focus_scrolls_into_view_going_down_and_up() {
+            const b = boot(100)
+            manyRows(b, 40)
+            const list = find(b.shell, "messageList")
+            tryVerify(function() { return list.height > 0 })
+            for (let i = 0; i < 30; i++) { b.shell.shortcuts.downKey.activated(); wait(10) }
+            const at = 29
+            tryVerify(function() { return list.contentY > 0 })
+            const row = list.itemAtIndex(at)
+            verify(row !== null, "the focused row has no delegate")
+            verify(row.y >= list.contentY - 1 && row.y + row.height <= list.contentY + list.height + 1, "focused row is out of view")
+            for (let i = 0; i < 30; i++) { b.shell.shortcuts.upKey.activated(); wait(10) }
+            tryCompare(list, "contentY", 0)
+            b.shell.destroy()
+        }
+        function test_a_row_update_does_not_move_the_list() {
+            const b = boot(100)
+            manyRows(b, 40)
+            const list = find(b.shell, "messageList")
+            tryVerify(function() { return list.height > 0 })
+            b.shell.shortcuts.downKey.activated()
+            list.contentY = 200
+            b.core.messages.setProperty(0, "unread", false)
+            b.core.messages.setProperty(0, "preview", "changed")
+            wait(50)
+            compare(list.contentY, 200)
             b.shell.destroy()
         }
 

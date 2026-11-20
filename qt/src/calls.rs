@@ -215,8 +215,13 @@ impl qobject::EnvioCore {
     /// The message Enter opens: the focused row, else the open message; 0
     /// for neither.
     pub fn open_focused(&self) -> i64 {
-        let ui = &self.rust().ui;
-        ui.focus_message().or(ui.open_message()).unwrap_or(0)
+        self.rust().ui.open_focused().unwrap_or(0)
+    }
+
+    /// The local draft behind a shown row (Enter opens it in Compose); empty
+    /// for a server message.
+    pub fn draft_id_of(&self, id: i64) -> QString {
+        QString::from(self.rust().ui.draft_id_of(id).unwrap_or_default())
     }
 
     pub fn clear_selection(mut self: Pin<&mut Self>) {

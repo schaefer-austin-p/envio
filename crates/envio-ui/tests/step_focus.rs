@@ -117,3 +117,26 @@ fn focus_clears_when_the_row_is_removed() {
     feed(&mut ui, page(F1, None, vec![msg(3, 30), msg(2, 20)], true));
     assert_eq!(ui.focus_message(), None);
 }
+
+#[test]
+fn open_focused_prefers_focus_then_open() {
+    let mut ui = three();
+    assert_eq!(ui.open_focused(), None);
+    ui.set_open(Some(1));
+    assert_eq!(ui.open_focused(), Some(1));
+    ui.step_focus(1);
+    assert_eq!(ui.open_focused(), Some(3));
+    ui.step_focus(1);
+    assert_eq!(ui.open_focused(), Some(2));
+}
+
+#[test]
+fn draft_id_of_names_the_local_draft_only() {
+    let mut ui = Ui::new();
+    let mut draft = msg(-5, 25);
+    draft.local_draft = Some("d-1".into());
+    opened(&mut ui, F1, vec![msg(3, 30), draft, msg(1, 10)], true);
+    assert_eq!(ui.draft_id_of(-5).as_deref(), Some("d-1"));
+    assert_eq!(ui.draft_id_of(3), None);
+    assert_eq!(ui.draft_id_of(99), None);
+}

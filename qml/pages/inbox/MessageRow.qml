@@ -24,9 +24,14 @@ ListRow {
     // text colour, apart from the open row's fill and accent bar.
     readonly property bool kbdFocus: model.kbdFocus === true
     cued: kbdFocus
-    // The list follows the focus (a row may sit just outside the view).
+    // The list follows the focus (a row may sit just outside the view), only
+    // when the focus moves on a row that exists: a delegate made or recycled
+    // for the focused row does not scroll the list.
     signal focusShown()
-    onKbdFocusChanged: if (kbdFocus) focusShown()
+    property bool made: false
+    // (A child's handler: the delegate's own Component.onCompleted is taken.)
+    Item { Component.onCompleted: root.made = true }
+    onKbdFocusChanged: if (made && kbdFocus) focusShown()
     Rectangle {
         objectName: "focusOutline"
         parent: root
