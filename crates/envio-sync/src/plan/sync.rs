@@ -11,7 +11,7 @@ use std::sync::Arc;
 use envio_net::imap::{FlagUpdate, FolderState, Summary};
 use envio_store::{Flags, NewMessage, SyncState};
 
-use crate::convert::{new_message, store_flags};
+use crate::convert::{keyword_list, new_message, store_flags};
 use crate::plan::pending::Pending;
 
 /// Messages per fetch and per transaction.
@@ -156,11 +156,16 @@ pub struct FlagChanges {
     pub set: Vec<(u32, Flags)>,
     /// Marked \Deleted on the server: not shown, so not cached.
     pub remove: Vec<u32>,
+    /// UIDs whose keyword list differs from the cache's, or whose cached
+    /// keywords are unknown.
+    pub keywords: Vec<(u32, Vec<String>)>,
 }
 
-/// `cached` is the folder's (UID, flags) from the cache.
+/// `cached` is the folder's (UID, flags) from the cache; `cached_keywords`
+/// its (UID, keywords), `None` for unknown (also for a UID not listed).
 pub fn plan_flags(
     cached: &[(u32, Flags)],
+    cached_keywords: &[(u32, Option<Vec<String>>)],
     updates: &[FlagUpdate],
     pending: &Pending,
 ) -> FlagChanges {
@@ -169,6 +174,12 @@ pub fn plan_flags(
     let mut by_uid: HashMap<u32, &Flags> = HashMap::with_capacity(cached.len());
     for (uid, flags) in cached {
         by_uid.entry(*uid).or_insert(flags);
+    }
+    let mut known: HashMap<u32, &Vec<String>> = HashMap::with_capacity(cached_keywords.len());
+    for (uid, words) in cached_keywords {
+        if let Some(words) = words {
+            known.entry(*uid).or_insert(words);
+        }
     }
     for update in updates {
         let Some(now) = by_uid.get(&update.uid) else {
@@ -181,6 +192,11 @@ pub fn plan_flags(
         let wanted = pending.flags(update.uid, store_flags(&update.flags));
         if wanted != **now {
             changes.set.push((update.uid, wanted));
+        }
+        // Pending changes are flag bits only: keywords come from the server.
+        let words = keyword_list(&update.flags);
+        if known.get(&update.uid) != Some(&&words) {
+            changes.keywords.push((update.uid, words));
         }
     }
     changes
@@ -389,7 +405,7 @@ mod tests {
             update(3, &[Flag::Deleted]),
             update(99, &[Flag::Seen]),
         ];
-        let changes = plan_flags(&cached, &updates, &Pending::default());
+        let changes = plan_flags(&cached, &known(&cached), &updates, &Pending::default());
         assert_eq!(changes.set, [(2, Flags::FLAGGED)]);
         assert_eq!(changes.remove, [3]);
     }
@@ -403,7 +419,7 @@ mod tests {
             .map(|uid| update(uid, &[Flag::Seen]))
             .collect();
         let started = std::time::Instant::now();
-        let changes = plan_flags(&cached, &updates, &Pending::default());
+        let changes = plan_flags(&cached, &known(&cached), &updates, &Pending::default());
         assert_eq!(changes.set.len(), 200_000);
         assert_eq!(changes.set[199_999], (200_000, Flags::SEEN));
         assert!(started.elapsed().as_secs() < 5, "{:?}", started.elapsed());
@@ -420,10 +436,70 @@ mod tests {
         let pending = Pending::of(&actions, "1700", "INBOX", 7);
         let changes = plan_flags(
             &[(1, Flags::empty())],
+            &[(1, Some(vec![]))],
             &[update(1, &[Flag::Seen])],
             &pending,
         );
         assert_eq!(changes, FlagChanges::default());
+    }
+
+    /// Cached keywords known to be none, for every cached UID.
+    fn known(cached: &[(u32, Flags)]) -> Vec<(u32, Option<Vec<String>>)> {
+        cached.iter().map(|(uid, _)| (*uid, Some(vec![]))).collect()
+    }
+
+    fn kw(word: &str) -> Flag {
+        Flag::Keyword(word.into())
+    }
+
+    #[test]
+    fn a_keyword_only_change_is_in_keywords_and_not_in_set() {
+        let changes = plan_flags(
+            &[(1, Flags::SEEN)],
+            &[(1, Some(vec![]))],
+            &[update(1, &[Flag::Seen, kw("$Forwarded")])],
+            &Pending::default(),
+        );
+        assert!(changes.set.is_empty());
+        assert_eq!(changes.keywords, [(1, vec!["$Forwarded".to_owned()])]);
+    }
+
+    #[test]
+    fn a_change_in_both_is_in_both_and_unchanged_keywords_give_nothing() {
+        let cached = [(1, Flags::empty()), (2, Flags::empty())];
+        let kept = Some(vec!["$a".to_owned()]);
+        let changes = plan_flags(
+            &cached,
+            &[(1, kept.clone()), (2, kept)],
+            &[update(1, &[Flag::Seen, kw("$b")]), update(2, &[kw("$a")])],
+            &Pending::default(),
+        );
+        assert_eq!(changes.set, [(1, Flags::SEEN)]);
+        assert_eq!(changes.keywords, [(1, vec!["$b".to_owned()])]);
+    }
+
+    #[test]
+    fn unknown_cached_keywords_give_an_entry_even_for_an_empty_list() {
+        let changes = plan_flags(
+            &[(1, Flags::empty()), (2, Flags::empty())],
+            &[(1, None)],
+            &[update(1, &[]), update(2, &[])],
+            &Pending::default(),
+        );
+        assert_eq!(changes.keywords, [(1, vec![]), (2, vec![])]);
+        assert!(changes.set.is_empty());
+    }
+
+    #[test]
+    fn a_deleted_update_only_removes() {
+        let changes = plan_flags(
+            &[(1, Flags::empty())],
+            &[(1, None)],
+            &[update(1, &[Flag::Deleted, kw("$a")])],
+            &Pending::default(),
+        );
+        assert_eq!(changes.remove, [1]);
+        assert!(changes.keywords.is_empty() && changes.set.is_empty());
     }
 
     #[test]

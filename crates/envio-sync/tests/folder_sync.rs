@@ -220,3 +220,84 @@ async fn a_sync_remembers_who_wrote_and_who_was_written_to() {
     assert_eq!(found[0].name, "Ada");
     assert_eq!(store.db.suggest("bob", 8).unwrap().len(), 1);
 }
+
+fn with_keywords(flags: &[Flag], words: &[&str]) -> MessageFlags {
+    MessageFlags::from_flags(
+        flags
+            .iter()
+            .cloned()
+            .chain(words.iter().map(|word| Flag::Keyword((*word).into()))),
+    )
+}
+
+#[tokio::test]
+async fn a_first_sync_stores_keywords_for_every_row() {
+    let mut server = FakeServer::new();
+    let a = server.deliver_id("INBOX", "a");
+    let b = server.deliver_id("INBOX", "b");
+    server.set_flags("INBOX", a, with_keywords(&[], &["$Forwarded", "$Label1"]));
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    let inbox = store.folder("INBOX").id;
+    assert_eq!(
+        store.db.keywords_by_uid(inbox).unwrap(),
+        [
+            (a, Some(vec!["$Forwarded".to_owned(), "$Label1".to_owned()])),
+            (b, Some(vec![])),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_side_keyword_change_arrives_without_counting_as_a_flag_change() {
+    for caps in [Caps::from_names(["CONDSTORE"]), Caps::default()] {
+        let mut server = FakeServer::new();
+        server.caps = caps;
+        let a = server.deliver_id("INBOX", "a");
+        let b = server.deliver_id("INBOX", "b");
+        let mut store = Store::new();
+        sync_inbox(&mut server, &mut store).await.unwrap();
+        server.set_flags("INBOX", a, with_keywords(&[], &["$Forwarded"]));
+        let synced = sync_inbox(&mut server, &mut store).await.unwrap();
+        assert_eq!(synced.flags_changed, 0, "{caps:?}");
+        let inbox = store.folder("INBOX").id;
+        assert_eq!(
+            store.db.keywords_of(inbox, a).unwrap(),
+            Some(vec!["$Forwarded".to_owned()])
+        );
+        assert_eq!(store.db.keywords_of(inbox, b).unwrap(), Some(vec![]));
+        // A bit change still counts.
+        server.set_flags("INBOX", b, with_keywords(&[Flag::Seen], &[]));
+        let synced = sync_inbox(&mut server, &mut store).await.unwrap();
+        assert_eq!(synced.flags_changed, 1, "{caps:?}");
+    }
+}
+
+#[tokio::test]
+async fn a_deleted_message_is_removed_and_a_pending_flag_does_not_hide_keywords() {
+    let mut server = FakeServer::new();
+    let a = server.deliver_id("INBOX", "a");
+    let b = server.deliver_id("INBOX", "b");
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    let inbox = store.folder("INBOX").id;
+    // A pending local "read" on `a`; the server gains a keyword meanwhile.
+    let row = store.db.message_at(inbox, a).unwrap().unwrap().id;
+    envio_sync::driver::record(
+        &mut store.local(),
+        row,
+        envio_store::ActionKind::SetFlags {
+            add: envio_store::Flags::SEEN,
+            remove: envio_store::Flags::empty(),
+        },
+        NOW_MS,
+    )
+    .unwrap();
+    server.set_flags("INBOX", a, with_keywords(&[], &["$Forwarded"]));
+    server.set_flags("INBOX", b, with_keywords(&[Flag::Deleted], &["$x"]));
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    assert_eq!(
+        store.db.keywords_by_uid(inbox).unwrap(),
+        [(a, Some(vec!["$Forwarded".to_owned()]))]
+    );
+}
