@@ -264,8 +264,23 @@ pub(crate) fn failed(
         live.conn = Conn::Closed;
         live.listed = false;
     }
-    log::warn!("account {account}: {response:?}");
+    if matches!(response, Response::Pause) {
+        log::warn!(
+            "account {account}: {response:?} after a {} problem in step {kind}",
+            problem_name(problem)
+        );
+    } else {
+        log::warn!("account {account}: {response:?}");
+    }
     response
+}
+
+fn problem_name(problem: &Problem) -> &'static str {
+    match problem {
+        Problem::SignIn => "sign-in",
+        Problem::Certificate(_) => "certificate",
+        _ => "other",
+    }
 }
 
 /// The cache is damaged: start over from the server.

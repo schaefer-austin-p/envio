@@ -84,7 +84,10 @@ impl TokenHandle {
         let (id, flight) = self.0.join_or_start();
         let reply = flight.await;
         self.0.finish(id);
-        reply.map_err(|e| token_problem(&e))
+        reply.map_err(|e| {
+            crate::cause::log_token(&e);
+            token_problem(&e)
+        })
     }
 
     /// A token after `used` was refused: the cached one if it is newer than
@@ -162,6 +165,7 @@ impl Cell {
 
     async fn run(&self) -> Reply {
         let Some(stored) = self.tokens.borrow().get(&self.key).cloned() else {
+            crate::cause::log_stage(crate::cause::TOKEN_MISSING);
             return Err(TokenError::Revoked);
         };
         let at = (self.clock)();

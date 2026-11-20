@@ -69,7 +69,16 @@ pub fn from_store(error: &StoreError) -> Problem {
 
 pub fn from_sync(error: &SyncError, service: Service) -> Problem {
     match error {
-        SyncError::Net(error) => from_net(error, service),
+        SyncError::Net(error) => {
+            crate::cause::log_net(
+                match service {
+                    Service::Imap => "IMAP command during sync",
+                    Service::Smtp => "SMTP command during send",
+                },
+                error,
+            );
+            from_net(error, service)
+        }
         SyncError::Store(error) => from_store(error),
     }
 }
