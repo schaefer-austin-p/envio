@@ -132,6 +132,26 @@ impl Worker<'_> {
         true
     }
 
+    /// A Microsoft address with no Microsoft provider set up (sign-in is off
+    /// until #382, or the build has no client ID): refused before any
+    /// lookup, since autoconfig would only lead to a password that Microsoft
+    /// does not take. `false`: not a Microsoft address, or sign-in is on.
+    pub(crate) fn refuse_microsoft(&mut self, email: &str) -> bool {
+        let Some(kind) = provider_kind_for(email) else {
+            return false;
+        };
+        if self.provider_of(kind).is_some() {
+            return false;
+        }
+        let (title, text) = text::setup::microsoft_refused();
+        self.emit(Event::SetupRefused {
+            email: email.trim().to_owned(),
+            title,
+            text,
+        });
+        true
+    }
+
     pub(crate) fn start_oauth(&mut self, email: &str, account: Option<String>) {
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {

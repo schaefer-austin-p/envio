@@ -142,6 +142,9 @@ impl Worker<'_> {
         if self.detect_with_provider(&email) {
             return;
         }
+        if self.refuse_microsoft(&email) {
+            return;
+        }
         let ticket = next_ticket();
         self.detecting.insert(email.clone(), ticket);
         self.setup.send(SetupJob::Detect { email, ticket });

@@ -14,6 +14,17 @@ pub fn ispdb_note() -> String {
     )
 }
 
+/// Title and text of the card for a Microsoft address (#381). Said before
+/// anything is looked up or offered.
+pub fn microsoft_refused() -> (String, String) {
+    (
+        tr("Microsoft accounts aren\u{2019}t supported yet"),
+        tr(
+            "Envio can\u{2019}t connect to Outlook, Hotmail or Microsoft 365 mail for now. Try another address.",
+        ),
+    )
+}
+
 pub fn found_by(source: Source) -> String {
     match source {
         Source::Ispdb => tr("Settings found in the Thunderbird configuration database"),

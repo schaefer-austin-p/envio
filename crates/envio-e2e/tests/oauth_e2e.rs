@@ -200,11 +200,11 @@ fn a_mailbox_with_smtp_auth_disabled_fails_the_message_with_the_hint_and_stays_u
 
 #[test]
 fn detect_offers_the_real_microsoft_provider_with_its_hosts() {
-    // The real `Provider::microsoft()` list, as the app's `Config` takes it:
-    // the other tests inject a provider with fake hosts.
-    assert!(Provider::microsoft().is_some());
+    // The real `Provider::microsoft()`, as the app's `Config` will take it
+    // once sign-in is back on (#382): the other tests inject a provider with
+    // fake hosts. `default_oauth_providers()` is empty while it is off (#381).
     let mut h = Harness::unstarted();
-    h.oauth = envio_core::default_oauth_providers();
+    h.oauth = Provider::microsoft().into_iter().collect();
     assert_eq!(h.oauth.len(), 1);
     h.start_core();
     h.send(Command::Detect {
@@ -227,10 +227,10 @@ fn without_a_provider_the_wizard_path_is_what_it_always_was() {
     h.start_core();
     let setting = |host: &str| envio_net::autoconfig::Setting {
         endpoint: Endpoint::new(host, 993, Security::Tls),
-        username: "x@outlook.com".into(),
+        username: "x@example.org".into(),
     };
     fake_setup(
-        "x@outlook.com",
+        "x@example.org",
         SetupFake {
             delay: Duration::ZERO,
             found: Some(envio_net::autoconfig::Found {
@@ -242,7 +242,7 @@ fn without_a_provider_the_wizard_path_is_what_it_always_was() {
         },
     );
     h.send(Command::Detect {
-        email: "x@outlook.com".into(),
+        email: "x@example.org".into(),
     });
     let (setup, oauth, text) = h.wait(|e| match e {
         Event::Detected {

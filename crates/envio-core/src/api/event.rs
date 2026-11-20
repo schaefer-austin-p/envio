@@ -168,6 +168,14 @@ pub enum Event {
         email: String,
         text: String,
     },
+    /// The address is one Envio cannot take at all (a Microsoft address
+    /// while Microsoft sign-in is off, #381): a card with its own title, not
+    /// an error line, and it never comes with a sign-in or a lookup.
+    SetupRefused {
+        email: String,
+        title: String,
+        text: String,
+    },
     /// The server's certificate is not trusted: show the fingerprint and
     /// ask; on yes, `Connect` again with it in `accepted`.
     TrustPrompt {

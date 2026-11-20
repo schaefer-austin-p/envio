@@ -82,6 +82,15 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "setupProblem"]
         fn setup_problem(self: Pin<&mut EnvioCore>, email: &QString, text: &QString);
+        /// A Microsoft address (#381): a card with a title, not an error line.
+        #[qsignal]
+        #[cxx_name = "setupRefused"]
+        fn setup_refused(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            title: &QString,
+            text: &QString,
+        );
         /// The browser must open `url`; the answer comes back as a link.
         #[qsignal]
         #[cxx_name = "oauthBrowser"]

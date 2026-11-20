@@ -206,6 +206,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             oauth,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
+        Event::SetupRefused { email, title, text } => Signal::SetupRefused { email, title, text },
         Event::OAuthBrowser {
             email,
             url,
