@@ -34,7 +34,7 @@ Item {
         function message(id) {
             return { id: id, account: "ann", accountName: "Ann", from: "Lucia", fromAddress: "lucia@example.org", subject: "Plans " + id,
                      preview: "I found a train", date: 0, dateBucket: "time", unread: true,
-                     flagged: false, hasAttachments: false, selected: false, open: false }
+                     flagged: false, hasAttachments: false, selected: false, open: false, kbdFocus: false }
         }
         function find(item, name) {
             if (item.objectName === name) return item
@@ -846,12 +846,14 @@ Item {
 
         function test_ctrl_n_opens_a_new_message_in_the_pane() {
             const b = bootWide(100)
-            verify(b.shell.newShortcut.enabled)
-            b.shell.newShortcut.activated()
+            verify(b.shell.shortcuts.newKey.enabled)
+            verify(!b.shell.newShortcut.enabled)
+            b.shell.shortcuts.newKey.activated()
             compare(b.core.called("startCompose")[0].args, ["new", 0, "ann", ""])
             compare(b.shell.paneCompose, 1)
             // With compose open the key does nothing more.
-            verify(!b.shell.newShortcut.enabled)
+            b.shell.shortcuts.newKey.activated()
+            compare(b.core.called("startCompose").length, 1)
             b.shell.destroy()
         }
 

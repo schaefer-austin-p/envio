@@ -14,6 +14,8 @@ QC.Popup {
     property string message: ""
     property string primaryText: ""
     property string secondaryText: ""
+    // The secondary action as a compact button at the right, not full width.
+    property bool compactActions: false
     signal primaryActivated()
     signal secondaryActivated()
     default property alias content: extra.data
@@ -30,6 +32,16 @@ QC.Popup {
         chosen = true
         close()
         Qt.callLater(signalFn)
+    }
+
+    // Counted in theme.popupsUp while shown (also when destroyed shown).
+    property bool counted: false
+    onVisibleChanged: syncCount()
+    Component.onDestruction: { visible = false; syncCount() }
+    function syncCount() {
+        if (visible === counted) return
+        counted = visible
+        theme.popupsUp += visible ? 1 : -1
     }
 
     parent: QC.Overlay.overlay
@@ -85,6 +97,7 @@ QC.Popup {
         AppButton {
             objectName: "primaryAction"
             width: parent.width
+            visible: root.primaryText !== ""
             theme: root.theme
             primary: true
             text: root.primaryText
@@ -92,7 +105,8 @@ QC.Popup {
         }
         AppButton {
             objectName: "secondaryAction"
-            width: parent.width
+            width: root.compactActions ? implicitWidth : parent.width
+            x: root.compactActions ? parent.width - width : 0
             visible: root.secondaryText !== ""
             theme: root.theme
             text: root.secondaryText

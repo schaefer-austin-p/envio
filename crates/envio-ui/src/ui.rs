@@ -4,6 +4,7 @@
 
 mod accounts;
 mod act;
+mod focus;
 mod folder_counts;
 mod messages;
 mod notify;
@@ -66,6 +67,8 @@ pub struct Ui {
     open: Option<i64>,
     /// The model `open` was opened from; its row leaving clears `open`.
     open_from: Option<Model>,
+    /// The keyboard-focus row of the message list (the `kbdFocus` role).
+    focus: Option<i64>,
     /// The "Load older" row's state, as last announced.
     older: OlderRow,
     /// Load older found nothing more on the server for the shown list.
@@ -219,6 +222,7 @@ impl Ui {
         self.prune_selection();
         let mut outs = outs;
         outs.extend(self.prune_open());
+        outs.extend(self.prune_focus());
         self.mirror.track(&outs);
         outs
     }
@@ -241,6 +245,7 @@ impl Ui {
             return (Command::ListMessages { list, after: None }, outs);
         }
         outs.extend(self.clear_open());
+        outs.extend(self.clear_focus());
         outs.extend(self.older_reset());
         self.mirror.track(&outs);
         self.current = Some(Current::new(list));

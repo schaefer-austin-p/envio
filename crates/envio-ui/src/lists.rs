@@ -182,6 +182,32 @@ impl ShownList {
         })
     }
 
+    /// The local draft's id behind a shown row, if it has one.
+    pub fn draft_of(&self, id: i64) -> Option<String> {
+        let row = &self.rows.iter().find(|s| s.row.id == id)?.row;
+        (!row.draft_id.is_empty()).then(|| row.draft_id.clone())
+    }
+
+    /// The shown ids, in order.
+    pub fn ids(&self) -> Vec<i64> {
+        self.rows.iter().map(|s| s.row.id).collect()
+    }
+
+    /// Set the keyboard-focus mark of a shown row; the update to apply, if
+    /// the row is shown and changes.
+    pub fn set_focus(&mut self, id: i64, on: bool) -> Option<Op> {
+        let at = self.rows.iter().position(|s| s.row.id == id)?;
+        let shown = &mut self.rows[at];
+        if shown.row.kbd_focus == on {
+            return None;
+        }
+        shown.row.kbd_focus = on;
+        Some(Op::Update {
+            at,
+            row: Row::Message(shown.row.clone()),
+        })
+    }
+
     /// Show a new name on the rows of an account: one update per row.
     pub fn rename_account(&mut self, account: &str, name: &str) -> Vec<Op> {
         let mut ops = Vec::new();

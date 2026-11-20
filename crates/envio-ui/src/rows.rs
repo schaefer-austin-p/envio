@@ -93,6 +93,8 @@ pub struct MessageRowUi {
     pub selected: bool,
     /// The message the reader shows: not the same as selected.
     pub open: bool,
+    /// The keyboard-focus row (Up/Down): a cue apart from open and selected.
+    pub kbd_focus: bool,
     /// The local draft's id on a pseudo-row (no server copy yet); empty for
     /// a server row.
     pub draft_id: String,
@@ -190,6 +192,7 @@ const MESSAGE: &[&str] = &[
     "hasAttachments",
     "selected",
     "open",
+    "kbdFocus",
     "draftId",
     "notUploaded",
     "notUploadedText",
@@ -267,6 +270,7 @@ impl Row {
             (Self::Message(r), "hasAttachments") => Bool(r.has_attachments),
             (Self::Message(r), "selected") => Bool(r.selected),
             (Self::Message(r), "open") => Bool(r.open),
+            (Self::Message(r), "kbdFocus") => Bool(r.kbd_focus),
             (Self::Message(r), "draftId") => s(&r.draft_id),
             (Self::Message(r), "notUploaded") => Bool(r.not_uploaded),
             (Self::Message(r), "notUploadedText") => s(&r.not_uploaded_text),

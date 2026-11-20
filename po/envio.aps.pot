@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 10:14+0100\n"
+"POT-Creation-Date: 2026-11-20 12:08+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -60,6 +60,58 @@ msgstr ""
 msgid "Junk"
 msgstr ""
 
+#: qml/components/ShortcutsDialog.qml:9 qml/pages/settings/SettingsPage.qml:39
+msgid "Keyboard shortcuts"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:10 qml/pages/reader/ReaderPage.qml:271
+msgid "Close"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:18
+msgid "Move the selection"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:19
+msgid "Open the message"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:19
+msgid "Enter"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
+#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/SelectionBar.qml:38
+#: qml/pages/reader/ReaderPage.qml:286
+msgid "Delete"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:20
+msgid "Del"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:21 qml/pages/inbox/InboxPage.qml:210
+msgid "New message"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:21 qml/components/ShortcutsDialog.qml:22
+#: qml/pages/ReaderPane.qml:49
+msgid "Ctrl"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:22 qml/pages/reader/InviteCard.qml:35
+#: qml/pages/reader/ReplyBar.qml:29
+msgid "Reply"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:23
+msgid "Close the reader or compose"
+msgstr ""
+
+#: qml/components/ShortcutsDialog.qml:23
+msgid "Esc"
+msgstr ""
+
 #: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:271
 msgid "Back"
 msgstr ""
@@ -108,12 +160,8 @@ msgstr ""
 msgid "Select a message to read it"
 msgstr ""
 
-#: qml/pages/ReaderPane.qml:49
-msgid "Ctrl"
-msgstr ""
-
 #: qml/pages/accounts/AccountsPage.qml:30 qml/pages/inbox/FoldersDrawer.qml:283
-#: qml/pages/settings/SettingsPage.qml:36
+#: qml/pages/settings/SettingsPage.qml:37
 msgid "Accounts"
 msgstr ""
 
@@ -251,7 +299,7 @@ msgstr ""
 msgid "New messages start from this account"
 msgstr ""
 
-#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:33
+#: qml/pages/accounts/OptionsStep.qml:73 qml/pages/settings/SettingsPage.qml:34
 #: qml/pages/settings/SyncPage.qml:21
 msgid "Sync"
 msgstr ""
@@ -443,17 +491,17 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:344
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:346
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:361
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:363
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:375
+#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:377
 msgid "Bcc"
 msgstr ""
 
@@ -462,28 +510,28 @@ msgstr ""
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:245
+#: qml/pages/compose/ComposePage.qml:247
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:253
+#: qml/pages/compose/ComposePage.qml:255
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:261 qml/pages/inbox/SelectionBar.qml:56
+#: qml/pages/compose/ComposePage.qml:263 qml/pages/inbox/SelectionBar.qml:56
 #: qml/pages/reader/ReaderPage.qml:294
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:272
+#: qml/pages/compose/ComposePage.qml:274
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:345
+#: qml/pages/compose/ComposePage.qml:347
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:403
+#: qml/pages/compose/ComposePage.qml:405
 msgid "Write your message"
 msgstr ""
 
@@ -576,7 +624,7 @@ msgstr ""
 msgid "Open accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:24
+#: qml/pages/inbox/FoldersDrawer.qml:290 qml/pages/settings/SettingsPage.qml:25
 msgid "Settings"
 msgstr ""
 
@@ -586,10 +634,6 @@ msgstr ""
 
 #: qml/pages/inbox/InboxPage.qml:146
 msgid "Open menu"
-msgstr ""
-
-#: qml/pages/inbox/InboxPage.qml:210
-msgid "New message"
 msgstr ""
 
 #: qml/pages/inbox/InboxPage.qml:258 qml/pages/reader/ReaderPage.qml:539
@@ -623,11 +667,6 @@ msgstr ""
 
 #: qml/pages/inbox/OutboxPage.qml:87
 msgid "It has not been sent, and it cannot be brought back."
-msgstr ""
-
-#: qml/pages/inbox/OutboxPage.qml:89 qml/pages/inbox/OutboxRow.qml:125
-#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
-msgid "Delete"
 msgstr ""
 
 #: qml/pages/inbox/OutboxRow.qml:46
@@ -716,10 +755,6 @@ msgstr ""
 msgid "Always for this sender"
 msgstr ""
 
-#: qml/pages/reader/InviteCard.qml:35 qml/pages/reader/ReplyBar.qml:29
-msgid "Reply"
-msgstr ""
-
 #: qml/pages/reader/InviteCard.qml:36 crates/envio-core/src/text/invite.rs:48
 msgid "Updated"
 msgstr ""
@@ -800,10 +835,6 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:271
-msgid "Close"
-msgstr ""
-
 #: qml/pages/reader/ReaderPage.qml:443
 msgid "Loading…"
 msgstr ""
@@ -836,7 +867,7 @@ msgstr ""
 msgid "unknown"
 msgstr ""
 
-#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:37
+#: qml/pages/settings/AboutPage.qml:23 qml/pages/settings/SettingsPage.qml:38
 msgid "About"
 msgstr ""
 
@@ -857,7 +888,7 @@ msgid "not as a click"
 msgstr ""
 
 #: qml/pages/settings/AppearancePage.qml:25
-#: qml/pages/settings/SettingsPage.qml:32
+#: qml/pages/settings/SettingsPage.qml:33
 msgid "Appearance"
 msgstr ""
 
@@ -885,7 +916,7 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:35
+#: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:36
 msgid "Load remote images"
 msgstr ""
 
@@ -915,7 +946,7 @@ msgid "No senders yet. Choose \"Always load from this sender\" in a message."
 msgstr ""
 
 #: qml/pages/settings/NotificationsPage.qml:42
-#: qml/pages/settings/SettingsPage.qml:34
+#: qml/pages/settings/SettingsPage.qml:35
 msgid "Notifications"
 msgstr ""
 

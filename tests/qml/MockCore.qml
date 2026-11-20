@@ -22,6 +22,8 @@ Item {
     property bool notifyShowText: false
     // The message the reader shows; 0 for none (`setOpenMessage` sets it).
     property real openMessage: 0
+    // The keyboard-focus row (`stepFocus` moves it); 0 for none.
+    property real focusMessage: 0
     // The shown list is a Drafts-role folder; the selection holds a local
     // draft (a pseudo-row). Both follow `Ui` in the real core.
     property bool listIsDrafts: false
@@ -112,7 +114,36 @@ Item {
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
     function select(id, on) { record("select", [id, on]) }
+    function stepFocus(delta) {
+        record("stepFocus", [delta])
+        const n = messages.count
+        if (n === 0) return
+        let at = -1
+        for (let i = 0; i < n; i++) if (messages.get(i).id === focusMessage) at = i
+        const to = at < 0 ? 0 : Math.max(0, Math.min(n - 1, at + delta))
+        focusMessage = messages.get(to).id
+        for (let i = 0; i < n; i++) messages.setProperty(i, "kbdFocus", i === to)
+    }
+    function messageIndex(id) {
+        for (let i = 0; i < messages.count; i++) if (messages.get(i).id === id) return i
+        return -1
+    }
+    // The local draft behind a row (empty for a server message).
+    function draftIdOf(id) {
+        for (let i = 0; i < messages.count; i++) {
+            const r = messages.get(i)
+            if (r.id === id) return r.draftId === undefined ? "" : r.draftId
+        }
+        return ""
+    }
+    // The id Enter opens: the focused row, else the open message.
+    function openFocused() { record("openFocused", []); return focusMessage !== 0 ? focusMessage : openMessage }
+    function clearFocus() {
+        focusMessage = 0
+        for (let i = 0; i < messages.count; i++) messages.setProperty(i, "kbdFocus", false)
+    }
     function clearOpen() {
+        clearFocus()
         openMessage = 0
         for (let i = 0; i < messages.count; i++) messages.setProperty(i, "open", false)
     }

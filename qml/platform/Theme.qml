@@ -14,6 +14,9 @@ Control {
     // and "system", "light" or "dark".
     property string name: "carbon"
     property string darkMode: "system"
+    // Sheets and dialogs showing now (Sheet and AppDialog count themselves):
+    // the keyboard shortcuts stay off while any is up.
+    property int popupsUp: 0
     readonly property bool airmail: name === "airmail"
 
     readonly property color systemWindow: loader.item ? loader.item.windowColour : palette.window
