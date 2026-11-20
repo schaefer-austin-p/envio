@@ -426,14 +426,14 @@ fn a_view_has_cc_from_the_message() {
 }
 
 const VERIFIED_IMAGE: &[u8] =
-    b"Authentication-Results: mx.google.com; dkim=pass header.d=example.org\r\n\
+    b"Authentication-Results: mx.messagingengine.com; dkim=pass header.d=example.org\r\n\
 From: Ada <ada@example.org>\r\nSubject: pic\r\nMIME-Version: 1.0\r\n\
 Content-Type: text/html; charset=utf-8\r\n\r\n\
 <p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
 
 /// Opens `raw` with ada@example.org on the "always load" list.
 fn open_with_ada_allowed(raw: &[u8]) -> MessageView {
-    open_with_ada_allowed_on("imap.gmail.com", raw)
+    open_with_ada_allowed_on("imap.fastmail.com", raw)
 }
 
 /// Opens `raw` from an account on IMAP host `host`, with ada@example.org on
@@ -458,11 +458,13 @@ fn open_with_ada_allowed_on(host: &'static str, raw: &[u8]) -> MessageView {
 }
 
 #[test]
-fn images_load_by_default_for_an_allowed_sender_the_server_verified() {
+fn a_mail_providers_own_header_earns_no_sender_allow_while_the_table_is_empty() {
+    // The fast-path table ships empty (#387); the sender is verified by DKIM
+    // or not at all, so a Fastmail header on Fastmail's host changes nothing.
     let view = open_with_ada_allowed(VERIFIED_IMAGE);
-    assert_eq!(view.blocked_images, 0);
-    assert!(view.html.contains("images.example.net/a.png"));
-    assert!(view.header.sender_known);
+    assert_eq!(view.blocked_images, 1);
+    assert!(!view.html.contains("images.example.net/a.png"));
+    assert!(!view.header.sender_known);
 }
 
 const FOREIGN_RESULTS: &[u8] =
@@ -472,8 +474,8 @@ Content-Type: text/html; charset=utf-8\r\n\r\n\
 <p>Look</p><img src=\"http://images.example.net/a.png\" alt=\"a\">";
 
 #[test]
-fn the_view_carries_the_servers_verdict_on_the_sender() {
-    assert!(open_with_ada_allowed(VERIFIED_IMAGE).header.sender_verified);
+fn the_view_does_not_take_a_provider_header_as_a_verdict_on_the_sender() {
+    assert!(!open_with_ada_allowed(VERIFIED_IMAGE).header.sender_verified);
     assert!(!open_with_ada_allowed(REMOTE_IMAGE).header.sender_verified);
 }
 

@@ -291,28 +291,25 @@ mod tests {
     }
 
     #[test]
-    fn a_header_from_the_provider_verifies_without_a_lookup() {
+    fn a_header_from_a_mail_provider_earns_nothing_so_dkim_decides() {
+        // The shipped fast-path table is empty (#387): even a Fastmail header
+        // on Fastmail's host is not believed, and the sender is looked up.
         let mut raw =
-            b"Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n".to_vec();
+            b"Authentication-Results: mx.messagingengine.com; dkim=pass header.d=example.com\r\n"
+                .to_vec();
         raw.extend(fixture("relaxed.eml"));
         let c = check(
             &raw,
             FROM,
-            "imap.gmail.com",
+            "imap.fastmail.com",
             &allowed(),
             ImagesChoice::Default,
             &KeyCache::default(),
             &BTreeSet::new(),
             NOW,
         );
-        assert_eq!(
-            c,
-            Check {
-                verified: true,
-                checkable: true,
-                lookups: vec![],
-            }
-        );
+        assert!(!c.verified && c.checkable);
+        assert_eq!(c.lookups, [NAME]);
     }
 
     #[test]
