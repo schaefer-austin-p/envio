@@ -6,9 +6,10 @@ mod support;
 use std::time::{Duration, Instant};
 
 use envio_core::hooks::{SetupFake, fake_setup, setup_runs};
-use envio_core::{Command, Event};
+use envio_core::{AccountSetup, Command, ConnectRequest, Event, ServerAddr};
 use envio_net::autoconfig::{Found, Setting, Source};
 use envio_net::{Endpoint, Security};
+use secrecy::SecretString;
 use support::Harness;
 
 const MICROSOFT: &[&str] = &[
@@ -137,4 +138,47 @@ fn look_alike_domains_are_not_refused() {
     });
     h.wait(|e| matches!(e, Event::Detected { .. }).then_some(()));
     assert_eq!(setup_runs(email), 1);
+}
+
+/// The manual servers step skips Detect: Connect refuses the same way, and
+/// nothing connects (the typed server is a listener that must stay unvisited).
+#[test]
+fn connecting_a_microsoft_address_by_hand_is_refused_without_a_connection() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let addr = ServerAddr {
+        host: "127.0.0.1".into(),
+        port,
+        security: Security::Tls,
+    };
+    let h = Harness::start();
+    let email = "ms-refused-manual@outlook.com";
+    h.send(Command::Connect(Box::new(ConnectRequest {
+        setup: AccountSetup {
+            name: "Ann".into(),
+            email: email.into(),
+            username: email.into(),
+            imap: addr.clone(),
+            smtp: addr,
+            source: None,
+            needs_confirm: false,
+        },
+        password: SecretString::from("hunter2".to_owned()),
+        servers_confirmed: true,
+        accepted: vec![],
+    })));
+    let rest = drain(&h);
+    assert!(
+        rest.iter()
+            .any(|e| matches!(e, Event::SetupRefused { email: who, .. } if who == email)),
+        "{rest:?}"
+    );
+    assert!(
+        !rest
+            .iter()
+            .any(|e| matches!(e, Event::SetupProblem { .. } | Event::AccountAdded { .. })),
+        "{rest:?}"
+    );
+    assert!(listener.accept().is_err(), "the core connected anyway");
 }

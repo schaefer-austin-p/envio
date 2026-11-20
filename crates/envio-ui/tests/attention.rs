@@ -233,7 +233,9 @@ fn signin_again(ui: &Ui) -> Vec<bool> {
 }
 
 #[test]
-fn only_an_oauth_account_that_failed_to_sign_in_is_marked_for_sign_in_again() {
+fn an_oauth_account_that_failed_to_sign_in_gets_no_sign_in_again_while_sign_in_is_off() {
+    // #381: this build offers no Microsoft sign-in, so its Outbox rows say
+    // why they are held and send the user to Accounts, not to a sign-in.
     let mut ui = Ui::new();
     let mut ms = info("grace");
     ms.oauth = true;
@@ -270,5 +272,9 @@ fn only_an_oauth_account_that_failed_to_sign_in_is_marked_for_sign_in_again() {
         AccountStatus::SignInFailed,
         "Sign-in failed",
     );
-    assert_eq!(signin_again(&ui), [true, false]);
+    assert_eq!(signin_again(&ui), [false, false]);
+    let Row::Account(a) = &ui.rows(Model::Accounts)[0] else {
+        panic!()
+    };
+    assert_eq!(a.state, "unsupported");
 }

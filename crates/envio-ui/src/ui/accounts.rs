@@ -120,7 +120,7 @@ impl Ui {
             let row = &mut self.accounts[at];
             row.status.clone_from(&text);
             if row.state != "broken" {
-                convert::state_word(status).clone_into(&mut row.state);
+                convert::state_of(status, row.oauth).clone_into(&mut row.state);
                 convert::set_pin(row, status, &text);
                 row.attention = convert::needs_attention(&row.state);
             }

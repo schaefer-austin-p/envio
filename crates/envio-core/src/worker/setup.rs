@@ -209,6 +209,10 @@ impl Worker<'_> {
         trim_address(&mut request.setup);
         request.setup.needs_confirm |= touches(&self.srv_hosts, &request.setup);
         let email = request.setup.email.clone();
+        // The manual servers step skips Detect: refuse here too, before any I/O.
+        if self.refuse_microsoft(&email) {
+            return;
+        }
         let accepted = match check_request(&request, self.store.accounts.list()) {
             Ok(accepted) => accepted,
             Err(refusal) => {

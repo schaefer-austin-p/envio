@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 12:55+0100\n"
+"POT-Creation-Date: 2026-11-20 13:13+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -180,7 +180,7 @@ msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:165
 #: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:90
-#: crates/envio-core/src/text/status.rs:28
+#: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
 
@@ -1463,26 +1463,30 @@ msgid ""
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:30
+msgid "Microsoft accounts aren\\u{2019}t supported yet. Remove this account."
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:35
 msgid "Settings found in the Thunderbird configuration database"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:31
+#: crates/envio-core/src/text/setup.rs:36
 msgid "Settings found at your mail provider"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:32
+#: crates/envio-core/src/text/setup.rs:37
 msgid "Settings found on your mail domain"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:33
+#: crates/envio-core/src/text/setup.rs:38
 msgid "Settings found in your domain DNS records"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:34
+#: crates/envio-core/src/text/setup.rs:39
 msgid "No settings found. These are a guess, please check them"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:41
+#: crates/envio-core/src/text/setup.rs:46
 msgid ""
 "These servers are not on your address's domain:\n"
 "Incoming: {imap}\n"
@@ -1490,95 +1494,95 @@ msgid ""
 "Your password is sent to them. Only continue if you trust them"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:56
+#: crates/envio-core/src/text/setup.rs:61
 msgid "{label}: {host}:{port}, {security}"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:67
+#: crates/envio-core/src/text/setup.rs:72
 msgid "Incoming (IMAP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:68
+#: crates/envio-core/src/text/setup.rs:73
 msgid "Outgoing (SMTP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:74
-#: crates/envio-core/src/text/status.rs:40
+#: crates/envio-core/src/text/setup.rs:79
+#: crates/envio-core/src/text/status.rs:50
 msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:75
-#: crates/envio-core/src/text/status.rs:41
+#: crates/envio-core/src/text/setup.rs:80
+#: crates/envio-core/src/text/status.rs:51
 msgid "outgoing mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:79
+#: crates/envio-core/src/text/setup.rs:84
 msgid ""
 "The certificate of the {service} server {host} is not trusted: {reason}. "
 "Check the fingerprint before you accept it"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:92
+#: crates/envio-core/src/text/setup.rs:97
 msgid "Can't verify the incoming mail server (IMAP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:93
+#: crates/envio-core/src/text/setup.rs:98
 msgid "Can't verify the outgoing mail server (SMTP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:101
+#: crates/envio-core/src/text/setup.rs:106
 msgid ""
 "Envio has no trusted certificate authorities on this device, so it cannot "
 "check the server. Please report this problem"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:106
+#: crates/envio-core/src/text/setup.rs:111
 msgid "Confirm the servers before signing in"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:110
+#: crates/envio-core/src/text/setup.rs:115
 msgid "This account is already added"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:114
+#: crates/envio-core/src/text/setup.rs:119
 msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:118
+#: crates/envio-core/src/text/setup.rs:123
 msgid "That certificate fingerprint is not valid"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:122
+#: crates/envio-core/src/text/setup.rs:127
 msgid "That does not look like an email address"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:126
+#: crates/envio-core/src/text/setup.rs:131
 msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:131
+#: crates/envio-core/src/text/setup.rs:136
 msgid ""
 "The server closed the connection. Check the security setting and password, "
 "or try again in a moment"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:136
+#: crates/envio-core/src/text/setup.rs:141
 msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:140
+#: crates/envio-core/src/text/setup.rs:145
 msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:144
+#: crates/envio-core/src/text/setup.rs:149
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:152
+#: crates/envio-core/src/text/setup.rs:157
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:171
+#: crates/envio-core/src/text/setup.rs:176
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."
@@ -1589,70 +1593,70 @@ msgid ""
 "This account's settings cannot be read ({reason}). Remove it and add it again"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:22
+#: crates/envio-core/src/text/status.rs:32
 msgid "Ready"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:23
+#: crates/envio-core/src/text/status.rs:33
 msgid "Syncing"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:24
+#: crates/envio-core/src/text/status.rs:34
 msgid "Offline, retrying"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:26
+#: crates/envio-core/src/text/status.rs:36
 msgid "Can't read the saved mail on this phone. Retrying."
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:29
+#: crates/envio-core/src/text/status.rs:39
 msgid "Sign-in failed, update password"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:31
+#: crates/envio-core/src/text/status.rs:41
 msgid "The server certificate needs your attention"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:32
+#: crates/envio-core/src/text/status.rs:42
 msgid "Storage is full, downloads stopped"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:33
+#: crates/envio-core/src/text/status.rs:43
 msgid "Removing account"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:47
+#: crates/envio-core/src/text/status.rs:57
 msgid ""
 "The certificate of the {service} server changed.\n"
 "Old fingerprint: {old}\n"
 "New fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:57
+#: crates/envio-core/src/text/status.rs:67
 msgid ""
 "The certificate of the {service} server is not trusted: {reason}.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:66
+#: crates/envio-core/src/text/status.rs:76
 msgid ""
 "The certificate of the {service} server is not trusted.\n"
 "Fingerprint: {new}"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:74
+#: crates/envio-core/src/text/status.rs:84
 msgid "self-signed or from an unknown authority"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:75
+#: crates/envio-core/src/text/status.rs:85
 msgid "expired"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:76
+#: crates/envio-core/src/text/status.rs:86
 msgid "issued for another server name"
 msgstr ""
 
-#: crates/envio-core/src/text/status.rs:77
+#: crates/envio-core/src/text/status.rs:87
 msgid "not valid"
 msgstr ""
 

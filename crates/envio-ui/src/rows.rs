@@ -16,7 +16,7 @@ pub struct AccountRow {
     pub heading: String,
     /// The status in words.
     pub status: String,
-    /// "ok", "offline", "local", "auth", "pin", "broken" or "diskfull".
+    /// "ok", "offline", "local", "auth", "unsupported", "pin", "broken" or "diskfull".
     pub state: String,
     pub unread: u32,
     /// The count as the number's digits, empty for none: QML shows it

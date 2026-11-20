@@ -21,9 +21,22 @@ pub fn state_word(status: &AccountStatus) -> &'static str {
     }
 }
 
+/// `state_word` for an account: a Microsoft account whose sign-in this build
+/// does not offer (#381) is "unsupported", not "auth" (Sign in again would be
+/// a dead end; the sheet then offers only Remove).
+pub fn state_of(status: &AccountStatus, oauth: bool) -> &'static str {
+    if oauth
+        && matches!(status, AccountStatus::SignInFailed)
+        && !envio_core::microsoft_sign_in_offered()
+    {
+        return "unsupported";
+    }
+    state_word(status)
+}
+
 /// Sync is stopped until the user acts: the states that lead to Accounts.
 pub fn needs_attention(state: &str) -> bool {
-    matches!(state, "auth" | "pin")
+    matches!(state, "auth" | "pin" | "unsupported")
 }
 
 /// The unread count for display: the digits, or nothing for zero.
@@ -35,7 +48,7 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
     let state = if info.broken {
         "broken"
     } else {
-        state_word(&info.status)
+        state_of(&info.status, info.oauth)
     };
     AccountRow {
         key: info.key.clone(),
@@ -152,6 +165,8 @@ pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String,
             false,
         ),
         "auth" => (a.status.clone(), envio_core::open_accounts_label(), a.oauth),
+        // No sign-in to offer: the reason says to remove the account.
+        "unsupported" => (a.status.clone(), envio_core::open_accounts_label(), false),
         _ => Default::default(),
     }
 }
@@ -291,6 +306,48 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_microsoft_account_that_cannot_sign_in_again_is_not_offered_sign_in() {
+        // #381: sign-in is off in this build, so "auth" would lead to a dead end.
+        assert_eq!(state_of(&AccountStatus::SignInFailed, true), "unsupported");
+        assert!(needs_attention("unsupported"));
+        // A password account, or another status, keeps its word.
+        assert_eq!(state_of(&AccountStatus::SignInFailed, false), "auth");
+        assert_eq!(state_of(&AccountStatus::Ready, true), "ok");
+    }
+
+    #[test]
+    fn a_held_message_of_an_oauth_account_that_can_sign_in_gets_the_sign_in_button() {
+        let mut info = envio_core::AccountInfo {
+            key: "g".into(),
+            name: "G".into(),
+            label: String::new(),
+            email: "g@outlook.com".into(),
+            status: AccountStatus::Ready,
+            unread: 0,
+            broken: false,
+            oauth: true,
+        };
+        let mut row = account_row(&info, "Sign in again");
+        row.state = "auth".into();
+        info.oauth = false;
+        let outbox = OutboxRow {
+            id: "1".into(),
+            account: "g".into(),
+            subject: String::new(),
+            recipients: vec![],
+            status: OutboxStatus::Queued,
+            text: String::new(),
+            queued_at_ms: 0,
+        };
+        let (_, _, signin_again) = outbox_reason(&[row.clone()], &outbox);
+        assert!(signin_again);
+        row.state = "unsupported".into();
+        let (reason, _, signin_again) = outbox_reason(&[row], &outbox);
+        assert!(!signin_again);
+        assert_eq!(reason, "Sign in again");
+    }
 
     #[test]
     fn outbox_states_keep_sending_and_sent_apart_from_waiting() {

@@ -259,6 +259,12 @@ Item {
             root.busy = false
             root.refusedTitle = title
             root.refusedText = text
+            // Manual setup skips Detect: the refusal comes back from Connect,
+            // so the card is shown where the address is.
+            if (root.step === "servers") {
+                root.clearPasswords()
+                root.step = "email"
+            }
         }
         function onTrustPrompt(email, service, host, title, fingerprint, hex, text) {
             if (!root.current(email) || !root.busy || !root.connecting) return

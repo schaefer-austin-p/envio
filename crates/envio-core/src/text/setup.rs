@@ -25,6 +25,11 @@ pub fn microsoft_refused() -> (String, String) {
     )
 }
 
+/// The status of an existing Microsoft account while sign-in is off (#381).
+pub fn microsoft_account_unsupported() -> String {
+    tr("Microsoft accounts aren\u{2019}t supported yet. Remove this account.")
+}
+
 pub fn found_by(source: Source) -> String {
     match source {
         Source::Ispdb => tr("Settings found in the Thunderbird configuration database"),

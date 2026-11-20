@@ -44,7 +44,7 @@ pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
     MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
 };
-pub use core::{Config, Core, EventSink, default_oauth_providers};
+pub use core::{Config, Core, EventSink, default_oauth_providers, microsoft_sign_in_offered};
 pub use envio_store::{
     Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, ListRef, MessageRowId,
     PAGE, Settings, ThemeName,

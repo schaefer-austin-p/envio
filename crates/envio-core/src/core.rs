@@ -46,6 +46,13 @@ pub struct Config {
 /// there.
 const MICROSOFT_SIGN_IN: bool = false;
 
+/// Whether this build offers Microsoft sign-in at all (gate on and a client
+/// ID set). The screens use it to tell an existing Microsoft account that
+/// cannot sign in again from one that can.
+pub fn microsoft_sign_in_offered() -> bool {
+    !default_oauth_providers().is_empty()
+}
+
 /// The OAuth providers the app offers: Microsoft when `MICROSOFT_SIGN_IN` is
 /// on and its client ID is set (`client_ids::MICROSOFT`), else none. The
 /// app's `Config` takes this.

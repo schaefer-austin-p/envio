@@ -430,7 +430,10 @@ impl<'s> Worker<'s> {
             .accounts
             .get(account)
             .is_some_and(|a| a.settings.is_oauth());
-        text::status::status(status, oauth)
+        let provider = self
+            .provider_of(envio_net::oauth::ProviderKind::Microsoft)
+            .is_some();
+        text::status::status_with(status, oauth, provider)
     }
 
     /// Tells the app if the account's status is not `before`.

@@ -85,7 +85,7 @@ fn timeout_ms(_email: &str) -> i64 {
 }
 
 impl Worker<'_> {
-    fn provider_of(&self, kind: ProviderKind) -> Option<Provider> {
+    pub(crate) fn provider_of(&self, kind: ProviderKind) -> Option<Provider> {
         self.providers.iter().find(|p| p.kind == kind).cloned()
     }
 

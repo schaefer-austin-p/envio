@@ -18,7 +18,17 @@ pub fn broken(reason: &str) -> String {
 /// `oauth`: the account signs in with a token, so the fix is signing in
 /// again, not a password.
 pub fn status(status: &AccountStatus, oauth: bool) -> String {
+    status_with(status, oauth, true)
+}
+
+/// `provider`: sign-in for an OAuth account is offered by this build. Without
+/// it "Sign in again" would be a dead end (#381, #342), so the account is told
+/// to be removed.
+pub fn status_with(status: &AccountStatus, oauth: bool, provider: bool) -> String {
     match status {
+        AccountStatus::SignInFailed if oauth && !provider => {
+            crate::text::setup::microsoft_account_unsupported()
+        }
         AccountStatus::Ready => tr("Ready"),
         AccountStatus::Syncing => tr("Syncing"),
         AccountStatus::Offline { .. } => tr("Offline, retrying"),
@@ -82,6 +92,24 @@ pub fn untrusted_reason(reason: Untrusted) -> String {
 mod tests {
     use super::*;
     use envio_net::Fingerprint;
+
+    #[test]
+    fn a_microsoft_account_without_sign_in_is_told_to_be_removed() {
+        // #381: no provider, so "Sign in again" would be a dead end.
+        let text = status_with(&AccountStatus::SignInFailed, true, false);
+        assert!(text.starts_with("Microsoft accounts aren\u{2019}t supported yet"));
+        assert!(text.contains("Remove"), "{text}");
+        // With a provider, or for a password account, nothing changes.
+        assert_eq!(
+            status_with(&AccountStatus::SignInFailed, true, true),
+            "Sign in again"
+        );
+        assert_eq!(
+            status_with(&AccountStatus::SignInFailed, false, false),
+            "Sign-in failed, update password"
+        );
+        assert_eq!(status_with(&AccountStatus::Ready, true, false), "Ready");
+    }
 
     #[test]
     fn offline_text_is_offline_retrying() {

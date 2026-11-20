@@ -528,6 +528,25 @@ Item {
             compare(connectCalls()[0].args[2], false)
         }
 
+        // #381: Connect refuses a Microsoft address typed into manual setup;
+        // the wizard goes back to the email step, where the card is.
+        function test_manual_setup_refusal_returns_to_the_email_step_with_the_card() {
+            find("emailField").text = "ann@outlook.com"
+            mouseClick(find("manualButton"))
+            compare(wizard.step, "servers")
+            find("imapHost").text = "outlook.office365.com"
+            find("smtpHost").text = "smtp.office365.com"
+            find("serversPassword").text = "hunter2"
+            find("connectButton").clicked()
+            verify(wizard.busy)
+            core.setupRefused("ann@outlook.com", "Microsoft accounts aren\u2019t supported yet", "Try another address.")
+            compare(wizard.step, "email")
+            verify(!wizard.busy)
+            verify(find("refusalCard").visible)
+            compare(find("continueButton").text, "Change address")
+            compare(find("serversPassword").text, "")
+        }
+
         function test_manual_setup_connects_with_typed_servers() {
             typeEmail()
             mouseClick(find("manualButton"))
