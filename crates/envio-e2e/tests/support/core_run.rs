@@ -10,6 +10,7 @@ use envio_core::{
     AccountSetup, Command, Config, ConnectRequest, Core, Event, EventSink, FolderId, FolderRole,
     ListRef, MessageRow, ServerAddr, Service,
 };
+use envio_net::dns::TxtLookup;
 use envio_net::{Roots, Security};
 use envio_store::StorePaths;
 use log::LevelFilter;
@@ -34,6 +35,7 @@ pub struct CoreRun {
     core: Option<Core>,
     pub events: Receiver<Event>,
     level: LevelFilter,
+    dns: Option<Arc<dyn TxtLookup>>,
     /// Every event `wait` or `happens` took off `events`, matched or
     /// not, for `wait_ever`.
     history: RefCell<Vec<Event>>,
@@ -67,14 +69,18 @@ fn stop(core: Option<Core>) {
     }
 }
 
-fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
+fn begin(
+    dir: &TempDir,
+    level: LevelFilter,
+    dns: Option<Arc<dyn TxtLookup>>,
+) -> (Core, Receiver<Event>) {
     let (sender, events) = channel();
     let config = Config {
         cache_dir: dir.path().join("cache"),
         data_dir: dir.path().join("data"),
         roots: Roots::bundled(),
         oauth: Vec::new(),
-        dns: None,
+        dns,
         log_level: level,
         foreground: true,
     };
@@ -84,13 +90,20 @@ fn begin(dir: &TempDir, level: LevelFilter) -> (Core, Receiver<Event>) {
 
 impl CoreRun {
     pub fn start(level: LevelFilter) -> CoreRun {
+        CoreRun::start_with_dns(level, None)
+    }
+
+    /// `start`, with DKIM key lookups (#285) answered by `dns` instead of
+    /// the system resolver.
+    pub fn start_with_dns(level: LevelFilter, dns: Option<Arc<dyn TxtLookup>>) -> CoreRun {
         let dir = tempfile::tempdir().unwrap();
-        let (core, events) = begin(&dir, level);
+        let (core, events) = begin(&dir, level, dns.clone());
         CoreRun {
             dir,
             core: Some(core),
             events,
             level,
+            dns,
             history: RefCell::default(),
         }
     }
@@ -111,7 +124,7 @@ impl CoreRun {
         let paths = self.paths();
         stop(self.core.take());
         between(&paths);
-        let (core, events) = begin(&self.dir, self.level);
+        let (core, events) = begin(&self.dir, self.level, self.dns.clone());
         self.core = Some(core);
         self.events = events;
         self.history.borrow_mut().clear();

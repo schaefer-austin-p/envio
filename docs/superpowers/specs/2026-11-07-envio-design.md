@@ -153,6 +153,33 @@ drafts.
   telemetry; a generic SMTP EHLO name instead of the device's hostname;
   autodetect sends only the domain to the ISPDB, and the wizard says so;
   logs mask addresses and subjects.
+- **Sender trust for images:** "Always for this sender" loads a sender's
+  images only on a message whose sender is verified, so a forged From of an
+  allowed address gets none. A sender is verified when
+  - one DKIM signature on the message verifies in the app against the key
+    in DNS, its `d=` aligned with the From domain (DMARC's relaxed rule,
+    organisational domains from the public suffix list), exactly one From
+    header, `h=` covering from, content-type and content-transfer-encoding;
+    or
+  - the account's IMAP host is in a short table of exact hosts (Gmail,
+    Fastmail, iCloud, Yahoo, each with its own authserv-id) and the topmost
+    `Authentication-Results` of that provider says so. There is no
+    Microsoft entry; Outlook, Exchange and self-hosted servers use DKIM.
+
+  A DKIM key lookup runs only for a sender on the Always list and only while
+  their message is open, and never when the images are already loaded or
+  the fast path verified it. The reason is privacy: a sender who signs each
+  message with its own selector learns from the query at its name server
+  that, when and through which resolver the message was opened, which is
+  the read receipt that image blocking prevents. Contacts alone cause no
+  lookup. Keys are cached in memory for the record's TTL (1 minute to
+  1 hour); nothing is stored on disk. There is no DNSSEC: the system
+  resolver is trusted.
+
+  Known limit: a large message whose body is cached partially never
+  verifies through DKIM (its body hash cannot match), so its images stay
+  blocked until the user taps Load images. The provider fast path needs no
+  body and still applies.
 
 ## Error handling
 

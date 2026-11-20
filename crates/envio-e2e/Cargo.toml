@@ -20,6 +20,7 @@ envio-mime = { path = "../envio-mime" }
 envio-net = { path = "../envio-net" }
 envio-store = { path = "../envio-store" }
 envio-sync = { path = "../envio-sync" }
+futures = "0.3"
 log = "0.4"
 serde_json = "1"
 secrecy = "0.10"
