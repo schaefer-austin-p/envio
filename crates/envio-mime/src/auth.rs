@@ -7,6 +7,7 @@
 //! verifies by DKIM or not at all.
 
 use crate::align::aligned;
+use crate::dkim::{field_named, header_fields};
 use crate::from_field::single_from_domain;
 
 /// Providers the fast path trusts: (exact IMAP host, authserv-id suffixes
@@ -28,7 +29,11 @@ const PROVIDERS: &[(&str, &[&str])] = &[
 /// topmost may come from the sender and are never read, so a topmost header
 /// with an untrusted or missing id leaves the message unverified.
 pub fn sender_verified(raw: &[u8], from: &str, imap_host: &str) -> bool {
-    let Some(domain) = from.trim().rsplit_once('@').map(|(_, d)| d.to_lowercase()) else {
+    let Some(domain) = from
+        .trim()
+        .rsplit_once('@')
+        .map(|(_, d)| d.trim().trim_end_matches('.').to_ascii_lowercase())
+    else {
         return false;
     };
     if single_from_domain(raw).as_deref() != Some(domain.as_str()) {
@@ -82,31 +87,20 @@ fn results_of(raw: &[u8], imap_host: &str) -> Option<String> {
 }
 
 /// The unfolded values of every `Authentication-Results` header, topmost
-/// first.
+/// first. The header block ends where DKIM and the reader end it, and a
+/// field name is read by the same rule (plan #285, decision 9), so a body
+/// line never counts as a header.
 fn headers(raw: &[u8]) -> Vec<String> {
-    let text = String::from_utf8_lossy(raw);
-    let mut values: Vec<String> = Vec::new();
-    let mut inside = false;
-    for line in text.lines() {
-        if line.is_empty() {
-            break;
-        }
-        if line.starts_with([' ', '\t']) {
-            if inside && let Some(v) = values.last_mut() {
-                v.push(' ');
-                v.push_str(line.trim());
-            }
-            continue;
-        }
-        inside = false;
-        if let Some((name, rest)) = line.split_once(':')
-            && name.trim().eq_ignore_ascii_case("authentication-results")
-        {
-            values.push(rest.trim().to_owned());
-            inside = true;
-        }
-    }
-    values
+    header_fields(raw)
+        .into_iter()
+        .filter(|f| field_named(f, b"authentication-results"))
+        .filter_map(|field| {
+            let text = String::from_utf8_lossy(field);
+            let (_, rest) = text.split_once(':')?;
+            let unfolded: Vec<&str> = rest.lines().map(str::trim).collect();
+            Some(unfolded.join(" ").trim().to_owned())
+        })
+        .collect()
 }
 
 /// Replaces each RFC 5322 comment (nested, with backslash escapes) outside
@@ -349,21 +343,14 @@ mod tests {
 
     #[test]
     fn a_header_without_an_authserv_id_does_not_verify() {
-        // Some Exchange Online headers start straight at the results.
+        // Some Exchange Online headers start straight at the results. On a
+        // table host, so only the id check can refuse them.
         let m = mail(
             "Authentication-Results: dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com\r\n",
         );
-        assert!(!sender_verified(
-            &m,
-            "bob@example.com",
-            "outlook.office365.com"
-        ));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
         let m = mail("Authentication-Results: ; dkim=pass header.d=example.com\r\n");
-        assert!(!sender_verified(
-            &m,
-            "bob@example.com",
-            "outlook.office365.com"
-        ));
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 
     #[test]
@@ -577,5 +564,52 @@ mod tests {
         // An id of one provider does not work on another's host.
         let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
         assert!(!sender_verified(&m, "bob@example.com", "imap.fastmail.com"));
+    }
+
+    #[test]
+    fn a_header_in_the_body_after_a_bare_cr_boundary_is_not_read() {
+        // `\r\r\n` ends the header block for DKIM and the reader; a
+        // line-based parser would read the body line as the topmost header.
+        let ar = "Authentication-Results: mx.google.com; dkim=pass header.d=example.com";
+        let m = format!("From: bob@example.com\r\nSubject: x\r\n\r\r\n{ar}\r\n\r\nbody");
+        assert!(!sender_verified(m.as_bytes(), "bob@example.com", HOST));
+        let m = format!("From: bob@example.com\r\nSubject: x\r\n\r\n{ar}\r\n");
+        assert!(!sender_verified(m.as_bytes(), "bob@example.com", HOST));
+        // The same header above the boundary does verify.
+        let m = format!("{ar}\r\nFrom: bob@example.com\r\n\r\r\nbody");
+        assert!(sender_verified(m.as_bytes(), "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn a_spaced_or_odd_header_name_is_read_as_dkim_reads_it() {
+        let m = mail("Authentication-Results : mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(sender_verified(&m, "bob@example.com", HOST));
+        let m =
+            mail("Authentication-Results\x0c: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+    }
+
+    #[test]
+    fn the_from_domain_is_normalised_like_the_parsed_one() {
+        let m = mail("Authentication-Results: mx.google.com; dkim=pass header.d=example.com\r\n");
+        assert!(sender_verified(&m, "bob@Example.COM", HOST));
+        assert!(sender_verified(&m, "bob@example.com.", HOST));
+        assert!(sender_verified(&m, " bob@EXAMPLE.com. ", HOST));
+    }
+
+    #[test]
+    fn a_quote_inside_a_comment_does_not_hide_its_closing_parenthesis() {
+        // RFC 5322 3.2.2: a comment holds ctext, quoted-pairs and nested
+        // comments only. A `"` is plain ctext there, so the first
+        // unescaped `)` ends the comment and the property after it is real.
+        let m = mail(
+            "Authentication-Results: mx.google.com; spf=pass (a \" ) smtp.mailfrom=example.net (\" ) smtp.mailfrom=example.com\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
+        // A quoted-pair keeps the comment open, so what follows it is text.
+        let m = mail(
+            "Authentication-Results: mx.google.com; spf=pass (a \\) smtp.mailfrom=example.com) smtp.mailfrom=example.net\r\n",
+        );
+        assert!(!sender_verified(&m, "bob@example.com", HOST));
     }
 }
