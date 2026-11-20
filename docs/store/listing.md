@@ -1,4 +1,4 @@
-# OpenStore listing, Envio 0.1.0
+# OpenStore listing, Envio 0.3.0
 
 Each section is one OpenStore field, ready to paste.
 
@@ -39,53 +39,60 @@ Email for Ubuntu Touch: IMAP and SMTP, private by default.
 Envio is a mail app made for Ubuntu Touch. It talks to your mail server over
 IMAP and SMTP and keeps its own copy of your mail on the phone.
 
-What works in 0.1.0:
+What works in 0.3.0:
 
 - Accounts with a password or an app password. The setup wizard asks for your
-  address and looks up the servers. You can also enter them by hand.
-- A unified inbox, a tab for each account, and a folders drawer.
-- Compose, reply, reply all and forward. Drafts are saved on their own. An
-  Outbox holds messages until they are sent.
-- Attachments in and out through Content Hub.
+  address and looks up the servers. You can also enter them by hand. Rename an
+  account at any time.
+- A unified inbox, a tab for each account, and a folders drawer. On a tablet or
+  a desktop window the list and the reader sit side by side, with keyboard
+  shortcuts.
+- Notifications for new mail while Envio is running.
+- Compose, reply, reply all and forward. Drafts are saved on their own, kept
+  on your server's Drafts folder, and reopen from the Drafts list. An Outbox
+  holds messages until they are sent.
+- Meeting invites with Accept, Maybe and Decline, and Add to calendar.
+- Attachments in and out through Content Hub. Share a file into Envio, or pick
+  Envio in "Open with".
 - `mailto:` links from the browser and other apps.
 - Search on the phone, and search on the server for older mail.
 - Select several messages with a long press. Archive, delete, move, mark read
   or flag them. Undo is one tap.
+- Newsletters and HTML mail look closer to the sender's design.
 - Two themes, Carbon and Airmail, each in light and dark.
 
 What it does not do, and why:
 
-- No background sync and no notifications. Ubuntu Touch suspends apps that
-  are not open, so Envio checks for mail only while you use it. New-mail
-  notifications are planned.
-- No OAuth. Microsoft accounts need it, so they do not work yet. Google works
-  with an app password.
+- Outlook and Hotmail accounts are not supported yet; support is planned for
+  0.4.0. Envio says so when you try to add one.
+- No notifications while Envio is closed. Ubuntu Touch suspends apps that
+  are not open, so Envio checks for mail only while it runs.
 - No encryption (OpenPGP) yet.
 - It does not use the system address book. It suggests addresses it has seen.
-- Inline images embedded in a message are not shown yet.
-- Saving an attachment through Content Hub was not tested end to end.
+- Google works with an app password; Google sign-in is not offered.
 
 Privacy:
 
 - Remote images are blocked until you decide otherwise. Tracking content is
-  removed. "Always for this sender" trusts the From address, which can be
-  forged, so use it only for senders you know.
+  removed. "Always for this sender" is offered only for mail whose sender
+  Envio could verify (DKIM), so a forged From address does not get trusted.
 - Connections use TLS. A self-signed certificate is shown with its
   fingerprint and pinned only if you accept it.
 - No telemetry. Passwords are kept in a file only the app can read, never in
   the mail database or the logs.
 
-This is a first release. Known problems are listed at
-https://code.austinschaefer.com/schaefera/envio/milestone/12
+Known problems are listed at
+https://code.austinschaefer.com/schaefera/envio/issues
 
 ## Changelog
 
-0.1.0: first release.
-Accounts with a password or app password and an autodetecting wizard.
-Unified inbox, compose, reply, forward, Outbox and drafts.
-Attachments through Content Hub, `mailto:`, local and server search, Undo.
-Themes Carbon and Airmail, light and dark.
-Not in this release: background sync and notifications, OAuth, OpenPGP.
+0.3.0: new-mail notifications while Envio runs.
+Drafts upload to your server and reopen from the Drafts list.
+Share into Envio and "Open with". Rename accounts.
+Two-pane layout and keyboard shortcuts on tablets and desktop.
+Better newsletter layout, menu icons, security hardening, many fixes.
+Outlook and Hotmail accounts are not supported yet; support is planned for
+0.4.0.
 
 ## Permissions
 
