@@ -47,7 +47,9 @@ What works in 0.3.0:
 - A unified inbox, a tab for each account, and a folders drawer. On a tablet or
   a desktop window the list and the reader sit side by side, with keyboard
   shortcuts.
-- Notifications for new mail while Envio is running.
+- Notifications for new mail while Envio is running. For mail that arrives
+  while Envio is in the background, exempt it from app suspension (UT Tweak
+  Tool); Settings > Notifications explains how.
 - Compose, reply, reply all and forward. Drafts are saved on their own, kept
   on your server's Drafts folder, and reopen from the Drafts list. An Outbox
   holds messages until they are sent.
@@ -74,8 +76,9 @@ What it does not do, and why:
 Privacy:
 
 - Remote images are blocked until you decide otherwise. Tracking content is
-  removed. "Always for this sender" is offered only for mail whose sender
-  Envio could verify (DKIM), so a forged From address does not get trusted.
+  removed. "Always for this sender" is offered on mail with a DKIM
+  signature and applies only while Envio can verify that signature, so a
+  forged From address does not get trusted.
 - Connections use TLS. A self-signed certificate is shown with its
   fingerprint and pinned only if you accept it.
 - No telemetry. Passwords are kept in a file only the app can read, never in
@@ -99,6 +102,8 @@ Outlook and Hotmail accounts are not supported yet; support is planned for
 - Networking: to reach your IMAP and SMTP servers.
 - Connectivity: to see whether the phone is online, so Envio can show an
   account as offline and retry.
+- Push notifications: to show new-mail notifications and the launcher
+  badge.
 - Content exchange: to attach files from other apps.
 - Content exchange source: to hand attachments to other apps to open, save
   or share them.
