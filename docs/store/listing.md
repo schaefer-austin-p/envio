@@ -107,17 +107,17 @@ Outlook and Hotmail accounts are not supported yet; support is planned for
 
 ## Screenshots
 
-Source folder: `docs/phone-runs/0.1.0-release/`. Copy the chosen files to
-`docs/store/screenshots/`.
+Upload in this order from `docs/store/screenshots/`. Taken on 2026-11-20 on a
+Volla Phone (Ubuntu Touch 24.04) with the 0.3.0 build, 1080 x 2292, status
+bar cropped. All mail is synthetic: the account is grace at envio.test on a
+throwaway test server. Shot 6 was taken with the made-up address envio.demo@fastmail.com (not shown on screen),
+whose domain only went to the server lookup, and the account was not added.
 
-| # | Shot | File | Status |
-| - | ---- | ---- | ------ |
-| 1 | Unified inbox, Carbon light | `th-carbon-light-inbox.png` | Use. Shows the "All" tab with grace and heidi at envio.test; the tab row is cut off at the edge. |
-| 2 | Reader, Airmail light | `th-airmail-light-message.png` | Use, but it is a plain-text mail, not curated HTML. Retake if an HTML mail is wanted. |
-| 3 | Compose with attachment chips | `ch09-both-attached.png` | Use. Carbon light, two attachments (png and pdf). |
-| 4 | Inbox, Carbon dark | `th-carbon-dark-inbox.png` | Use. |
-| 5 | Wizard sign-in step with found servers | `wizard-found-servers.png` | Use. Airmail dark, settings found at the provider for the made-up address envio.demo@fastmail.com; the account was not added. |
-
-Shots 1 to 4 use synthetic accounts at envio.test; shot 5 shows a made-up
-address whose domain only went to the ISPDB lookup. Check each once more for
-status-bar content before upload.
+| # | Shot | File |
+| - | ---- | ---- |
+| 1 | Unified inbox, Carbon light | `1-inbox-carbon-light.png` |
+| 2 | Reader, Airmail light | `2-reader-airmail-light.png` |
+| 3 | Reply in compose, Airmail light | `3-compose-airmail-light.png` |
+| 4 | Inbox, Carbon dark | `4-inbox-carbon-dark.png` |
+| 5 | Inbox, Airmail dark | `5-inbox-airmail-dark.png` |
+| 6 | Setup wizard with the servers it found, Airmail light | `6-wizard-airmail-light.png` |
