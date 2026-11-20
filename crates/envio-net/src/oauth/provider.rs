@@ -41,7 +41,7 @@ impl Provider {
             token_url: format!("{BASE}/token"),
             scopes: "https://outlook.office.com/IMAP.AccessAsUser.All \
                      https://outlook.office.com/SMTP.Send offline_access openid email profile",
-            redirect_uri: "envio-oauth://callback".to_owned(),
+            redirect_uri: "enviooauth://callback".to_owned(),
             imap: Endpoint::new("outlook.office365.com", 993, Security::Tls),
             smtp: Endpoint::new("smtp.office365.com", 587, Security::StartTls),
         }

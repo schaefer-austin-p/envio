@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 09:03+0100\n"
+"POT-Creation-Date: 2026-11-20 10:14+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -608,13 +608,6 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
-#. TRANSLATORS: chip on a draft that is not on the server; keep to about
-#. 20 characters.
-#: qml/pages/inbox/MessageRow.qml:153
-#: crates/envio-core/src/text/draft_chip.rs:10
-msgid "Not uploaded"
-msgstr ""
-
 #: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/SelectionBar.qml:46
 #: qml/pages/reader/ReaderMore.qml:22
 msgid "Move to folder"
@@ -1069,6 +1062,12 @@ msgid "Finds mail older than the {n} day kept here"
 msgid_plural "Finds mail older than the {n} days kept here"
 msgstr[0] ""
 msgstr[1] ""
+
+#. TRANSLATORS: chip on a draft that is not on the server; keep to about
+#. 20 characters.
+#: crates/envio-core/src/text/draft_chip.rs:10
+msgid "Not uploaded"
+msgstr ""
 
 #. TRANSLATORS: chip, the server refused the draft because the mailbox is
 #. full; keep to about 20 characters.
