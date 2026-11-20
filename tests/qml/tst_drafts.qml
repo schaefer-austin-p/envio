@@ -181,6 +181,14 @@ Item {
             verify(!shown("statusChip", find("row-12", page)), "the server row has none")
             compare(find("statusChipText", find("row-11", page)).text, "Not uploaded")
         }
+        function test_row_menu_is_not_offered_on_a_local_draft() {
+            core.messages.append(row(11, "d1", true))
+            waitForRendering(page)
+            const r = find("row-11", page)
+            mouseClick(r, 40, r.height / 2, Qt.RightButton)
+            wait(150)
+            verify(!find("rowMenu", page).visible, "a local draft has no server copy to act on")
+        }
         function test_chip_shows_the_reason_the_core_gives() {
             core.messages.append(row(11, "d1", true, false, "Server is full"))
             core.messages.append(row(12, "", false))

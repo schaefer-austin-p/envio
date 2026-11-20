@@ -13,6 +13,7 @@
         <file>pages/inbox/FoldersDrawer.qml</file>
         <file>pages/inbox/SelectionBar.qml</file>
         <file>pages/inbox/MoveSheet.qml</file>
+        <file>pages/inbox/RowMenu.qml</file>
         <file>pages/inbox/OutboxPage.qml</file>
         <file>pages/inbox/OutboxRow.qml</file>
         <file>pages/reader/ReaderPage.qml</file>

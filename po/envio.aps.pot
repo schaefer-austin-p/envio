@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 14:53+0100\n"
+"POT-Creation-Date: 2026-11-20 15:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -51,8 +51,8 @@ msgstr ""
 msgid "Trash"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:20 qml/pages/inbox/SelectionBar.qml:31
-#: qml/pages/reader/ReaderPage.qml:278
+#: qml/components/FolderLabel.qml:20 qml/pages/inbox/RowMenu.qml:146
+#: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:278
 msgid "Archive"
 msgstr ""
 
@@ -81,16 +81,16 @@ msgid "Enter"
 msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
-#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/SelectionBar.qml:38
-#: qml/pages/reader/ReaderPage.qml:286
+#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/RowMenu.qml:155
+#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:20
+#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/RowMenu.qml:155
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:21 qml/pages/inbox/InboxPage.qml:216
+#: qml/components/ShortcutsDialog.qml:21 qml/pages/inbox/InboxPage.qml:217
 msgid "New message"
 msgstr ""
 
@@ -640,7 +640,7 @@ msgstr ""
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:264 qml/pages/reader/ReaderPage.qml:541
+#: qml/pages/inbox/InboxPage.qml:265 qml/pages/reader/ReaderPage.qml:541
 msgid "Undo"
 msgstr ""
 
@@ -656,8 +656,8 @@ msgstr ""
 msgid "No older messages"
 msgstr ""
 
-#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/SelectionBar.qml:46
-#: qml/pages/reader/ReaderMore.qml:22
+#: qml/pages/inbox/MoveSheet.qml:18 qml/pages/inbox/RowMenu.qml:142
+#: qml/pages/inbox/SelectionBar.qml:46 qml/pages/reader/ReaderMore.qml:22
 msgid "Move to folder"
 msgstr ""
 
@@ -697,11 +697,15 @@ msgstr ""
 msgid "Edit"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:66
+#: qml/pages/inbox/RowMenu.qml:133
+msgid "Select"
+msgstr ""
+
+#: qml/pages/inbox/RowMenu.qml:138 qml/pages/inbox/SelectionBar.qml:66
 msgid "Mark as read"
 msgstr ""
 
-#: qml/pages/inbox/SelectionBar.qml:67
+#: qml/pages/inbox/RowMenu.qml:138 qml/pages/inbox/SelectionBar.qml:67
 msgid "Mark as unread"
 msgstr ""
 
