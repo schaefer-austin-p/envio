@@ -301,3 +301,85 @@ async fn a_deleted_message_is_removed_and_a_pending_flag_does_not_hide_keywords(
         [(a, Some(vec!["$Forwarded".to_owned()]))]
     );
 }
+
+fn fetch_flag_calls(server: &FakeServer) -> usize {
+    server
+        .calls
+        .iter()
+        .filter(|call| call.starts_with("fetch_flags"))
+        .count()
+}
+
+/// Gives the cached row a `NULL` keywords column, as a row cached before
+/// migration 0005 has: delete it and upsert it again.
+fn forget_keywords(store: &Store, folder: envio_store::FolderId, uid: u32) {
+    store.db.delete_messages(folder, &[uid]).unwrap();
+    store
+        .db
+        .upsert_message(
+            folder,
+            &envio_store::NewMessage {
+                uid,
+                size: 1_000,
+                envelope: envio_store::Envelope {
+                    message_id: Some(format!("<{uid}@example.org>")),
+                    subject: format!("m{uid}"),
+                    from: "Ada <ada@example.org>".into(),
+                    to: "bob@example.org".into(),
+                    date: NOW_SECS,
+                    in_reply_to: None,
+                    references: Vec::new(),
+                    has_attachments: false,
+                },
+                flags: envio_store::Flags::empty(),
+                preview: String::new(),
+            },
+        )
+        .unwrap();
+    assert_eq!(store.db.keywords_of(folder, uid).unwrap(), None);
+}
+
+#[tokio::test]
+async fn rows_cached_before_the_migration_get_their_keywords_in_one_full_check() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::from_names(["CONDSTORE"]);
+    let a = server.deliver_id("INBOX", "a");
+    let b = server.deliver_id("INBOX", "b");
+    server.set_flags("INBOX", a, with_keywords(&[], &["$Label1"]));
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    let inbox = store.folder("INBOX").id;
+    forget_keywords(&store, inbox, a);
+    // MODSEQ is unchanged, yet the unknown row is filled.
+    server.calls.clear();
+    let synced = sync_inbox(&mut server, &mut store).await.unwrap();
+    assert_eq!(synced.flags_changed, 0);
+    assert_eq!(fetch_flag_calls(&server), 1);
+    assert_eq!(
+        store.db.keywords_by_uid(inbox).unwrap(),
+        [(a, Some(vec!["$Label1".to_owned()])), (b, Some(vec![]))]
+    );
+    // Back to no full check.
+    server.calls.clear();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    assert_eq!(fetch_flag_calls(&server), 0, "{:?}", server.calls);
+}
+
+#[tokio::test]
+async fn a_null_row_outside_the_window_does_not_force_a_flag_check() {
+    let mut server = FakeServer::new();
+    server.caps = Caps::from_names(["CONDSTORE"]);
+    let a = server.deliver_id("INBOX", "a");
+    // Older than the 30-day window.
+    let old = server.deliver("INBOX", &eml("old"), NOW_SECS - 90 * 86_400);
+    let mut store = Store::new();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    let inbox = store.folder("INBOX").id;
+    // Cached outside the window, with unknown keywords; the server lists it
+    // by UID but not in the window.
+    forget_keywords(&store, inbox, old);
+    assert_eq!(store.db.keywords_of(inbox, a).unwrap(), Some(vec![]));
+    server.calls.clear();
+    sync_inbox(&mut server, &mut store).await.unwrap();
+    assert_eq!(fetch_flag_calls(&server), 0, "{:?}", server.calls);
+}

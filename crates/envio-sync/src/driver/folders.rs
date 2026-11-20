@@ -1,6 +1,6 @@
 //! Folder list and folder sync, and fetching one body on open.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use envio_mime::Address;
@@ -161,6 +161,15 @@ pub async fn sync_folder_as(
                 None => server.search_all().await?,
             }),
         };
+        // Only rows the flag check will cover count: a `NULL` row outside
+        // the window must not force a full check on every sync.
+        let cached_set: HashSet<u32> = cached_uids.iter().copied().collect();
+        let checked: Vec<u32> = window
+            .iter()
+            .copied()
+            .filter(|uid| cached_set.contains(uid))
+            .collect();
+        let unknown_keywords = local.db.has_unknown_keywords(id, &checked)?;
         let plan = plan_folder(
             &FolderView {
                 server: state,
@@ -169,6 +178,7 @@ pub async fn sync_folder_as(
                 cached_uids: &cached_uids,
                 kept: kept.as_ref(),
                 condstore: server.caps().condstore,
+                unknown_keywords,
             },
             &pending,
         );
