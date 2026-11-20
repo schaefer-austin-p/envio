@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-20 11:03+0100\n"
+"POT-Creation-Date: 2026-11-20 12:08+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,47 +68,47 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:14
+#: qml/components/ShortcutsDialog.qml:18
 msgid "Move the selection"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:15
+#: qml/components/ShortcutsDialog.qml:19
 msgid "Open the message"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:15
+#: qml/components/ShortcutsDialog.qml:19
 msgid "Enter"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:16 qml/pages/inbox/OutboxPage.qml:89
+#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
 #: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/SelectionBar.qml:38
 #: qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:16
+#: qml/components/ShortcutsDialog.qml:20
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:17 qml/pages/inbox/InboxPage.qml:210
+#: qml/components/ShortcutsDialog.qml:21 qml/pages/inbox/InboxPage.qml:210
 msgid "New message"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:17 qml/components/ShortcutsDialog.qml:18
+#: qml/components/ShortcutsDialog.qml:21 qml/components/ShortcutsDialog.qml:22
 #: qml/pages/ReaderPane.qml:49
 msgid "Ctrl"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:18 qml/pages/reader/InviteCard.qml:35
+#: qml/components/ShortcutsDialog.qml:22 qml/pages/reader/InviteCard.qml:35
 #: qml/pages/reader/ReplyBar.qml:29
 msgid "Reply"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:19
+#: qml/components/ShortcutsDialog.qml:23
 msgid "Close the reader or compose"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:19
+#: qml/components/ShortcutsDialog.qml:23
 msgid "Esc"
 msgstr ""
 
