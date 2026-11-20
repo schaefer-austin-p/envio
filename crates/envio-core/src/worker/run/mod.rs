@@ -47,7 +47,9 @@ fn step_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Pr
         // Waiting would only repeat it; the next full run tries again.
         finished(worker, account, step);
     }
-    if !matches!(problem, Problem::Refused(_)) || matches!(step, Step::Body(_) | Step::Part(..)) {
+    if !matches!(problem, Problem::Refused(_))
+        || matches!(step, Step::Body(_) | Step::Part(..) | Step::Keywords(_))
+    {
         worker.open_failed(Some(account));
     }
     // Prefetch is background work nobody asked for: its failure is no news.
@@ -110,6 +112,7 @@ pub(crate) async fn run_step(
         Step::Folders => sync::folders(worker, account, &mut session).await,
         Step::Body(id) => sync::body(worker, &mut session, *id).await,
         Step::Part(id, index) => sync::part(worker, &mut session, *id, *index).await,
+        Step::Keywords(id) => sync::keywords(worker, &mut session, *id).await,
         Step::Older(id) => worker.older_step(&mut session, *id).await,
         Step::SearchServer { folder, query } => {
             sync::search_server(worker, account, &mut session, (*folder, query)).await
@@ -218,6 +221,7 @@ fn finished(worker: &mut Worker<'_>, account: &str, step: &Step) {
             live.wants.bodies.retain(|b| b != id);
             live.wants.whole.remove(id);
         }
+        Step::Keywords(id) => live.wants.keywords.retain(|k| k != id),
         Step::Part(id, index) => live
             .wants
             .parts

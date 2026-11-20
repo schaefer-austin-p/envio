@@ -132,6 +132,7 @@ impl Worker<'_> {
     /// The window closed: a reply still waiting for its body is forgotten.
     /// The draft itself is the draft thread's.
     pub(super) fn forget_waiting(&mut self, compose: ComposeId) {
+        self.forget_keyword_wait(compose);
         self.composing.retain(|_, waiting| {
             waiting.retain(|(c, _)| *c != compose);
             !waiting.is_empty()

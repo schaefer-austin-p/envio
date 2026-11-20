@@ -28,6 +28,14 @@ pub enum Kind {
     /// whose one message (UID 1) has the Message-ID [`DRAFT_ID`]. A STORE
     /// or EXPUNGE is answered OK.
     Drafts,
+    /// Like `Drafts`, and a FLAGS-only fetch of UID 1 answers
+    /// `(\Draft \Seen)`: the original has no keywords.
+    Unflagged,
+    /// Like `Unflagged`, with the keyword `$Forwarded` (set by another
+    /// client after the cache was filled).
+    Forwarded,
+    /// Like `Unflagged`, but the FLAGS-only fetch is refused.
+    FlagsRefused,
     /// Like `Mailbox`, with an INBOX of UIDs 1 to 10 (UIDNEXT 11): UID 10
     /// is new, 1 to 9 are dated 2020. SEARCH, FETCH of summaries and flags
     /// answer for them; every command line is kept in `log`.
@@ -115,6 +123,18 @@ fn handle(
         Kind::Drafts => {
             tls.write_all(b"* OK fake ready\r\n")?;
             talk(tls, drafts_reply, true, log)
+        }
+        Kind::Unflagged => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, unflagged_reply, true, log)
+        }
+        Kind::Forwarded => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, forwarded_reply, true, log)
+        }
+        Kind::FlagsRefused => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, refused_reply, true, log)
         }
         Kind::Older => {
             tls.write_all(b"* OK fake ready\r\n")?;
@@ -259,6 +279,33 @@ fn drafts_reply(line: &str) -> (String, bool) {
         return message_reply(line);
     };
     (text, false)
+}
+
+/// `drafts_reply`, but a FETCH of flags alone answers `flags` for UID 1 (a
+/// refusal for `None`).
+fn flags_reply(line: &str, flags: Option<&str>) -> (String, bool) {
+    let (tag, command) = line.split_once(' ').unwrap_or((line, ""));
+    let upper = command.to_ascii_uppercase();
+    if upper.starts_with("UID FETCH") && !upper.contains("BODY") {
+        let text = match flags {
+            Some(flags) => format!("* 1 FETCH (UID 1 FLAGS ({flags}))\r\n{tag} OK done\r\n"),
+            None => format!("{tag} NO refused\r\n"),
+        };
+        return (text, false);
+    }
+    drafts_reply(line)
+}
+
+fn unflagged_reply(line: &str) -> (String, bool) {
+    flags_reply(line, Some("\\Draft \\Seen"))
+}
+
+fn forwarded_reply(line: &str) -> (String, bool) {
+    flags_reply(line, Some("\\Draft \\Seen $Forwarded"))
+}
+
+fn refused_reply(line: &str) -> (String, bool) {
+    flags_reply(line, None)
 }
 
 /// The UIDs a set like `9:1,10` names.

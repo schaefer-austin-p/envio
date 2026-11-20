@@ -8,6 +8,7 @@ mod actions;
 mod body;
 mod drafts;
 mod folders;
+mod keywords;
 mod older;
 mod outbox;
 mod prefetch;
@@ -21,6 +22,7 @@ pub use drafts::{DraftRun, DraftsSynced, forget_deleted_drafts, sync_drafts, syn
 pub use folders::{
     BATCHES_PER_STEP, Options, Synced, WindowMemo, sync_folder, sync_folder_as, sync_folders,
 };
+pub use keywords::refresh_flags;
 pub use older::{Older, load_older};
 pub use outbox::{Filed, Sent, file_sent, refuse_outbox, send_outbox};
 pub use prefetch::{Prefetched, prefetch_bodies};

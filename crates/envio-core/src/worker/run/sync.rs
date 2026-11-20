@@ -180,6 +180,24 @@ pub(super) async fn body(
     Ok(())
 }
 
+/// Asks the server for the keywords of the original of an Edit; the Edit
+/// goes on with the answer (see `Worker::keywords_checked`).
+pub(super) async fn keywords(
+    worker: &mut Worker<'_>,
+    session: &mut ImapSession,
+    id: MessageRowId,
+) -> Result<(), Problem> {
+    let message = worker.store.db.message(id).map_err(|e| store_error(&e))?;
+    let fresh = driver::refresh_flags(session, &worker.store.local(), &message)
+        .await
+        .map_err(|e| imap_error(&e))?;
+    worker.emit(Event::MessagesChanged {
+        folders: vec![message.folder],
+    });
+    worker.keywords_checked(id, fresh);
+    Ok(())
+}
+
 /// Fetches one attachment of a partial message and writes it where the user
 /// asked (see `Worker::part_fetched`).
 pub(super) async fn part(
