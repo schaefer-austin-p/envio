@@ -108,6 +108,16 @@ async fn a_draft_with_a_keyword_is_copied_and_one_without_is_replaced() {
         std::thread::sleep(Duration::from_millis(200));
     }
     label(&server, &drafts, uid, true).await;
+    // A push (IDLE) could have refreshed the cache already; then Edit would
+    // copy on the cached keyword alone and prove nothing about the live
+    // check. Fail loudly instead of passing without it.
+    let cached = db.keywords_of(folder, uid).unwrap();
+    assert!(
+        cached
+            .as_ref()
+            .is_some_and(|w| !w.iter().any(|k| k.eq_ignore_ascii_case("$Label1"))),
+        "the cache must still be stale before Edit: {cached:?}"
+    );
     edit_shown_and_save(&run, (&account, folder), &stale, &stale_copy);
     settles_at(&server, &drafts, &stale_copy, 1).await;
     tokio::time::sleep(Duration::from_secs(3)).await;
