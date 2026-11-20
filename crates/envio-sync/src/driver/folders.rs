@@ -152,6 +152,7 @@ pub async fn sync_folder_as(
         state.uid_validity,
     );
     let cached_uids = local.db.uids(id)?;
+    let mut unknown: Option<bool> = None;
     let (window, plan) = loop {
         let remembered = reused.is_some();
         let window = match reused.take() {
@@ -161,6 +162,21 @@ pub async fn sync_folder_as(
                 None => server.search_all().await?,
             }),
         };
+        // Only rows inside the window count: a `NULL` row below it must
+        // not force a full check on every sync. One query per sync, with
+        // the first window (a re-search differs only by mail that
+        // arrived or left meanwhile).
+        let unknown_keywords = match unknown {
+            Some(known) => known,
+            None => {
+                let known = match (window.iter().min(), window.iter().max()) {
+                    (Some(&lo), Some(&hi)) => local.db.has_unknown_keywords_between(id, lo, hi)?,
+                    _ => false,
+                };
+                unknown = Some(known);
+                known
+            }
+        };
         let plan = plan_folder(
             &FolderView {
                 server: state,
@@ -169,6 +185,7 @@ pub async fn sync_folder_as(
                 cached_uids: &cached_uids,
                 kept: kept.as_ref(),
                 condstore: server.caps().condstore,
+                unknown_keywords,
             },
             &pending,
         );

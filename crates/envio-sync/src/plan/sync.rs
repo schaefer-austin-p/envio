@@ -64,6 +64,9 @@ pub struct FolderView<'a> {
     /// outside the window. `None` after a restart.
     pub kept: Option<&'a Kept>,
     pub condstore: bool,
+    /// Some cached row inside the window (a cached UID the server lists in
+    /// it) has unknown keywords: only a full flag check can fill them.
+    pub unknown_keywords: bool,
 }
 
 /// Which flags to ask the server for.
@@ -141,6 +144,9 @@ pub fn plan_folder(view: &FolderView<'_>, pending: &Pending) -> FolderPlan {
 fn flag_check(view: &FolderView<'_>, nothing_cached: bool) -> FlagCheck {
     if nothing_cached {
         return FlagCheck::Skip;
+    }
+    if view.unknown_keywords {
+        return FlagCheck::All;
     }
     let last = view.cached.and_then(|cached| cached.highestmodseq);
     match (view.condstore, last, view.server.highest_modseq) {
@@ -254,7 +260,13 @@ mod tests {
             cached_uids,
             kept: None,
             condstore: true,
+            unknown_keywords: false,
         }
+    }
+
+    fn with_unknown(mut view: FolderView<'_>) -> FolderView<'_> {
+        view.unknown_keywords = true;
+        view
     }
 
     fn with_kept<'a>(mut view: FolderView<'a>, kept: &'a Kept) -> FolderView<'a> {
@@ -339,6 +351,33 @@ mod tests {
         let plan = plan_folder(&plain, &Pending::default());
         assert_eq!(plan.flags, FlagCheck::All);
         assert_eq!(plan.finish.highestmodseq, None);
+    }
+
+    #[test]
+    fn unknown_keywords_force_a_full_flag_check_but_not_a_new_modseq() {
+        let cached = Some(state(7, 10, Some(50)));
+        for now in [50, 60] {
+            let plan = plan_folder(
+                &with_unknown(view(server(7, 10, Some(now)), &[5], cached, &[5])),
+                &Pending::default(),
+            );
+            assert_eq!(plan.flags, FlagCheck::All, "modseq {now}");
+            assert_eq!(plan.finish.highestmodseq, Some(now));
+        }
+    }
+
+    #[test]
+    fn nothing_cached_still_skips_with_unknown_keywords() {
+        let plan = plan_folder(
+            &with_unknown(view(
+                server(7, 10, Some(50)),
+                &[5],
+                Some(state(7, 10, Some(50))),
+                &[],
+            )),
+            &Pending::default(),
+        );
+        assert_eq!(plan.flags, FlagCheck::Skip);
     }
 
     #[test]

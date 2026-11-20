@@ -3,15 +3,11 @@
 //! and joined by one space (a keyword is an atom, so it holds no space).
 //! Callers treat unknown like "has keywords".
 
-use rusqlite::types::Value;
-use rusqlite::{OptionalExtension, params, params_from_iter};
+use rusqlite::{OptionalExtension, params};
 
 use crate::db::{Db, found};
 use crate::error::Result;
 use crate::folders::FolderId;
-
-/// One chunk of UIDs stays under SQLite's bound-variable limit.
-const UID_CHUNK: usize = 500;
 
 fn encode(keywords: &[String]) -> String {
     let mut sorted: Vec<&str> = keywords.iter().map(String::as_str).collect();
@@ -62,26 +58,16 @@ impl Db {
         Ok(rows)
     }
 
-    /// True if any of these cached UIDs has unknown (`NULL`) keywords. UIDs
-    /// that are not cached are ignored.
-    pub fn has_unknown_keywords(&self, folder: FolderId, uids: &[u32]) -> Result<bool> {
-        for chunk in uids.chunks(UID_CHUNK) {
-            let marks = vec!["?"; chunk.len()].join(",");
-            let args = std::iter::once(Value::from(folder.0))
-                .chain(chunk.iter().map(|&uid| Value::from(i64::from(uid))));
-            let hit: bool = self.conn().query_row(
-                &format!(
-                    "SELECT EXISTS(SELECT 1 FROM messages
-                     WHERE folder_id = ? AND keywords IS NULL AND uid IN ({marks}))"
-                ),
-                params_from_iter(args),
-                |row| row.get(0),
-            )?;
-            if hit {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+    /// True if a cached row of the folder with a UID in `lo..=hi` has
+    /// unknown (`NULL`) keywords. One indexed lookup, however long the
+    /// folder is; rows outside the range never count.
+    pub fn has_unknown_keywords_between(&self, folder: FolderId, lo: u32, hi: u32) -> Result<bool> {
+        Ok(self.conn().query_row(
+            "SELECT EXISTS(SELECT 1 FROM messages
+             WHERE folder_id = ?1 AND uid BETWEEN ?2 AND ?3 AND keywords IS NULL)",
+            params![folder.0, lo, hi],
+            |row| row.get(0),
+        )?)
     }
 }
 
