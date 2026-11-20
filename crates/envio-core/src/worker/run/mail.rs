@@ -51,10 +51,7 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
         worker.emit_outbox();
         worker.reshow_open_invite();
     }
-    match sent.stopped {
-        Some(kind) => Err(problem::from_kind(kind)),
-        None => Ok(()),
-    }
+    problem::from_stopped("send or replay", sent.stopped)
 }
 
 pub(super) async fn file(

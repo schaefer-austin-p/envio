@@ -121,7 +121,7 @@ fn the_revoking_errors_are_revoked() {
     ] {
         let body = format!(r#"{{"error":"{code}","error_description":"x"}}"#);
         assert!(
-            matches!(reply(400, &body), Err(TokenError::Revoked)),
+            matches!(reply(400, &body), Err(TokenError::Revoked(c)) if c == code),
             "{code}"
         );
     }

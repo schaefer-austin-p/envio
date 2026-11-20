@@ -66,7 +66,7 @@ pub(crate) fn failure_of(error: &TokenError) -> OAuthFailure {
     match error {
         TokenError::Temporary => OAuthFailure::Offline,
         TokenError::Refused(_) => OAuthFailure::Blocked,
-        TokenError::Revoked => OAuthFailure::Other,
+        TokenError::Revoked(_) => OAuthFailure::Other,
     }
 }
 
