@@ -7,18 +7,52 @@ All notable changes to Envio are listed here. The format follows
 
 ### Added
 
-- Sign in with Microsoft for Outlook.com, Hotmail, Live and MSN addresses
-  (with their country domains) and `*.onmicrosoft.com` ones. Custom domains
-  hosted at Microsoft follow later (#221). It uses OAuth 2.0 with PKCE in
-  the system browser and XOAUTH2 over IMAP and SMTP. Tokens refresh without
-  a prompt, "Sign in again" appears when Microsoft revokes the sign-in, a
-  held Outbox message goes out after it, and a mailbox with Authenticated
-  SMTP switched off gets a clear message. It is built and tested end to
-  end. The Microsoft client ID is now set (#219 T10), so the sign-in is
-  offered; it has not yet been tried against Microsoft on a phone.
+- New-mail notifications while Envio runs: a system notification and a
+  launcher badge when mail reaches an Inbox (#144). Envio still cannot wake
+  a suspended phone; that is planned.
+- Drafts go to the server. A draft is uploaded to the account's Drafts
+  folder and replaces its older copy, and it is removed when you send or
+  delete it (#52, #59, #284). A draft the server refuses (mailbox full,
+  folder read-only, too large) shows "Not uploaded" with the reason, and
+  Envio retries with growing waits (#266).
+- Saved drafts show in the Drafts list and reopen. Edit on a draft in
+  Drafts opens it for writing again, also when the draft only exists on the
+  server (#228, #324). Delete on a draft has Undo. An account whose server
+  has no Drafts folder gets a Drafts entry in the drawer that keeps its
+  drafts on the phone (#303).
+- Share into Envio: a file shared from another app opens compose with it
+  attached (#201). Envio is offered in "Open with" for files of any type
+  (#290).
+- Rename an account (#217).
+- A wide two-pane layout on tablets and desktop windows, with the list on
+  the left and the reader or compose on the right. Resizing the window
+  keeps the open message or draft (#192). Hover highlights and a
+  right-click menu on message rows (#192).
+- Keyboard shortcuts and a shortcuts dialog (#192).
+- Icons on menu and sheet items (#356).
+- For developers: `cargo make run-desktop` runs Envio in a desktop window,
+  described in the README (#188).
 
 ### Changed
 
+- Microsoft addresses (Outlook.com, Hotmail, Live, MSN and their country
+  domains, and `*.onmicrosoft.com`) are refused when you add an account. A
+  message says that support for them comes in a later version (#381). An
+  existing Microsoft account is shown as not supported and can be removed.
+- Newsletters look closer to the sender's design: headings, inner
+  alignment, font shorthand and sans-serif faces are kept, empty spacer
+  cells no longer draw as dark bars, and hidden preheader text stays
+  hidden (#341).
+- Sheets are capped in height and scroll when long (#83).
+- Setup says the server closed the connection, not that it is
+  unreachable, when a server drops the session after connecting (#313).
+- Security hardening: files Envio writes are private to the app, and
+  autoconfig that points at a host outside the address's domain asks you
+  first (#158). A message is limited to 200 distinct remote images (#215)
+  and inline images are capped in pixels and checked for their real type
+  (#213). Headers Envio adds itself cannot be forged behind leading
+  whitespace (#214). Lettre is updated to 0.11.24, which checks SMTP reply
+  classes (#236).
 - The keyboard handling (pages and sheets rising above the on-screen
   keyboard, the focused field scrolled into view) moved to the shared
   [bindle](https://code.austinschaefer.com/schaefera/bindle) library,
@@ -33,32 +67,55 @@ All notable changes to Envio are listed here. The format follows
 
 - "Always load images from this sender" and the known-sender cue now apply
   only when the mail provider's `Authentication-Results` header says the
-  From domain passed DKIM, SPF or DMARC. The server must be one of Gmail
-  (`imap.gmail.com`), Fastmail, iCloud or Yahoo, and the header's
-  authserv-id must be that provider's own. A forged From address no longer
-  loads images or shows as known. Only the topmost header counts, the
-  message must have exactly one From address, and the signing domain only
-  needs to share the From domain's organisation. A self-hosted or
-  IP-address server's own header is no longer trusted, and Outlook and
-  Exchange have no entry (#285).
-  Mail without a verified header is unverified, and "Always for this
-  sender" is hidden on it (#156).
-- Load older no longer comes back with nothing new under your scroll
-  position when a batch held only mail dated newer than the last row
-  shown (mail imported out of date order): it fetches on to the next
-  batch, up to 500 messages at a time (#254).
+  From domain passed DKIM, SPF or DMARC. The provider is recognised by its
+  exact IMAP host: Fastmail, iCloud or Yahoo, and the header's authserv-id
+  must be that provider's own. For every other server, Envio checks the
+  message's DKIM signature itself against the sender's DNS key while the
+  message is open (#285). A forged From address no longer loads images or
+  shows as known. Only the topmost header counts, the message must have
+  exactly one From address, and the signing domain only needs to share the
+  From domain's organisation. A self-hosted or IP-address server's own
+  header is not trusted. Microsoft servers have no provider entry; mail
+  there is checked by its DKIM signature like any other. "Always for this
+  sender" is hidden on mail that cannot be verified (#156).
+- Attaching a file with the picker works again: the picked files are handed
+  over once Content Hub has finished (#286).
+- Edit on a draft never loses a label or flag set on the server: such a
+  draft is copied, not replaced (#324).
+- Discarding a draft or confirming a dialog no longer crashes the app on
+  the phone (#329).
+- Tapping the open folder's tab again no longer closes the open message
+  (#331).
+- Load older no longer skips mail that arrived out of date order, and no
+  longer comes back with nothing new under your scroll position when a
+  batch held only newer mail: it pages by what the cache lacks and fetches
+  on to the next batch, up to 500 messages at a time (#94, #254). A removed
+  account no longer gets a notice from it (#95).
 - Mail styles containing `var(` or `env(` are now dropped on every
-  property, not only in the `background` shorthand (#276).
+  property, not only in the `background` shorthand (#276). Relative font
+  sizes in HTML mail are kept in a readable range, including nested ones
+  (#191, #243, #259).
 - Call-to-action buttons in mail keep their fill: a link or cell styled
   with the `background` shorthand now shows its background colour (#178).
   Qt rich text cannot draw borders or rounded corners, so those stay plain.
 - New mail on an account that is not in the foreground could wait up to
   29 minutes to show up when it arrived at the moment Envio began
-  listening for mail; it now shows within 5 minutes (#48).
+  listening for mail; it now shows within 5 minutes (#48). The connection
+  and folder selection no longer block other actions (#239).
+- Deleting a draft in Drafts removes its local copy, and a deleted draft
+  stays gone after a crash or restart (#284, #304). An old copy of a
+  deleted message no longer comes back (#159).
+- Edit works on a failed Outbox message that has attachments (#47).
 - Add to calendar is no longer offered on a cancellation or a reply, and
   an event Envio converts from a cancelled invite keeps
   `STATUS:CANCELLED`, so Calendar no longer imports it as a live meeting
-  (#212).
+  (#212). An exported invite keeps its description (#211).
+- The copy menu in a message reopens after a selection handle drag, and
+  the selection menu stays clear of the handles (#296, #291).
+- The Airmail theme's frame has square bottom corners in a desktop window
+  (#343), and the wide layout's list stops at the pane (#338).
+- An error from the server on a flag or search command is shown instead
+  of being ignored (#190, #231).
 - Tapping a link in a message opens the link sheet again on the phone.
   Since text selection arrived in 0.2.0, a finger tap on a link did
   nothing; only a mouse click worked.
