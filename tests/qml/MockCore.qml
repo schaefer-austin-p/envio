@@ -64,6 +64,7 @@ Item {
     signal messageUnavailable(real id, string text)
     signal attachmentSaved(string path)
     signal attachmentFailed(real id)
+    signal listSwitched(real folder)
     signal inviteExported(real id, string path)
     signal inviteExportFailed(real id)
     signal undoOffer(real undo, string text, string scope)

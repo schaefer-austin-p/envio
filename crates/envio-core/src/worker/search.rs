@@ -65,6 +65,9 @@ impl Worker<'_> {
                 .map(|a| (a.key.clone(), self.inbox_of(&a.key)))
                 .collect(),
             SearchScope::Account(account) => vec![(account.clone(), self.inbox_of(account))],
+            SearchScope::Folder(f) if self.local_folders.borrow().account_of(*f).is_some() => {
+                Vec::new()
+            }
             SearchScope::Folder(folder) => match self.store.db.folder(*folder) {
                 Ok(f) => vec![(f.account, Some(*folder))],
                 Err(e) => {

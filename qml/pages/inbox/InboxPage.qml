@@ -96,6 +96,12 @@ Item {
         function onModelReset() { Qt.callLater(root.stopWaiting) }
         function onRowsInserted() { Qt.callLater(root.stopWaiting) }
     }
+    // The Ui moved the view to another folder itself (the local Drafts entry
+    // gave way to the server's): keep the search scope in step.
+    Connections {
+        target: root.core
+        function onListSwitched(folder) { root.folderId = folder }
+    }
     function stopWaiting() { pendingInbox = "" }
     // The account whose Inbox tab is shown was removed: back to the
     // unified inbox, which loads its list.

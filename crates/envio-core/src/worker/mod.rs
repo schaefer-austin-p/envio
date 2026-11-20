@@ -14,6 +14,7 @@ mod folder_order;
 mod inline;
 mod invite;
 mod label;
+mod local_folder;
 mod local_list;
 mod local_rows;
 mod oauth;
@@ -134,6 +135,8 @@ pub(crate) struct Worker<'s> {
     reset_pending: BTreeSet<FolderId>,
     /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
     local_ids: RefCell<local_rows::LocalIds>,
+    /// The local-only Drafts entries of accounts with no Drafts folder.
+    local_folders: RefCell<local_folder::LocalFolders>,
     /// The providers a user can sign in with (`Config.oauth`).
     providers: Vec<envio_net::oauth::Provider>,
     /// The sign-in that waits for the browser, if any.
@@ -282,6 +285,7 @@ impl<'s> Worker<'s> {
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
             local_ids: RefCell::default(),
+            local_folders: RefCell::default(),
             providers: config.oauth.clone(),
             oauth: None,
             dns: config

@@ -24,6 +24,7 @@ Item {
         anchors.fill: parent
     }
     SignalSpy { id: opened; target: page; signalName: "messageRequested" }
+    SignalSpy { id: searched; target: page; signalName: "searchRequested" }
     SignalSpy { id: wanted; target: page; signalName: "accountsRequested" }
 
     MockCore { id: shellCore }
@@ -538,6 +539,35 @@ Item {
             compare(findText("Inbox", sheet.contentItem).text, "Inbox")
             mouseClick(find("folder-8", sheet.contentItem))
             compare(core.called("act").pop().args, ["move", 8])
+            core.folders.clear()
+            core.messages.clear()
+        }
+
+        function test_search_follows_an_automatic_switch_of_the_list() {
+            searched.clear()
+            page.showFolder(-2, "Drafts")
+            // The server gained a Drafts folder: the Ui moves the view to it.
+            core.listSwitched(5)
+            compare(page.folderId, 5)
+            mouseClick(find("searchButton", page))
+            compare(searched.count, 1)
+            compare(searched.signalArguments[0][0], 5)
+            page.showUnified()
+        }
+
+        function test_movesheet_leaves_out_the_local_drafts_entry() {
+            core.messages.append(message(11, true))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            mouseClick(find("act-move", page))
+            const sheet = find("moveSheet", page)
+            tryVerify(function() { return sheet.opened })
+            // #303: the local Drafts entry has a negative id and no server folder.
+            core.folders.append({ id: -2, account: "ann", name: "Drafts", role: "drafts", unread: 0, depth: 0 })
+            core.folders.append({ id: 8, account: "ann", name: "Trips 2026", role: "", unread: 0, depth: 0 })
+            compare(find("folder-8", sheet.contentItem).visible, true)
+            compare(find("folder--2", sheet.contentItem).visible, false)
+            sheet.close()
+            tryVerify(function() { return !sheet.opened })
             core.folders.clear()
             core.messages.clear()
         }

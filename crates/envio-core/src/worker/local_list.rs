@@ -30,21 +30,46 @@ impl Worker<'_> {
 
     fn local_draft_rows(&self, folder: FolderId) -> envio_store::Result<Vec<MessageRow>> {
         let db = &self.store.db;
-        let folder = db.folder(folder)?;
-        if folder.role != FolderRole::Drafts {
-            return Ok(Vec::new());
-        }
+        // The local-only entry of an account with no Drafts folder (#303):
+        // nothing is on the server, so nothing is trimmed against it. Once
+        // the account has a Drafts folder the entry is gone and lists nothing.
+        let local = self
+            .local_folders
+            .borrow()
+            .account_of(folder)
+            .map(str::to_owned);
+        let (account, on_server) = match local {
+            Some(account) => {
+                let has_drafts = db
+                    .folders(&account)?
+                    .iter()
+                    .any(|f| f.role == FolderRole::Drafts);
+                if has_drafts {
+                    return Ok(Vec::new());
+                }
+                (account, HashSet::new())
+            }
+            None => {
+                let folder = db.folder(folder)?;
+                if folder.role != FolderRole::Drafts {
+                    return Ok(Vec::new());
+                }
+                (folder.account, db.message_ids_in(folder.id)?)
+            }
+        };
         let drafts = self.store.drafts.list()?;
-        let folders = db.folders(&folder.account)?;
-        let on_server = db.message_ids_in(folder.id)?;
-        let leaving = leaving(self.store.journal.pending(), &folder.account, &folders);
+        let folders = db.folders(&account)?;
+        let leaving = leaving(self.store.journal.pending(), &account, &folders);
         let open: HashSet<String> = self.book.open_drafts().into_iter().collect();
         let mut ids = self.local_ids.borrow_mut();
         Ok(local_rows(
             &drafts,
-            (&folder.account, folder.id),
+            (&account, folder),
             (&on_server, &leaving, &open),
             &mut ids,
         ))
     }
 }
+
+#[cfg(test)]
+mod tests;
