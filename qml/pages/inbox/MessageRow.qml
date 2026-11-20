@@ -138,8 +138,9 @@ ListRow {
             font.family: root.theme.fontUi
             font.pixelSize: 14
         }
-        // A local draft with no server copy (Drafts list). #266 T5 later binds
-        // the text to the reason the core gives.
+        // A local draft with no server copy (Drafts list). The core gives the
+        // words: "Not uploaded", or the reason the server refused (never empty
+        // while notUploaded, see envio-core text/draft_chip.rs).
         Item {
             visible: root.model.notUploaded === true
             width: parent.width
@@ -150,7 +151,8 @@ ListRow {
                 objectName: "statusChip"
                 y: 5
                 theme: root.theme
-                text: qsTr("Not uploaded")
+                maxWidth: parent.width
+                text: root.model.notUploadedText
             }
         }
         Text {

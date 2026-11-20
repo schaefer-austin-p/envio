@@ -95,7 +95,7 @@ Item {
             const hit = all(name, from)
             return hit.length > 0 && hit[0].visible && hit[0].width > 0
         }
-        function row(id, draftId, notUploaded, selected) {
+        function row(id, draftId, notUploaded, selected, reason) {
             const local = draftId !== ""
             return { id: id, account: "ann", accountName: "Ann", from: local ? "To: Mara Becker, Ana Ruiz" : "To: Dev Kapoor",
                      fromAddress: local ? "mara@example.org" : "dev@example.org",
@@ -103,7 +103,8 @@ Item {
                      preview: local ? "Day one is the coastal path, then…" : "Here are the two from the ridge. The rest…",
                      date: 0, dateBucket: "time", unread: false, flagged: false, hasAttachments: false,
                      selected: selected === true, open: false,
-                     draftId: draftId, notUploaded: notUploaded, opens: local ? "compose" : "reader" }
+                     draftId: draftId, notUploaded: notUploaded,
+                     notUploadedText: notUploaded ? (reason === undefined ? "Not uploaded" : reason) : "", opens: local ? "compose" : "reader" }
         }
         function save(item, name) {
             if (shotsDir === "") return
@@ -179,6 +180,41 @@ Item {
             verify(shown("statusChip", find("row-11", page)), "the pseudo-row has the chip")
             verify(!shown("statusChip", find("row-12", page)), "the server row has none")
             compare(find("statusChipText", find("row-11", page)).text, "Not uploaded")
+        }
+        function test_chip_shows_the_reason_the_core_gives() {
+            core.messages.append(row(11, "d1", true, false, "Server is full"))
+            core.messages.append(row(12, "", false))
+            waitForRendering(page)
+            compare(find("statusChipText", find("row-11", page)).text, "Server is full")
+            verify(!shown("statusChip", find("row-12", page)), "a server row has no chip")
+        }
+        function test_a_long_reason_elides_on_one_line_inside_the_row() {
+            const wordy = "The server refused this draft because the mailbox is over its storage limit"
+            core.messages.append(row(11, "d1", true, false, wordy))
+            waitForRendering(page)
+            const r = find("row-11", page)
+            const chip = find("statusChip", r)
+            const t = find("statusChipText", r)
+            verify(chip.width <= r.width, "the chip fits the row")
+            verify(t.truncated, "the text is elided")
+            compare(t.lineCount, 1)
+            compare(t.elide, Text.ElideRight)
+        }
+        function test_a_long_reason_on_a_bare_chip_elides_at_max_width() {
+            const chip = chipComponent.createObject(root, { visible: true, maxWidth: 200,
+                text: "A very long reason that cannot fit in two hundred pixels at all" })
+            verify(chip !== null)
+            verify(chip.width <= 200)
+            verify(find("statusChipText", chip).truncated)
+            compare(find("statusChipText", chip).lineCount, 1)
+            chip.destroy()
+        }
+        function test_the_reason_ink_is_the_theme_text_in_the_dark_theme() {
+            core.messages.append(row(11, "d1", true, false, "Server is full"))
+            waitForRendering(page)
+            thm.darkMode = "dark"
+            compare(find("statusChipText", find("row-11", page)).color, thm.text)
+            compare(find("statusChip", find("row-11", page)).color, thm.tintA)
         }
         function test_tapping_a_compose_row_asks_for_the_draft_not_the_reader() {
             core.messages.append(row(-1, "d1", true))
