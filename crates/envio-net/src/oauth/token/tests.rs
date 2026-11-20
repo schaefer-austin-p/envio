@@ -184,7 +184,7 @@ fn the_code_request_body() {
     assert_eq!(
         body.expose_secret(),
         "client_id=cid%201&grant_type=authorization_code&code=c%26d%3De\
-         &redirect_uri=envio-oauth%3A%2F%2Fcallback&code_verifier=v%2Bw"
+         &redirect_uri=enviooauth%3A%2F%2Fcallback&code_verifier=v%2Bw"
     );
 }
 

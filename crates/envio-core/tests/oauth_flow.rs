@@ -100,7 +100,7 @@ impl Flow {
 
     fn redirect(&self, query: &str) {
         self.h.send(Command::OAuthRedirect {
-            url: secrecy::SecretString::from(format!("envio-oauth://callback?{query}")),
+            url: secrecy::SecretString::from(format!("enviooauth://callback?{query}")),
         });
     }
 
@@ -640,7 +640,7 @@ fn signing_in_again_resumes_the_account_and_the_outbox_drains() {
     });
     r.h.send(Command::OAuthRedirect {
         url: secrecy::SecretString::from(format!(
-            "envio-oauth://callback?code=c&state={}",
+            "enviooauth://callback?code=c&state={}",
             state_of(&url)
         )),
     });
@@ -688,7 +688,7 @@ fn removing_the_account_deletes_its_token() {
 #[test]
 fn the_redirect_command_does_not_print_its_code() {
     let command = Command::OAuthRedirect {
-        url: secrecy::SecretString::from("envio-oauth://callback?code=code-dbg&state=s".to_owned()),
+        url: secrecy::SecretString::from("enviooauth://callback?code=code-dbg&state=s".to_owned()),
     };
     let shown = format!("{command:?}");
     assert!(!shown.contains("code-dbg"), "{shown}");
@@ -807,7 +807,7 @@ fn sign_in_again(r: &Rig) -> (OAuthOutcome, Vec<Event>) {
     });
     r.h.send(Command::OAuthRedirect {
         url: secrecy::SecretString::from(format!(
-            "envio-oauth://callback?code=c&state={}",
+            "enviooauth://callback?code=c&state={}",
             state_of(&url)
         )),
     });

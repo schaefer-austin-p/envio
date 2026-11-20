@@ -92,7 +92,7 @@ fn resume(r: &Rig) {
         .expect("a state in the sign-in link")
         .to_owned();
     r.h.send(Command::OAuthRedirect {
-        url: format!("envio-oauth://callback?code=c&state={state}").into(),
+        url: format!("enviooauth://callback?code=c&state={state}").into(),
     });
     let outcome = r.h.wait(|e| match e {
         Event::OAuthDone { outcome, .. } => Some(*outcome),

@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn an_unsafe_error_value_is_not_echoed() {
     for e in ["a%40x", "for%20user%40example.org", &"a".repeat(65), ""] {
-        let url = format!("envio-oauth://callback?error={e}&state=s");
-        let got = parse_redirect(&url, "s", "envio-oauth://callback").err();
+        let url = format!("enviooauth://callback?error={e}&state=s");
+        let got = parse_redirect(&url, "s", "enviooauth://callback").err();
         assert_eq!(
             got,
             Some(RedirectError::Server("unknown".to_owned())),
@@ -17,27 +17,27 @@ fn an_unsafe_error_value_is_not_echoed() {
 fn an_error_with_a_wrong_or_missing_state_is_a_mismatch() {
     // A forged link must not cancel a pending sign-in.
     for url in [
-        "envio-oauth://callback?error=access_denied&state=other",
-        "envio-oauth://callback?error=access_denied",
-        "envio-oauth://callback?error=server_error&state=other",
-        "envio-oauth://callback?error=server_error",
+        "enviooauth://callback?error=access_denied&state=other",
+        "enviooauth://callback?error=access_denied",
+        "enviooauth://callback?error=server_error&state=other",
+        "enviooauth://callback?error=server_error",
     ] {
-        let got = parse_redirect(url, "s", "envio-oauth://callback").err();
+        let got = parse_redirect(url, "s", "enviooauth://callback").err();
         assert_eq!(got, Some(RedirectError::Mismatch), "{url}");
     }
 }
 
 #[test]
 fn a_fragment_is_ignored() {
-    let uri = "envio-oauth://callback";
-    let r = parse_redirect("envio-oauth://callback?code=c&state=s#state=evil", "s", uri).unwrap();
+    let uri = "enviooauth://callback";
+    let r = parse_redirect("enviooauth://callback?code=c&state=s#state=evil", "s", uri).unwrap();
     assert_eq!(secrecy::ExposeSecret::expose_secret(&r.code), "c");
-    let got = parse_redirect("envio-oauth://callback?state=s#code=c", "s", uri).err();
+    let got = parse_redirect("enviooauth://callback?state=s#code=c", "s", uri).err();
     assert_eq!(got, Some(RedirectError::Malformed));
 }
 use secrecy::ExposeSecret;
 
-const URI: &str = "envio-oauth://callback";
+const URI: &str = "enviooauth://callback";
 
 fn provider() -> Provider {
     Provider::microsoft_template().with_client_id("cid-1")
@@ -77,7 +77,7 @@ fn authorize_url_has_every_parameter_encoded() {
     assert_eq!(q.len(), 8);
     assert_eq!(get(&q, "response_type"), "code");
     assert_eq!(get(&q, "client_id"), "cid-1");
-    assert_eq!(get(&q, "redirect_uri"), "envio-oauth%3A%2F%2Fcallback");
+    assert_eq!(get(&q, "redirect_uri"), "enviooauth%3A%2F%2Fcallback");
     let scope = get(&q, "scope");
     assert!(scope.starts_with("https%3A%2F%2Foutlook.office.com%2FIMAP.AccessAsUser.All%20"));
     assert!(!scope.contains(' '));
@@ -102,7 +102,7 @@ fn a_hint_cannot_inject_parameters() {
 
 #[test]
 fn a_good_redirect_parses() {
-    let r = parse_redirect("envio-oauth://callback?code=ab%20c&state=xyz", "xyz", URI).unwrap();
+    let r = parse_redirect("enviooauth://callback?code=ab%20c&state=xyz", "xyz", URI).unwrap();
     assert_eq!(r.code.expose_secret(), "ab c");
     assert_eq!(r.state, "xyz");
 }
@@ -110,10 +110,10 @@ fn a_good_redirect_parses() {
 #[test]
 fn a_wrong_state_is_a_mismatch() {
     for url in [
-        "envio-oauth://callback?code=c&state=xyZ",
-        "envio-oauth://callback?code=c&state=xy",
-        "envio-oauth://callback?code=c&state=xyzz",
-        "envio-oauth://callback?code=c",
+        "enviooauth://callback?code=c&state=xyZ",
+        "enviooauth://callback?code=c&state=xy",
+        "enviooauth://callback?code=c&state=xyzz",
+        "enviooauth://callback?code=c",
     ] {
         assert_eq!(err(url, "xyz"), Some(RedirectError::Mismatch), "{url}");
     }
@@ -122,12 +122,12 @@ fn a_wrong_state_is_a_mismatch() {
 #[test]
 fn a_wrong_scheme_or_host_is_malformed() {
     for url in [
-        "envio-oauth://evil?code=c&state=s",
-        "envio-oauth://callback.evil?code=c&state=s",
-        "envio-oauth://callbackx?code=c&state=s",
+        "enviooauth://evil?code=c&state=s",
+        "enviooauth://callback.evil?code=c&state=s",
+        "enviooauth://callbackx?code=c&state=s",
         "other://callback?code=c&state=s",
         "https://callback?code=c&state=s",
-        "envio-oauth://callback/path?code=c&state=s",
+        "enviooauth://callback/path?code=c&state=s",
         "mailto:a@example.org",
         "",
     ] {
@@ -138,13 +138,13 @@ fn a_wrong_scheme_or_host_is_malformed() {
 #[test]
 fn access_denied_is_denied() {
     let url =
-        "envio-oauth://callback?error=access_denied&error_description=user%40example.org&state=s";
+        "enviooauth://callback?error=access_denied&error_description=user%40example.org&state=s";
     assert_eq!(err(url, "s"), Some(RedirectError::Denied));
 }
 
 #[test]
 fn another_error_keeps_only_the_code() {
-    let url = "envio-oauth://callback?error=server_error&error_description=for%20user%40example.org&state=s";
+    let url = "enviooauth://callback?error=server_error&error_description=for%20user%40example.org&state=s";
     let e = err(url, "s").unwrap();
     assert_eq!(e, RedirectError::Server("server_error".to_owned()));
     assert!(!format!("{e:?}").contains("example.org"));
@@ -153,9 +153,9 @@ fn another_error_keeps_only_the_code() {
 #[test]
 fn a_missing_code_is_malformed() {
     for url in [
-        "envio-oauth://callback?state=s",
-        "envio-oauth://callback?code=&state=s",
-        "envio-oauth://callback",
+        "enviooauth://callback?state=s",
+        "enviooauth://callback?code=&state=s",
+        "enviooauth://callback",
     ] {
         assert_eq!(err(url, "s"), Some(RedirectError::Malformed), "{url}");
     }
@@ -164,8 +164,8 @@ fn a_missing_code_is_malformed() {
 #[test]
 fn repeated_parameters_are_malformed() {
     for url in [
-        "envio-oauth://callback?code=a&code=b&state=s",
-        "envio-oauth://callback?code=a&state=s&state=s",
+        "enviooauth://callback?code=a&code=b&state=s",
+        "enviooauth://callback?code=a&state=s&state=s",
     ] {
         assert_eq!(err(url, "s"), Some(RedirectError::Malformed), "{url}");
     }
@@ -173,12 +173,33 @@ fn repeated_parameters_are_malformed() {
 
 #[test]
 fn a_huge_query_is_malformed() {
-    let url = format!("envio-oauth://callback?code={}&state=s", "a".repeat(20_000));
+    let url = format!("enviooauth://callback?code={}&state=s", "a".repeat(20_000));
     assert_eq!(err(&url, "s"), Some(RedirectError::Malformed));
 }
 
 #[test]
 fn debug_hides_the_code() {
-    let r = parse_redirect("envio-oauth://callback?code=CODE-MARKER&state=s", "s", URI).unwrap();
+    let r = parse_redirect("enviooauth://callback?code=CODE-MARKER&state=s", "s", URI).unwrap();
     assert!(!format!("{r:?}").contains("CODE-MARKER"));
+}
+
+#[test]
+fn a_trailing_slash_before_the_query_is_accepted() {
+    // morph-browser dispatches `enviooauth://callback/?...`.
+    let r = parse_redirect("enviooauth://callback/?code=c&state=xyz", "xyz", URI).unwrap();
+    assert_eq!(r.code.expose_secret(), "c");
+    let url = "enviooauth://callback/?code=c&state=bad";
+    assert_eq!(err(url, "xyz"), Some(RedirectError::Mismatch));
+}
+
+#[test]
+fn only_one_empty_path_segment_is_accepted() {
+    for url in [
+        "enviooauth://callback//?code=c&state=xyz",
+        "enviooauth://callback/x?code=c&state=xyz",
+        "enviooauth://callbackx?code=c&state=xyz",
+        "enviooauth://other/?code=c&state=xyz",
+    ] {
+        assert_eq!(err(url, "xyz"), Some(RedirectError::Malformed), "{url}");
+    }
 }

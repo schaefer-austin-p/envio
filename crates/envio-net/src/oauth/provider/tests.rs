@@ -50,7 +50,7 @@ fn microsoft_values() {
         "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send \
          offline_access openid email profile"
     );
-    assert_eq!(p.redirect_uri, "envio-oauth://callback");
+    assert_eq!(p.redirect_uri, "enviooauth://callback");
     assert_eq!(
         p.imap,
         Endpoint::new("outlook.office365.com", 993, Security::Tls)
@@ -112,5 +112,45 @@ fn other_domains_are_not() {
         "",
     ] {
         assert!(!ms(e), "{e}");
+    }
+}
+
+#[test]
+fn every_redirect_scheme_is_letters_and_digits_only() {
+    // Ubuntu Touch's lomiri-url-dispatcher only parses schemes matching
+    // `[a-z][a-z0-9]*` and refuses anything else (BadURL), so a scheme with a
+    // hyphen never gets the sign-in back to the app (#367).
+    // Add each new built-in provider to this list.
+    let providers = [Provider::microsoft_template()];
+    for p in &providers {
+        let (scheme, _) = p.redirect_uri.split_once("://").expect("has a scheme");
+        let mut chars = scheme.chars();
+        let first = chars.next().expect("scheme is not empty");
+        assert!(first.is_ascii_lowercase(), "{scheme}");
+        assert!(
+            chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()),
+            "{scheme}"
+        );
+    }
+}
+
+#[test]
+fn the_dispatcher_and_the_app_shell_declare_every_redirect_scheme() {
+    // The scheme lives in three places: the provider's redirect_uri, the
+    // click's url-dispatcher file and AppShell.qml's UriHandler. If one
+    // drifts, the browser's redirect never reaches the app (#367).
+    let dispatcher = include_str!("../../../../../envio.url-dispatcher");
+    let shell = include_str!("../../../../../qml/pages/AppShell.qml");
+    let providers = [Provider::microsoft_template()];
+    for p in &providers {
+        let (scheme, _) = p.redirect_uri.split_once("://").expect("has a scheme");
+        assert!(
+            dispatcher.contains(&format!("\"protocol\": \"{scheme}\"")),
+            "envio.url-dispatcher lacks {scheme}"
+        );
+        assert!(
+            shell.contains(&format!("schemes: [\"{scheme}\"]")),
+            "AppShell.qml lacks {scheme}"
+        );
     }
 }
