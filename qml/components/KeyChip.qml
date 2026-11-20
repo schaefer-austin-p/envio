@@ -9,13 +9,23 @@ Rectangle {
     required property Theme theme
     property string text: ""
 
-    implicitWidth: Math.max(implicitHeight, label.implicitWidth + theme.gu(1.5))
-    implicitHeight: label.implicitHeight + theme.gu(0.75)
+    implicitWidth: Math.max(implicitHeight, label.implicitWidth + theme.gu(2))
+    implicitHeight: label.implicitHeight + theme.gu(0.75) + 2
     width: implicitWidth
     height: implicitHeight
     radius: theme.chipRadius
     color: theme.surface
     border.color: theme.hairline
+
+    // The keycap's raised bottom edge, darker than the hairline.
+    Rectangle {
+        objectName: "keyEdge"
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        anchors.leftMargin: root.radius / 2
+        anchors.rightMargin: root.radius / 2
+        height: 2
+        color: Qt.darker(root.theme.hairline, 1.8)
+    }
 
     Text {
         id: label

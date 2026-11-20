@@ -102,7 +102,7 @@ Item {
                      subject: local ? "Trip plan, first pass" : "Photos from Saturday",
                      preview: local ? "Day one is the coastal path, then…" : "Here are the two from the ridge. The rest…",
                      date: 0, dateBucket: "time", unread: false, flagged: false, hasAttachments: false,
-                     selected: selected === true, open: false,
+                     selected: selected === true, open: false, kbdFocus: false,
                      draftId: draftId, notUploaded: notUploaded,
                      notUploadedText: notUploaded ? (reason === undefined ? "Not uploaded" : reason) : "", opens: local ? "compose" : "reader" }
         }

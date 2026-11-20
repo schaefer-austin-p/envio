@@ -76,6 +76,15 @@ Item {
         }
         function askOlder() { if (nearEnd()) root.core.loadOlderNearEnd() }
         onAtYEndChanged: if (atYEnd) Qt.callLater(askAtEnd)
+        // The list follows the keyboard focus, also onto a row with no
+        // delegate yet; a delegate made for the focused row does not scroll.
+        Connections {
+            target: root.core
+            function onFocusMessageChanged() {
+                const at = Number(root.core.messageIndex(Number(root.core.focusMessage)))
+                if (at >= 0) list.positionViewAtIndex(at, ListView.Contain)
+            }
+        }
         Connections {
             target: root.core
             // The row turns Ready under a list already at its end (the footer

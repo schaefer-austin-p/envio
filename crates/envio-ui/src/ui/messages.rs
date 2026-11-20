@@ -157,6 +157,7 @@ impl Ui {
                 has_attachments: r.has_attachments,
                 selected: self.selection.contains(&r.id.0),
                 open: self.open == Some(r.id.0),
+                kbd_focus: self.focus == Some(r.id.0),
                 draft_id,
                 not_uploaded: local,
                 not_uploaded_text: if local {

@@ -228,6 +228,8 @@ Item {
         core.closeCompose(compose, false)
         closed()
     }
+    // Esc in the pane: the Discard or Save draft sheet, as Close shows it.
+    function askClose() { more.openClosing() }
     function send() {
         commitAll()
         error = ""

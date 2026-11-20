@@ -5,6 +5,7 @@
         <file>pages/ProblemPage.qml</file>
         <file>pages/inbox/InboxPage.qml</file>
         <file>pages/ReaderPane.qml</file>
+        <file>pages/ShortcutLayer.qml</file>
         <file>pages/inbox/AccountTabs.qml</file>
         <file>pages/inbox/LoadOlderRow.qml</file>
         <file>pages/inbox/MessageList.qml</file>
@@ -72,6 +73,7 @@
         <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>
         <file>components/KeyChip.qml</file>
+        <file>components/ShortcutsDialog.qml</file>
         <file>components/StatusChip.qml</file>
         <file>components/DateText.qml</file>
         <file>components/FolderLabel.qml</file>

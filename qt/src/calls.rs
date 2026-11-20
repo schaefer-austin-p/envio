@@ -206,6 +206,29 @@ impl qobject::EnvioCore {
         self.run(outs);
     }
 
+    /// Move the keyboard-focus row `delta` rows (Up/Down).
+    pub fn step_focus(mut self: Pin<&mut Self>, delta: i32) {
+        let outs = self.as_mut().rust_mut().ui.step_focus(delta);
+        self.run(outs);
+    }
+
+    /// The message Enter opens: the focused row, else the open message; 0
+    /// for neither.
+    pub fn open_focused(&self) -> i64 {
+        self.rust().ui.open_focused().unwrap_or(0)
+    }
+
+    /// The local draft behind a shown row (Enter opens it in Compose); empty
+    /// for a server message.
+    pub fn draft_id_of(&self, id: i64) -> QString {
+        QString::from(self.rust().ui.draft_id_of(id).unwrap_or_default())
+    }
+
+    /// The position of a shown row in the list, -1 when it is not shown.
+    pub fn message_index(&self, id: i64) -> i64 {
+        self.rust().ui.row_index(id)
+    }
+
     pub fn clear_selection(mut self: Pin<&mut Self>) {
         let outs = self.as_mut().rust_mut().ui.clear_selection();
         self.run(outs);

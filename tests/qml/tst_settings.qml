@@ -74,6 +74,33 @@ Item {
             }
             settings.visible = false
         }
+        function test_shortcuts_row_opens_dialog() {
+            settings.visible = true
+            const dialog = settings.shortcuts
+            verify(!dialog.opened)
+            mouseClick(find("shortcutsRow", settings))
+            tryVerify(function() { return dialog.opened })
+            // Six rows, each a sentence and its key chips.
+            compare(dialog.rows.length, 6)
+            compare(dialog.rows[3].text, "New message")
+            compare(dialog.rows[3].keys, ["Ctrl", "N"])
+            compare(dialog.rows[5].keys, ["Esc"])
+            compare(all("shortcutRow", dialog.contentItem).length, 6)
+            verify(all("keyChip", dialog.contentItem).length >= 8)
+            // Close is the outlined action; there is no filled one.
+            verify(!find("primaryAction", dialog.contentItem).visible)
+            const close = find("secondaryAction", dialog.contentItem)
+            verify(close.visible)
+            // Design review: rules under the rows, a compact Close at the right,
+            // a narrow centred card.
+            compare(all("shortcutRule", dialog.contentItem).length, 6)
+            verify(close.width < dialog.contentItem.width / 2)
+            compare(close.x + close.width, dialog.contentItem.width)
+            verify(dialog.width <= thm.gu(45) + 1)
+            verify(Math.abs(dialog.x - (dialog.parent.width - dialog.width) / 2) < 1)
+            dialog.close()
+            settings.visible = false
+        }
         function test_acting_at_once_rows_have_no_chevron() {
             // Light/Dark/System and the sync mode act at once.
             core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org", status: "", state: "ok", unread: 0, unreadText: "" })

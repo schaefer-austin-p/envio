@@ -43,6 +43,8 @@ pub mod qobject {
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
         // Read-only: `setOpenMessage` below is the (invokable) way to set it.
         #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
+        // Read-only: `stepFocus` below moves it (keyboard focus row, 0 for none).
+        #[qproperty(i64, focus_message, cxx_name = "focusMessage", READ, NOTIFY)]
         // Read-only: they follow `Ui` after every change (`sync_list_flags`).
         #[qproperty(bool, list_is_drafts, cxx_name = "listIsDrafts", READ, NOTIFY)]
         #[qproperty(
@@ -273,6 +275,18 @@ pub mod qobject {
         #[cxx_name = "setOpenMessage"]
         fn set_open_message(self: Pin<&mut EnvioCore>, id: i64);
         #[qinvokable]
+        #[cxx_name = "stepFocus"]
+        fn step_focus(self: Pin<&mut EnvioCore>, delta: i32);
+        #[qinvokable]
+        #[cxx_name = "openFocused"]
+        fn open_focused(self: &EnvioCore) -> i64;
+        #[qinvokable]
+        #[cxx_name = "messageIndex"]
+        fn message_index(self: &EnvioCore, id: i64) -> i64;
+        #[qinvokable]
+        #[cxx_name = "draftIdOf"]
+        fn draft_id_of(self: &EnvioCore, id: i64) -> QString;
+        #[qinvokable]
         #[cxx_name = "clearSelection"]
         fn clear_selection(self: Pin<&mut EnvioCore>);
         #[qinvokable]
@@ -397,6 +411,8 @@ pub struct EnvioCoreRust {
     pub(crate) notify_show_text: bool,
     /// The message the reader shows; 0 for none (`Ui::open_message`).
     pub(crate) open_message: i64,
+    /// The keyboard-focus row; 0 for none (`Ui::focus_message`).
+    pub(crate) focus_message: i64,
     /// The shown list is a Drafts-role folder (`Ui::list_is_drafts`).
     pub(crate) list_is_drafts: bool,
     /// The selection holds a pseudo-row (`Ui::selection_has_local`).
