@@ -124,6 +124,10 @@ Item {
         focusMessage = messages.get(to).id
         for (let i = 0; i < n; i++) messages.setProperty(i, "kbdFocus", i === to)
     }
+    function messageIndex(id) {
+        for (let i = 0; i < messages.count; i++) if (messages.get(i).id === id) return i
+        return -1
+    }
     // The local draft behind a row (empty for a server message).
     function draftIdOf(id) {
         for (let i = 0; i < messages.count; i++) {

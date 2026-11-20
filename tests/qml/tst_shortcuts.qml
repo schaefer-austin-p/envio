@@ -321,6 +321,22 @@ Item {
             tryCompare(list, "contentY", 0)
             b.shell.destroy()
         }
+        function test_focus_far_outside_the_delegate_buffer_scrolls_to_it() {
+            const b = boot(100)
+            manyRows(b, 200)
+            const list = find(b.shell, "messageList")
+            tryVerify(function() { return list.height > 0 })
+            b.shell.shortcuts.downKey.activated()
+            list.positionViewAtEnd()
+            wait(50)
+            verify(list.contentY > 1000)
+            b.shell.shortcuts.downKey.activated()   // focus 7 -> 8, far above the view
+            tryVerify(function() { return list.contentY < 200 })
+            const row = list.itemAtIndex(1)
+            verify(row !== null, "the focused row has no delegate")
+            verify(row.y >= list.contentY - 1 && row.y + row.height <= list.contentY + list.height + 1)
+            b.shell.destroy()
+        }
         function test_a_row_update_does_not_move_the_list() {
             const b = boot(100)
             manyRows(b, 40)

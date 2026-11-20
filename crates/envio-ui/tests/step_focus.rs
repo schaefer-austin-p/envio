@@ -140,3 +140,11 @@ fn draft_id_of_names_the_local_draft_only() {
     assert_eq!(ui.draft_id_of(3), None);
     assert_eq!(ui.draft_id_of(99), None);
 }
+
+#[test]
+fn row_index_is_the_shown_position() {
+    let ui = three();
+    assert_eq!(ui.row_index(3), 0);
+    assert_eq!(ui.row_index(1), 2);
+    assert_eq!(ui.row_index(99), -1);
+}

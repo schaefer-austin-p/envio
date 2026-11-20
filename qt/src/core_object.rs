@@ -281,6 +281,9 @@ pub mod qobject {
         #[cxx_name = "openFocused"]
         fn open_focused(self: &EnvioCore) -> i64;
         #[qinvokable]
+        #[cxx_name = "messageIndex"]
+        fn message_index(self: &EnvioCore, id: i64) -> i64;
+        #[qinvokable]
         #[cxx_name = "draftIdOf"]
         fn draft_id_of(self: &EnvioCore, id: i64) -> QString;
         #[qinvokable]

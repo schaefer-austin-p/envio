@@ -22,6 +22,17 @@ impl Ui {
         self.current.as_ref()?.shown.draft_of(id)
     }
 
+    /// The position of a shown row in the message list, for scrolling it
+    /// into view; -1 when it is not shown.
+    pub fn row_index(&self, id: i64) -> i64 {
+        let ids = self
+            .current
+            .as_ref()
+            .map(|c| c.shown.ids())
+            .unwrap_or_default();
+        ids.iter().position(|r| *r == id).map_or(-1, |i| i as i64)
+    }
+
     /// Move the focus `delta` rows (stopping at the ends); from no focus
     /// either direction lands on the first row. Returns the row updates.
     pub fn step_focus(&mut self, delta: i32) -> Vec<Output> {
