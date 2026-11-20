@@ -36,6 +36,9 @@ ListRow {
     }
     TapHandler {
         objectName: "rowRightClick"
+        // Mouse only: a touch tap has no button, so without this a finger
+        // tap opened the menu instead of the message on the phone.
+        acceptedDevices: PointerDevice.Mouse
         acceptedButtons: Qt.RightButton
         onTapped: function(point) { root.contextRequested(root.model.id, point.position.x, point.position.y) }
     }
