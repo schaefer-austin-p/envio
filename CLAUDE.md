@@ -50,6 +50,8 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
 - `cargo make qml-test`: QML tests in the CI image.
 - `cargo xtask affected --base origin/master`: what CI would test.
 - `cargo make click` / `cargo make click-install`: phone build.
+- `cargo make run-desktop`: native x86_64 build and run, on dev data under
+  `build/desktop/` (`ENVIO_REAL_DATA=1` for your XDG folders).
 - `cargo make net-it` / `e2e-it`: tests against a throwaway Stalwart named
   `envio-stalwart-<pid>`; `STALWART_NAME=envio-stalwart` gives the fixed name.
   The container is labelled with its owner PID (`envio.owner-*`); `up.sh`
