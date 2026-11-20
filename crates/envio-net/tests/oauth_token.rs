@@ -111,7 +111,7 @@ async fn invalid_grant_is_revoked() {
     let (p, roots, _) = fake(vec![Step::Reply(400, body.into())]).await;
     assert_eq!(
         refreshed(&p, &roots).await.unwrap_err(),
-        TokenError::Revoked
+        TokenError::Revoked("invalid_grant".into())
     );
 }
 
@@ -357,7 +357,7 @@ async fn a_chunked_error_reply_keeps_its_meaning() {
     let (p, roots, _) = fake(vec![Step::Raw(chunked("400 Bad Request", &body))]).await;
     assert_eq!(
         refreshed(&p, &roots).await.unwrap_err(),
-        TokenError::Revoked
+        TokenError::Revoked("invalid_grant".into())
     );
 }
 

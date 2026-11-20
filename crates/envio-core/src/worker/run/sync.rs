@@ -226,7 +226,10 @@ pub(super) async fn replay(
     worker.report_replayed(account, &replayed);
     // A replay that stopped, Local included, is the account's problem.
     match replayed.stopped {
-        Some(kind) => Err(problem::from_kind(kind)),
+        Some(kind) => {
+            crate::cause::log_kind("replay", kind);
+            Err(problem::from_kind(kind))
+        }
         None => Ok(()),
     }
 }

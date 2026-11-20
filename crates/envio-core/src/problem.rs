@@ -57,6 +57,12 @@ pub fn from_net(error: &NetError, service: Service) -> Problem {
     }
 }
 
+/// `from_net` for a failure at `stage`, written to the log first.
+pub(crate) fn from_net_at(stage: &str, error: &NetError, service: Service) -> Problem {
+    crate::cause::log_net(stage, error);
+    from_net(error, service)
+}
+
 pub fn from_store(error: &StoreError) -> Problem {
     if error.is_disk_full() {
         Problem::DiskFull

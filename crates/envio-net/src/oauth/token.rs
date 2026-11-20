@@ -32,8 +32,9 @@ impl std::fmt::Debug for Tokens {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenError {
-    /// The grant is gone or needs the user: sign in again.
-    Revoked,
+    /// The grant is gone or needs the user: sign in again. Holds the
+    /// provider's `error` code (`invalid_grant`, ...), nothing else.
+    Revoked(String),
     /// Network, 5xx or 429: try later.
     Temporary,
     /// Anything else; the provider's error code only.
@@ -96,11 +97,12 @@ pub fn parse_token_reply(status: u16, body: &[u8]) -> Result<Tokens, TokenError>
         return tokens(reply);
     }
     match reply.error.as_deref() {
-        Some("invalid_grant" | "interaction_required" | "consent_required" | "invalid_client")
-            if status == 400 =>
-        {
-            Err(TokenError::Revoked)
-        }
+        Some(
+            code @ ("invalid_grant"
+            | "interaction_required"
+            | "consent_required"
+            | "invalid_client"),
+        ) if status == 400 => Err(TokenError::Revoked(safe_code(code))),
         Some(code) => Err(TokenError::Refused(safe_code(code))),
         None => Err(TokenError::Refused(format!("http_{status}"))),
     }

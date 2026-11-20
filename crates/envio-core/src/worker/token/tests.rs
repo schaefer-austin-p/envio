@@ -350,7 +350,10 @@ async fn a_failed_write_keeps_the_new_access_token_and_the_old_refresh_token() {
 
 #[tokio::test]
 async fn revoked_is_sign_in_and_forgets_the_token_and_the_imap_login() {
-    let s = setup(vec![Ok(("acc-1", None, 3600)), Err(TokenError::Revoked)]);
+    let s = setup(vec![
+        Ok(("acc-1", None, 3600)),
+        Err(TokenError::Revoked("invalid_grant".into())),
+    ]);
     let h = handle(&s, "a");
     h.access(false).await.unwrap();
     h.set_imap_ok();
@@ -435,7 +438,10 @@ fn no_handle_without_a_provider() {
 
 #[test]
 fn token_problem_table() {
-    assert_eq!(token_problem(&TokenError::Revoked), Problem::SignIn);
+    assert_eq!(
+        token_problem(&TokenError::Revoked("invalid_grant".into())),
+        Problem::SignIn
+    );
     assert_eq!(token_problem(&TokenError::Temporary), Problem::Temporary);
     assert_eq!(
         token_problem(&TokenError::Refused("invalid_client".into())),

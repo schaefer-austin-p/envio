@@ -52,7 +52,10 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
         worker.reshow_open_invite();
     }
     match sent.stopped {
-        Some(kind) => Err(problem::from_kind(kind)),
+        Some(kind) => {
+            crate::cause::log_kind("send or replay", kind);
+            Err(problem::from_kind(kind))
+        }
         None => Ok(()),
     }
 }

@@ -72,7 +72,8 @@ async fn open_inbox(job: Job) -> Result<Opened, Problem> {
     } = job;
     #[cfg(not(feature = "test-hooks"))]
     drop(account);
-    let to_problem = |e: envio_net::NetError| problem::from_net(&e, Service::Imap);
+    let to_problem =
+        |e: envio_net::NetError| problem::from_net_at(crate::cause::OPEN_INBOX, &e, Service::Imap);
     let mut session = match have {
         Some(session) => session,
         // A token account's access token is resolved here, in the future,

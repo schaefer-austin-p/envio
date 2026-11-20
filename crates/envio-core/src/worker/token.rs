@@ -165,15 +165,16 @@ impl Cell {
 
     async fn run(&self) -> Reply {
         let Some(stored) = self.tokens.borrow().get(&self.key).cloned() else {
-            crate::cause::log_stage(crate::cause::TOKEN_MISSING);
-            return Err(TokenError::Revoked);
+            return Err(TokenError::Revoked(
+                crate::cause::NO_STORED_TOKEN.to_owned(),
+            ));
         };
         let at = (self.clock)();
         let result = (self.refresh)(&self.provider, &stored).await;
         let tokens = match result {
             Ok(tokens) => tokens,
             Err(error) => {
-                if error == TokenError::Revoked {
+                if matches!(error, TokenError::Revoked(_)) {
                     let mut state = self.state.borrow_mut();
                     state.access = None;
                     state.imap_ok = false;
@@ -281,7 +282,7 @@ impl TokenCells {
 pub(crate) fn token_problem(error: &TokenError) -> Problem {
     match error {
         TokenError::Temporary => Problem::Temporary,
-        TokenError::Revoked | TokenError::Refused(_) => Problem::SignIn,
+        TokenError::Revoked(_) | TokenError::Refused(_) => Problem::SignIn,
     }
 }
 
