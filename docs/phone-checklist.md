@@ -238,3 +238,23 @@ steps.
 Shots are git-ignored (`.superpowers/sdd/09a/shots/`). Phone: Ubuntu Touch
 24.04.5, dev build 0.2.1 (branch plan9a-notify, version bumped locally so
 AppArmor regenerated), throwaway Stalwart through `adb reverse`, 2026-11-18.
+
+## 0.3.0 release run
+
+The synthetic account grace@envio.test on a throwaway Stalwart through `adb reverse`.
+For the #285 check, three copies of one real DKIM-signed newsletter were appended
+to grace's Inbox. They were deleted from the server afterwards, and no shots of
+them were kept.
+
+| Item | Result | Evidence |
+| ---- | ------ | -------- |
+| #285 "Always for this sender" on signed mail | Pass | The provider table was empty (#392), so Envio's own DKIM check decided. The genuine signed copy: images blocked, "Always for this sender" offered. Tapping it loads the images, and a reopen loads them by itself. The copy with a changed body (signature kept, fails to verify) stays blocked; the button still shows, by design (O3). The unsigned copy is blocked and has no button. #285 comment 10322. |
+| #228 drafts listed and reopened | Pass | Compose from grace, closed with ✕: the draft is in grace's Drafts at once, no restart, with "Not uploaded". Tapping it reopens compose with From, subject and body. After closing compose again, the server's Drafts has the copy (IMAP), the list shows one row, and the chip is gone. The server copy opens in the reader; Edit opens compose. Cosmetic: the server-copy row has no preview, and a draft with no recipients has an empty stamp. #228 comment 10329. |
+| #385 Microsoft refusal card | Pass | Wizard with a made-up @outlook.com address: "Microsoft accounts aren't supported yet" card, "Change address", no "Set up manually", nothing added. #385 comment 10345. |
+| Row tap on touch (#192 T6 regression) | Fail, fixed | On 0.3.0 master a finger tap on a message row opened the right-click menu. Fixed in #395 (the right-click handler takes mouse only). Rechecked on the phone after a restart: the tap opens the message. |
+| Store screenshots | Done | Six shots in `docs/store/screenshots/` (#396): Carbon light and dark, Airmail light and dark, and the setup wizard. |
+| Found on the way | Open | #397: a row keeps its highlight after a touch scroll until the next tap. |
+
+Phone: Volla, Ubuntu Touch 24.04, dev build from master (`envio.aps_envio_0.2.0`
+installed version), 2026-11-20. The owner's envio data was backed up before the
+run and restored afterwards.
