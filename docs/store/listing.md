@@ -110,7 +110,7 @@ Outlook and Hotmail accounts are not supported yet; support is planned for
 Upload in this order from `docs/store/screenshots/`. Taken on 2026-11-20 on a
 Volla Phone (Ubuntu Touch 24.04) with the 0.3.0 build, 1080 x 2292, status
 bar cropped. All mail is synthetic: the account is grace at envio.test on a
-throwaway test server; shot 6 shows the made-up address envio.demo@fastmail.com,
+throwaway test server. Shot 6 was taken with the made-up address envio.demo@fastmail.com (not shown on screen),
 whose domain only went to the server lookup, and the account was not added.
 
 | # | Shot | File |
