@@ -987,6 +987,22 @@ Item {
             verify(!menu.visible)
         }
 
+        // On the phone a row is tapped with a finger: it opens the message,
+        // and the right-click handler must not take the touch.
+        function test_a_touch_tap_opens_the_message_not_the_menu() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            find("messageList", page).positionViewAtBeginning()
+            const row = find("row-11", page)
+            tryVerify(function() { return row.y >= 0 && row.height > 0 })
+            touchEvent(row).press(0, row, 40, row.height / 2).commit()
+            touchEvent(row).release(0, row, 40, row.height / 2).commit()
+            tryCompare(opened, "count", 1)
+            compare(opened.signalArguments[0][0], 11)
+            wait(50)
+            verify(!find("rowMenu", page).visible, "a touch tap opens no menu")
+        }
+
         function test_menu_closes_on_escape_and_outside_click() {
             core.messages.append(message(11))
             waitForRendering(page)
