@@ -75,7 +75,7 @@ fn upsert_keeps_known_keywords_and_a_new_row_is_unknown() {
 }
 
 #[test]
-fn has_unknown_keywords_looks_only_at_the_listed_uids_of_the_folder() {
+fn has_unknown_keywords_between_looks_only_at_the_range_of_the_folder() {
     let db = Db::open_in_memory().unwrap();
     let f = folder(&db, "INBOX");
     let g = folder(&db, "Archive");
@@ -83,32 +83,19 @@ fn has_unknown_keywords_looks_only_at_the_listed_uids_of_the_folder() {
         db.upsert_message(f, &message(uid)).unwrap();
     }
     db.upsert_message(g, &message(7)).unwrap();
-    assert!(db.has_unknown_keywords(f, &[1, 2]).unwrap());
-    assert!(!db.has_unknown_keywords(f, &[]).unwrap());
+    assert!(db.has_unknown_keywords_between(f, 1, 2).unwrap());
+    // An empty range (lo > hi) finds nothing.
+    assert!(!db.has_unknown_keywords_between(f, 3, 1).unwrap());
     db.set_keywords(f, 1, &[]).unwrap();
     db.set_keywords(f, 2, &words(&["$a"])).unwrap();
-    // UID 3 is still NULL but not listed.
-    assert!(!db.has_unknown_keywords(f, &[1, 2]).unwrap());
-    assert!(db.has_unknown_keywords(f, &[1, 2, 3]).unwrap());
-    // Another folder's NULL row (uid 7) and an uncached UID never count.
-    assert!(!db.has_unknown_keywords(f, &[1, 2, 7, 99]).unwrap());
-    assert!(db.has_unknown_keywords(g, &[7]).unwrap());
-}
-
-#[test]
-fn has_unknown_keywords_checks_every_chunk_of_a_long_uid_list() {
-    let db = Db::open_in_memory().unwrap();
-    let f = folder(&db, "INBOX");
-    let uids: Vec<u32> = (1..=1_200).collect();
-    for &uid in &uids {
-        db.upsert_message(f, &message(uid)).unwrap();
-        if uid != 1_100 {
-            db.set_keywords(f, uid, &[]).unwrap();
-        }
-    }
-    assert!(db.has_unknown_keywords(f, &uids).unwrap());
-    db.set_keywords(f, 1_100, &[]).unwrap();
-    assert!(!db.has_unknown_keywords(f, &uids).unwrap());
+    // UID 3 is still NULL but outside the range.
+    assert!(!db.has_unknown_keywords_between(f, 1, 2).unwrap());
+    assert!(db.has_unknown_keywords_between(f, 1, 3).unwrap());
+    assert!(db.has_unknown_keywords_between(f, 3, 99).unwrap());
+    // Another folder's NULL row (uid 7) never counts, and uncached UIDs
+    // in the range are ignored.
+    assert!(!db.has_unknown_keywords_between(f, 4, 99).unwrap());
+    assert!(db.has_unknown_keywords_between(g, 1, 99).unwrap());
 }
 
 #[test]

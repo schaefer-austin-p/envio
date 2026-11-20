@@ -1,6 +1,6 @@
 //! Folder list and folder sync, and fetching one body on open.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use envio_mime::Address;
@@ -152,6 +152,7 @@ pub async fn sync_folder_as(
         state.uid_validity,
     );
     let cached_uids = local.db.uids(id)?;
+    let mut unknown: Option<bool> = None;
     let (window, plan) = loop {
         let remembered = reused.is_some();
         let window = match reused.take() {
@@ -161,15 +162,21 @@ pub async fn sync_folder_as(
                 None => server.search_all().await?,
             }),
         };
-        // Only rows the flag check will cover count: a `NULL` row outside
-        // the window must not force a full check on every sync.
-        let cached_set: HashSet<u32> = cached_uids.iter().copied().collect();
-        let checked: Vec<u32> = window
-            .iter()
-            .copied()
-            .filter(|uid| cached_set.contains(uid))
-            .collect();
-        let unknown_keywords = local.db.has_unknown_keywords(id, &checked)?;
+        // Only rows inside the window count: a `NULL` row below it must
+        // not force a full check on every sync. One query per sync, with
+        // the first window (a re-search differs only by mail that
+        // arrived or left meanwhile).
+        let unknown_keywords = match unknown {
+            Some(known) => known,
+            None => {
+                let known = match (window.iter().min(), window.iter().max()) {
+                    (Some(&lo), Some(&hi)) => local.db.has_unknown_keywords_between(id, lo, hi)?,
+                    _ => false,
+                };
+                unknown = Some(known);
+                known
+            }
+        };
         let plan = plan_folder(
             &FolderView {
                 server: state,
