@@ -10,6 +10,8 @@ pub enum StoreError {
     Io(#[from] io::Error),
     #[error("schema version {found} is newer than this build supports ({supported})")]
     SchemaTooNew { found: i64, supported: i64 },
+    #[error("schema version {found} is older than the {needed} this needs")]
+    SchemaTooOld { found: i64, needed: i64 },
     #[error("database is damaged: {0}")]
     Damaged(String),
     #[error("bad record in {file}: {reason}")]
