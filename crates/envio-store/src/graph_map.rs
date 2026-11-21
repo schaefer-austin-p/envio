@@ -163,6 +163,13 @@ pub(crate) fn upsert_folder(
     if existing.as_ref().is_some_and(|f| f.graph_id == graph_id) {
         return Ok(Upserted::Same);
     }
+    // The other row's messages hang off its folder row, not off the map row,
+    // so they go explicitly (a leftover uid would clash with a fresh range).
+    conn.execute(
+        "DELETE FROM graph_messages WHERE folder_row_id IN
+             (SELECT folder_row_id FROM graph_folders WHERE graph_id = ?1 AND folder_row_id != ?2)",
+        params![graph_id, folder.0],
+    )?;
     conn.execute(
         "DELETE FROM graph_folders WHERE graph_id = ?1 AND folder_row_id != ?2",
         params![graph_id, folder.0],
@@ -175,6 +182,10 @@ pub(crate) fn upsert_folder(
         return reset(conn, folder).map(Upserted::Changed);
     }
     let generation = fresh_generation(0);
+    conn.execute(
+        "DELETE FROM graph_messages WHERE folder_row_id = ?1",
+        [folder.0],
+    )?;
     conn.execute(
         "INSERT INTO graph_folders
              (folder_row_id, graph_id, generation, uid_next, low_next, modseq, delta_link)
@@ -206,7 +217,9 @@ pub(crate) fn allocate(
     ids: &[(String, i64)],
 ) -> Result<Allocation> {
     let state = self::folder(conn, folder)?.ok_or(StoreError::NotFound)?;
-    let mut order: Vec<&(String, i64)> = ids.iter().collect();
+    // A delta can repeat a message across pages: map each id once.
+    let mut seen = std::collections::HashSet::new();
+    let mut order: Vec<&(String, i64)> = ids.iter().filter(|(id, _)| seen.insert(id)).collect();
     order.sort_by_key(|(_, received)| *received);
     let mut known = Vec::with_capacity(order.len());
     for (id, _) in &order {

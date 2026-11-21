@@ -41,9 +41,11 @@ impl GraphMap {
         Ok(Self { conn })
     }
 
-    /// Runs `body` in one transaction.
-    fn tx<T>(&self, body: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
-        self.conn.execute_batch("BEGIN IMMEDIATE")?;
+    /// Runs `body` in one transaction. Reads use a deferred one, so they
+    /// don't take the write lock and wait behind a `Db` step.
+    fn tx<T>(&self, write: bool, body: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        self.conn
+            .execute_batch(if write { "BEGIN IMMEDIATE" } else { "BEGIN" })?;
         let result = body(&self.conn).and_then(|value| {
             self.conn.execute_batch("COMMIT")?;
             Ok(value)
@@ -55,12 +57,12 @@ impl GraphMap {
     }
 
     pub fn folder(&self, folder: FolderId) -> Result<Option<GraphFolder>> {
-        self.tx(|conn| super::folder(conn, folder))
+        self.tx(false, |conn| super::folder(conn, folder))
     }
 
     /// The folder row that maps this Graph folder id.
     pub fn folder_row_of(&self, graph_id: &str) -> Result<Option<FolderId>> {
-        self.tx(|conn| {
+        self.tx(false, |conn| {
             Ok(conn
                 .query_row(
                     "SELECT folder_row_id FROM graph_folders WHERE graph_id = ?1",
@@ -73,11 +75,11 @@ impl GraphMap {
     }
 
     pub fn reset(&self, folder: FolderId) -> Result<u32> {
-        self.tx(|conn| super::reset(conn, folder))
+        self.tx(true, |conn| super::reset(conn, folder))
     }
 
     pub fn allocate(&self, folder: FolderId, ids: &[(String, i64)]) -> Result<Allocation> {
-        self.tx(|conn| super::allocate(conn, folder, ids))
+        self.tx(true, |conn| super::allocate(conn, folder, ids))
     }
 
     pub fn allocate_low(
@@ -86,7 +88,9 @@ impl GraphMap {
         id: &str,
         received_ms: i64,
     ) -> Result<Option<u32>> {
-        self.tx(|conn| super::allocate_low(conn, folder, id, received_ms))
+        self.tx(true, |conn| {
+            super::allocate_low(conn, folder, id, received_ms)
+        })
     }
 
     pub fn apply(
@@ -95,7 +99,7 @@ impl GraphMap {
         changes: &[MetaChange],
         removed: &[String],
     ) -> Result<()> {
-        self.tx(|conn| super::apply(conn, folder, changes, removed))
+        self.tx(true, |conn| super::apply(conn, folder, changes, removed))
     }
 
     /// Rows received after `received_after_ms`, oldest first.
@@ -131,7 +135,7 @@ impl GraphMap {
     }
 
     pub fn uid_of(&self, folder: FolderId, graph_id: &str) -> Result<Option<u32>> {
-        self.tx(|conn| {
+        self.tx(false, |conn| {
             super::uid_of(conn, folder, graph_id)?
                 .map(|uid| to_u32(uid, "uid"))
                 .transpose()
@@ -140,7 +144,7 @@ impl GraphMap {
 
     /// The graph ids of the uids that are mapped; the others are left out.
     pub fn ids_of(&self, folder: FolderId, uids: &[u32]) -> Result<Vec<(u32, String)>> {
-        self.tx(|conn| {
+        self.tx(false, |conn| {
             let mut stmt = conn.prepare(
                 "SELECT graph_id FROM graph_messages WHERE folder_row_id = ?1 AND uid = ?2",
             )?;
@@ -156,7 +160,7 @@ impl GraphMap {
     }
 
     fn query(&self, sql: &str, args: impl rusqlite::Params) -> Result<Vec<MapRow>> {
-        self.tx(|conn| {
+        self.tx(false, |conn| {
             let mut stmt = conn.prepare(sql)?;
             let raw: Vec<(i64, String, i64, i64, String, i64)> = stmt
                 .query_map(args, |row| {

@@ -384,3 +384,42 @@ fn opening_a_database_that_was_never_migrated_is_refused() {
         "{error:?}"
     );
 }
+
+#[test]
+fn two_folders_swapping_graph_ids_leave_no_stale_rows() {
+    let s = setup();
+    let other =
+        s.db.upsert_folder("1700", "Other", FolderRole::Other)
+            .unwrap();
+    s.db.graph_upsert_folder(other, "BBB=").unwrap();
+    done(s.map.allocate(s.folder, &ids(&[("a", 1)])).unwrap());
+    done(s.map.allocate(other, &ids(&[("b", 1)])).unwrap());
+    s.db.step(|db| {
+        db.graph_upsert_folder(s.folder, "BBB=")?;
+        db.graph_upsert_folder(other, "AAA=")
+    })
+    .unwrap();
+    assert_eq!(s.map.ids_of(other, &[HIGH]).unwrap(), []);
+    assert_eq!(s.map.ids_of(s.folder, &[HIGH]).unwrap(), []);
+    let uids = done(s.map.allocate(other, &ids(&[("x", 2)])).unwrap());
+    assert_eq!(uids, vec![("x".to_string(), HIGH)]);
+    let uids = done(s.map.allocate(s.folder, &ids(&[("y", 2)])).unwrap());
+    assert_eq!(uids, vec![("y".to_string(), HIGH)]);
+    assert_eq!(
+        s.map.ids_of(other, &[HIGH]).unwrap(),
+        [(HIGH, "x".to_string())]
+    );
+}
+
+#[test]
+fn an_id_repeated_in_one_allocate_call_is_mapped_once() {
+    let s = setup();
+    let uids = done(
+        s.map
+            .allocate(s.folder, &ids(&[("a", 1), ("b", 2), ("a", 1)]))
+            .unwrap(),
+    );
+    let a: Vec<_> = uids.iter().filter(|(id, _)| id == "a").collect();
+    assert_eq!(a.len(), 1);
+    assert_eq!(s.map.folder(s.folder).unwrap().unwrap().uid_next, HIGH + 2);
+}
