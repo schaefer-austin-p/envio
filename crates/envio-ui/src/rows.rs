@@ -125,6 +125,8 @@ pub struct OutboxRowUi {
     pub reason_action: String,
     /// The message is held because its OAuth account must sign in again.
     pub signin_again: bool,
+    /// Edit is offered (see `convert::outbox_editable`).
+    pub editable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -208,6 +210,7 @@ const OUTBOX: &[&str] = &[
     "reason",
     "reasonAction",
     "signInAgain",
+    "editable",
 ];
 const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
@@ -284,6 +287,7 @@ impl Row {
             (Self::Outbox(r), "reason") => s(&r.reason),
             (Self::Outbox(r), "reasonAction") => s(&r.reason_action),
             (Self::Outbox(r), "signInAgain") => Bool(r.signin_again),
+            (Self::Outbox(r), "editable") => Bool(r.editable),
             (Self::Suggestion(r), "name") => s(&r.name),
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),

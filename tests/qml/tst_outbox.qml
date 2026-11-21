@@ -51,7 +51,7 @@ Item {
             return { id: id, account: "ann", subject: "Invoice " + id, to: "ana@example.org",
                      status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason,
                      reasonAction: reason === undefined ? "" : (action === undefined ? "Check certificate" : action),
-                     signInAgain: false }
+                     signInAgain: false, editable: status === "failed" }
         }
         function init() {
             core.reset()
@@ -93,17 +93,22 @@ Item {
             compare(signingIn.signalArguments[0][0], "ann")
         }
 
-        function test_a_message_held_for_a_sign_in_can_be_edited_but_a_certificate_hold_cannot() {
+        function test_edit_follows_the_rows_editable_flag() {
+            // A Microsoft hold, a password hold, a certificate hold, a plain wait.
             const held = item("h", "waiting", "Waiting to send", "Sign in again", "Open accounts")
             held.signInAgain = true
+            held.editable = true
             core.outbox.append(held)
+            const pw = item("w", "waiting", "Waiting to send", "Sign-in failed, update password", "Open accounts")
+            pw.editable = true
+            core.outbox.append(pw)
             core.outbox.append(item("p", "waiting", "Waiting to send", "The certificate changed", "Check certificate"))
             core.outbox.append(item("q", "waiting", "Waiting to send"))
             waitForRendering(page)
-            verify(shown("edit-h"))
+            verify(shown("edit-h") && shown("edit-w"))
             verify(!shown("edit-p") && !shown("edit-q"))
-            mouseClick(find("edit-h", page))
-            compare(core.called("editOutbox").pop().args, ["h"])
+            mouseClick(find("edit-w", page))
+            compare(core.called("editOutbox").pop().args, ["w"])
             compare(composing.count, 1)
         }
 

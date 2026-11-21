@@ -171,10 +171,27 @@ pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String,
     }
 }
 
-pub fn outbox_row(
-    r: &OutboxRow,
-    (reason, reason_action, signin_again): (String, String, bool),
-) -> Row {
+/// Edit is offered: the row is refused (`failed`, which includes a damaged
+/// one), or it is held for a sign-in (Queued, the account's state "auth" or
+/// "unsupported": a bad password, or a Microsoft sign-in this build does not
+/// offer). Not for a certificate ("pin") hold or a plain waiting row. This
+/// must agree with `Worker::editable` in envio-core `worker/outbox.rs`,
+/// which decides what Edit actually takes (Failed, or Queued while the
+/// account's status is `SignInFailed`).
+pub fn outbox_editable(accounts: &[AccountRow], r: &OutboxRow) -> bool {
+    match r.status {
+        OutboxStatus::Failed { .. } | OutboxStatus::Damaged => true,
+        OutboxStatus::Queued => accounts
+            .iter()
+            .find(|a| a.key == r.account)
+            .is_some_and(|a| matches!(a.state.as_str(), "auth" | "unsupported")),
+        _ => false,
+    }
+}
+
+pub fn outbox_row(r: &OutboxRow, accounts: &[AccountRow]) -> Row {
+    let (reason, reason_action, signin_again) = outbox_reason(accounts, r);
+    let editable = outbox_editable(accounts, r);
     let status = outbox_state(&r.status);
     Row::Outbox(OutboxRowUi {
         id: r.id.clone(),
@@ -186,6 +203,7 @@ pub fn outbox_row(
         reason,
         reason_action,
         signin_again,
+        editable,
     })
 }
 
@@ -347,6 +365,51 @@ mod tests {
         let (reason, _, signin_again) = outbox_reason(&[row], &outbox);
         assert!(!signin_again);
         assert_eq!(reason, "Sign in again");
+    }
+
+    #[test]
+    fn edit_is_offered_for_failed_rows_and_rows_held_for_a_sign_in() {
+        let info = |oauth: bool| AccountInfo {
+            key: "g".into(),
+            name: "G".into(),
+            label: String::new(),
+            email: "g@outlook.com".into(),
+            status: AccountStatus::Ready,
+            unread: 0,
+            broken: false,
+            oauth,
+        };
+        let account = |oauth: bool, state: &str| {
+            let mut a = account_row(&info(oauth), "x");
+            a.state = state.into();
+            a
+        };
+        let row = |status: OutboxStatus| OutboxRow {
+            id: "1".into(),
+            account: "g".into(),
+            subject: String::new(),
+            recipients: vec![],
+            status,
+            text: String::new(),
+            queued_at_ms: 0,
+        };
+        let queued = row(OutboxStatus::Queued);
+        let held = |a: AccountRow| outbox_editable(&[a], &queued);
+        assert!(held(account(true, "auth")));
+        assert!(held(account(false, "auth")));
+        assert!(held(account(true, "unsupported")));
+        assert!(!held(account(false, "pin")));
+        assert!(!held(account(false, "")));
+        assert!(!outbox_editable(&[], &queued));
+        let failed = row(OutboxStatus::Failed { reason: "r".into() });
+        assert!(outbox_editable(&[], &failed));
+        assert!(outbox_editable(&[], &row(OutboxStatus::Damaged)));
+        assert!(!outbox_editable(&[], &row(OutboxStatus::Sending)));
+        assert!(!outbox_editable(&[], &row(OutboxStatus::SentNotFiled)));
+        let Row::Outbox(ui) = outbox_row(&queued, &[account(false, "auth")]) else {
+            panic!("an Outbox row");
+        };
+        assert!(ui.editable);
     }
 
     #[test]

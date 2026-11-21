@@ -179,6 +179,9 @@ impl Worker<'_> {
     ///   never between this check and the item's removal. `Sending` is never
     ///   held: it is on its way, and a `Queued` item of an account that can
     ///   send (or is held by a certificate) is not editable either.
+    ///
+    /// envio-ui's `convert::outbox_editable` decides when the row shows
+    /// Edit and must agree with this.
     fn editable(&self, item: &OutboxItem) -> bool {
         match item.meta.state {
             SendState::Failed { .. } => true,

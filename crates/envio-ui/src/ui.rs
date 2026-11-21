@@ -205,7 +205,7 @@ impl Ui {
             Event::Outbox { items } => {
                 let rows = items
                     .iter()
-                    .map(|r| convert::outbox_row(r, convert::outbox_reason(&self.accounts, r)))
+                    .map(|r| convert::outbox_row(r, &self.accounts))
                     .collect();
                 self.outbox = items;
                 vec![change(Model::Outbox, Op::Reset(rows))]
