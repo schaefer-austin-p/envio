@@ -613,6 +613,22 @@ Item {
             b.shell.destroy()
         }
 
+        // The pinned column marks the shown list: Unified inbox, then the
+        // picked folder instead.
+        function test_inline_drawer_marks_the_shown_folder() {
+            const b = bootWide(200)
+            const col = find(b.shell, "inlineDrawer")
+            compare(col.unifiedSelected, true)
+            compare(col.selectedFolder, -1)
+            col.folderRequested(3, "Archive")
+            compare(col.unifiedSelected, false)
+            compare(col.selectedFolder, 3)
+            col.unifiedRequested()
+            compare(col.unifiedSelected, true)
+            compare(col.selectedFolder, -1)
+            b.shell.destroy()
+        }
+
         function test_veryWide_hysteresis() {
             const b = bootWide(170)
             compare(b.shell.veryWide, false)

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 18:03+0100\n"
+"POT-Creation-Date: 2026-11-21 18:12+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -160,7 +160,7 @@ msgstr ""
 msgid "Select a message to read it"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:30 qml/pages/inbox/FoldersDrawer.qml:289
+#: qml/pages/accounts/AccountsPage.qml:30 qml/pages/inbox/FoldersDrawer.qml:292
 #: qml/pages/settings/SettingsPage.qml:37
 msgid "Accounts"
 msgstr ""
@@ -595,40 +595,40 @@ msgstr ""
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:61 qml/pages/inbox/FoldersDrawer.qml:204
+#: qml/pages/inbox/AccountTabs.qml:61 qml/pages/inbox/FoldersDrawer.qml:206
 msgid "%1, sync stopped"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:62 qml/pages/inbox/FoldersDrawer.qml:205
+#: qml/pages/inbox/AccountTabs.qml:62 qml/pages/inbox/FoldersDrawer.qml:207
 msgid "%1, offline"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:93
+#: qml/pages/inbox/FoldersDrawer.qml:95
 msgid "Mail"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:128 qml/pages/search/SearchPage.qml:100
+#: qml/pages/inbox/FoldersDrawer.qml:130 qml/pages/search/SearchPage.qml:100
 msgid "All accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:140
+#: qml/pages/inbox/FoldersDrawer.qml:142
 msgid "Unified inbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:164 qml/pages/inbox/OutboxPage.qml:51
+#: qml/pages/inbox/FoldersDrawer.qml:166 qml/pages/inbox/OutboxPage.qml:51
 msgid "Outbox"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:172
+#: qml/pages/inbox/FoldersDrawer.qml:174
 msgid "waiting to send"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:228
+#: qml/pages/inbox/FoldersDrawer.qml:230
 #: crates/envio-core/src/text/outbox.rs:31
 msgid "Open accounts"
 msgstr ""
 
-#: qml/pages/inbox/FoldersDrawer.qml:296 qml/pages/settings/SettingsPage.qml:25
+#: qml/pages/inbox/FoldersDrawer.qml:299 qml/pages/settings/SettingsPage.qml:25
 msgid "Settings"
 msgstr ""
 

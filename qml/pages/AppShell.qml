@@ -493,6 +493,7 @@ Item {
             folders: root.folders
             outboxCount: root.inboxItem !== null ? root.inboxItem.outboxCount : 0
             unifiedSelected: root.inboxItem !== null && root.inboxItem.unified
+            selectedFolder: root.inboxItem !== null ? root.inboxItem.folderId : -1
             onUnifiedRequested: if (root.inboxItem) root.inboxItem.showUnified()
             onFolderRequested: function(folder, label) { if (root.inboxItem) root.inboxItem.showFolder(folder, label) }
             onOutboxRequested: stack.push(outboxPage)

@@ -14,9 +14,11 @@ Rectangle {
     required property var folders
     property int outboxCount: 0
     // A plain column pinned beside the list on very wide windows: no close
-    // button, and the Unified inbox row may show as the shown list.
+    // button, and the row of the shown list (Unified inbox or a folder)
+    // shows as selected.
     property bool inline: false
     property bool unifiedSelected: false
+    property int selectedFolder: -1
     // The account whose folders are shown.
     property string expanded: ""
     readonly property int unreadTotal: probe.total
@@ -253,6 +255,7 @@ Rectangle {
                             theme: root.theme
                             width: acct.width
                             separator: false
+                            selected: root.inline && !root.unifiedSelected && folder.model.id === root.selectedFolder
                             visible: model.account === acct.model.key && root.expanded === acct.model.key
                             height: visible ? implicitHeight : 0
                             onClicked: root.folderRequested(folder.model.id, label.text)
