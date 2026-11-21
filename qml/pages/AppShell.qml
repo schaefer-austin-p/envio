@@ -98,13 +98,25 @@ Item {
         const on = width >= theme.gu(90), off = width < theme.gu(86)
         if (!_wide && on) toWide()
         else if (_wide && off) toNarrow()
+        // The third column (the folders drawer) from 180 gu, back to the
+        // overlay drawer below 176 gu; only ever while wide.
+        const von = width >= theme.gu(180), voff = width < theme.gu(176)
+        if (!_veryWide && _wide && von) _veryWide = true
+        else if (_veryWide && (!_wide || voff)) _veryWide = false
         layoutPane()
     }
+    readonly property bool veryWide: _veryWide
+    property bool _veryWide: false
+    // The inbox page (the stack's root while the inbox is the root), which
+    // the inline drawer steers.
+    property Item inboxItem: null
+    // The inline drawer's width, the room it takes from the list and pane.
+    readonly property real drawerWidth: veryWide ? theme.gu(30) : 0
     // The pane's width is set here, after the decision above, not bound to
     // the window: a binding would squeeze a compose in the pane for a moment
     // before it is moved, and the text would re-wrap and scroll (#332).
     property real paneWidth: 0
-    function layoutPane() { paneWidth = Math.max(0, frame.area.width - theme.gu(50)) }
+    function layoutPane() { paneWidth = Math.max(0, frame.area.width - theme.gu(50) - drawerWidth) }
     onWidthChanged: checkWide()
     onThemeChanged: checkWide()
     Connections {
@@ -439,8 +451,8 @@ Item {
             objectName: "stack"
             // Beside the pane the stack is the list's 50 gu and ends at the
             // hairline; pages above the inbox hide the pane and get it all.
-            anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-            width: pane.visible ? root.theme.gu(50) : parent.width
+            anchors { top: parent.top; bottom: parent.bottom; left: parent.left; leftMargin: inlineDrawer.visible ? inlineDrawer.width : 0 }
+            width: pane.visible ? root.theme.gu(50) : parent.width - anchors.leftMargin
             clip: pane.visible
             readonly property int enterMs: 150
             readonly property int enterShift: 24
@@ -465,11 +477,39 @@ Item {
             replaceExit: Transition { PropertyAction { property: "opacity"; value: 0 } }
         }
 
+        // The folders drawer as a third column on very wide windows, beside
+        // the inbox at the root only (full-window pages cover it, as they
+        // cover the pane). The overlay drawer of the inbox page stays closed.
+        FoldersDrawer {
+            id: inlineDrawer
+            objectName: "inlineDrawer"
+            inline: true
+            visible: root.veryWide && stack.depth === 1 && root.rootKind === "inbox" && root.inboxItem !== null
+            anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
+            width: root.theme.gu(30)
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            folders: root.folders
+            outboxCount: root.inboxItem !== null ? root.inboxItem.outboxCount : 0
+            unifiedSelected: root.inboxItem !== null && root.inboxItem.unified
+            onUnifiedRequested: if (root.inboxItem) root.inboxItem.showUnified()
+            onFolderRequested: function(folder, label) { if (root.inboxItem) root.inboxItem.showFolder(folder, label) }
+            onOutboxRequested: stack.push(outboxPage)
+            onAccountsRequested: stack.push(accountsPage)
+            onSettingsRequested: stack.push(settingsPage)
+            Rectangle {
+                anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+                width: 1
+                color: root.theme.hairline
+            }
+        }
+
         // The hairline between the list and the pane.
         Rectangle {
             objectName: "paneHairline"
             visible: pane.visible
-            x: root.theme.gu(50)
+            x: root.drawerWidth + root.theme.gu(50)
             width: 1
             height: parent.height
             color: root.theme.hairline
@@ -521,6 +561,7 @@ Item {
     Component {
         id: inboxPage
         InboxPage {
+            id: inboxRoot
             // The list pane when wide, else the whole page (the stack does
             // not resize an item that sets its own size).
             width: root.wide ? root.theme.gu(50) : stack.width
@@ -532,6 +573,9 @@ Item {
             messages: root.messages
             outbox: root.outbox
             showOpen: root.paneCompose === 0
+            drawerInline: root.veryWide
+            Component.onCompleted: root.inboxItem = inboxRoot
+            Component.onDestruction: if (root.inboxItem === inboxRoot) root.inboxItem = null
             onMessageRequested: root.openMessageFromRow(message)
             onDraftRequested: function(draftId) { root.openDraft(draftId) }
             onAccountsRequested: stack.push(accountsPage)

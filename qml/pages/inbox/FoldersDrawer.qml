@@ -4,7 +4,8 @@ import "../../components"
 
 // The folders menu (board 10), a page over the inbox: the unified inbox and
 // the Outbox, then each account with its folders (the open account's list
-// comes from `core.listFolders`). Taps leave through signals.
+// comes from `core.listFolders`). Taps leave through signals. `inline` makes
+// it the third column of the very wide layout.
 Rectangle {
     id: root
     required property Theme theme
@@ -12,6 +13,10 @@ Rectangle {
     required property var accounts
     required property var folders
     property int outboxCount: 0
+    // A plain column pinned beside the list on very wide windows: no close
+    // button, and the Unified inbox row may show as the shown list.
+    property bool inline: false
+    property bool unifiedSelected: false
     // The account whose folders are shown.
     property string expanded: ""
     readonly property int unreadTotal: probe.total
@@ -83,7 +88,7 @@ Rectangle {
         id: bar
         theme: root.theme
         width: parent.width
-        showBack: true
+        showBack: !root.inline
         compact: true
         title: qsTr("Mail")
         onBackClicked: root.closeRequested()
@@ -124,6 +129,7 @@ Rectangle {
             ListRow {
                 objectName: "unifiedRow"
                 theme: root.theme
+                selected: root.inline && root.unifiedSelected
                 width: column.width
                 separator: false
                 onClicked: root.unifiedRequested()
