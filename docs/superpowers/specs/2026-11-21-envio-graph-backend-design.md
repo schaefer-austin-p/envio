@@ -538,21 +538,24 @@ New first step, "Choose a provider":
 - If consent is refused, either by the user or by a work tenant's admin
   for Mail.ReadWrite, the wizard shows the refusal and goes back to the
   provider step. Nothing is saved.
-- The frames are mocked up in `docs/design/carbon-wizard.html`, and a
-  separate agent checks them before implementation.
+- The frames are mocked up in `docs/design/carbon-provider.html`
+  (checked by a separate agent).
 
 ### Moving existing Outlook.com accounts (#342)
 
 **Eligibility**
 - A consumer account qualifies by `tid`, or for an old account by the
-  `outlook.com`, `hotmail.*`, `live.*`, `msn.com` or `windowslive.com` domain with the Microsoft
-  provider.
+  `outlook.com`, `hotmail.*`, `live.*`, `msn.com` or `windowslive.com`
+  domain with the Microsoft provider. This is a narrower list than
+  `provider_kind_for`, which also matches work domains
+  (`office365.com`, `*.onmicrosoft.com`); those never qualify. The
+  `tid` check after sign-in is the final filter.
 - Old accounts store no `Identity`, so a consumer account on a custom
   domain does not qualify. It stays on IMAP.
 - "Update sign-in" signs in with Graph scopes. If the `tid` is not
   the consumer tenant, the Graph token is dropped and the account stays
   on IMAP.
-- Such an account shows "Update sign-in" (mocked up with the wizard),
+- Such an account shows "Update sign-in" (mocked up in `carbon-provider.html`),
   and keeps working on IMAP until the user does it.
 
 **Consent**
