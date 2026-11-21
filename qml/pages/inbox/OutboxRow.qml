@@ -6,9 +6,11 @@ import "../../components"
 // actions its status allows. Envio never resends on its own, so "Send again"
 // is only ever a tap here.
 //   waiting:          Delete (and Check certificate while the outgoing
-//                     server's certificate is what holds it)
+//                     server's certificate is what holds it; Sign in again
+//                     while a Microsoft sign-in holds it; Edit while any
+//                     sign-in holds it, per the row's `editable`)
 //   sending, sentnotfiled: none (core refuses Delete; it is on its way or done)
-//   failed:           Retry, Edit, Delete
+//   failed:           Retry, Edit, Delete (Edit shows by `editable`)
 //   maybesent:        Send again, Move to Sent, Delete (the server may
 //                     already have it, so the user decides)
 ListRow {
@@ -113,7 +115,7 @@ ListRow {
             }
             AppButton {
                 objectName: "edit-" + root.model.id
-                visible: root.model.status === "failed"
+                visible: !!root.model.editable
                 theme: root.theme
                 text: qsTr("Edit")
                 onClicked: root.editRequested(root.model.id)

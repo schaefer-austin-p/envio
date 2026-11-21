@@ -137,7 +137,7 @@ impl Ui {
         let rows: Vec<Row> = self
             .outbox
             .iter()
-            .map(|r| convert::outbox_row(r, convert::outbox_reason(&self.accounts, r)))
+            .map(|r| convert::outbox_row(r, &self.accounts))
             .collect();
         (rows != self.mirror.rows(Model::Outbox)).then(|| change(Model::Outbox, Op::Reset(rows)))
     }

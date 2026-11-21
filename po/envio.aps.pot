@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 18:12+0100\n"
+"POT-Creation-Date: 2026-11-21 18:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -81,7 +81,7 @@ msgid "Enter"
 msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
-#: qml/pages/inbox/OutboxRow.qml:125 qml/pages/inbox/RowMenu.qml:155
+#: qml/pages/inbox/OutboxRow.qml:127 qml/pages/inbox/RowMenu.qml:155
 #: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
@@ -179,7 +179,7 @@ msgid "Rename"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:165
-#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:90
+#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:92
 #: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
@@ -673,27 +673,27 @@ msgstr ""
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:46
+#: qml/pages/inbox/OutboxRow.qml:48
 msgid "To %1 · %2"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:69
+#: qml/pages/inbox/OutboxRow.qml:71
 msgid "Waiting for sign-in. It goes out after you sign in again."
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:97
+#: qml/pages/inbox/OutboxRow.qml:99
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:104
+#: qml/pages/inbox/OutboxRow.qml:106
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:111
+#: qml/pages/inbox/OutboxRow.qml:113
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:118 qml/pages/reader/ReplyBar.qml:47
+#: qml/pages/inbox/OutboxRow.qml:120 qml/pages/reader/ReplyBar.qml:47
 msgid "Edit"
 msgstr ""
 

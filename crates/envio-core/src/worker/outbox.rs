@@ -169,13 +169,37 @@ impl Worker<'_> {
         }
     }
 
-    /// Edit: a refused message becomes a draft in `compose`. The item goes
-    /// only after the draft is stored, so a crash leaves both, never none.
+    /// The item may be turned into a draft. Two kinds may:
+    /// - `Failed`: the server refused it and nothing sends it again unless
+    ///   the user says so.
+    /// - Held for a sign-in: `Queued` while its account's status is
+    ///   `SignInFailed`. A paused account is given no login and starts no
+    ///   send (`Health::is_paused`), and the worker is one thread: the send
+    ///   resumes only in the `resume` of a later turn (the sign-in finishing),
+    ///   never between this check and the item's removal. `Sending` is never
+    ///   held: it is on its way, and a `Queued` item of an account that can
+    ///   send (or is held by a certificate) is not editable either.
+    ///
+    /// envio-ui's `convert::outbox_editable` decides when the row shows
+    /// Edit and must agree with this.
+    fn editable(&self, item: &OutboxItem) -> bool {
+        match item.meta.state {
+            SendState::Failed { .. } => true,
+            SendState::Queued => {
+                self.status_of(&item.meta.account) == crate::health::AccountStatus::SignInFailed
+            }
+            _ => false,
+        }
+    }
+
+    /// Edit: a refused message, or one held for a sign-in, becomes a draft
+    /// in `compose`. The item goes only after the draft is stored, so a
+    /// crash leaves both, never none. See `editable` for what may be taken.
     pub(super) fn edit_outbox(&mut self, id: &str, compose: ComposeId) {
         let Some(item) = self.find_item(id) else {
             return self.notice(text::outbox::not_now());
         };
-        let editable = matches!(item.meta.state, SendState::Failed { .. });
+        let editable = self.editable(&item);
         let account_known = self.store.accounts.get(&item.meta.account).is_some();
         let free = !self.book.is_sent(compose) && self.book.id_of(compose).is_none();
         let eml = (editable && free && account_known)
@@ -522,5 +546,68 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         assert!(state(&w, &id).is_some());
         assert_eq!(w.book.id_of(C).as_deref(), Some("existing"));
         assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+
+    fn pause_for_sign_in(w: &mut Worker<'_>, t: &T) {
+        w.live.get_mut(&t.account).unwrap().health.status =
+            crate::health::AccountStatus::SignInFailed;
+    }
+
+    #[test]
+    fn edit_takes_a_message_held_for_a_sign_in() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::Queued);
+        pause_for_sign_in(&mut w, &t);
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), None);
+        assert!(w.book.id_of(C).is_some());
+        assert_eq!(w.store.drafts.list().unwrap().len(), 1);
+        assert_eq!(notices(&t), 0);
+    }
+
+    #[test]
+    fn edit_refuses_a_queued_message_whose_account_can_send() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::Queued);
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), Some(SendState::Queued));
+        assert_eq!(notices(&t), 1);
+        assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn edit_refuses_a_sending_message_even_when_the_account_is_paused() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::Sending);
+        pause_for_sign_in(&mut w, &t);
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), Some(SendState::Sending));
+        assert_eq!(notices(&t), 1);
+        assert!(w.store.drafts.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn edit_refuses_a_queued_message_held_by_a_certificate() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::Queued);
+        w.live.get_mut(&t.account).unwrap().health.status =
+            crate::health::AccountStatus::Certificate(None);
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), Some(SendState::Queued));
+        assert_eq!(notices(&t), 1);
+    }
+
+    #[test]
+    fn edit_still_takes_a_failed_message_of_a_paused_account() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, failed());
+        pause_for_sign_in(&mut w, &t);
+        w.edit_outbox(&id, C);
+        assert_eq!(state(&w, &id), None);
     }
 }
