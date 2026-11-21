@@ -328,7 +328,25 @@ mod tests {
 
     use super::rebuild;
     use crate::api::event::Event;
+    use crate::worker::backend::fake::Kind;
+    use crate::worker::backend::fake_backend;
+    use crate::worker::plan::Step;
     use crate::worker::testing::{Sink, open, seed};
+    use envio_store::FolderId;
+    use envio_sync::server::MailServer;
+
+    #[test]
+    fn changed_folder_names_the_folder_only_after_a_reported_change() {
+        use super::changed_folder;
+        let (mut backend, runtime) = fake_backend(Kind::Changing);
+        let step = Step::Folder(FolderId(7));
+        assert_eq!(changed_folder(&step, &mut backend), None);
+        runtime.block_on(backend.search_all()).unwrap();
+        // Only a folder step answers; the change stays for it.
+        assert_eq!(changed_folder(&Step::Folders, &mut backend), None);
+        assert_eq!(changed_folder(&step, &mut backend), Some(FolderId(7)));
+        assert_eq!(changed_folder(&step, &mut backend), None);
+    }
 
     #[test]
     fn a_folder_with_parts_left_keeps_its_want() {

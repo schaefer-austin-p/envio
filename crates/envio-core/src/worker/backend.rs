@@ -134,32 +134,47 @@ impl MailServer for Backend {
 #[cfg(test)]
 #[path = "../../tests/support/fake.rs"]
 #[allow(dead_code)]
-mod fake;
+pub(crate) mod fake;
+
+/// A `Backend` connected to the in-process fake, and the runtime it needs.
+#[cfg(test)]
+pub(crate) fn fake_backend(kind: fake::Kind) -> (Backend, tokio::runtime::Runtime) {
+    use envio_net::{Credentials, Endpoint, Fingerprint, Roots, Security};
+
+    let server = fake::serve(kind);
+    let mut endpoint = Endpoint::new("127.0.0.1", server.port, Security::Tls);
+    endpoint.pin = Fingerprint::from_hex(&server.hex);
+    let login = Credentials::new("me@example.org", "pw");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let session = runtime
+        .block_on(ImapSession::open(&endpoint, &Roots::empty(), &login))
+        .unwrap();
+    (Backend::Imap(session), runtime)
+}
 
 #[cfg(test)]
 mod tests {
-    use envio_net::imap::ImapSession;
-    use envio_net::{Credentials, Endpoint, Fingerprint, Roots, Security};
-
-    use super::fake;
+    use super::fake::Kind;
     use super::*;
 
     #[test]
     fn imap_forwards_caps_and_take_changes() {
-        let server = fake::serve(fake::Kind::Imap);
-        let mut endpoint = Endpoint::new("127.0.0.1", server.port, Security::Tls);
-        endpoint.pin = Fingerprint::from_hex(&server.hex);
-        let login = Credentials::new("me@example.org", "pw");
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let session = runtime
-            .block_on(ImapSession::open(&endpoint, &Roots::empty(), &login))
-            .unwrap();
+        let (mut backend, _runtime) = fake_backend(Kind::Imap);
+        let Backend::Imap(session) = &backend;
         let caps = session.caps();
-        let mut backend = Backend::Imap(session);
         assert_eq!(MailServer::caps(&backend), caps);
+        assert!(!MailServer::take_changes(&mut backend));
+    }
+
+    #[test]
+    fn take_changes_reports_what_the_server_sent_once() {
+        let (mut backend, runtime) = fake_backend(Kind::Changing);
+        runtime.block_on(backend.search_all()).unwrap();
+        assert!(MailServer::take_changes(&mut backend));
+        // Drained: the next call sees nothing new.
         assert!(!MailServer::take_changes(&mut backend));
     }
 }
