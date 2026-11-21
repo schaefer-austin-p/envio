@@ -87,8 +87,11 @@ which may use both net and store. Net and store stay apart.
   - `send_mime` and `create_mime` always use a fresh connection. A
     reused socket that the server already closed would make a send
     look unconfirmed.
-  - GET, PATCH and DELETE retry once on a fresh connection if a reused
-    connection fails before any response byte arrives.
+  - GET, PATCH, DELETE and the `$batch` POST (a read) retry once on a
+    fresh connection if a reused connection fails before any response
+    byte arrives. `move_to` (POST) does not retry; a failure there is
+    `Busy`, and replay retries it, because a move is idempotent by
+    immutable id.
 
 **Token**
 - Signature:
@@ -98,11 +101,13 @@ which may use both net and store. Net and store stay apart.
   the last `Granted` behind a `RefCell`, so that `force` can call
   `renew(&granted)`.
 - Core's problems map to net errors:
-  - Temporary → `Busy`;
-  - SignIn → `SignIn`;
-  - any pause, including a certificate pause → `SignIn`.
+  - `Temporary` and `Offline` → `Busy`;
+  - `SignIn` and any other pause → `SignIn`;
+  - every other problem → `Io` with its message.
 - On a 401 the client calls `bearer(true)` once and retries. It returns
   `SignIn` only if that fresh token is also refused.
+- If no `Granted` is held yet, `bearer(true)` calls `access(true)`
+  instead of `renew`.
 
 **Calls**
 - `folders()`: `includeHiddenFolders=true`, walks `childFolders`.
@@ -116,8 +121,14 @@ which may use both net and store. Net and store stay apart.
     `GET /me/messages/{id}?$select=internetMessageHeaders,receivedDateTime&$expand=singleValueExtendedProperties($filter=id eq 'Integer 0x0E08')`
     and carries the ImmutableId `Prefer`;
   - responses are matched by `id`, not by order;
-  - each sub-status maps through the error table. A sub-404 drops that
-    message. Any sub-429 or sub-503 makes the whole call `Busy`.
+  - each sub-status maps through the error table:
+    - A sub-404 drops that message.
+    - Any sub-429 or sub-503 makes the whole call `Busy`, and the good
+      results in that batch are thrown away (accepted). Retry-After is
+      read from the sub-response's `headers`.
+    - A sub-401 makes the whole call go through the 401 rule.
+    - Any other sub-status makes the whole call fail with that status's
+      error.
   - If `$batch` fails the fixture check (plan task 1), the fallback is
     one GET per id over keep-alive.
 - `message_mime(id)`: `GET /me/messages/{id}/$value` → `Vec<u8>`.
@@ -128,8 +139,12 @@ which may use both net and store. Net and store stay apart.
 - `create_mime(folder_id, eml)`.
 - `send_mime(eml)`.
 - `search(folder_id, text)`: `$search`, paged.
-- `find_message_id(folder_id, mid)`: `$filter=internetMessageId eq '<…>'`,
-  keeping the angle brackets.
+- `find_message_id(folder_id, mid)`: `$filter=internetMessageId eq '<…>'`.
+  The id is passed through as `search_id` returns it (message_id.rs:15),
+  with its angle brackets. This filter is not measured on a folder yet,
+  so it is part of plan task 1.
+- `delta` returns `DeltaPage::Page{..}` or `DeltaPage::Expired` (on 410
+  or `syncStateNotFound`). Expired is not a `NetError`.
 
 **Parsers**
 - Pure functions, separate from I/O, tested on recorded fixtures.
@@ -142,10 +157,21 @@ which may use both net and store. Net and store stay apart.
 | 403 | `Refused`. On `sendMail`, an error code that signals a send limit gives `Busy` instead |
 | 404 on a message read | Gone (left out, or `Ok(None)`) |
 | 404 on patch, move or delete | `Ok(())` |
-| 410 / `syncStateNotFound` | `DeltaExpired` (internal; the adapter resets the folder) |
-| 429, 503, 504 | `Busy`. The client retries once inside the call only when `Retry-After` ≤ 10 s; otherwise the existing health backoff applies |
-| 400 bad MIME, 413 | `Refused` |
+| 410 / `syncStateNotFound` on delta | `DeltaPage::Expired` (the adapter resets the folder) |
+| 409, 423 | `Busy` |
+| 429, 500, 502, 503, 504 | `Busy`. The client retries once inside the call only when `Retry-After` ≤ 10 s; otherwise the existing health backoff applies |
+| 400 (any), 413 | `Refused` |
+| 507 (mailbox full) | `Refused` |
+| Any other status | `Refused` with the status in the message |
 | TLS `Untrusted` / `PinChanged` | `NetError::Tls` (Graph has nowhere to store a pin, so no accept action) |
+
+`send_mime` is stricter, because a requeued send that Graph already took
+goes out twice:
+- Confirmed not sent: only 400, 401 (after the fresh-token retry), 403,
+  413, 429 and 503. These map as in the table above.
+- Any other status (500, 502, 504, and so on), and any timeout or
+  dropped connection after the body was written, is `unconfirmed`. The
+  item becomes `MayHaveBeenSent` and goes through Resolve.
 
 `NetError` gets one new variant,
 `Storage { kind: StorageKind, msg }`, with
@@ -167,8 +193,14 @@ graph_messages(
   PRIMARY KEY (folder_row_id, uid), UNIQUE (folder_row_id, graph_id))
 ```
 
-- The `graph_map` functions take a `&rusqlite::Connection`. None of them
-  opens a transaction; the caller holds one.
+- envio-sync has no rusqlite dependency, so the store exposes:
+  - `GraphMap::open(path)`, its own connection: WAL, `foreign_keys=ON`,
+    a 5 s busy_timeout, no migrations. Its methods each run in their own
+    transaction.
+  - `Db` methods for the calls made inside a step (`graph_reset`,
+    `graph_upsert_folder`, `graph_commit`).
+- Both sides share private `graph_map` functions that take a
+  `&rusqlite::Connection` and open no transaction of their own.
 - `reset(conn, folder_row_id)`:
   - mints a new generation that is non-zero and differs from the old
     one;
@@ -186,8 +218,7 @@ graph_messages(
 
 GraphServer owns:
 - a `GraphClient`;
-- a `GraphMap`, its own SQLite connection to the same file, with WAL,
-  `foreign_keys=ON`, a 5 s busy_timeout and no migrations;
+- a `GraphMap` (see above);
 - the in-memory path → graph_id map;
 - each folder's pending delta.
 
@@ -263,8 +294,9 @@ unchanged)
   `INBOX/<name>`.
 - Other folders join their displayName segments with `/`.
 - Inside a segment, `/` becomes U+2215 and `.` becomes U+2024, because
-  `folder_order.rs` and `ui/convert.rs` split on both. `Folder.name`
-  keeps the real name.
+  `folder_order.rs` and `ui/convert.rs` split on both. The store has no
+  name column (the shown name is derived from the path), so the drawer
+  shows these look-alike characters. That is accepted.
 - Hidden and non-mail folders are filtered out in the adapter.
 - A path that is not in memory triggers one fresh folder walk.
 
@@ -275,6 +307,7 @@ unchanged)
   `summaries(ids)`.
   - `Summary.header` is rebuilt from `internetMessageHeaders`,
     `internal_date` comes from `receivedDateTime`, and size from 0x0E08.
+  - Flags come from the `graph_messages` row.
   - Messages that are gone are left out.
 - `fetch_flags(changedsince)` returns rows with modseq greater than
   `changedsince`.
@@ -335,16 +368,21 @@ unchanged)
 
 **Errors**
 - `ErrorKind::Damaged` is new.
-- `net_kind(Storage{Damaged})` and `SyncError::Store(damaged)` both
-  give Damaged.
+- `net_kind` (sync error.rs:44):
+  - `Storage{Damaged}` → Damaged;
+  - `Storage{DiskFull | Other}` → Local.
+- `SyncError::kind()` for `Store(e)` with `e.is_damage()` changes from
+  Local to Damaged (error.rs:39).
 - `from_kind(Damaged)` gives `Problem::Damaged`, which leads to a
   rebuild, on every path: folder steps, replay, send and file.
-- Exhaustive matches that get a Damaged arm:
+- Matches to extend:
   - `plan/replay.rs:121` and `plan/outbox.rs:70`, where Damaged is a
     Stop and not a Retry;
   - `problem::from_kind`;
-  - `problem::from_net`.
-- `StorageKind::DiskFull` maps the way `from_store` does today.
+  - `problem::from_net`, where `Storage` maps like `from_store`
+    (Damaged, DiskFull, else Local);
+  - `cause::log_net`.
+- `driver/drafts.rs:147` has a catch-all and needs no change.
 - `cause` and `from_sync` label Graph errors "Outlook.com", not
   "IMAP".
 
@@ -355,10 +393,12 @@ unchanged)
 - IMAP connections are left alone.
 
 **Background poll**
-- `Timing.poll_ms` is `Some(BACKGROUND_POLL_MS)` (5 min) for an
-  account that notifies and has `idle_capable == Some(false)`. Graph
-  accounts start with that flag set, so they never run `begin_open` or
-  `prepare_idle`.
+- `Timing.poll_ms` is new. turn.rs sets it to
+  `Some(BACKGROUND_POLL_MS)` (5 min) for an account that notifies and
+  has `live.idle_capable == Some(false)`. The existing
+  `Timing.idle_capable` bool is unchanged.
+- Graph accounts start with `live.idle_capable = Some(false)`, so they
+  never run `begin_open` or `prepare_idle`.
 - `next()`: with `!foreground && poll_ms.is_some() && now >= next_full_ms`
   it returns `Run`. In its Sleep branch it returns
   `until_ms = Some(next_full_ms)`.
@@ -386,17 +426,32 @@ unchanged)
   `handled_resolve_ms` watermark and an `on_timers` branch then set
   `wants.file`.
 - The retry waits for the foreground.
-- Two cases ask at once: a Graph account without Sent, and a first
-  miss after a restart once the tries are spent. Both are accepted.
+- The tries persist across restarts, so a restart neither resets nor
+  skips them.
+- A Graph account without a Sent folder asks at once.
+- Three tries 10 s apart is a starting value, kept in one constant and
+  tuned after the manual gate measures how long the Sent copy takes to
+  appear.
 
 **"Move to Sent"**
-- `OutboxStatus::MayHaveBeenSent` gets `can_file: bool`, which is
-  `!files_itself`. It flows through `ui/convert.rs`, and
-  `OutboxRow.qml` shows "Move to Sent" only when it is true.
-- `decide(.., files_itself)` turns `MoveToSent` into `NotNow` when it
-  is true, so a stale command cannot remove the item without a Sent
-  copy.
-- On Graph the choices are "Send again" and "Delete".
+This is gated on the backend, not on `files_itself`, so IMAP Gmail
+(where `files_itself` is also true) keeps "Move to Sent".
+
+How `can_file` flows:
+- `OutboxStatus::MayHaveBeenSent { asked, can_file }`. `can_file` is
+  `backend != Graph`; `worker/outbox.rs:48` looks the backend up.
+- In the UI:
+  - `OutboxRowUi` gets `can_file`;
+  - `ui/convert.rs` fills it;
+  - `rows.rs` `OUTBOX` gets a `canFile` role;
+  - `OutboxRow.qml` shows "Move to Sent" only when it is true.
+- `text/outbox.rs` uses a status line without "or move to Sent" when
+  `can_file` is false.
+- `decide(.., graph: bool)` turns `MoveToSent` into `NotNow` on Graph,
+  so a stale command cannot remove the item without a Sent copy. The
+  existing `decide` tests get the new argument.
+
+On Graph the choices are "Send again" and "Delete".
 
 ### Accounts and tokens
 
@@ -414,15 +469,25 @@ unchanged)
 **Provider**
 - `Provider::microsoft_graph()` uses the same client ID, the
   `Mail.ReadWrite Mail.Send offline_access openid email profile`
-  scopes, and its own `ProviderKind`.
+  scopes, and `ProviderKind::MicrosoftGraph`.
 - `Identity` gets `tid`.
 
+**Token storage**
+- `OAuthTokens` and `TokenCells` are keyed by `(account, ProviderKind)`.
+  - `get`, `set`, `remove` and `handle` all take the kind.
+  - `Cell.key` holds both.
+- `set_paused` from `Worker::report` applies to the token of the
+  account's active backend. During a migration, only the IMAP token is
+  in use before the switch.
+
 **oauth.json**
-- Each account's record holds up to two tokens, each with its scope
-  set. Each token has its own pause state, so a Graph sign-in problem
-  during a migration does not pause the IMAP token.
+- v1, today: `{"version":1,"tokens":{"<account>":"<refresh>"}}`.
+- v2:
+  `{"version":2,"tokens":{"<account>":{"imap":"<refresh>","graph":"<refresh>"}}}`,
+  where either key may be missing.
 - The file is written as v2 only when an account holds a Graph token;
   otherwise it stays v1. An older build refuses v2, which fails closed.
+- v2 loads v1 files with every token as `imap`.
 
 ### Wizard
 
@@ -436,8 +501,14 @@ New first step, "Choose a provider":
 | Other | Auto-detect, plus the MX lookup (#384) |
 
 - After any Microsoft sign-in, `tid` decides: the consumer tenant gives
-  Graph, any other tenant gives IMAP with OAuth. A wrong pick therefore
-  still lands on the right backend.
+  Graph, any other tenant gives IMAP with OAuth.
+- The token's scopes match only the picked path. On a mismatch (a work
+  account picked as Outlook.com, or the reverse), the wizard says
+  "This is a work or school account" or "This is a personal account"
+  and runs a second sign-in with the other scope set.
+- If consent is refused, either by the user or by a work tenant's admin
+  for Mail.ReadWrite, the wizard shows the refusal and goes back to the
+  provider step. Nothing is saved.
 - The frames are mocked up in `docs/design/carbon-wizard.html`, and a
   separate agent checks them before implementation.
 
@@ -447,6 +518,11 @@ New first step, "Choose a provider":
 - A consumer account qualifies by `tid`, or for an old account by the
   `outlook.com`, `hotmail.*` or `live.*` domain with the Microsoft
   provider.
+- Old accounts store no `Identity`, so a consumer account on a custom
+  domain does not qualify. It stays on IMAP.
+- "Update sign-in" signs in with Graph scopes. If the `tid` is not
+  the consumer tenant, the Graph token is dropped and the account stays
+  on IMAP.
 - Such an account shows "Update sign-in" (mocked up with the wizard),
   and keeps working on IMAP until the user does it.
 
@@ -457,8 +533,14 @@ New first step, "Choose a provider":
 **Migration**
 - A resumable one-shot migration runs. Its step is recorded in the
   accounts file, which forces v4.
-  1. Pending Journal actions are resolved by Message-ID on IMAP, or
-     dropped with a notice.
+  1. Pending Journal actions are replayed on IMAP first: the replay
+     step runs until the Journal is empty.
+     - Folder paths differ between the backends ("Deleted" against
+       "Deleted Items"), so actions cannot carry over.
+     - If IMAP is offline or refuses sign-in, the migration waits at
+       this step.
+     - After 3 failed replay runs, the user can choose "Switch anyway",
+       which drops the remaining actions with a notice.
   2. The account's cache rows and bodies are cleared.
   3. The backend switches to Graph, and the IMAP token and `Server`
      entries are removed.
@@ -491,14 +573,19 @@ New first step, "Choose a provider":
   - Damaged leads to a rebuild from replay;
   - the migration resumes after a crash at each step.
 - **Plan task 1:** record fixtures on the test account (the owner signs
-  in), including `$batch`.
+  in), including `$batch` and `find_message_id` on a folder.
 - **Manual gate before release, on the test account:**
   - a big-mailbox first sync, timed, plus a restart in the middle;
   - Bcc to another mailbox;
   - a Bcc-only mail;
   - delivery above 12 MB;
   - migrating an existing IMAP account;
-  - a background notification while Envio runs in the background.
+  - a background notification while Envio runs in the background;
+  - how long the Sent copy takes to appear after sendMail (this tunes
+    Resolve).
+- The gate blocks the release. If Bcc delivery fails, Graph send is held
+  back until a fix is found; one candidate is a separate sendMail per
+  Bcc recipient.
 
 ## Delivery order
 
