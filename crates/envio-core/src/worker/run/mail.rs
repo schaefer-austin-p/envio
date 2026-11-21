@@ -1,7 +1,6 @@
 //! The steps that send mail and file it in Sent.
 
 use envio_mime::Address;
-use envio_net::imap::ImapSession;
 use envio_sync::driver;
 use envio_sync::plan::outbox::files_itself;
 use envio_sync::server::MailServer;
@@ -57,13 +56,13 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
 pub(super) async fn file(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
 ) -> Result<(), Problem> {
     let Some(settings) = worker.store.accounts.get(account) else {
         return Err(Problem::Local);
     };
     let itself = files_itself(&settings.settings.smtp.host);
-    let filed = driver::file_sent(session, &mut worker.store.local(), account, itself)
+    let filed = driver::file_sent(server, &mut worker.store.local(), account, itself)
         .await
         .map_err(|e| problem::from_sync(&e, Service::Imap))?;
     for id in &filed.removed {
@@ -88,9 +87,9 @@ pub(super) async fn file(
 pub(super) async fn drafts(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
 ) -> Result<(), Problem> {
-    sync_drafts_on(worker, account, session).await
+    sync_drafts_on(worker, account, server).await
 }
 
 /// `drafts` over any server. The list is told when what a draft row shows

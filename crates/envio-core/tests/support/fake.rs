@@ -40,6 +40,9 @@ pub enum Kind {
     /// is new, 1 to 9 are dated 2020. SEARCH, FETCH of summaries and flags
     /// answer for them; every command line is kept in `log`.
     Older,
+    /// Like `Imap`, but every UID SEARCH is answered with an unsolicited
+    /// `* 5 EXISTS` before its end: the server reports a change.
+    Changing,
     /// Greets, then accepts any AUTH.
     Smtp,
 }
@@ -140,6 +143,10 @@ fn handle(
             tls.write_all(b"* OK fake ready\r\n")?;
             talk(tls, older_reply, true, log)
         }
+        Kind::Changing => {
+            tls.write_all(b"* OK fake ready\r\n")?;
+            talk(tls, changing_reply, true, log)
+        }
         Kind::Smtp => {
             tls.write_all(b"220 fake ESMTP\r\n")?;
             talk(tls, smtp_reply, false, log)
@@ -200,6 +207,17 @@ fn imap_reply(line: &str) -> (String, bool) {
         "LOGOUT" => (format!("* BYE\r\n{tag} OK bye\r\n"), true),
         _ => (format!("{tag} OK done\r\n"), false),
     }
+}
+
+fn changing_reply(line: &str) -> (String, bool) {
+    let (tag, command) = line.split_once(' ').unwrap_or((line, ""));
+    if command.to_ascii_uppercase().starts_with("UID SEARCH") {
+        return (
+            format!("* SEARCH\r\n* 5 EXISTS\r\n{tag} OK done\r\n"),
+            false,
+        );
+    }
+    imap_reply(line)
 }
 
 fn smtp_reply(line: &str) -> (String, bool) {

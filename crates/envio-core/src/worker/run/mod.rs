@@ -4,10 +4,11 @@ mod mail;
 mod prefetch;
 mod sync;
 
-use envio_net::imap::ImapSession;
 use envio_store::FolderId;
+use envio_sync::server::MailServer;
 
 use super::Worker;
+use super::backend::Backend;
 use super::conn::Conn;
 use super::plan::{POLL_MS, Step};
 use crate::api::event::Event;
@@ -107,24 +108,24 @@ pub(crate) async fn run_step(
     if *step == Step::Send {
         return mail::send(worker, account).await;
     }
-    let mut session = worker.imap(account).await?;
+    let mut server = worker.backend(account).await?;
     let result = match step {
-        Step::Folders => sync::folders(worker, account, &mut session).await,
-        Step::Body(id) => sync::body(worker, &mut session, *id).await,
-        Step::Part(id, index) => sync::part(worker, &mut session, *id, *index).await,
-        Step::Keywords(id) => sync::keywords(worker, &mut session, *id).await,
-        Step::Older(id) => worker.older_step(&mut session, *id).await,
+        Step::Folders => sync::folders(worker, account, &mut server).await,
+        Step::Body(id) => sync::body(worker, &mut server, *id).await,
+        Step::Part(id, index) => sync::part(worker, &mut server, *id, *index).await,
+        Step::Keywords(id) => sync::keywords(worker, &mut server, *id).await,
+        Step::Older(id) => worker.older_step(&mut server, *id).await,
         Step::SearchServer { folder, query } => {
-            sync::search_server(worker, account, &mut session, (*folder, query)).await
+            sync::search_server(worker, account, &mut server, (*folder, query)).await
         }
-        Step::Replay => sync::replay(worker, account, &mut session).await,
-        Step::File => mail::file(worker, account, &mut session).await,
-        Step::Drafts => mail::drafts(worker, account, &mut session).await,
-        Step::Folder(id) => sync::folder(worker, account, &mut session, *id).await,
-        Step::Prefetch(id) => prefetch::run(worker, account, &mut session, *id).await,
+        Step::Replay => sync::replay(worker, account, &mut server).await,
+        Step::File => mail::file(worker, account, &mut server).await,
+        Step::Drafts => mail::drafts(worker, account, &mut server).await,
+        Step::Folder(id) => sync::folder(worker, account, &mut server, *id).await,
+        Step::Prefetch(id) => prefetch::run(worker, account, &mut server, *id).await,
         Step::Send => Ok(()),
     };
-    keep_after(worker, (account, step), session, &result);
+    keep_after(worker, (account, step), server, &result);
     result
 }
 
@@ -132,11 +133,11 @@ pub(crate) async fn run_step(
 fn keep_after(
     worker: &mut Worker<'_>,
     (account, step): (&str, &Step),
-    mut session: ImapSession,
+    mut server: Backend,
     result: &Result<(), Problem>,
 ) {
     if !matches!(result, Err(problem) if !matches!(problem, Problem::Refused(_))) {
-        let changed = changed_folder(step, &mut session);
+        let changed = changed_folder(step, &mut server);
         let open = worker.live.get(account).is_some_and(|live| {
             keep_open(
                 worker.foreground,
@@ -145,14 +146,14 @@ fn keep_after(
                 &live.wants,
             )
         });
-        keep(worker, account, session, (changed, open));
+        keep(worker, account, server, (changed, open));
     }
 }
 
 /// The folder to sync again: the step's, if the server reported a change.
-fn changed_folder(step: &Step, session: &mut ImapSession) -> Option<FolderId> {
+fn changed_folder(step: &Step, server: &mut impl MailServer) -> Option<FolderId> {
     match step {
-        Step::Folder(id) if session.take_changes() => Some(*id),
+        Step::Folder(id) if server.take_changes() => Some(*id),
         _ => None,
     }
 }
@@ -163,7 +164,7 @@ fn changed_folder(step: &Step, session: &mut ImapSession) -> Option<FolderId> {
 fn keep(
     worker: &mut Worker<'_>,
     account: &str,
-    session: ImapSession,
+    server: Backend,
     (changed, open): (Option<FolderId>, bool),
 ) {
     if let Some(live) = worker.live.get_mut(account) {
@@ -171,7 +172,7 @@ fn keep(
             live.wants.folders.insert(id);
         }
         live.conn = if open {
-            Conn::Ready(session)
+            Conn::Ready(server)
         } else {
             Conn::Closed
         };
@@ -327,7 +328,25 @@ mod tests {
 
     use super::rebuild;
     use crate::api::event::Event;
+    use crate::worker::backend::fake::Kind;
+    use crate::worker::backend::fake_backend;
+    use crate::worker::plan::Step;
     use crate::worker::testing::{Sink, open, seed};
+    use envio_store::FolderId;
+    use envio_sync::server::MailServer;
+
+    #[test]
+    fn changed_folder_names_the_folder_only_after_a_reported_change() {
+        use super::changed_folder;
+        let (mut backend, runtime) = fake_backend(Kind::Changing);
+        let step = Step::Folder(FolderId(7));
+        assert_eq!(changed_folder(&step, &mut backend), None);
+        runtime.block_on(backend.search_all()).unwrap();
+        // Only a folder step answers; the change stays for it.
+        assert_eq!(changed_folder(&Step::Folders, &mut backend), None);
+        assert_eq!(changed_folder(&step, &mut backend), Some(FolderId(7)));
+        assert_eq!(changed_folder(&step, &mut backend), None);
+    }
 
     #[test]
     fn a_folder_with_parts_left_keeps_its_want() {

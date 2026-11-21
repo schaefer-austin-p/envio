@@ -11,6 +11,7 @@ use futures::future::{Aborted, abortable};
 use futures::stream::FuturesUnordered;
 
 use super::Worker;
+use super::backend::Backend;
 use super::conn::{
     Conn, Login, changed_since_sync, connect_imap, prepare_idle, start_idle, sync_first,
 };
@@ -111,7 +112,7 @@ impl Worker<'_> {
             return Err(Problem::Local);
         };
         let have = match std::mem::replace(&mut live.conn, Conn::Closed) {
-            Conn::Ready(session) => Some(session),
+            Conn::Ready(Backend::Imap(session)) => Some(session),
             Conn::Closed => None,
             other => {
                 // In IDLE or already opening: nothing to start.
@@ -183,7 +184,7 @@ impl Worker<'_> {
             // No IDLE (learned just now: the planner stops asking for it),
             // or no Inbox any more. It did connect: a failure is over.
             live.health.connected(disk_full);
-            live.conn = Conn::Ready(session);
+            live.conn = Conn::Ready(Backend::Imap(session));
             return;
         };
         let behind = changed_since_sync(inbox.sync, &state);
@@ -195,7 +196,7 @@ impl Worker<'_> {
             // stay: only an IDLE that ran clears them.
             live.idle_synced_first = true;
             live.wants.folders.insert(inbox.id);
-            live.conn = Conn::Ready(session);
+            live.conn = Conn::Ready(Backend::Imap(session));
             return;
         }
         live.idle_synced_first = false;
@@ -306,7 +307,7 @@ mod tests {
         let seen = handle.clone();
         worker.live.get_mut(&account).unwrap().conn = Conn::Opening(handle);
         // No password is stored: it ends at once, after giving way.
-        let _ = block_on(worker.imap(&account));
+        let _ = block_on(worker.backend(&account));
         assert!(seen.is_aborted());
     }
 

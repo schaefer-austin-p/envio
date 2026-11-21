@@ -19,6 +19,7 @@ use secrecy::ExposeSecret;
 use tokio::sync::Notify;
 
 use super::Worker;
+use super::backend::Backend;
 use super::plan::Wants;
 use super::token::{FRESH_MS, Granted, TokenCells, TokenHandle, bearer_send_error};
 use crate::cause;
@@ -32,7 +33,7 @@ use crate::servers::{Service, credentials, endpoint};
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Conn {
     Closed,
-    Ready(ImapSession),
+    Ready(Backend),
     /// The session is inside the IDLE future; the Notify ends it.
     Idling(Rc<Notify>),
     /// The connect and the Inbox SELECT run in a future (`open.rs`); the
@@ -348,13 +349,13 @@ pub(crate) fn start_idle(
 }
 
 impl Worker<'_> {
-    /// The account's IMAP session: the ready one, or a new one.
-    pub(crate) async fn imap(&mut self, account: &str) -> Result<ImapSession, Problem> {
+    /// The account's connection: the ready one, or a new one.
+    pub(crate) async fn backend(&mut self, account: &str) -> Result<Backend, Problem> {
         let Some(live) = self.live.get_mut(account) else {
             return Err(Problem::Local);
         };
         match std::mem::replace(&mut live.conn, Conn::Closed) {
-            Conn::Ready(session) => return Ok(session),
+            Conn::Ready(backend) => return Ok(backend),
             Conn::Closed => {}
             // A step needs the session: the background connect gives way
             // (a session it owns is dropped with it) and this one connects.
@@ -370,7 +371,7 @@ impl Worker<'_> {
         if let Some(live) = self.live.get_mut(account) {
             live.idle_capable = Some(session.caps().idle);
         }
-        Ok(session)
+        Ok(Backend::Imap(session))
     }
 
     /// The login for `service` of `account`. A paused account is not given
@@ -423,7 +424,7 @@ impl Worker<'_> {
                 // The IDLE ran (it did not fail at once): the backoff ends.
                 live.health.idle_ran(disk_full);
                 live.conn = if keep {
-                    Conn::Ready(session)
+                    Conn::Ready(Backend::Imap(session))
                 } else {
                     Conn::Closed
                 };

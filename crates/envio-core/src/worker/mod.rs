@@ -4,6 +4,7 @@ mod act;
 mod act_local;
 mod alerts;
 mod attachment;
+mod backend;
 mod compose;
 mod conn;
 mod dispatch;

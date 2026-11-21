@@ -1,10 +1,10 @@
 //! The step that downloads a batch of recent bodies ahead of the open
 //! (#102).
 
-use envio_net::imap::ImapSession;
 use envio_store::{FolderId, MessageRowId};
 use envio_sync::SyncError;
 use envio_sync::driver::{self, Prefetched};
+use envio_sync::server::MailServer;
 
 use super::sync::{imap_error, index_body};
 use crate::api::event::Event;
@@ -17,14 +17,14 @@ use crate::worker::Worker;
 pub(super) async fn run(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     folder: FolderId,
 ) -> Result<(), Problem> {
     let ids = worker.prefetch_batch(account, folder, now_ms());
     if ids.is_empty() {
         return Ok(());
     }
-    let outcome = driver::prefetch_bodies(session, &mut worker.store.local(), folder, &ids).await;
+    let outcome = driver::prefetch_bodies(server, &mut worker.store.local(), folder, &ids).await;
     settle(worker, (account, folder), &ids, outcome)
 }
 
