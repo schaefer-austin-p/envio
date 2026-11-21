@@ -1,8 +1,8 @@
 //! The steps that bring the cache in line with the server.
 
-use envio_net::imap::ImapSession;
 use envio_store::{Action, FolderId, MessageRowId};
 use envio_sync::driver::{self, Options, Replayed};
+use envio_sync::server::MailServer;
 
 use crate::api::event::{Event, NewMail};
 use crate::clock::now_ms;
@@ -23,14 +23,14 @@ fn store_error(error: &envio_store::StoreError) -> Problem {
 pub(super) async fn folders(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
 ) -> Result<(), Problem> {
     let before = worker
         .store
         .db
         .folders(account)
         .map_err(|e| store_error(&e))?;
-    let after = driver::sync_folders(session, &mut worker.store.local(), account)
+    let after = driver::sync_folders(server, &mut worker.store.local(), account)
         .await
         .map_err(|e| imap_error(&e))?;
     if before != after {
@@ -44,7 +44,7 @@ pub(super) async fn folders(
 pub(super) async fn folder(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     id: FolderId,
 ) -> Result<(), Problem> {
     // One time for the whole step.
@@ -72,7 +72,7 @@ pub(super) async fn folder(
             .get_mut(account)
             .and_then(|live| live.take_window(id)),
     };
-    let synced = driver::sync_folder_as(session, &mut worker.store.local(), id, options)
+    let synced = driver::sync_folder_as(server, &mut worker.store.local(), id, options)
         .await
         .map_err(|e| imap_error(&e))?;
     // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
@@ -115,10 +115,10 @@ pub(super) fn folder_synced(worker: &mut Worker<'_>, account: &str, (id, more): 
 pub(super) async fn search_server(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     (folder, query): (FolderId, &str),
 ) -> Result<(), Problem> {
-    let ids = driver::search_server(session, &mut worker.store.local(), folder, query)
+    let ids = driver::search_server(server, &mut worker.store.local(), folder, query)
         .await
         .map_err(|e| imap_error(&e))?;
     // Mail found there may be new to the cache.
@@ -139,7 +139,7 @@ pub(super) fn index_body(worker: &Worker<'_>, id: MessageRowId, eml: &[u8]) {
 
 pub(super) async fn body(
     worker: &mut Worker<'_>,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     id: MessageRowId,
 ) -> Result<(), Problem> {
     let folder = worker
@@ -165,9 +165,9 @@ pub(super) async fn body(
             .message(id)
             .is_ok_and(|m| driver::is_big(m.size));
     let eml = if whole {
-        driver::fetch_whole_body(session, &mut worker.store.local(), id).await
+        driver::fetch_whole_body(server, &mut worker.store.local(), id).await
     } else {
-        driver::fetch_body(session, &mut worker.store.local(), id).await
+        driver::fetch_body(server, &mut worker.store.local(), id).await
     }
     .map_err(|e| imap_error(&e))?;
     if let (true, Some(eml)) = (kept, &eml) {
@@ -184,11 +184,11 @@ pub(super) async fn body(
 /// goes on with the answer (see `Worker::keywords_checked`).
 pub(super) async fn keywords(
     worker: &mut Worker<'_>,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     id: MessageRowId,
 ) -> Result<(), Problem> {
     let message = worker.store.db.message(id).map_err(|e| store_error(&e))?;
-    let fresh = driver::refresh_flags(session, &worker.store.local(), &message)
+    let fresh = driver::refresh_flags(server, &worker.store.local(), &message)
         .await
         .map_err(|e| imap_error(&e))?;
     worker.emit(Event::MessagesChanged {
@@ -202,7 +202,7 @@ pub(super) async fn keywords(
 /// asked (see `Worker::part_fetched`).
 pub(super) async fn part(
     worker: &mut Worker<'_>,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
     id: MessageRowId,
     index: usize,
 ) -> Result<(), Problem> {
@@ -220,7 +220,7 @@ pub(super) async fn part(
         return Ok(());
     };
     let raw = driver::fetch_part(
-        session,
+        server,
         &mut worker.store.local(),
         id,
         (&want.section, want.size),
@@ -234,9 +234,9 @@ pub(super) async fn part(
 pub(super) async fn replay(
     worker: &mut Worker<'_>,
     account: &str,
-    session: &mut ImapSession,
+    server: &mut impl MailServer,
 ) -> Result<(), Problem> {
-    let replayed = driver::replay(session, &mut worker.store.local(), account, now_ms()).await;
+    let replayed = driver::replay(server, &mut worker.store.local(), account, now_ms()).await;
     // Also after an error: actions committed before it, or before a crash,
     // have their forget intents in the journal.
     worker.forget_deleted_drafts(account);

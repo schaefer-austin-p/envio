@@ -7,10 +7,10 @@
 use std::collections::BTreeSet;
 
 use envio_net::NetError;
-use envio_net::imap::ImapSession;
 use envio_store::{FolderId, FolderRole, ListRef};
 use envio_sync::SyncError;
 use envio_sync::driver;
+use envio_sync::server::MailServer;
 
 use super::Worker;
 use crate::api::event::Event;
@@ -112,21 +112,13 @@ impl Worker<'_> {
     /// The step: older mail for `folder`.
     pub(super) async fn older_step(
         &mut self,
-        session: &mut ImapSession,
+        server: &mut impl MailServer,
         folder: FolderId,
     ) -> Result<(), Problem> {
         let floor = self.floors.get(&folder).cloned();
         let tail = self.waiting_tail(folder);
         let window = (now_ms(), self.store.settings.sync_window());
-        match driver::load_older(
-            session,
-            &mut self.store.local(),
-            folder,
-            window,
-            floor,
-            tail,
-        )
-        .await
+        match driver::load_older(server, &mut self.store.local(), folder, window, floor, tail).await
         {
             Ok(older) => {
                 self.floors.insert(folder, older.kept());

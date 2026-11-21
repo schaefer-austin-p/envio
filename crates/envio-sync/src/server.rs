@@ -49,6 +49,11 @@ pub trait MailServer {
     async fn move_to(&mut self, uids: &[u32], target: &str) -> Result<()>;
     async fn delete(&mut self, uids: &[u32]) -> Result<()>;
     async fn append(&mut self, folder: &str, flags: &[Flag], eml: &[u8]) -> Result<()>;
+    /// Whether the server reported a change in the selected folder since the
+    /// last call (IMAP's unsolicited replies). Drains what was reported.
+    fn take_changes(&mut self) -> bool {
+        false
+    }
 }
 
 /// An SMTP session.
@@ -140,6 +145,10 @@ impl MailServer for ImapSession {
 
     async fn append(&mut self, folder: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {
         ImapSession::append(self, folder, flags, eml).await
+    }
+
+    fn take_changes(&mut self) -> bool {
+        ImapSession::take_changes(self)
     }
 }
 
