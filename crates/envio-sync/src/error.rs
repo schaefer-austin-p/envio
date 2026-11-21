@@ -51,6 +51,9 @@ pub(crate) fn net_kind(error: &NetError) -> ErrorKind {
         | NetError::NoStartTls => ErrorKind::Certificate,
         NetError::Refused(_) => ErrorKind::Refused,
         NetError::Protocol(_) => ErrorKind::Protocol,
+        // Stubs until T10 (Damaged) and T9 (Unconfirmed) give them their own paths.
+        NetError::Storage { .. } => ErrorKind::Local,
+        NetError::Unconfirmed(_) => ErrorKind::Temporary,
     }
 }
 

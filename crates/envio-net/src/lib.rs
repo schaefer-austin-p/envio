@@ -7,6 +7,7 @@ pub mod autoconfig;
 mod connect;
 pub mod dns;
 pub mod error;
+pub mod graph;
 mod http;
 pub mod imap;
 pub mod oauth;
@@ -17,6 +18,6 @@ pub mod trust;
 mod verifier;
 
 pub use connect::{COMMAND_TIMEOUT, CONNECT_TIMEOUT};
-pub use error::{NetError, Result, Untrusted};
+pub use error::{NetError, Result, StorageKind, Untrusted};
 pub use server::{Credentials, Endpoint, Fingerprint, Security};
 pub use tls::{Roots, RootsSource};

@@ -59,6 +59,9 @@ pub fn from_net(error: &NetError, service: Service) -> Problem {
         })),
         NetError::Tls(_) | NetError::NoStartTls => Problem::Certificate(None),
         NetError::Refused(text) => Problem::Refused(text.clone()),
+        // Stubs until T10 replaces them.
+        NetError::Storage { .. } => Problem::Local,
+        NetError::Unconfirmed(_) => Problem::Temporary,
     }
 }
 

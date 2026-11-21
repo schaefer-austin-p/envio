@@ -44,6 +44,22 @@ pub enum NetError {
     Refused(String),
     #[error("protocol: {0}")]
     Protocol(String),
+    /// The server's storage is damaged or full (Graph: a mailbox that
+    /// answers 507, or a store that cannot be read).
+    #[error("storage: {msg}")]
+    Storage { kind: StorageKind, msg: String },
+    /// A Graph send whose outcome is unknown: the request may have been
+    /// accepted. The send driver treats it as "may have been sent".
+    #[error("send outcome unknown: {0}")]
+    Unconfirmed(String),
+}
+
+/// What is wrong with the storage behind a [`NetError::Storage`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageKind {
+    Damaged,
+    DiskFull,
+    Other,
 }
 
 /// Why the system roots didn't vouch for a certificate.

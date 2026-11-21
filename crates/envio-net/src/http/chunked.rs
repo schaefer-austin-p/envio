@@ -34,6 +34,27 @@ fn line_end(rest: &[u8], at: usize, limit: usize) -> Result<Option<usize>, ()> {
     }
 }
 
+/// Why a chunk-size line is not a size.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SizeError {
+    Malformed,
+    /// Hex digits that do not fit a `usize`.
+    Overflow,
+}
+
+/// The size in a chunk-size line (hex digits, then optional `;extensions`).
+pub(crate) fn chunk_size(line: &[u8]) -> Result<usize, SizeError> {
+    let digits = line.split(|&b| b == b';').next().unwrap_or_default();
+    if digits.is_empty() || !digits.iter().all(u8::is_ascii_hexdigit) {
+        return Err(SizeError::Malformed);
+    }
+    // All hex digits, so a failed parse is an overflow.
+    std::str::from_utf8(digits)
+        .ok()
+        .and_then(|d| usize::from_str_radix(d, 16).ok())
+        .ok_or(SizeError::Overflow)
+}
+
 /// The chunk reader's place: `at` is the start of the next chunk-size line
 /// (or trailer line), which is only moved past a whole chunk.
 #[derive(Default)]
@@ -78,17 +99,10 @@ impl Dechunker {
                 Err(()) => return Chunked::Malformed,
             };
             self.work += end + 2 - self.at;
-            let line = &rest[self.at..end];
-            let digits = line.split(|&b| b == b';').next().unwrap_or_default();
-            if digits.is_empty() || !digits.iter().all(u8::is_ascii_hexdigit) {
-                return Chunked::Malformed;
-            }
-            // All hex digits, so a failed parse is an overflow: too big.
-            let Some(size) = std::str::from_utf8(digits)
-                .ok()
-                .and_then(|d| usize::from_str_radix(d, 16).ok())
-            else {
-                return Chunked::TooBig;
+            let size = match chunk_size(&rest[self.at..end]) {
+                Ok(size) => size,
+                Err(SizeError::Malformed) => return Chunked::Malformed,
+                Err(SizeError::Overflow) => return Chunked::TooBig,
             };
             let data = end + 2;
             if size == 0 {
