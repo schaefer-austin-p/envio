@@ -1,6 +1,8 @@
 use std::fs;
 
-use envio_store::{AccountSettings, Accounts, Security, Server, StoreError};
+use envio_store::{
+    AccountSettings, Accounts, BackendKind, Migration, Security, Server, StoreError,
+};
 
 const PIN: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
@@ -9,19 +11,21 @@ fn settings(email: &str) -> AccountSettings {
         name: "Ada".into(),
         email: email.into(),
         username: email.into(),
-        imap: Server {
+        backend: BackendKind::Imap,
+        imap: Some(Server {
             host: "imap.example.org".into(),
             port: 993,
             security: Security::Tls,
             pin: None,
-        },
-        smtp: Server {
+        }),
+        smtp: Some(Server {
             host: "smtp.example.org".into(),
             port: 465,
             security: Security::Tls,
             pin: None,
-        },
+        }),
         auth: None,
+        migration: None,
     }
 }
 
@@ -31,9 +35,9 @@ fn tls_mode_and_pins_survive_reopening() {
     let path = dir.path().join("accounts.json");
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
-    pinned.imap.pin = Some(PIN.into());
-    pinned.smtp.security = Security::StartTls;
-    pinned.smtp.port = 587;
+    pinned.imap.as_mut().unwrap().pin = Some(PIN.into());
+    pinned.smtp.as_mut().unwrap().security = Security::StartTls;
+    pinned.smtp.as_mut().unwrap().port = 587;
     let key = accounts.add(pinned.clone(), 1_000).unwrap();
     let reopened = Accounts::open(&path).unwrap();
     assert_eq!(reopened.get(&key).unwrap().settings, pinned);
@@ -52,7 +56,7 @@ fn a_version_1_file_reads_as_implicit_tls_without_pins() {
       "smtp": {"host": "smtp.example.org", "port": 465}}}]}"#;
     fs::write(&path, v1).unwrap();
     let accounts = Accounts::open(&path).unwrap();
-    let imap = &accounts.list()[0].settings.imap;
+    let imap = accounts.list()[0].settings.imap.as_ref().unwrap();
     assert_eq!(imap.security, Security::Tls);
     assert_eq!(imap.pin, None);
 }
@@ -63,7 +67,7 @@ fn a_malformed_pin_breaks_only_its_account() {
     let path = dir.path().join("accounts.json");
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
-    pinned.imap.pin = Some(PIN.into());
+    pinned.imap.as_mut().unwrap().pin = Some(PIN.into());
     let bad = accounts.add(pinned, 1_000).unwrap();
     let good = accounts.add(settings("bob@example.org"), 2_000).unwrap();
     let text = fs::read_to_string(&path).unwrap();
@@ -105,7 +109,7 @@ fn an_entry_that_does_not_parse_is_broken_with_its_key() {
 fn a_newer_version_still_fails() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, r#"{"version": 4, "accounts": [{"key": "1000"}]}"#).unwrap();
+    fs::write(&path, r#"{"version": 5, "accounts": [{"key": "1000"}]}"#).unwrap();
     assert!(matches!(
         Accounts::open(&path),
         Err(StoreError::BadRecord { .. })
@@ -118,7 +122,7 @@ fn a_broken_account_can_be_removed() {
     let path = dir.path().join("accounts.json");
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
-    pinned.imap.pin = Some(PIN.into());
+    pinned.imap.as_mut().unwrap().pin = Some(PIN.into());
     let bad = accounts.add(pinned, 1_000).unwrap();
     let good = accounts.add(settings("bob@example.org"), 2_000).unwrap();
     let text = fs::read_to_string(&path).unwrap();
@@ -140,7 +144,7 @@ fn a_malformed_pin_is_never_written() {
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
     // Uppercase is the display form, not the stored one.
-    pinned.smtp.pin = Some(PIN.to_uppercase());
+    pinned.smtp.as_mut().unwrap().pin = Some(PIN.to_uppercase());
     assert!(matches!(
         accounts.add(pinned, 1_000),
         Err(StoreError::BadRecord { .. })
@@ -214,7 +218,7 @@ fn a_damaged_file_is_an_error_and_left_alone() {
 fn a_file_from_a_newer_envio_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, br#"{"version": 4, "accounts": []}"#).unwrap();
+    fs::write(&path, br#"{"version": 5, "accounts": []}"#).unwrap();
     let error = Accounts::open(&path).err().unwrap();
     assert!(matches!(error, StoreError::BadRecord { .. }), "{error:?}");
 }
@@ -316,7 +320,7 @@ fn a_broken_entry_refuses_a_label_and_keeps_its_own() {
     let path = dir.path().join("accounts.json");
     let mut accounts = Accounts::open(&path).unwrap();
     let mut pinned = settings("ada@example.org");
-    pinned.imap.pin = Some(PIN.into());
+    pinned.imap.as_mut().unwrap().pin = Some(PIN.into());
     let bad = accounts.add(pinned, 1_000).unwrap();
     accounts.set_label(&bad, Some("Work")).unwrap();
     let text = fs::read_to_string(&path).unwrap();
@@ -442,9 +446,150 @@ fn a_broken_entry_that_names_an_auth_kind_keeps_the_file_at_version_3() {
 fn a_version_4_file_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("accounts.json");
-    fs::write(&path, r#"{"version": 4, "accounts": []}"#).unwrap();
+    fs::write(&path, r#"{"version": 5, "accounts": []}"#).unwrap();
     assert!(matches!(
         Accounts::open(&path),
         Err(StoreError::BadRecord { .. })
     ));
+}
+
+fn graph_settings() -> AccountSettings {
+    let mut s = settings("ada@outlook.example");
+    s.backend = BackendKind::Graph;
+    s.imap = None;
+    s.smtp = None;
+    s.auth = Some("microsoft".into());
+    s
+}
+
+// Real v2 and v3 samples, as older builds wrote them.
+const V2: &str = r#"{
+  "version": 2,
+  "accounts": [
+    {
+      "key": "1000",
+      "settings": {
+        "name": "Ada",
+        "email": "ada@example.org",
+        "username": "ada@example.org",
+        "imap": {"host": "imap.example.org", "port": 993, "security": "tls"},
+        "smtp": {"host": "smtp.example.org", "port": 465, "security": "tls"}
+      }
+    }
+  ]
+}"#;
+const V3: &str = r#"{
+  "version": 3,
+  "accounts": [
+    {
+      "key": "1000",
+      "settings": {
+        "name": "Ada",
+        "email": "ada@outlook.example",
+        "username": "ada@outlook.example",
+        "imap": {"host": "outlook.office365.com", "port": 993, "security": "tls"},
+        "smtp": {"host": "smtp-mail.outlook.com", "port": 587, "security": "starttls"},
+        "auth": "microsoft"
+      }
+    }
+  ]
+}"#;
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap()
+}
+
+#[test]
+fn v2_and_v3_files_load_as_imap_with_servers() {
+    let dir = tempfile::tempdir().unwrap();
+    for text in [V2, V3] {
+        let path = dir.path().join("accounts.json");
+        fs::write(&path, text).unwrap();
+        let accounts = Accounts::open(&path).unwrap();
+        let s = &accounts.list()[0].settings;
+        assert_eq!(s.backend, BackendKind::Imap);
+        assert!(s.imap.is_some() && s.smtp.is_some());
+        assert!(s.migration.is_none());
+        assert!(accounts.list()[0].broken.is_none());
+    }
+}
+
+#[test]
+fn v2_and_v3_files_save_back_at_their_version_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    for (text, version) in [(V2, 2), (V3, 3)] {
+        fs::write(&path, text).unwrap();
+        let mut accounts = Accounts::open(&path).unwrap();
+        let s = accounts.get("1000").unwrap().settings.clone();
+        accounts.update("1000", s).unwrap();
+        assert_eq!(version_of(&path), version);
+        let again: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(again, json(text));
+    }
+}
+
+#[test]
+fn a_graph_account_saves_as_v4_without_servers() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let key = accounts.add(graph_settings(), 1_000).unwrap();
+    assert_eq!(version_of(&path), 4);
+    let text = fs::read_to_string(&path).unwrap();
+    assert!(text.contains("\"backend\": \"graph\""), "{text}");
+    assert!(
+        !text.contains("\"imap\"") && !text.contains("\"smtp\""),
+        "{text}"
+    );
+    let reopened = Accounts::open(&path).unwrap();
+    assert_eq!(reopened.get(&key).unwrap().settings, graph_settings());
+    assert!(reopened.get(&key).unwrap().broken.is_none());
+}
+
+#[test]
+fn a_migrating_imap_account_forces_v4_and_round_trips() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let mut accounts = Accounts::open(&path).unwrap();
+    let mut s = settings("ada@outlook.example");
+    s.auth = Some("microsoft".into());
+    s.migration = Some(Migration {
+        step: 2,
+        failures: 1,
+    });
+    let key = accounts.add(s.clone(), 1_000).unwrap();
+    assert_eq!(version_of(&path), 4);
+    assert_eq!(
+        Accounts::open(&path).unwrap().get(&key).unwrap().settings,
+        s
+    );
+    accounts
+        .update(&key, settings("ada@outlook.example"))
+        .unwrap();
+    assert_eq!(version_of(&path), 2);
+}
+
+#[test]
+fn an_imap_account_without_servers_is_broken() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    let text = r#"{"version": 4, "accounts": [{"key": "1000",
+      "settings": {"name": "Ada", "email": "ada@example.org", "username": "ada"}}]}"#;
+    fs::write(&path, text).unwrap();
+    let accounts = Accounts::open(&path).unwrap();
+    assert!(accounts.list()[0].broken.is_some());
+}
+
+#[test]
+fn a_version_5_file_is_refused_as_newer() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("accounts.json");
+    fs::write(&path, r#"{"version": 5, "accounts": []}"#).unwrap();
+    assert!(matches!(
+        Accounts::open(&path),
+        Err(StoreError::BadRecord { .. })
+    ));
+    fs::write(&path, r#"{"version": 4, "accounts": []}"#).unwrap();
+    assert!(Accounts::open(&path).is_ok());
 }

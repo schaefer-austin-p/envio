@@ -58,10 +58,14 @@ impl Worker<'_> {
             return;
         };
         let mut settings = current.settings.clone();
-        match service {
-            Service::Imap => settings.imap.pin = Some(pin.to_hex()),
-            Service::Smtp => settings.smtp.pin = Some(pin.to_hex()),
-        }
+        let server = match service {
+            Service::Imap => settings.imap.as_mut(),
+            Service::Smtp => settings.smtp.as_mut(),
+        };
+        let Some(server) = server else {
+            return;
+        };
+        server.pin = Some(pin.to_hex());
         if let Err(error) = self.store.accounts.update(account, settings) {
             log::error!("saving the pin: {error}");
             self.emit(Event::Notice {
@@ -112,10 +116,11 @@ pub(super) fn with_host(
 ) -> AccountStatus {
     match status {
         AccountStatus::Certificate(Some(mut details)) => {
-            details.host = match details.service {
-                Service::Imap => settings.imap.host.clone(),
-                Service::Smtp => settings.smtp.host.clone(),
+            let server = match details.service {
+                Service::Imap => settings.imap.as_ref(),
+                Service::Smtp => settings.smtp.as_ref(),
             };
+            details.host = server.map(|s| s.host.clone()).unwrap_or_default();
             AccountStatus::Certificate(Some(details))
         }
         other => other,
@@ -172,8 +177,10 @@ mod tests {
     #[test]
     fn a_certificate_status_names_the_server_of_its_service() {
         let settings = AccountSettings {
-            imap: server("imap.example.org"),
-            smtp: server("smtp.example.org"),
+            backend: envio_store::BackendKind::Imap,
+            migration: None,
+            imap: Some(server("imap.example.org")),
+            smtp: Some(server("smtp.example.org")),
             name: "Ann".into(),
             email: "ann@example.org".into(),
             username: "ann".into(),

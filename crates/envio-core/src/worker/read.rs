@@ -366,7 +366,7 @@ impl Worker<'_> {
             .store
             .accounts
             .get(&account)
-            .map(|a| a.settings.imap.host.clone())
+            .and_then(|a| a.settings.imap.as_ref().map(|s| s.host.clone()))
             .unwrap_or_default();
         let ctx = ViewContext {
             account: &account,

@@ -6,7 +6,7 @@ use envio_net::oauth::{
     Identity, Pkce, Provider, ProviderKind, RedirectError, TokenError, Tokens, authorize_url,
     identity_matches, parse_redirect, provider_kind_for,
 };
-use envio_store::AccountSettings;
+use envio_store::{AccountSettings, BackendKind};
 use secrecy::SecretString;
 
 use super::Worker;
@@ -388,9 +388,11 @@ impl Worker<'_> {
             name: email.rsplit_once('@').map_or("", |(l, _)| l).to_owned(),
             email: email.to_owned(),
             username: email.to_owned(),
-            imap: addr(&provider.imap),
-            smtp: addr(&provider.smtp),
+            backend: BackendKind::Imap,
+            imap: Some(addr(&provider.imap)),
+            smtp: Some(addr(&provider.smtp)),
             auth: Some("microsoft".to_owned()),
+            migration: None,
         };
         match self.save_oauth_account(settings, refresh) {
             Ok(account) => {

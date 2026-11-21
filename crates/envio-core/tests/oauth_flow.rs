@@ -308,7 +308,7 @@ fn a_sign_in_adds_the_account_and_keeps_the_token_out_of_everything_else() {
         (settings.email.as_str(), settings.username.as_str()),
         (ME, ME)
     );
-    assert_eq!(settings.imap.host, "127.0.0.1");
+    assert_eq!(settings.imap.as_ref().unwrap().host, "127.0.0.1");
     assert_eq!(refresh_of(&f.h, &key).as_deref(), Some("rt-new"));
     assert!(!password_of(&f.h, &key), "a password entry was made");
     // The first sync signs in with the token and the typed address.
