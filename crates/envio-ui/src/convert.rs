@@ -171,8 +171,8 @@ pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String,
     }
 }
 
-/// Edit is offered: the row is refused (`failed`, which includes a damaged
-/// one), or it is held for a sign-in (Queued, the account's state "auth" or
+/// Edit is offered: the row is refused (`Failed`; not a damaged one, whose
+/// message cannot be read back into a draft), or it is held for a sign-in (Queued, the account's state "auth" or
 /// "unsupported": a bad password, or a Microsoft sign-in this build does not
 /// offer). Not for a certificate ("pin") hold or a plain waiting row. This
 /// must agree with `Worker::editable` in envio-core `worker/outbox.rs`,
@@ -180,7 +180,7 @@ pub fn outbox_reason(accounts: &[AccountRow], r: &OutboxRow) -> (String, String,
 /// account's status is `SignInFailed`).
 pub fn outbox_editable(accounts: &[AccountRow], r: &OutboxRow) -> bool {
     match r.status {
-        OutboxStatus::Failed { .. } | OutboxStatus::Damaged => true,
+        OutboxStatus::Failed { .. } => true,
         OutboxStatus::Queued => accounts
             .iter()
             .find(|a| a.key == r.account)
@@ -403,7 +403,7 @@ mod tests {
         assert!(!outbox_editable(&[], &queued));
         let failed = row(OutboxStatus::Failed { reason: "r".into() });
         assert!(outbox_editable(&[], &failed));
-        assert!(outbox_editable(&[], &row(OutboxStatus::Damaged)));
+        assert!(!outbox_editable(&[], &row(OutboxStatus::Damaged)));
         assert!(!outbox_editable(&[], &row(OutboxStatus::Sending)));
         assert!(!outbox_editable(&[], &row(OutboxStatus::SentNotFiled)));
         let Row::Outbox(ui) = outbox_row(&queued, &[account(false, "auth")]) else {
