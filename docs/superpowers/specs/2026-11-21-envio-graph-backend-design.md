@@ -9,7 +9,7 @@ Release 0.4.0. This spec covers:
 It builds on the main spec, `docs/superpowers/specs/2026-11-07-envio-design.md`,
 whose privacy and unsent-work rules still apply.
 
-The design was reviewed against the code in seven rounds by fresh agents.
+The design was reviewed against the code in nine rounds by fresh agents.
 The facts under "Platform facts" were measured on a real Outlook.com
 account.
 
@@ -82,7 +82,8 @@ which may use both net and store. Net and store stay apart.
   that passes `cargo audit`.
 - Supports any method, custom headers, chunked and Content-Length
   bodies, and keep-alive. Every request sends
-  `Prefer: IdType="ImmutableId"`.
+  `Prefer: IdType="ImmutableId"`. Other preferences go in the same
+  header value, comma-separated.
 - Connection reuse:
   - `send_mime` and `create_mime` always use a fresh connection. A
     reused socket that the server already closed would make a send
@@ -168,10 +169,15 @@ which may use both net and store. Net and store stay apart.
 `send_mime` is stricter, because a requeued send that Graph already took
 goes out twice:
 - Confirmed not sent: only 400, 401 (after the fresh-token retry), 403,
-  413, 429 and 503. These map as in the table above.
+  409, 413, 423, 429, 503 and 507. These map as in the table above.
 - Any other status (500, 502, 504, and so on), and any timeout or
   dropped connection after the body was written, is `unconfirmed`. The
   item becomes `MayHaveBeenSent` and goes through Resolve.
+- In-call retries on `send_mime`: only the 401 fresh-token retry, and a
+  429 or 503 with `Retry-After` ≤ 10 s. A 500, 502 or 504 is never
+  retried inside the call.
+- `create_mime` has no in-call status retry, so a draft is never
+  created twice by the client.
 
 `NetError` gets one new variant,
 `Storage { kind: StorageKind, msg }`, with
@@ -246,6 +252,8 @@ unchanged)
     Resolve or a replay lookup find before a refresh maps them. Such a
     message keeps its low uid and never notifies; that is accepted.
   - When either range runs out, the folder is reset.
+- The folder is reset when `uid_next` would reach `2^32 - 1`, so it
+  always fits the u32 `FolderState.uid_next`.
 - Every new graph_id → uid row is written before the uid is handed out,
   and a uid is never reused. This is what makes multi-call syncs, Load
   older and crashes safe.
@@ -273,8 +281,10 @@ unchanged)
 **`select(folder)`** (no network)
 - Returns the generation as `uid_validity`, plus `uid_next`,
   `exists` and `highest_modseq`.
-- A known folder that has never been refreshed mints its generation
-  once and saves it. The first refresh keeps that generation.
+- `commit_folders` creates the `graph_folders` row and mints its
+  generation there; `select` and the first refresh keep it.
+- GraphServer keeps path → (graph_id, folder_row_id) in memory, filled
+  by `commit_folders` and by the lookup-miss walk.
 
 **`commit_folder(db, id)`**
 - Called inside the step that runs `set_sync_state` (folders.rs:228).
@@ -381,7 +391,9 @@ unchanged)
   - `problem::from_kind`;
   - `problem::from_net`, where `Storage` maps like `from_store`
     (Damaged, DiskFull, else Local);
-  - `cause::log_net`.
+  - `cause::net_line` (the exhaustive `NetError` match, cause.rs:54);
+  - `sync::net_kind`, for the new `Storage` variant;
+  - `driver/account.rs:61-63`, where Damaged goes next to Local.
 - `driver/drafts.rs:147` has a catch-all and needs no change.
 - `cause` and `from_sync` label Graph errors "Outlook.com", not
   "IMAP".
@@ -416,6 +428,10 @@ unchanged)
 - `Outbox::set_resolve(id, tries, after)` reads, modifies and writes
   the meta and never changes `state`. `set_state` to Queued or Accepted
   zeroes both fields.
+- Resolve retries apply to Graph accounts only. On IMAP a miss still
+  asks at once.
+- `file_sent` gains a `now` parameter. `set_resolve` leaves the store's
+  `unwritten` set alone.
 - `file_sent(.., now)` skips an item while `now < resolve_after_ms`,
   before it selects Sent.
 - A miss, or a `Refused` on the Sent select, goes into
@@ -441,6 +457,9 @@ How `can_file` flows:
 - `OutboxStatus::MayHaveBeenSent { asked, can_file }`. `can_file` is
   `backend != Graph`; `worker/outbox.rs:48` looks the backend up.
 - In the UI:
+  - `core::outbox::status` takes `can_file`; tests that build
+    `MayHaveBeenSent` (outbox.rs:173, convert.rs:421) and any QML mock
+    outbox model change too;
   - `OutboxRowUi` gets `can_file`;
   - `ui/convert.rs` fills it;
   - `rows.rs` `OUTBOX` gets a `canFile` role;
@@ -476,7 +495,14 @@ On Graph the choices are "Send again" and "Delete".
 - `OAuthTokens` and `TokenCells` are keyed by `(account, ProviderKind)`.
   - `get`, `set`, `remove` and `handle` all take the kind.
   - `Cell.key` holds both.
-- `set_paused` from `Worker::report` applies to the token of the
+- Account removal (`remove.rs`) and `TokenCells::forget` drop both
+  kinds.
+- A Graph account keeps `auth: "microsoft"`, so `is_oauth()` is
+  unchanged.
+- `tid` is read from the id_token even when `email` and
+  `preferred_username` are missing; `identity_of`, `judge` and
+  `identity_matches` change to match.
+- `set_paused` from `Worker::report` and from `worker/run/mod.rs:266` applies to the token of the
   account's active backend. During a migration, only the IMAP token is
   in use before the switch.
 
@@ -506,6 +532,9 @@ New first step, "Choose a provider":
   account picked as Outlook.com, or the reverse), the wizard says
   "This is a work or school account" or "This is a personal account"
   and runs a second sign-in with the other scope set.
+- The second token must have the first token's email and `tid`. If it
+  does not, or the tenant again does not match, the wizard takes the
+  refusal path below. There is no third sign-in.
 - If consent is refused, either by the user or by a work tenant's admin
   for Mail.ReadWrite, the wizard shows the refusal and goes back to the
   provider step. Nothing is saved.
@@ -516,7 +545,7 @@ New first step, "Choose a provider":
 
 **Eligibility**
 - A consumer account qualifies by `tid`, or for an old account by the
-  `outlook.com`, `hotmail.*` or `live.*` domain with the Microsoft
+  `outlook.com`, `hotmail.*`, `live.*`, `msn.com` or `windowslive.com` domain with the Microsoft
   provider.
 - Old accounts store no `Identity`, so a consumer account on a custom
   domain does not qualify. It stays on IMAP.
@@ -541,7 +570,12 @@ New first step, "Choose a provider":
        this step.
      - After 3 failed replay runs, the user can choose "Switch anyway",
        which drops the remaining actions with a notice.
-  2. The account's cache rows and bodies are cleared.
+     Step 1 also waits until no `Accepted` Outbox item is left to
+     file on IMAP. Its failure count is kept in the accounts file
+     with the step. Actions queued after step 1 ends are dropped with
+     the same notice.
+  2. The account's cache rows and bodies are cleared, IMAP folder rows
+     included.
   3. The backend switches to Graph, and the IMAP token and `Server`
      entries are removed.
   4. Core closes `conn`, sets `idle_capable = Some(false)`, sets
