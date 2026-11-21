@@ -131,7 +131,7 @@ P1, P2 and P3 run in parallel (max 3 PRs in flight); P5 takes the first free lan
 - `pub const CONSUMER_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";` in `oauth/token.rs`.
 - `oauth::token::Identity` gains `pub tid: Option<String>`. `identity_of` (`oauth/token.rs:131-141`) today returns `None` unless `email` or `preferred_username` is present: change it to read and clean `tid` too and return `Some` when any of the three is present. `identity_matches` and core's `judge` handle an `Identity` with no email (match on `tid` plus the typed address, as the spec says). Existing `Identity { .. }` literals in tests gain `tid: None`.
 
-**`error.rs`:** `pub fn to_net(e: &GraphError, op: Op) -> Mapped` with `pub enum Op { Read, Write, Delta, Send, Create }` and `pub enum Mapped { Err(NetError), Gone, Expired, Retry401 }`. It implements the spec's status table exactly, including `send_mime`'s confirmed-not-sent set (`Op::Send`: 400, 401, 403, 409, 413, 423, 429, 503, 507 map as in the table; every other status is `Mapped::Err(NetError::Unconfirmed)`; see T4 for the new variant). 403 on `Op::Send` with a send-limit error code (`ErrorExceededMessageLimit`, `SendAsDenied` is *not* one) → `Busy`.
+**`error.rs`:** `pub fn to_net(e: &GraphError, op: Op) -> Mapped` with `pub enum Op { Read, Write, Delta, Send, Create }` and `pub enum Mapped { Err(NetError), Gone, Expired, Retry401 }`. It implements the spec's status table exactly, including `send_mime`'s confirmed-not-sent set (`Op::Send`: 400, 401, 403, 409, 413, 423, 429, 503, 507 map as in the table; every other status is `Mapped::Err(NetError::Unconfirmed)`). T3 adds the `NetError::Unconfirmed(String)` variant (described under T4's `NetError` additions) with its stub arms, so T3 compiles on its own; T4 adds `Storage`. 403 on `Op::Send` with a send-limit error code (`ErrorExceededMessageLimit`, `SendAsDenied` is *not* one) → `Busy`.
 
 **Tests (first, failing):**
 - Each fixture parses; ids, flags, categories, `isDraft`, the size property and headers come through.
@@ -157,7 +157,7 @@ P1, P2 and P3 run in parallel (max 3 PRs in flight); P5 takes the first free lan
 - Reply size cap: 64 MiB for `$value`, 4 MiB otherwise. Over the cap: `$value` → `Refused` (so one huge mail does not loop through `give_up`'s `Protocol` handling), others → `Protocol`.
 - TLS errors: `Untrusted` and `PinChanged` from `tls::connect` become `NetError::Tls(reason)` (spec: no accept action on Graph; core shows `Problem::Certificate(None)`). Timeouts: `COMMAND_TIMEOUT` per read; a send with a body uses a timeout scaled to the body size (≥ 60 s).
 
-**`NetError` additions** (both are new variants; every exhaustive match gets an arm so each commit compiles — `sync::error::net_kind`, `problem::from_net`, `cause::net_line`, `is_temporary`. Here they are stubs: `Storage` → `ErrorKind::Local` / `Problem::Local`, `Unconfirmed` → `Temporary`; T10 replaces them):
+**`NetError` additions** (both are new variants, `Unconfirmed` added in T3 and `Storage` here; every exhaustive match gets an arm so each commit compiles — `sync::error::net_kind`, `problem::from_net`, `cause::net_line`, `is_temporary`. Here they are stubs: `Storage` → `ErrorKind::Local` / `Problem::Local`, `Unconfirmed` → `Temporary`; T10 replaces them):
 - `Storage { kind: StorageKind, msg: String }` with `pub enum StorageKind { Damaged, DiskFull, Other }` (spec).
 - `Unconfirmed(String)`: a Graph send whose outcome is unknown. `is_temporary` false. `net_kind` → `ErrorKind::Temporary`; the send driver treats it as "may have been sent" (T9).
 
@@ -367,9 +367,9 @@ P1, P2 and P3 run in parallel (max 3 PRs in flight); P5 takes the first free lan
 
 **Tier:** trunk. **Files:** `worker/plan.rs` (`Timing.poll_ms`, `next`, `BACKGROUND_POLL_MS`), `worker/turn.rs` (`account_wake`, where `Timing` is built at `:119`, the Run branch).
 
-**Changes:** the spec's "Background poll" list verbatim. `poll_ms` is `Some(BACKGROUND_POLL_MS)` only when `settings.backend == Graph`; IMAP accounts, with or without IDLE, keep `None` and today's behaviour. `Timing { .., pub poll_ms: Option<i64> }`; `account_wake(.., poll_ms: Option<i64>, ..)` gains the background arm.
+**Changes:** the spec's "Background poll" list verbatim. As the spec says, `poll_ms` is `Some(BACKGROUND_POLL_MS)` for every notifying account with `idle_capable == Some(false)`: Graph accounts and IMAP servers without IDLE alike (the spec calls the IMAP case intended). IMAP accounts with IDLE, or with IDLE support still unknown, keep `None`. `Timing { .., pub poll_ms: Option<i64> }`; `account_wake(.., poll_ms: Option<i64>, ..)` gains the background arm.
 
-**Tests (pure, in `plan.rs`):** background + `poll_ms` + `now >= next_full_ms` → `Run`; before that → `Sleep { until_ms: Some(next_full_ms) }`; foreground unaffected; `poll_ms: None` unchanged. Worker test: an IMAP account without IDLE gets `poll_ms: None` and the same `Next` as before. Worker test: after a background Run, `next_full_ms = now + BACKGROUND_POLL_MS` even when the Inbox step fails (no spin: two `wake_at` calls in a row give the same future time).
+**Tests (pure, in `plan.rs`):** background + `poll_ms` + `now >= next_full_ms` → `Run`; before that → `Sleep { until_ms: Some(next_full_ms) }`; foreground unaffected; `poll_ms: None` unchanged. Worker test: an IMAP account without IDLE gets `poll_ms: Some(BACKGROUND_POLL_MS)`; one with IDLE gets `None` and the same `Next` as before. Worker test: after a background Run, `next_full_ms = now + BACKGROUND_POLL_MS` even when the Inbox step fails (no spin: two `wake_at` calls in a row give the same future time).
 
 ---
 
