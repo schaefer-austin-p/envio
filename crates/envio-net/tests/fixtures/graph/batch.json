@@ -1,0 +1,127 @@
+{
+  "responses": [
+    {
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/messages(internetMessageHeaders,receivedDateTime,singleValueExtendedProperties())/$entity",
+        "@odata.etag": "AAMk-20",
+        "id": "AAMk-19",
+        "receivedDateTime": "2026-11-21T22:39:56Z",
+        "singleValueExtendedProperties": [
+          {
+            "id": "Integer 0xe08",
+            "value": "2285"
+          }
+        ]
+      },
+      "headers": {
+        "Cache-Control": "private",
+        "Content-Type": "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8",
+        "Preference-Applied": "IdType=ImmutableId"
+      },
+      "id": "3",
+      "status": 200
+    },
+    {
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/messages(internetMessageHeaders,receivedDateTime,singleValueExtendedProperties())/$entity",
+        "@odata.etag": "AAMk-13",
+        "id": "AAMk-14",
+        "internetMessageHeaders": [
+          {
+            "name": "Content-Type",
+            "value": "multipart/mixed"
+          },
+          {
+            "name": "From",
+            "value": "Alice <alice@example.org>"
+          },
+          {
+            "name": "To",
+            "value": "Alice <alice@example.org>"
+          },
+          {
+            "name": "Subject",
+            "value": "Subject 1"
+          },
+          {
+            "name": "Date",
+            "value": "Sat, 21 Nov 2026 20:12:43 +0000"
+          },
+          {
+            "name": "Message-ID",
+            "value": "<fake-1@example.org>"
+          },
+          {
+            "name": "MIME-Version",
+            "value": "1.0"
+          }
+        ],
+        "receivedDateTime": "2026-11-21T20:15:13Z",
+        "singleValueExtendedProperties": [
+          {
+            "id": "Integer 0xe08",
+            "value": "1731545"
+          }
+        ]
+      },
+      "headers": {
+        "Cache-Control": "private",
+        "Content-Type": "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8",
+        "Preference-Applied": "IdType=ImmutableId"
+      },
+      "id": "2",
+      "status": 200
+    },
+    {
+      "body": {
+        "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/messages(internetMessageHeaders,receivedDateTime,singleValueExtendedProperties())/$entity",
+        "@odata.etag": "AAMk-11",
+        "id": "AAMk-12",
+        "internetMessageHeaders": [
+          {
+            "name": "From",
+            "value": "Bob <bob@example.org>"
+          },
+          {
+            "name": "Date",
+            "value": "Sat, 21 Nov 2026 14:39:39 -0800"
+          },
+          {
+            "name": "Subject",
+            "value": "Subject 2"
+          },
+          {
+            "name": "To",
+            "value": "Alice <alice@example.org>"
+          },
+          {
+            "name": "Message-ID",
+            "value": "<fake-2@example.org>"
+          },
+          {
+            "name": "MIME-Version",
+            "value": "1.0"
+          },
+          {
+            "name": "Content-Type",
+            "value": "multipart/alternative"
+          }
+        ],
+        "receivedDateTime": "2026-11-21T22:39:44Z",
+        "singleValueExtendedProperties": [
+          {
+            "id": "Integer 0xe08",
+            "value": "82834"
+          }
+        ]
+      },
+      "headers": {
+        "Cache-Control": "private",
+        "Content-Type": "application/json; odata.metadata=minimal; odata.streaming=true; IEEE754Compatible=false; charset=utf-8",
+        "Preference-Applied": "IdType=ImmutableId"
+      },
+      "id": "1",
+      "status": 200
+    }
+  ]
+}

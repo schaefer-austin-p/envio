@@ -1,0 +1,4 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/mailFolders('AAMk-7')/messages(receivedDateTime,isRead,flag,categories,isDraft)",
+  "value": []
+}

@@ -177,11 +177,13 @@ impl Rec {
             .flatten()
             .filter_map(|r| r["status"].as_u64())
             .collect();
-        let worked = status == 200 && sub.contains(&200) && sub.contains(&404);
-        let verdict = if worked {
-            "worked (T5 uses it)"
-        } else {
-            "did NOT behave as expected (T5 uses the per-id GET fallback)"
+        let verdict = match (status, sub.contains(&404)) {
+            (200, true) => "worked, including a sub-404 for the deleted draft",
+            (200, false) => {
+                "worked (200 with a reply per request), but no sub-404 was provoked: \
+                 the draft still answered right after `permanentDelete`"
+            }
+            _ => "did not answer 200",
         };
         self.notes.push(format!(
             "`$batch` {verdict}: HTTP {status}, sub-statuses {sub:?}."
@@ -258,8 +260,15 @@ impl Rec {
         let (s404, e404) = self.api.call(Q::new("404", "GET", &gone)).await?;
         let bad = "/v1.0/me/messages?$filter=bogusProperty%20eq%201";
         let (s400, e400) = self.api.call(Q::new("400", "GET", bad)).await?;
-        self.keep(&format!("error_{s404}.json"), e404);
-        self.keep(&format!("error_{s400}.json"), e400);
+        for (status, body) in [(s404, e404), (s400, e400)] {
+            if status >= 400 {
+                self.keep(&format!("error_{status}.json"), body);
+            } else {
+                self.notes.push(format!(
+                    "an error probe gave HTTP {status}, so no error file was kept for it."
+                ));
+            }
+        }
         let head = w.link.split("$deltatoken=").next().unwrap_or_default();
         let stale = path_of(&format!("{head}$deltatoken=invalid"))?;
         let (sx, ex) = self.api.call(Q::new("stale delta", "GET", &stale)).await?;

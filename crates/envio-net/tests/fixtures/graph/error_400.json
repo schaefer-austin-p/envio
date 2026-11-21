@@ -1,0 +1,14 @@
+{
+  "error": {
+    "code": "RequestBroker--ParseUri",
+    "innererror": {
+      "internalexception": {
+        "message": "Could not find a property named 'bogusProperty' on type 'microsoft.graph.message'.",
+        "type": "Microsoft.OData.ODataException"
+      },
+      "message": "Could not find a property named 'bogusProperty' on type 'microsoft.graph.message'.",
+      "type": "Microsoft.Exchange.Services.OData.ODataResponseException"
+    },
+    "message": "Could not find a property named 'bogusProperty' on type 'microsoft.graph.message'."
+  }
+}

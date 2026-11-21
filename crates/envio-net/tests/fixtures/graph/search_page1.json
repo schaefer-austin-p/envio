@@ -1,0 +1,22 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/mailFolders('AAMk-7')/messages(receivedDateTime,isRead,flag,categories,isDraft)",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders('AAMk-7')/messages",
+  "value": [
+    {
+      "@odata.etag": "AAMk-21",
+      "categories": [],
+      "id": "AAMk-22",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T22:39:44Z"
+    },
+    {
+      "@odata.etag": "AAMk-21",
+      "categories": [],
+      "id": "AAMk-23",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T20:08:20Z"
+    }
+  ]
+}
