@@ -4,6 +4,7 @@ fn id(email: Option<&str>, upn: Option<&str>) -> Identity {
     Identity {
         email: email.map(str::to_owned),
         preferred_username: upn.map(str::to_owned),
+        tid: None,
     }
 }
 

@@ -12,7 +12,12 @@ use serde::Deserialize;
 pub struct Identity {
     pub email: Option<String>,
     pub preferred_username: Option<String>,
+    /// The tenant: `CONSUMER_TENANT` for a personal Microsoft account.
+    pub tid: Option<String>,
 }
+
+/// The `tid` of personal Microsoft accounts (Outlook.com, Hotmail, Live).
+pub const CONSUMER_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
 pub struct Tokens {
     pub access: SecretString,
@@ -124,8 +129,8 @@ fn tokens(r: Reply) -> Result<Tokens, TokenError> {
     })
 }
 
-/// The `email` and `preferred_username` claims of an id_token, or `None`
-/// when it is not a JWT or has neither. The signature is NOT verified: the
+/// The `email`, `preferred_username` and `tid` claims of an id_token, or `None`
+/// when it is not a JWT or has none. The signature is NOT verified: the
 /// token came straight from the token endpoint over TLS, which is the OIDC
 /// rule for the code flow. Never use this on a token from anywhere else.
 pub fn identity_of(id_token: &str) -> Option<Identity> {
@@ -136,8 +141,9 @@ pub fn identity_of(id_token: &str) -> Option<Identity> {
     let id = Identity {
         email: clean(claims.email),
         preferred_username: clean(claims.preferred_username),
+        tid: clean(claims.tid),
     };
-    (id.email.is_some() || id.preferred_username.is_some()).then_some(id)
+    (id.email.is_some() || id.preferred_username.is_some() || id.tid.is_some()).then_some(id)
 }
 
 /// Decision 9: the typed address (trimmed, ASCII case-insensitive) equals

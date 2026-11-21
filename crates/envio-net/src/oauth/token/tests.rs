@@ -68,6 +68,7 @@ fn id(email: Option<&str>, upn: Option<&str>) -> Identity {
     Identity {
         email: email.map(str::to_owned),
         preferred_username: upn.map(str::to_owned),
+        tid: None,
     }
 }
 
@@ -204,6 +205,15 @@ fn identity_of_reads_both_claims() {
         identity_of(&t),
         Some(id(Some("A@Example.org"), Some("a@envio.test")))
     );
+}
+
+#[test]
+fn identity_of_returns_tid_without_email_or_username() {
+    let t = jwt(&format!(r#"{{"tid":" {CONSUMER_TENANT} ","sub":"x"}}"#));
+    let got = identity_of(&t).unwrap();
+    assert_eq!(got.tid.as_deref(), Some(CONSUMER_TENANT));
+    assert_eq!((got.email, got.preferred_username), (None, None));
+    assert_eq!(identity_of(&jwt(r#"{"tid":" "}"#)), None);
 }
 
 #[test]

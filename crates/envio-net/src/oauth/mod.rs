@@ -18,6 +18,6 @@ pub use pkce::Pkce;
 pub use provider::{Provider, ProviderKind, provider_kind_for};
 pub use redirect::{Redirect, RedirectError, authorize_url, parse_redirect};
 pub use token::{
-    Grant, Identity, TokenError, Tokens, identity_matches, identity_of, parse_token_reply,
-    token_request_body,
+    CONSUMER_TENANT, Grant, Identity, TokenError, Tokens, identity_matches, identity_of,
+    parse_token_reply, token_request_body,
 };
