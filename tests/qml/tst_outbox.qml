@@ -93,6 +93,20 @@ Item {
             compare(signingIn.signalArguments[0][0], "ann")
         }
 
+        function test_a_message_held_for_a_sign_in_can_be_edited_but_a_certificate_hold_cannot() {
+            const held = item("h", "waiting", "Waiting to send", "Sign in again", "Open accounts")
+            held.signInAgain = true
+            core.outbox.append(held)
+            core.outbox.append(item("p", "waiting", "Waiting to send", "The certificate changed", "Check certificate"))
+            core.outbox.append(item("q", "waiting", "Waiting to send"))
+            waitForRendering(page)
+            verify(shown("edit-h"))
+            verify(!shown("edit-p") && !shown("edit-q"))
+            mouseClick(find("edit-h", page))
+            compare(core.called("editOutbox").pop().args, ["h"])
+            compare(composing.count, 1)
+        }
+
         function test_outbox_actions_follow_status() {
             core.outbox.append(item("w", "waiting", "Waiting to send"))
             core.outbox.append(item("s", "sending", "Sending"))
