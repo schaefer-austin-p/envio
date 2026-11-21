@@ -4,7 +4,8 @@ import "../../components"
 
 // The folders menu (board 10), a page over the inbox: the unified inbox and
 // the Outbox, then each account with its folders (the open account's list
-// comes from `core.listFolders`). Taps leave through signals.
+// comes from `core.listFolders`). Taps leave through signals. `inline` makes
+// it the third column of the very wide layout.
 Rectangle {
     id: root
     required property Theme theme
@@ -12,6 +13,12 @@ Rectangle {
     required property var accounts
     required property var folders
     property int outboxCount: 0
+    // A plain column pinned beside the list on very wide windows: no close
+    // button, and the row of the shown list (Unified inbox or a folder)
+    // shows as selected.
+    property bool inline: false
+    property bool unifiedSelected: false
+    property int selectedFolder: -1
     // The account whose folders are shown.
     property string expanded: ""
     readonly property int unreadTotal: probe.total
@@ -83,7 +90,7 @@ Rectangle {
         id: bar
         theme: root.theme
         width: parent.width
-        showBack: true
+        showBack: !root.inline
         compact: true
         title: qsTr("Mail")
         onBackClicked: root.closeRequested()
@@ -124,6 +131,7 @@ Rectangle {
             ListRow {
                 objectName: "unifiedRow"
                 theme: root.theme
+                selected: root.inline && root.unifiedSelected
                 width: column.width
                 separator: false
                 onClicked: root.unifiedRequested()
@@ -247,6 +255,7 @@ Rectangle {
                             theme: root.theme
                             width: acct.width
                             separator: false
+                            selected: root.inline && !root.unifiedSelected && folder.model.id === root.selectedFolder
                             visible: model.account === acct.model.key && root.expanded === acct.model.key
                             height: visible ? implicitHeight : 0
                             onClicked: root.folderRequested(folder.model.id, label.text)

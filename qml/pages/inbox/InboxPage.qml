@@ -22,6 +22,11 @@ Item {
     property bool unified: true
     // Whether the row of the open message is marked; the wide shell turns it off while a compose is in the pane.
     property bool showOpen: true
+    // The folders drawer is a column of the shell: no menu button, and the
+    // overlay drawer stays closed.
+    property bool drawerInline: false
+    readonly property bool overlayDrawerVisible: drawer.visible
+    onDrawerInlineChanged: if (drawerInline) drawer.visible = false
     // The account whose Inbox the next folder list should open.
     property string pendingInbox: ""
     property int undoId: 0
@@ -147,6 +152,7 @@ Item {
         }
         IconButton {
             objectName: "menuButton"
+            visible: !root.drawerInline
             theme: root.theme
             iconName: "menu"
             text: qsTr("Open menu")

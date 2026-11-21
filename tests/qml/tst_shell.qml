@@ -564,6 +564,90 @@ Item {
             b.shell.destroy()
         }
 
+        // Third column (T7): the folders drawer pinned open from 180 gu.
+        function test_very_wide_shows_inline_drawer() {
+            const b = bootWide(200)
+            compare(b.shell.veryWide, true)
+            const col = find(b.shell, "inlineDrawer")
+            verify(col !== null && col.visible, "no inline drawer")
+            compare(col.inline, true)
+            compare(col.width, thm.gu(30))
+            // The list and the pane sit to its right.
+            const page = b.shell.currentPage
+            verify(page.mapToItem(b.shell, 0, 0).x >= col.width, "list overlaps the drawer")
+            const line = find(b.shell, "paneHairline")
+            compare(line.x, thm.gu(80))
+            b.shell.destroy()
+        }
+
+        function test_wide_but_not_very_wide_uses_overlay_drawer() {
+            const b = bootWide(150)
+            compare(b.shell.wide, true)
+            compare(b.shell.veryWide, false)
+            const col = find(b.shell, "inlineDrawer")
+            verify(col === null || !col.visible, "inline drawer shown")
+            compare(b.shell.currentPage.drawerInline, false)
+            b.shell.destroy()
+        }
+
+        function test_menu_button_hidden_when_drawer_inline() {
+            const b = bootWide(150)
+            verify(find(b.shell, "menuButton").visible, "no menu button when overlay")
+            b.shell.width = thm.gu(200)
+            compare(b.shell.currentPage.drawerInline, true)
+            verify(!find(b.shell, "menuButton").visible, "menu button with inline drawer")
+            b.shell.destroy()
+        }
+
+        function test_inline_folder_pick_clears_open_message() {
+            const b = bootWide(200)
+            b.shell.currentPage.messageRequested(7)
+            compare(b.core.openMessage, 7)
+            find(b.shell, "inlineDrawer").folderRequested(3, "Archive")
+            compare(b.core.openMessage, 0)
+            compare(b.core.called("openList").length > 0, true)
+            compare(b.shell.currentPage.title, "Archive")
+            tryVerify(function() { return find(b.shell, "emptyReader").visible })
+            // Never both: the overlay stays closed.
+            verify(!b.shell.currentPage.overlayDrawerVisible, "overlay drawer shown")
+            b.shell.destroy()
+        }
+
+        // The pinned column marks the shown list: Unified inbox, then the
+        // picked folder instead.
+        function test_inline_drawer_marks_the_shown_folder() {
+            const b = bootWide(200)
+            const col = find(b.shell, "inlineDrawer")
+            compare(col.unifiedSelected, true)
+            compare(col.selectedFolder, -1)
+            col.folderRequested(3, "Archive")
+            compare(col.unifiedSelected, false)
+            compare(col.selectedFolder, 3)
+            col.unifiedRequested()
+            compare(col.unifiedSelected, true)
+            compare(col.selectedFolder, -1)
+            b.shell.destroy()
+        }
+
+        function test_veryWide_hysteresis() {
+            const b = bootWide(170)
+            compare(b.shell.veryWide, false)
+            b.shell.width = thm.gu(180)
+            compare(b.shell.veryWide, true)
+            b.shell.width = thm.gu(178)
+            compare(b.shell.veryWide, true)
+            b.shell.width = thm.gu(175)
+            compare(b.shell.veryWide, false)
+            b.shell.width = thm.gu(178)
+            compare(b.shell.veryWide, false)
+            // Narrow means not very wide either.
+            b.shell.width = thm.gu(200)
+            compare(b.shell.veryWide, true)
+            b.shell.width = thm.gu(70)
+            compare(b.shell.veryWide, false)
+            b.shell.destroy()
+        }
+
         function test_retapping_the_shown_folder_keeps_open() {
             const b = bootWide(100)
             b.shell.currentPage.showFolder(3, "Archive")

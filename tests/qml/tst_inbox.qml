@@ -96,6 +96,14 @@ Item {
             find("noticeToast", page).hide()
             waitForRendering(page)
         }
+        function test_inline_drawer_hides_the_menu_button() {
+            verify(find("menuButton", page).visible)
+            page.drawerInline = true
+            verify(!find("menuButton", page).visible)
+            compare(page.overlayDrawerVisible, false)
+            page.drawerInline = false
+            verify(find("menuButton", page).visible)
+        }
         function test_drawer_heading_shows_what_the_model_says() {
             mouseClick(find("menuButton", page))
             const ann = find("account-ann", page)
