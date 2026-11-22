@@ -302,19 +302,16 @@ fn consent_refused_by_the_user_saves_nothing_and_is_a_cancel() {
 
 #[test]
 fn consent_refused_by_an_admin_saves_nothing_and_says_admin() {
-    for code in ["consent_required"] {
-        let dir = tempfile::tempdir().unwrap();
-        let (config, sink) = (config(dir.path()), Sink::default());
-        let mut worker = open(&config, &sink);
-        start(&mut worker, ProviderKind::Microsoft);
-        redirect_with(&mut worker, &sink, &format!("error={code}"));
-        assert!(added(&worker).is_empty());
-        assert_eq!(
-            outcomes(&sink),
-            vec![OAuthOutcome::Failed(OAuthFailure::Admin)],
-            "{code}"
-        );
-    }
+    let dir = tempfile::tempdir().unwrap();
+    let (config, sink) = (config(dir.path()), Sink::default());
+    let mut worker = open(&config, &sink);
+    start(&mut worker, ProviderKind::Microsoft);
+    redirect_with(&mut worker, &sink, "error=consent_required");
+    assert!(added(&worker).is_empty());
+    assert_eq!(
+        outcomes(&sink),
+        vec![OAuthOutcome::Failed(OAuthFailure::Admin)]
+    );
 }
 
 #[test]
