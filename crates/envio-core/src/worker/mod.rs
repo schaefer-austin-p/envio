@@ -12,6 +12,8 @@ mod dkim_keys;
 mod edit;
 mod edit_keywords;
 mod folder_order;
+mod graph_bearer;
+mod graph_conn;
 mod inline;
 mod invite;
 mod label;

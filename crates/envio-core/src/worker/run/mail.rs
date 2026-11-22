@@ -11,7 +11,8 @@ use crate::clock::now_ms;
 use crate::problem::{self, Problem};
 use crate::servers::Service;
 use crate::worker::Worker;
-use crate::worker::conn::{SmtpConnectError, connect_smtp};
+use crate::worker::backend::Backend;
+use crate::worker::conn::{Conn, SmtpConnectError, connect_smtp};
 
 pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), Problem> {
     let now = now_ms();
@@ -19,6 +20,9 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
         .map_err(|e| problem::from_sync(&e, Service::Imap, worker.kind_of(account)))?;
     if !due {
         return Ok(());
+    }
+    if worker.kind_of(account) == BackendKind::Graph {
+        return send_graph(worker, account, now).await;
     }
     let login = worker.login_for(account, Service::Smtp)?;
     let mut smtp = match connect_smtp(&login, &worker.roots).await {
@@ -42,6 +46,29 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
         log::debug!("closing SMTP: {error}");
     }
     let sent = sent.map_err(|e| problem::from_sync(&e, Service::Smtp, BackendKind::Imap))?;
+    sent_notices(worker, account, sent)
+}
+
+/// A Graph account sends through the connection it syncs with: no SMTP
+/// session. The connection goes back to the account after every outcome (an
+/// unconfirmed send leaves it in place for the lookup that follows).
+async fn send_graph(worker: &mut Worker<'_>, account: &str, now: i64) -> Result<(), Problem> {
+    let mut backend = worker.backend(account).await?;
+    let sent = match &mut backend {
+        Backend::Graph(graph) => {
+            driver::send_outbox(graph, &mut worker.store.local(), account, now).await
+        }
+        Backend::Imap(_) => return Err(Problem::Local),
+    };
+    if let Some(live) = worker.live.get_mut(account) {
+        live.conn = Conn::Ready(backend);
+    }
+    let sent = sent.map_err(|e| problem::from_sync(&e, Service::Smtp, BackendKind::Graph))?;
+    sent_notices(worker, account, sent)
+}
+
+/// What a send run changed: Sent is looked at next, the lists are told.
+fn sent_notices(worker: &mut Worker<'_>, account: &str, sent: driver::Sent) -> Result<(), Problem> {
     if !(sent.accepted.is_empty() && sent.failed.is_empty() && sent.unconfirmed.is_empty()) {
         if let Some(live) = worker.live.get_mut(account) {
             // Accepted mail goes into Sent; unconfirmed is looked for there.
@@ -54,6 +81,11 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
     problem::from_stopped("send or replay", sent.stopped)
 }
 
+/// Gmail and Graph file sent mail in Sent themselves.
+fn files_itself_for(kind: BackendKind, smtp_host: &str) -> bool {
+    kind == BackendKind::Graph || files_itself(smtp_host)
+}
+
 pub(super) async fn file(
     worker: &mut Worker<'_>,
     account: &str,
@@ -63,7 +95,8 @@ pub(super) async fn file(
         return Err(Problem::Local);
     };
     let kind = settings.settings.backend;
-    let itself = files_itself(
+    let itself = files_itself_for(
+        kind,
         settings
             .settings
             .smtp

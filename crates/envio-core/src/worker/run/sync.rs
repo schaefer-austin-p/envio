@@ -163,7 +163,7 @@ pub(super) async fn body(
             .store
             .db
             .message(id)
-            .is_ok_and(|m| driver::is_big(m.size));
+            .is_ok_and(|m| driver::big(server.caps(), m.size));
     let eml = if whole {
         driver::fetch_whole_body(server, &mut worker.store.local(), id).await
     } else {

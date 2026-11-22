@@ -17,7 +17,7 @@ mod search;
 
 pub use account::{AccountSynced, Unsent, has_due_mail, remove_account, sync_account, unsent};
 pub use actions::{Undo, record, undo};
-pub use body::{PARTIAL_ABOVE, fetch_body, fetch_part, fetch_whole_body, is_big};
+pub use body::{PARTIAL_ABOVE, big, fetch_body, fetch_part, fetch_whole_body};
 pub use drafts::{DraftRun, DraftsSynced, forget_deleted_drafts, sync_drafts, sync_drafts_into};
 pub use folders::{
     BATCHES_PER_STEP, Options, Synced, WindowMemo, sync_folder, sync_folder_as, sync_folders,

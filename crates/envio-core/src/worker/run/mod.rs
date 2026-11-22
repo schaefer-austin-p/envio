@@ -4,7 +4,7 @@ mod mail;
 mod prefetch;
 mod sync;
 
-use envio_store::FolderId;
+use envio_store::{BackendKind, FolderId};
 use envio_sync::server::MailServer;
 
 use super::Worker;
@@ -293,6 +293,19 @@ fn problem_name(problem: &Problem) -> &'static str {
 
 /// The cache is damaged: start over from the server.
 fn rebuild(worker: &mut Worker<'_>) {
+    // A Graph connection holds its own handle on the cache file being
+    // replaced, and its uid map goes with it: it connects anew.
+    let graph: Vec<String> = worker
+        .live
+        .keys()
+        .filter(|key| worker.kind_of(key) == BackendKind::Graph)
+        .cloned()
+        .collect();
+    for key in graph {
+        if let Some(live) = worker.live.get_mut(&key) {
+            live.conn = Conn::Closed;
+        }
+    }
     match worker.store.rebuild() {
         Ok(()) => {
             // Row ids did not survive: nothing waiting can be answered.
@@ -452,6 +465,63 @@ mod tests {
         let live = &worker.live[&account];
         assert!(live.wants.bodies.contains(&id));
         assert!(!live.wants.whole.contains(&id));
+    }
+
+    #[test]
+    fn the_whole_message_of_a_big_one_is_shown_at_once_on_graph() {
+        use super::succeeded;
+        use crate::api::command::ImagesChoice;
+        use crate::worker::plan::Step;
+        use crate::worker::testing::into_graph;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        into_graph(&mut worker, &seeded.account);
+        let (account, id) = (seeded.account.clone(), seeded.message);
+        let big = envio_store::NewMessage {
+            uid: 1,
+            size: envio_sync::driver::PARTIAL_ABOVE + 1,
+            envelope: envio_store::Envelope::default(),
+            flags: envio_store::Flags::default(),
+            preview: String::new(),
+        };
+        worker.store.db.upsert_message(seeded.folder, &big).unwrap();
+        worker.open_message(id, ImagesChoice::Default, 300);
+        worker.body_fetched(id, Some(b"Subject: x\r\n\r\nthe whole"), true);
+        succeeded(&mut worker, &account, &Step::Body(id));
+        // Graph has no partial body to wait for: the whole one is shown.
+        let shown = sink
+            .events()
+            .into_iter()
+            .any(|e| matches!(e, Event::MessageOpened { .. }));
+        assert!(shown);
+        assert!(!worker.opening.contains_key(&id));
+        assert!(!worker.live[&account].wants.bodies.contains(&id));
+    }
+
+    #[test]
+    fn a_rebuild_closes_graph_connections_and_leaves_imap_ones() {
+        use crate::worker::conn::Conn;
+        use crate::worker::testing::{add_account, into_graph};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let imap = add_account(&mut worker, "imap", 1);
+        worker
+            .live
+            .insert(imap.clone(), crate::worker::conn::Live::new());
+        into_graph(&mut worker, &seeded.account);
+        let graph = worker.graph_backend(&seeded.account).unwrap();
+        worker.live.get_mut(&seeded.account).unwrap().conn = Conn::Ready(graph);
+        let (session, _runtime) = fake_backend(Kind::Imap);
+        worker.live.get_mut(&imap).unwrap().conn = Conn::Ready(session);
+        rebuild(&mut worker);
+        assert!(matches!(worker.live[&seeded.account].conn, Conn::Closed));
+        assert!(matches!(worker.live[&imap].conn, Conn::Ready(_)));
     }
 
     #[test]

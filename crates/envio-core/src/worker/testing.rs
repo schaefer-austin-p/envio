@@ -171,3 +171,45 @@ pub(super) fn open_with<'s>(
     }
     worker
 }
+
+/// Turns an account of `worker` into a Graph account: no IMAP or SMTP
+/// server, a Graph refresh token, and a token endpoint that always answers
+/// with the access token `acc`. The mailbox rows stay as they were.
+pub(super) fn into_graph(worker: &mut Worker<'_>, key: &str) {
+    use std::rc::Rc;
+
+    use envio_net::oauth::{Provider, ProviderKind, Tokens};
+    use futures::FutureExt;
+    use secrecy::SecretString;
+
+    let mut settings = worker.store.accounts.get(key).unwrap().settings.clone();
+    settings.backend = envio_store::BackendKind::Graph;
+    settings.imap = None;
+    settings.smtp = None;
+    settings.auth = Some("microsoft".into());
+    worker.store.accounts.update(key, settings).unwrap();
+    worker
+        .store
+        .tokens
+        .borrow_mut()
+        .set(key, ProviderKind::MicrosoftGraph, SecretString::from("rt"))
+        .unwrap();
+    let refresh: super::token::Refresher = Rc::new(|_, _| {
+        async {
+            Ok(Tokens {
+                access: SecretString::from("acc"),
+                refresh: None,
+                expires_in: 3600,
+                identity: None,
+            })
+        }
+        .boxed_local()
+    });
+    worker.store.token_cells = super::token::TokenCells::with(
+        vec![Provider::microsoft_graph_template()],
+        refresh,
+        Rc::new(crate::clock::now_ms),
+        Rc::clone(&worker.store.tokens),
+    );
+    worker.live.get_mut(key).unwrap().idle_capable = Some(false);
+}

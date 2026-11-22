@@ -11,7 +11,7 @@ use envio_net::Roots;
 use envio_net::imap::{FolderState, IDLE_MAX, ImapSession, Woke};
 use envio_net::oauth::ProviderKind;
 use envio_net::smtp::SmtpSession;
-use envio_store::{Account, FolderId, FolderRole, MessageRowId, SyncState};
+use envio_store::{Account, BackendKind, FolderId, FolderRole, MessageRowId, SyncState};
 use envio_sync::driver::WindowMemo;
 use futures::future::AbortHandle;
 use futures::stream::FuturesUnordered;
@@ -110,6 +110,10 @@ impl Live {
     /// An account as loaded: one that cannot be read is stopped for good.
     pub fn for_account(account: &Account) -> Self {
         let mut live = Self::new();
+        // Graph has no IDLE: the planner never asks for one.
+        if account.settings.backend == BackendKind::Graph {
+            live.idle_capable = Some(false);
+        }
         if let Some(reason) = &account.broken {
             live.health.status = AccountStatus::Broken(reason.clone());
         }
@@ -370,6 +374,9 @@ impl Worker<'_> {
                 live.conn = Conn::Idling(notify);
                 return Err(Problem::Temporary);
             }
+        }
+        if self.kind_of(account) == BackendKind::Graph {
+            return self.graph_backend(account);
         }
         let login = self.login_for(account, Service::Imap)?;
         let session = connect_imap(&login, &self.roots).await?;

@@ -6,6 +6,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use envio_net::imap::{FolderState, ImapSession};
+use envio_store::BackendKind;
 use futures::StreamExt;
 use futures::future::{Aborted, abortable};
 use futures::stream::FuturesUnordered;
@@ -107,6 +108,10 @@ impl Worker<'_> {
         let Some(inbox) = self.inbox(account)? else {
             return Ok(());
         };
+        // Graph has no IDLE to open.
+        if self.kind_of(account) == BackendKind::Graph {
+            return Ok(());
+        }
         let login = self.login_for(account, Service::Imap)?;
         let Some(live) = self.live.get_mut(account) else {
             return Err(Problem::Local);
