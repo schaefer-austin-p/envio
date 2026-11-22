@@ -20,6 +20,11 @@ fn decode(stored: Option<&str>) -> Option<Vec<String>> {
     stored.map(|text| text.split_whitespace().map(str::to_owned).collect())
 }
 
+/// The probe behind [`Db::has_unknown_keywords_between`]; migration 0007's
+/// partial index serves it.
+pub(crate) const UNKNOWN_SQL: &str = "SELECT EXISTS(SELECT 1 FROM messages
+     WHERE folder_id = ?1 AND uid BETWEEN ?2 AND ?3 AND keywords IS NULL)";
+
 impl Db {
     /// Records the keywords the server lists for a cached message (sorted,
     /// deduplicated). A message that is not cached is an error.
@@ -62,12 +67,9 @@ impl Db {
     /// unknown (`NULL`) keywords. One indexed lookup, however long the
     /// folder is; rows outside the range never count.
     pub fn has_unknown_keywords_between(&self, folder: FolderId, lo: u32, hi: u32) -> Result<bool> {
-        Ok(self.conn().query_row(
-            "SELECT EXISTS(SELECT 1 FROM messages
-             WHERE folder_id = ?1 AND uid BETWEEN ?2 AND ?3 AND keywords IS NULL)",
-            params![folder.0, lo, hi],
-            |row| row.get(0),
-        )?)
+        Ok(self
+            .conn()
+            .query_row(UNKNOWN_SQL, params![folder.0, lo, hi], |row| row.get(0))?)
     }
 }
 
@@ -83,5 +85,59 @@ mod tests {
         assert_eq!(decode(None), None);
         assert_eq!(decode(Some("")), Some(vec![]));
         assert_eq!(decode(Some("$A $B")), Some(list(&["$A", "$B"])));
+    }
+
+    /// The unknown-keywords probe reads the partial index (empty on a folder
+    /// whose rows are all known), not the folder's UID range (#399).
+    #[test]
+    fn unknown_keywords_probe_uses_the_partial_index() {
+        let db = Db::open_in_memory().unwrap();
+        let plan: Vec<String> = db
+            .conn()
+            .prepare(&format!("EXPLAIN QUERY PLAN {UNKNOWN_SQL}"))
+            .unwrap()
+            .query_map(params![1, 1, 9], |row| row.get(3))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        let plan = plan.join(" | ");
+        eprintln!("plan: {plan}");
+        assert!(plan.contains("messages_unknown_keywords"), "{plan}");
+        // Only a partial index stays empty once the keywords are known.
+        let sql: String = db
+            .conn()
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE name = 'messages_unknown_keywords'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(sql.ends_with("WHERE keywords IS NULL"), "{sql}");
+    }
+
+    /// One run on a synthetic 30k-row folder, all keywords known: prints the
+    /// probe's time (`--nocapture`). The guard is the plan test above.
+    #[test]
+    fn unknown_keywords_probe_on_a_large_known_folder() {
+        let db = Db::open_in_memory().unwrap();
+        let f = db
+            .upsert_folder("a1", "INBOX", crate::FolderRole::Inbox)
+            .unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO messages (folder_id, uid, date, keywords)
+                 WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 30000)
+                 SELECT ?1, i, i, '' FROM n",
+                [f.0],
+            )
+            .unwrap();
+        let start = std::time::Instant::now();
+        assert!(!db.has_unknown_keywords_between(f, 1, 30_000).unwrap());
+        eprintln!("probe on 30k known rows: {:?}", start.elapsed());
+        db.conn()
+            .execute("UPDATE messages SET keywords = NULL WHERE uid = 17", [])
+            .unwrap();
+        assert!(db.has_unknown_keywords_between(f, 1, 30_000).unwrap());
+        assert!(!db.has_unknown_keywords_between(f, 18, 30_000).unwrap());
     }
 }
