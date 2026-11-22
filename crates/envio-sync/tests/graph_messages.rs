@@ -152,6 +152,27 @@ async fn move_to_removes_the_source_row_and_names_the_target_folder() {
 }
 
 #[tokio::test]
+async fn a_move_404_keeps_the_row_when_the_message_still_exists() {
+    let mut s = two().await;
+    let gone = r#"{"error":{"code":"ErrorItemNotFound"}}"#;
+    s.server.push(Action::json(404, gone));
+    s.server.push(categories(&[]));
+    let e = s.gs.move_to(&[HIGH], "Sent Items").await.unwrap_err();
+    assert!(matches!(e, NetError::Refused(_)), "{e:?}");
+    assert_eq!(s.map.uid_of(s.inbox, "m1").unwrap(), Some(HIGH));
+}
+
+#[tokio::test]
+async fn a_move_404_of_a_gone_message_drops_the_row() {
+    let mut s = two().await;
+    let gone = r#"{"error":{"code":"ErrorItemNotFound"}}"#;
+    s.server.push(Action::json(404, gone));
+    s.server.push(Action::json(404, gone));
+    s.gs.move_to(&[HIGH], "Sent Items").await.unwrap();
+    assert_eq!(s.map.uid_of(s.inbox, "m1").unwrap(), None);
+}
+
+#[tokio::test]
 async fn deleting_a_gone_message_is_ok_and_drops_its_row() {
     let mut s = two().await;
     s.server.push(Action::json(

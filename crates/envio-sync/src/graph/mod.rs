@@ -144,12 +144,14 @@ impl MailServer for GraphServer {
         self.body(uid).await
     }
 
-    /// Never reached: `no_partial` makes bodies download whole.
+    /// Unreachable once T11 wires `big(caps, size)` so `no_partial` makes
+    /// bodies download whole (T11 also makes `Backend` forward `refresh`,
+    /// `commit_folders` and `commit_folder`).
     async fn fetch_partial(&mut self, _uid: u32) -> Result<Option<Vec<u8>>> {
         Err(NetError::Protocol("not on Graph".into()))
     }
 
-    /// Never reached, like `fetch_partial`.
+    /// Unreachable after T11, like `fetch_partial`.
     async fn fetch_section(
         &mut self,
         _uid: u32,

@@ -47,20 +47,18 @@ pub fn with_bcc(eml: &[u8], envelope: &[String]) -> Vec<u8> {
     let text = String::from_utf8_lossy(head);
     let mut kept = String::new();
     let mut known = Vec::new();
-    let mut skipping = false;
+    // The header the current line belongs to (a folded line continues it).
+    let mut current = String::new();
     for line in text.split_inclusive('\n') {
-        let continuation = line.starts_with([' ', '\t']);
-        if !continuation {
-            let name = line.split(':').next().unwrap_or("").to_ascii_lowercase();
-            skipping = name == "bcc";
-            if name == "to" || name == "cc" {
-                known.extend(addresses(&line[name.len() + 1..]));
-            }
-        } else if !skipping {
-            // A folded To or Cc value: its addresses count too.
-            known.extend(addresses(line));
+        let mut value = line;
+        if !line.starts_with([' ', '\t']) {
+            current = line.split(':').next().unwrap_or("").to_ascii_lowercase();
+            value = line.get(current.len() + 1..).unwrap_or("");
         }
-        if !skipping {
+        if current == "to" || current == "cc" {
+            known.extend(addresses(value));
+        }
+        if current != "bcc" {
             kept.push_str(line);
         }
     }
@@ -185,6 +183,25 @@ mod tests {
         assert_eq!(out, "To: a@example.org\nSubject: s\nBcc: z@example.org\n");
         let lf = run("To: a@example.org\n\nbody", &["z@example.org"]);
         assert_eq!(lf, "To: a@example.org\nBcc: z@example.org\n\nbody");
+    }
+
+    #[test]
+    fn a_folded_from_does_not_hide_a_self_bcc() {
+        let eml = "From: =?utf-8?B?TcOp?=\r\n <me@example.org>\r\nTo: a@example.org\r\n\r\nx";
+        let out = run(eml, &["a@example.org", "me@example.org"]);
+        assert!(out.contains("Bcc: me@example.org\r\n\r\nx"), "{out}");
+    }
+
+    #[test]
+    fn a_folded_to_or_cc_still_counts() {
+        let eml = "To: a@example.org,\r\n b@example.org\r\nCc: c@example.org,\r\n\td@example.org\r\n\r\nx";
+        let all = [
+            "a@example.org",
+            "b@example.org",
+            "c@example.org",
+            "d@example.org",
+        ];
+        assert_eq!(run(eml, &all), eml);
     }
 
     #[test]

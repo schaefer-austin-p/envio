@@ -16,8 +16,21 @@ impl GraphServer {
         let mut outcome = Ok(());
         for (_, graph_id) in ids {
             match self.client.move_to(&graph_id, &target).await {
-                // Moved, or already gone: either way it left this folder.
-                Ok(_) => done.push(graph_id),
+                Ok(Some(_)) => done.push(graph_id),
+                // A 404 is the message or the target folder. Only a message
+                // that is really gone leaves the map; a deleted target
+                // (stale paths) keeps the row and the message visible.
+                Ok(None) => match self.client.get_categories(&graph_id).await {
+                    Ok(None) => done.push(graph_id),
+                    Ok(Some(_)) => {
+                        outcome = Err(NetError::Refused("the target folder is gone".into()));
+                        break;
+                    }
+                    Err(e) => {
+                        outcome = Err(e);
+                        break;
+                    }
+                },
                 Err(e) => {
                     outcome = Err(e);
                     break;
