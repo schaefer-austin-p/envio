@@ -4,7 +4,7 @@ import "../platform"
 // One key of a shortcut drawn as a keycap (#434, variant B on the two-pane
 // board, frame 7): "Ctrl" and "N" are two chips. The root is the skirt, a
 // darker base that shows 3 px below the face; the face has a vertical
-// gradient, a hairline border and a 1 px lighter top edge. Plain Rectangles,
+// gradient, a hairline border and a 1 px lighter top edge, inset by the radius so it stays inside the corners. Plain Rectangles,
 // no shaders. Light skirts derive from hairline, dark ones from ground (the
 // dark hairline is barely darker than the surface).
 Rectangle {
@@ -38,8 +38,8 @@ Rectangle {
         Rectangle {
             objectName: "keyTop"
             anchors { left: parent.left; right: parent.right; top: parent.top }
-            anchors.leftMargin: root.radius / 2
-            anchors.rightMargin: root.radius / 2
+            anchors.leftMargin: root.radius
+            anchors.rightMargin: root.radius
             anchors.topMargin: 1
             height: 1
             color: Qt.rgba(1, 1, 1, root.theme.dark ? 0.14 : 0.9)

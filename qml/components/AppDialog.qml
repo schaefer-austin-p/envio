@@ -16,6 +16,16 @@ QC.Popup {
     property string secondaryText: ""
     // The secondary action as a compact button at the right, not full width.
     property bool compactActions: false
+    // Looks a dialog may set for itself: title size and weight, the space
+    // between the title, the content and the action, the content's own
+    // spacing, and the action button's height, side padding and font.
+    property real titleSize: 18
+    property int titleWeight: Font.DemiBold
+    property real contentSpacing: theme.gu(1.75)
+    property real extraSpacing: theme.gu(1)
+    property real actionHeight: theme.controlHeight
+    property real actionPadding: theme.gu(2)
+    property font actionFont: theme.controlFont
     signal primaryActivated()
     signal secondaryActivated()
     default property alias content: extra.data
@@ -70,7 +80,7 @@ QC.Popup {
     }
 
     contentItem: Column {
-        spacing: root.theme.gu(1.75)
+        spacing: root.contentSpacing
         Text {
             textFormat: Text.PlainText
             width: parent.width
@@ -79,8 +89,8 @@ QC.Popup {
             wrapMode: Text.Wrap
             color: root.theme.heading
             font.family: root.theme.fontTitle
-            font.pixelSize: 18
-            font.weight: Font.DemiBold
+            font.pixelSize: root.titleSize
+            font.weight: root.titleWeight
         }
         Text {
             textFormat: Text.PlainText
@@ -93,7 +103,7 @@ QC.Popup {
             font.pixelSize: 15
             lineHeight: 1.3
         }
-        Column { id: extra; width: parent.width; spacing: root.theme.gu(1) }
+        Column { id: extra; width: parent.width; spacing: root.extraSpacing }
         AppButton {
             objectName: "primaryAction"
             width: parent.width
@@ -109,6 +119,10 @@ QC.Popup {
             x: root.compactActions ? parent.width - width : 0
             visible: root.secondaryText !== ""
             theme: root.theme
+            implicitHeight: root.actionHeight
+            visibleHeight: root.actionHeight
+            sidePadding: root.actionPadding
+            labelFont: root.actionFont
             text: root.secondaryText
             onClicked: root.choose(root.secondaryActivated)
         }

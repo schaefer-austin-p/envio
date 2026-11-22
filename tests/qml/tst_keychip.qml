@@ -48,6 +48,9 @@ Item {
             var top = find(chip, "keyTop")
             verify(top !== null, "keyTop exists")
             compare(top.height, 1)
+            // Inset by the radius: it stays inside the rounded corners.
+            compare(top.anchors.leftMargin, chip.radius)
+            compare(top.anchors.rightMargin, chip.radius)
             same(top.color, Qt.rgba(1, 1, 1, dark ? 0.14 : 0.9), "top edge")
         }
 

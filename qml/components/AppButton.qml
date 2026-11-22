@@ -15,9 +15,12 @@ AbstractButton {
     property string iconName: ""
     // The drawn pill's height; the tap target stays implicitHeight.
     property real visibleHeight: theme.controlHeight
+    // The gap between the label and the edge, and the label's font.
+    property real sidePadding: theme.gu(2)
+    property font labelFont: theme.controlFont
 
     implicitHeight: theme.controlHeight
-    implicitWidth: Math.max(theme.gu(6), row.implicitWidth + theme.gu(4))
+    implicitWidth: Math.max(theme.gu(6), row.implicitWidth + 2 * sidePadding)
     opacity: enabled ? 1 : 0.45
 
     // The Control sizes and places its contentItem itself, so the centred
@@ -43,7 +46,7 @@ AbstractButton {
             objectName: "buttonLabel"
             text: root.text
             color: root.primary ? root.theme.primaryText : (root.danger ? root.theme.accent : root.theme.primary)
-            font: root.theme.controlFont
+            font: root.labelFont
             anchors.verticalCenter: parent.verticalCenter
         }
     }
