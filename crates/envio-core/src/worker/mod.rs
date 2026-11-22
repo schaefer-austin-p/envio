@@ -16,6 +16,7 @@ mod graph_bearer;
 mod graph_conn;
 #[cfg(test)]
 mod graph_kind_tests;
+mod hosted;
 mod inline;
 mod invite;
 mod label;

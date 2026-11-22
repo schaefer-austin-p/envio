@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
-use envio_net::autoconfig::{self, Found, Internet};
+use envio_net::autoconfig::{self, Found, Hosting, Internet};
 use envio_net::imap::ImapSession;
 use envio_net::oauth::{self, Provider, TokenError, Tokens};
 use envio_net::smtp::SmtpSession;
@@ -74,6 +74,8 @@ pub(crate) struct DetectResult {
     pub email: String,
     pub ticket: u64,
     pub result: Result<Found, Problem>,
+    /// Who hosts the domain's mail, by its MX records.
+    pub hosting: Hosting,
 }
 
 pub(crate) struct ProbeResult {
@@ -193,6 +195,7 @@ fn failed(job: SetupJob) -> SetupDone {
             email,
             ticket,
             result: Err(Problem::Local),
+            hosting: Hosting::Unknown,
         })),
         SetupJob::Exchange(job) => SetupDone::Exchanged(Box::new(ExchangeResult {
             ticket: job.ticket,
@@ -224,23 +227,28 @@ async fn do_job(roots: &Roots, job: &SetupJob) -> SetupDone {
     match job {
         SetupJob::Detect { email, ticket } => {
             log::info!("detecting servers for {}", mask::address(email));
+            // A registered fake never runs the real lookups: its settings
+            // (or the guess) and its verdict are the answer.
             #[cfg(feature = "test-hooks")]
-            let faked = fake.and_then(|fake| fake.found);
+            let faked = fake.map(|fake| {
+                let found = fake.found.or_else(|| {
+                    autoconfig::plan::domain_of(email)
+                        .map(|domain| autoconfig::plan::guess(&domain, email))
+                });
+                (found, fake.hosting.unwrap_or(Hosting::Unknown))
+            });
             #[cfg(not(feature = "test-hooks"))]
-            let faked: Option<Found> = None;
-            let result = match faked {
-                Some(found) => Ok(found),
-                None => autoconfig::detect(email, &Internet::new(roots.clone()))
-                    .await
-                    .map_err(|e| {
-                        log::warn!("detect failed: {e}");
-                        problem::from_net(&e, Service::Imap)
-                    }),
+            let faked: Option<(Option<Found>, Hosting)> = None;
+            let (result, hosting) = match faked {
+                Some((Some(found), hosting)) => (Ok(found), hosting),
+                Some((None, hosting)) => (Err(Problem::Local), hosting),
+                None => detect_for_real(email, roots).await,
             };
             SetupDone::Detected(Box::new(DetectResult {
                 email: email.clone(),
                 ticket: *ticket,
                 result,
+                hosting,
             }))
         }
         SetupJob::Exchange(job) => {
@@ -259,6 +267,17 @@ async fn do_job(roots: &Roots, job: &SetupJob) -> SetupDone {
                 accepted: job.accepted.clone(),
                 outcome,
             }))
+        }
+    }
+}
+
+async fn detect_for_real(email: &str, roots: &Roots) -> (Result<Found, Problem>, Hosting) {
+    let lookups = Internet::new(roots.clone());
+    match autoconfig::detect_with_hosting(email, &lookups, autoconfig::DETECT_TIMEOUT).await {
+        Ok(detection) => (Ok(detection.found), detection.hosting),
+        Err(e) => {
+            log::warn!("detect failed: {e}");
+            (Err(problem::from_net(&e, Service::Imap)), Hosting::Unknown)
         }
     }
 }
