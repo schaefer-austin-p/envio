@@ -46,6 +46,8 @@ pub(crate) struct Live {
     pub health: Health,
     pub wants: Wants,
     pub next_full_ms: i64,
+    /// When the move last asked for filing (#439): at most once per tick.
+    pub file_armed_ms: i64,
     pub conn: Conn,
     /// What the server's greeting said; unknown until a connection worked.
     pub idle_capable: Option<bool>,
@@ -75,6 +77,7 @@ impl Live {
             health: Health::default(),
             wants: Wants::default(),
             next_full_ms: 0,
+            file_armed_ms: 0,
             conn: Conn::Closed,
             idle_capable: None,
             idle_synced_first: false,

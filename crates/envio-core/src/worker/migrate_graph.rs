@@ -81,7 +81,13 @@ impl Worker<'_> {
                     // backoff holds them all, `migration_wake` has the turn
                     // look again at the due time instead of spinning.
                     live.wants.replay |= step == MigrationStep::Replay && waits.is_none();
-                    live.wants.file |= accepted > 0;
+                    // Once per tick: a refused Sent copy is no error, so
+                    // asking every turn would spin; `migration_wake` has the
+                    // turn look again at the next tick.
+                    if accepted > 0 && now >= plan::file_due_ms(live.file_armed_ms) {
+                        live.wants.file = true;
+                        live.file_armed_ms = now;
+                    }
                 }
             }
             MigrationStep::Stuck => {}
@@ -128,6 +134,13 @@ impl Worker<'_> {
         earliest
     }
 
+    /// When filing is next asked for, if an `Accepted` item waits and the
+    /// tick has not come yet.
+    fn file_wait(&self, account: &str, now: i64) -> Option<i64> {
+        let at = plan::file_due_ms(self.live.get(account)?.file_armed_ms);
+        (at > now && self.accepted_of(account) > 0).then_some(at)
+    }
+
     /// The earliest time a moving account's pending actions fall due, for
     /// the turn's wake timer.
     pub(super) fn migration_wake(&self, now: i64) -> Option<i64> {
@@ -136,7 +149,8 @@ impl Worker<'_> {
             .list()
             .iter()
             .filter(|a| a.settings.migration.is_some_and(|m| m.step == REPLAY))
-            .filter_map(|a| self.replay_wait(&a.key, now))
+            .flat_map(|a| [self.replay_wait(&a.key, now), self.file_wait(&a.key, now)])
+            .flatten()
             .min()
     }
 

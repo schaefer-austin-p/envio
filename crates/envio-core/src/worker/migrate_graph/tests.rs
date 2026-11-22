@@ -11,6 +11,7 @@ use crate::api::event::Event;
 use crate::api::view::{MigrationStage, MigrationState};
 use crate::clock::now_ms;
 use crate::core::Config;
+use crate::migrate_graph::plan;
 use crate::worker::Worker;
 use crate::worker::testing::{Seeded, Sink, open, seed};
 
@@ -221,6 +222,94 @@ fn an_accepted_item_holds_step_one_until_it_is_filed() {
     tick(&mut w);
     assert!(cleared(&w, &t));
     assert_eq!(settings(&w, &key).backend, BackendKind::Graph);
+}
+
+/// One worker turn's look at the move: filing is asked for or not, and the
+/// run that would follow takes the want (as `pick` does).
+fn turn_files(w: &mut Worker<'_>, key: &str, now: i64) -> bool {
+    w.migrate_all(now);
+    std::mem::take(&mut w.live.get_mut(key).unwrap().wants.file)
+}
+
+#[test]
+fn a_refused_filing_run_is_not_asked_for_again_until_the_next_tick() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    outbox_item(&w, &key, SendState::Accepted);
+    let at = 1_000_000;
+    assert!(turn_files(&mut w, &key, at), "the first look asks");
+    w.migrate_file_failed(&key);
+    for turn in 1..=5 {
+        assert!(!turn_files(&mut w, &key, at + turn), "spun on turn {turn}");
+    }
+    let tick = at + plan::FILE_TICK_MS;
+    assert_eq!(w.migration_wake(at + 5), Some(tick), "the wake is the tick");
+    assert!(turn_files(&mut w, &key, tick), "the tick asks again");
+    assert_eq!(w.migration_wake(tick), Some(tick + plan::FILE_TICK_MS));
+}
+
+#[test]
+fn with_an_empty_journal_stuck_needs_three_ticks_not_three_turns() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    outbox_item(&w, &key, SendState::Accepted);
+    let mut now = 1_000_000;
+    let mut tries = 0;
+    for _ in 0..20 {
+        // Twenty turns inside one tick: one try at most.
+        now += 1;
+        if turn_files(&mut w, &key, now) {
+            tries += 1;
+            w.migrate_file_failed(&key);
+        }
+    }
+    assert_eq!(tries, 1, "tries within one tick");
+    assert_eq!(settings(&w, &key).migration.unwrap().failures, 1);
+    assert!(
+        states(&sink)
+            .iter()
+            .all(|s| s.stage != MigrationStage::Stuck)
+    );
+    for _ in 0..2 {
+        now += plan::FILE_TICK_MS;
+        assert!(turn_files(&mut w, &key, now));
+        w.migrate_file_failed(&key);
+    }
+    w.migrate_all(now + 1);
+    let stuck = states(&sink).pop().unwrap();
+    assert_eq!(stuck.stage, MigrationStage::Stuck);
+    assert_eq!(settings(&w, &key).migration.unwrap().failures, 3);
+}
+
+#[test]
+fn filing_does_not_rerun_each_turn_while_an_action_is_held_in_undo() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    outbox_item(&w, &key, SendState::Accepted);
+    let target = MessageRef {
+        account: key.clone(),
+        folder: "INBOX".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: None,
+    };
+    let at = 1_000_000;
+    w.store
+        .journal
+        .push(at, target, ActionKind::Delete)
+        .unwrap();
+    assert!(turn_files(&mut w, &key, at + 1));
+    w.migrate_file_failed(&key);
+    for turn in 2..20 {
+        assert!(!turn_files(&mut w, &key, at + turn), "spun on turn {turn}");
+        assert!(!w.live[&key].wants.replay, "replay is held by Undo");
+    }
 }
 
 #[test]
