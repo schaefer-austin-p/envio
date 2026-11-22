@@ -102,7 +102,13 @@ pub async fn detect(email: &str, lookups: &impl Lookups) -> Result<Found> {
 
 /// As [`detect`], with `budget` in place of [`DETECT_TIMEOUT`].
 pub async fn detect_within(email: &str, lookups: &impl Lookups, budget: Duration) -> Result<Found> {
-    Ok(detect_with_hosting(email, lookups, budget).await?.found)
+    let domain =
+        plan::domain_of(email).ok_or_else(|| NetError::Refused("not an email address".into()))?;
+    let found = tokio::time::timeout(budget, find(&domain, email, lookups))
+        .await
+        .ok()
+        .flatten();
+    Ok(found.unwrap_or_else(|| plan::guess(&domain, email)))
 }
 
 /// What `detect_with_hosting` found: the settings, and who hosts the
@@ -113,7 +119,7 @@ pub struct Detection {
     pub hosting: Hosting,
 }
 
-/// As [`detect_within`], also asking for the domain's MX records at the
+/// As [`detect_within`] (which asks no MX), also asking for the domain's MX records at the
 /// same time (limited to `MX_TIMEOUT`).
 pub async fn detect_with_hosting(
     email: &str,

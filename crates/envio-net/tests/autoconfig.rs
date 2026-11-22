@@ -399,3 +399,17 @@ async fn when_everything_hangs_the_budget_gives_the_guess_and_unknown() {
         started.elapsed()
     );
 }
+
+#[tokio::test]
+async fn detect_and_detect_within_never_ask_for_mx() {
+    let script = Scripted {
+        mx: m365(),
+        ..ispdb_script()
+    };
+    let found = autoconfig::detect("me@example.org", &script).await.unwrap();
+    assert_eq!(found.source, Source::Ispdb);
+    autoconfig::detect_within("me@example.org", &script, BUDGET)
+        .await
+        .unwrap();
+    assert!(script.mx_asked.lock().unwrap().is_empty());
+}
