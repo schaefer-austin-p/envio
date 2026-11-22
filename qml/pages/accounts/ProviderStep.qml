@@ -67,7 +67,9 @@ Item {
                         chevron: true
                         onClicked: root.picked(modelData.id)
                         Column {
+                            objectName: "providerText"
                             x: root.theme.gu(2.5)
+                            anchors.verticalCenter: parent.verticalCenter
                             width: row.width - root.theme.gu(2.5) - row.chevronSpace
                             Text {
                                 textFormat: Text.PlainText

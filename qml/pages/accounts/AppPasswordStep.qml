@@ -24,19 +24,19 @@ Item {
     readonly property var info: ({
         "icloud": {
             "intro": qsTr("iCloud needs an app password for Envio, not your Apple Account password. Turn on two-factor authentication first."),
-            "steps": qsTr("1. Open your Apple Account settings.\n2. Under Sign-In and Security, choose App-Specific Passwords.\n3. Create one named \"Envio\" and copy it."),
+            "steps": qsTr("1. Open your Apple Account settings.\n2. Under Sign-In and Security, choose App-Specific Passwords.\n3. Create one named “Envio” and copy it."),
             "button": qsTr("Open Apple Account settings"),
             "url": "https://account.apple.com/account/manage"
         },
         "gmail": {
             "intro": qsTr("Gmail needs an app password for Envio, not your Google password. Turn on 2-Step Verification first."),
-            "steps": qsTr("1. Open your Google account settings.\n2. Under Security, choose App passwords.\n3. Create one named \"Envio\" and copy it."),
+            "steps": qsTr("1. Open your Google account settings.\n2. Under Security, choose App passwords.\n3. Create one named “Envio” and copy it."),
             "button": qsTr("Open Google account settings"),
             "url": "https://myaccount.google.com/security"
         },
         "yahoo": {
             "intro": qsTr("Yahoo needs an app password for Envio, not your Yahoo password. Turn on two-step verification first."),
-            "steps": qsTr("1. Open your Yahoo account security page.\n2. Choose Generate app password.\n3. Create one named \"Envio\" and copy it."),
+            "steps": qsTr("1. Open your Yahoo account security page.\n2. Choose Generate app password.\n3. Create one named “Envio” and copy it."),
             "button": qsTr("Open Yahoo account security"),
             "url": "https://login.yahoo.com/account/security"
         }

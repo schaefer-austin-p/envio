@@ -96,6 +96,18 @@ Item {
             verify(find("providerCancel").visible)
         }
 
+        // The board centres a row's name and hint, like its chevron.
+        function test_each_rows_text_block_is_centred_in_the_row() {
+            for (const id of ["outlook", "m365", "icloud", "gmail", "yahoo", "other"]) {
+                const row = find("provider_" + id)
+                const blocks = everything(row, []).filter(function(o) { return o.objectName === "providerText" })
+                compare(blocks.length, 1, id)
+                const block = blocks[0]
+                const mid = block.mapToItem(row, 0, block.height / 2).y
+                verify(Math.abs(mid - row.height / 2) <= 1, id + ": text centre " + mid + " of " + row.height)
+            }
+        }
+
         function test_outlook_routes_to_the_microsoft_sign_in_with_the_graph_kind() {
             pick("outlook")
             compare(wizard.step, "signin")
@@ -309,7 +321,7 @@ Item {
             compare(find("appPasswordIntro").text,
                 "iCloud needs an app password for Envio, not your Apple Account password. Turn on two-factor authentication first.")
             compare(find("appPasswordSteps").text,
-                "1. Open your Apple Account settings.\n2. Under Sign-In and Security, choose App-Specific Passwords.\n3. Create one named \"Envio\" and copy it.")
+                "1. Open your Apple Account settings.\n2. Under Sign-In and Security, choose App-Specific Passwords.\n3. Create one named “Envio” and copy it.")
             compare(find("appPasswordLink").text, "Open Apple Account settings")
             // The password goes through unchanged, so no hint says otherwise.
             compare(find("appPasswordField").placeholder, "")

@@ -19,10 +19,12 @@ Item {
         y: root.theme.gu(0.5)
         text: root.total > 0 ? qsTr("Step %1 of %2").arg(root.step).arg(root.total)
                              : qsTr("Step %1").arg(root.step)
-        font.capitalization: Font.AllUppercase
-        font.letterSpacing: 0.6
-        font.family: root.theme.fontLabel
-        font.pixelSize: 12
+        // The section-label look of the theme (11 px in Carbon).
+        font.capitalization: root.theme.eyebrowCaps ? Font.AllUppercase : Font.MixedCase
+        font.letterSpacing: root.theme.eyebrowSpacing
+        font.family: root.theme.eyebrowFamily
+        font.pixelSize: root.theme.eyebrowSize
+        font.weight: root.theme.eyebrowWeight
         color: root.theme.secondary
     }
 }
