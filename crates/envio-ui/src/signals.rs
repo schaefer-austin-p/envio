@@ -52,6 +52,12 @@ pub enum Signal {
         title: String,
         text: String,
     },
+    /// The mail is on Microsoft 365 (MX, #384): a card with sign-in.
+    MailOnMicrosoft {
+        email: String,
+        title: String,
+        text: String,
+    },
     OAuthBrowser {
         email: String,
         url: String,
