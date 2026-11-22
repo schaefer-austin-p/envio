@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 20:46+0100\n"
+"POT-Creation-Date: 2026-11-22 21:32+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -70,47 +70,47 @@ msgstr ""
 msgid "Close"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:18
+#: qml/components/ShortcutsDialog.qml:32
 msgid "Move the selection"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:19
+#: qml/components/ShortcutsDialog.qml:33
 msgid "Open the message"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:19
+#: qml/components/ShortcutsDialog.qml:33
 msgid "Enter"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
+#: qml/components/ShortcutsDialog.qml:34 qml/pages/inbox/OutboxPage.qml:89
 #: qml/pages/inbox/OutboxRow.qml:129 qml/pages/inbox/RowMenu.qml:155
 #: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/RowMenu.qml:155
+#: qml/components/ShortcutsDialog.qml:34 qml/pages/inbox/RowMenu.qml:155
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:21 qml/pages/inbox/InboxPage.qml:223
+#: qml/components/ShortcutsDialog.qml:35 qml/pages/inbox/InboxPage.qml:223
 msgid "New message"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:21 qml/components/ShortcutsDialog.qml:22
-#: qml/pages/ReaderPane.qml:49
+#: qml/components/ShortcutsDialog.qml:35 qml/components/ShortcutsDialog.qml:36
+#: qml/pages/ReaderPane.qml:56
 msgid "Ctrl"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:22 qml/pages/reader/InviteCard.qml:35
+#: qml/components/ShortcutsDialog.qml:36 qml/pages/reader/InviteCard.qml:35
 #: qml/pages/reader/ReplyBar.qml:29
 msgid "Reply"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:23
+#: qml/components/ShortcutsDialog.qml:37
 msgid "Close the reader or compose"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:23
+#: qml/components/ShortcutsDialog.qml:37
 msgid "Esc"
 msgstr ""
 
