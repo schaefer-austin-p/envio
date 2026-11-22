@@ -17,10 +17,24 @@ Item {
     // The refusal still offers manual setup (a Microsoft 365 MX hit, #384).
     property bool manualOk: false
     readonly property bool refused: refusedText !== ""
+    // The mail is on Microsoft 365 (#384) and sign-in is set up: an info card,
+    // "Sign in with Microsoft" in the footer, and "Change address" and
+    // "Set up manually" under the card. The ISPDB note is hidden, as for a
+    // refusal.
+    property string hostedTitle: ""
+    property string hostedText: ""
+    readonly property bool hosted: hostedText !== ""
+    // How the last hosted sign-in ended, when nothing was saved (a second card).
+    property string hostedNoticeKind: ""
+    property string hostedNoticeTitle: ""
+    property string hostedNoticeText: ""
     property bool busy: false
     property alias email: emailField.text
     signal continued()
     signal manualRequested()
+    signal signInRequested()
+    // "Change address" on the hosted card: the card goes, the cursor is in the field.
+    signal addressChangeRequested()
     // The manual path has no address field of its own, so both buttons wait.
     // Same rule as the core: text before the last "@", a domain after it.
     readonly property bool hasAddress: {
@@ -61,12 +75,16 @@ Item {
                 theme: root.theme
                 label: qsTr("Email address")
                 inputMethodHints: Qt.ImhEmailCharactersOnly | Qt.ImhNoAutoUppercase
-                onAccepted: if (continueButton.enabled && !root.refused) root.continued()
+                onAccepted: {
+                    if (!continueButton.enabled) return
+                    if (root.hosted) root.signInRequested()
+                    else if (!root.refused) root.continued()
+                }
             }
             Text {
                 textFormat: Text.PlainText
                 objectName: "ispdbNote"
-                visible: !root.refused
+                visible: !root.refused && !root.hosted
                 width: parent.width
                 text: root.core.ispdbNote()
                 wrapMode: Text.WordWrap
@@ -84,6 +102,24 @@ Item {
                 title: root.refusedTitle
                 text: root.refusedText
             }
+            NoticeCard {
+                objectName: "hostedCard"
+                visible: root.hosted
+                width: parent.width
+                theme: root.theme
+                kind: "info"
+                title: root.hostedTitle
+                text: root.hostedText
+            }
+            NoticeCard {
+                objectName: "hostedNotice"
+                visible: root.hosted && root.hostedNoticeText !== ""
+                width: parent.width
+                theme: root.theme
+                kind: root.hostedNoticeKind === "warning" ? "warning" : "info"
+                title: root.hostedNoticeTitle
+                text: root.hostedNoticeText
+            }
             Text {
                 textFormat: Text.PlainText
                 objectName: "stepError"
@@ -94,6 +130,14 @@ Item {
                 color: root.theme.accent
                 font.family: root.theme.fontUi
                 font.pixelSize: 14
+            }
+            AppButton {
+                objectName: "changeButton"
+                width: parent.width
+                theme: root.theme
+                text: qsTr("Change address")
+                visible: root.hosted
+                onClicked: { root.addressChangeRequested(); emailField.input.forceActiveFocus() }
             }
             AppButton {
                 objectName: "manualButton"
@@ -118,9 +162,11 @@ Item {
         width: parent.width
         theme: root.theme
         primary: true
-        text: root.refused ? qsTr("Change address") : qsTr("Continue")
-        enabled: root.refused || (!root.busy && root.hasAddress)
-        onClicked: root.refused ? emailField.input.forceActiveFocus() : root.continued()
+        text: root.hosted ? qsTr("Sign in with Microsoft")
+            : root.refused ? qsTr("Change address") : qsTr("Continue")
+        enabled: root.hosted ? !root.busy : (root.refused || (!root.busy && root.hasAddress))
+        onClicked: root.hosted ? root.signInRequested()
+            : root.refused ? emailField.input.forceActiveFocus() : root.continued()
     }
     }
 }
