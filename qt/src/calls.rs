@@ -168,6 +168,13 @@ impl qobject::EnvioCore {
         });
     }
 
+    /// "Switch anyway" on a stuck move to Graph.
+    pub fn switch_anyway(self: Pin<&mut Self>, account: &QString) {
+        self.send_command(Command::SwitchAnyway {
+            account: s(account),
+        });
+    }
+
     pub fn remove_account(self: Pin<&mut Self>, account: &QString, confirmed: bool) {
         self.send_command(Command::RemoveAccount {
             account: s(account),

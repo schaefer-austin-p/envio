@@ -269,6 +269,9 @@ pub mod qobject {
         #[cxx_name = "updatePassword"]
         fn update_password(self: Pin<&mut EnvioCore>, account: &QString, password: &QString);
         #[qinvokable]
+        #[cxx_name = "switchAnyway"]
+        fn switch_anyway(self: Pin<&mut EnvioCore>, account: &QString);
+        #[qinvokable]
         #[cxx_name = "removeAccount"]
         fn remove_account(self: Pin<&mut EnvioCore>, account: &QString, confirmed: bool);
         #[qinvokable]
