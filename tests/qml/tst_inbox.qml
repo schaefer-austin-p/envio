@@ -1011,6 +1011,46 @@ Item {
             verify(!find("rowMenu", page).visible, "a touch tap opens no menu")
         }
 
+        // #397: on the phone a touch drag leaves the mouse hover on for good.
+        // A touch on a row marks the hover as touched, so the row has no cue
+        // until the mouse moves again (offscreen a touch ends the hover by
+        // itself, so the stuck state is pinned through `touched`).
+        function test_a_touch_clears_the_row_hover_until_the_mouse_moves() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            find("messageList", page).positionViewAtBeginning()
+            const row = find("row-11", page)
+            tryVerify(function() { return row.y >= 0 && row.height > 0 })
+            const hover = find("rowHover", row)
+            mouseMove(row, 30, 10)
+            mouseMove(row, 40, 10)
+            tryCompare(row, "pointerOver", true)
+            const t = touchEvent(row)
+            t.press(0, row, 40, row.height / 2).commit()
+            compare(hover.touched, true)
+            compare(row.pointerOver, false)
+            t.release(0, row, 40, row.height / 2).commit()
+            compare(hover.touched, true)
+            compare(row.pointerOver, false)
+            mouseMove(row, 50, 10)
+            mouseMove(row, 60, 10)
+            tryCompare(row, "pointerOver", true)
+        }
+
+        // The row's padding is the same above and below its text: nothing
+        // invisible (the hover) adds to the row's height (#420 review).
+        function test_a_row_pads_its_text_evenly() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            find("messageList", page).positionViewAtBeginning()
+            const row = find("row-11", page)
+            tryVerify(function() { return row.y >= 0 && row.height > 0 })
+            const text = find("rowText", row)
+            const stamp = find("stamp", row)
+            const bottom = Math.max(text.y + text.height, stamp.visible ? stamp.y + stamp.height : 0)
+            compare(row.height, Math.max(thm.touch, bottom + thm.gu(1.75)))
+        }
+
         function test_menu_closes_on_escape_and_outside_click() {
             core.messages.append(message(11))
             waitForRendering(page)

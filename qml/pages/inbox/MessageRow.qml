@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "../../platform"
+import "../../bindle/Behaviours" as Behaviours
 import "../../components"
 import "../../platform/stampTint.js" as StampTint
 
@@ -23,16 +24,21 @@ ListRow {
     // The keyboard-focus row (Up/Down): hover fill and a 2 px outline in the
     // text colour, apart from the open row's fill and accent bar.
     readonly property bool kbdFocus: model.kbdFocus === true
-    // Mouse hover fills like the keyboard cue; touch gives none (no sticky
-    // hover after a tap). `selected` and the open fill win over it.
+    // Mouse hover fills like the keyboard cue; touch gives none. On the
+    // phone Qt turns a touch drag into mouse moves that leave a plain
+    // HoverHandler hovered for good (#397), so the hover is bindle's
+    // TouchSafeHover: a touch clears it until the mouse moves again.
+    // `selected` and the open fill win over it.
     readonly property bool pointerOver: hover.hovered
     cued: kbdFocus || pointerOver
     // The row's context request (right-click), at a point in the row.
     signal contextRequested(int id, real x, real y)
-    HoverHandler {
+    // Parented to the row, not its content: a fill-parent Item in the
+    // content would count in the content's height and grow the row.
+    Behaviours.TouchSafeHover {
         id: hover
         objectName: "rowHover"
-        acceptedDevices: PointerDevice.Mouse
+        parent: root
     }
     TapHandler {
         objectName: "rowRightClick"
@@ -102,6 +108,7 @@ ListRow {
     }
     Column {
         id: col
+        objectName: "rowText"
         x: root.theme.gu(2) + (root.theme.airmail ? root.theme.stampWidth : 22) + root.theme.gu(1.5)
         y: root.theme.gu(1.75)
         width: parent.width - x - root.theme.gu(2)
