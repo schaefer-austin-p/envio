@@ -8,7 +8,7 @@ mod choose;
 mod ids;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, MutexGuard, Once, OnceLock, PoisonError};
 
 use envio_core::{Alert, Poster, paths};
@@ -52,14 +52,19 @@ struct Card {
     /// Empty: no `image-path` hint.
     image_path: Str,
     replaces_id: u32,
+    /// The epoch of the call; its reply names it back.
+    generation: u32,
     urgency: u8,
 }
 
-type ReplyFn = extern "C" fn(tag: *const u8, tag_len: i32, id: u32);
+type ReplyFn = extern "C" fn(tag: *const u8, tag_len: i32, id: u32, generation: u32);
 type CardFn = extern "C" fn(id: u32);
-/// 0: the question failed; 1: no `body-markup`; 2: `body-markup`.
-type CapsFn = extern "C" fn(answer: i32);
-type OwnerFn = extern "C" fn();
+/// `answer`: 0 the question failed; 1 no `body-markup`; 2 `body-markup`.
+/// `generation` is the one the question was asked under.
+type CapsFn = extern "C" fn(answer: i32, generation: u32);
+/// `had_owner`: the name had an owner before (a server replaced or gone),
+/// false when it was only taken (first start, D-Bus activation).
+type OwnerFn = extern "C" fn(had_owner: bool);
 
 #[cfg(not(test))]
 unsafe extern "C" {
@@ -71,7 +76,7 @@ unsafe extern "C" {
         on_caps: CapsFn,
         on_owner: OwnerFn,
     );
-    fn envio_notify_query_caps();
+    fn envio_notify_query_caps(generation: u32);
     fn envio_notify_send(card: *const Card);
     fn envio_activate_window();
 }
@@ -92,7 +97,7 @@ unsafe fn envio_notify_init(
 ) {
 }
 #[cfg(test)]
-unsafe fn envio_notify_query_caps() {}
+unsafe fn envio_notify_query_caps(_generation: u32) {}
 #[cfg(test)]
 unsafe fn envio_notify_send(_card: *const Card) {}
 #[cfg(test)]
@@ -104,6 +109,9 @@ static ICON: OnceLock<Option<String>> = OnceLock::new();
 /// 0 unknown, 1 no body markup, 2 body markup.
 static CAPS: AtomicU8 = AtomicU8::new(0);
 static CAPS_ASKED: AtomicBool = AtomicBool::new(false);
+/// Bumped when the server changes owner: answers to older questions are
+/// stale.
+static CAPS_EPOCH: AtomicU32 = AtomicU32::new(0);
 
 fn ids() -> MutexGuard<'static, Ids> {
     IDS.lock().unwrap_or_else(PoisonError::into_inner)
@@ -143,7 +151,7 @@ pub(crate) fn poster() -> Box<dyn Poster> {
 fn ask_caps() {
     if !CAPS_ASKED.swap(true, Ordering::AcqRel) {
         // SAFETY: takes no pointers.
-        unsafe { envio_notify_query_caps() };
+        unsafe { envio_notify_query_caps(CAPS_EPOCH.load(Ordering::Acquire)) };
     }
 }
 
@@ -198,7 +206,7 @@ impl Poster for FreedesktopPoster {
     fn badge(&self, _total_unread: u32) {}
 }
 
-fn send_now((alert, replaces_id): ToSend) {
+fn send_now((alert, replaces_id, generation): ToSend) {
     let args = NotifyArgs::from_alert(&alert, replaces_id, markup(), icon_file());
     let card = Card {
         tag: Str::of(&alert.tag),
@@ -210,6 +218,7 @@ fn send_now((alert, replaces_id): ToSend) {
         desktop_entry: Str::of(args.desktop_entry),
         image_path: Str::of(&args.image_path),
         replaces_id: args.replaces_id,
+        generation,
         urgency: args.urgency,
     };
     // SAFETY: `card` and every string it points to outlive the call; the C++
@@ -218,7 +227,7 @@ fn send_now((alert, replaces_id): ToSend) {
 }
 
 /// Notify's reply, on the main thread: `id` is 0 when the call failed.
-extern "C" fn on_reply(tag: *const u8, tag_len: i32, id: u32) {
+extern "C" fn on_reply(tag: *const u8, tag_len: i32, id: u32, generation: u32) {
     let Ok(len) = usize::try_from(tag_len) else {
         return;
     };
@@ -227,7 +236,7 @@ extern "C" fn on_reply(tag: *const u8, tag_len: i32, id: u32) {
     let Ok(tag) = std::str::from_utf8(bytes) else {
         return;
     };
-    let next = ids().finished(tag, id);
+    let next = ids().finished(tag, id, generation);
     if let Some(next) = next {
         send_now(next);
     }
@@ -249,20 +258,34 @@ extern "C" fn on_clicked(id: u32) {
     }
 }
 
-/// The answer to `GetCapabilities`, main thread.
-extern "C" fn on_caps(answer: i32) {
+/// The answer to `GetCapabilities`, main thread. One to a question from
+/// before a change of owner is stale and ignored.
+extern "C" fn on_caps(answer: i32, generation: u32) {
+    if generation != CAPS_EPOCH.load(Ordering::Acquire) {
+        return;
+    }
     CAPS.store(u8::try_from(answer).unwrap_or(0).min(2), Ordering::Relaxed);
     // A failed question may be asked again by the next card.
     CAPS_ASKED.store(false, Ordering::Release);
 }
 
-/// The notification server changed owner, main thread: its ids and its
-/// capabilities are not the old one's.
-extern "C" fn on_owner() {
-    ids().reset();
+/// The notification server changed owner, main thread. A server that was
+/// replaced or went away: its ids and capabilities are not the old one's.
+/// A server only taking the name (our own first call starts it) changes
+/// nothing, or the call that woke it would lose its reply.
+extern "C" fn on_owner(had_owner: bool) {
+    if !had_owner {
+        return;
+    }
+    let again = ids().reset();
+    CAPS_EPOCH.fetch_add(1, Ordering::AcqRel);
     CAPS.store(0, Ordering::Relaxed);
     CAPS_ASKED.store(false, Ordering::Release);
     ask_caps();
+    // Alerts that waited on the old server's reply go out as new cards.
+    for send in again {
+        send_now(send);
+    }
 }
 
 #[cfg(test)]
@@ -293,22 +316,23 @@ mod tests {
         poster.post(&alert("glue-tag"));
         poster.post(&alert("glue-tag"));
         poster.badge(3);
-        on_reply(b"glue-tag".as_ptr(), 8, 5);
-        on_reply(b"glue-tag".as_ptr(), 8, 0);
+        let epoch = ids().epoch();
+        on_reply(b"glue-tag".as_ptr(), 8, 5, epoch);
+        on_reply(b"glue-tag".as_ptr(), 8, 0, epoch);
         on_closed(5);
         on_clicked(5);
-        on_owner();
+        on_owner(true);
         assert_eq!(ids().account_of(5), None);
     }
 
     #[test]
     fn the_capabilities_answer_sets_the_markup_and_a_failure_means_unknown() {
         let _s = serial();
-        on_caps(2);
+        on_caps(2, CAPS_EPOCH.load(Ordering::Acquire));
         assert_eq!(markup(), Markup::Yes);
-        on_caps(1);
+        on_caps(1, CAPS_EPOCH.load(Ordering::Acquire));
         assert_eq!(markup(), Markup::No);
-        on_caps(0);
+        on_caps(0, CAPS_EPOCH.load(Ordering::Acquire));
         assert_eq!(markup(), Markup::Unknown);
     }
 
@@ -332,5 +356,35 @@ mod tests {
     #[test]
     fn the_shipped_icon_is_an_svg() {
         assert!(ICON_SVG.starts_with(b"<svg"));
+    }
+
+    #[test]
+    fn a_server_only_taking_the_name_keeps_the_call_that_woke_it() {
+        let _s = serial();
+        // Our first Notify D-Bus-activates the server: the name changes
+        // owner with no old owner, while the reply is still on its way.
+        FreedesktopPoster.post(&alert("wake-tag"));
+        FreedesktopPoster.post(&alert("wake-tag"));
+        // The reply names the epoch the call was sent under.
+        let epoch = ids().epoch();
+        on_owner(false);
+        on_reply(b"wake-tag".as_ptr(), 8, 31, epoch);
+        assert_eq!(ids().account_of(31), Some("acc"));
+        on_closed(31);
+    }
+
+    #[test]
+    fn a_stale_capabilities_answer_is_ignored() {
+        let _s = serial();
+        let old = CAPS_EPOCH.load(Ordering::Acquire);
+        on_owner(true);
+        assert_eq!(markup(), Markup::Unknown);
+        // The question from before the change answers while the new one
+        // is still on its way.
+        on_caps(2, old);
+        assert_eq!(markup(), Markup::Unknown);
+        assert!(CAPS_ASKED.load(Ordering::Acquire));
+        on_caps(2, CAPS_EPOCH.load(Ordering::Acquire));
+        assert_eq!(markup(), Markup::Yes);
     }
 }

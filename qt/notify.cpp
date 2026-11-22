@@ -50,6 +50,7 @@ struct Card {
     Str desktopEntry;
     Str imagePath;
     unsigned int replacesId;
+    unsigned int generation;
     unsigned char urgency;
 };
 
@@ -58,10 +59,10 @@ QString text(Str s)
     return QString::fromUtf8(s.ptr, s.len);
 }
 
-using ReplyFn = void (*)(const char* tag, int tag_len, unsigned int id);
+using ReplyFn = void (*)(const char* tag, int tag_len, unsigned int id, unsigned int generation);
 using CardFn = void (*)(unsigned int id);
-using CapsFn = void (*)(int answer);
-using OwnerFn = void (*)();
+using CapsFn = void (*)(int answer, unsigned int generation);
+using OwnerFn = void (*)(bool hadOwner);
 
 ReplyFn g_onReply = nullptr;
 CardFn g_onClosed = nullptr;
@@ -70,13 +71,13 @@ CapsFn g_onCaps = nullptr;
 OwnerFn g_onOwner = nullptr;
 
 // Always answers Rust, so a tag never waits for a reply that won't come.
-void reply(const QString& tag, unsigned int id)
+void reply(const QString& tag, unsigned int id, unsigned int generation)
 {
     if (g_onReply == nullptr) {
         return;
     }
     const QByteArray bytes = tag.toUtf8();
-    g_onReply(bytes.constData(), static_cast<int>(bytes.size()), id);
+    g_onReply(bytes.constData(), static_cast<int>(bytes.size()), id, generation);
 }
 
 class Signals : public QObject {
@@ -94,10 +95,10 @@ public Q_SLOTS:
             g_onClosed(id);
         }
     }
-    void onNameOwnerChanged(const QString& name, const QString&, const QString&)
+    void onNameOwnerChanged(const QString& name, const QString& oldOwner, const QString&)
     {
         if (name == QString::fromLatin1(kService) && g_onOwner != nullptr) {
-            g_onOwner();
+            g_onOwner(!oldOwner.isEmpty());
         }
     }
 };
@@ -179,28 +180,29 @@ void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked, CapsF
 
 // GetCapabilities, asynchronous. The answer goes to Rust: 0 failed, 1 no
 // `body-markup`, 2 `body-markup`.
-void envio_notify_query_caps()
+void envio_notify_query_caps(unsigned int generation)
 {
     QCoreApplication* app = QCoreApplication::instance();
     if (app == nullptr) {
         if (g_onCaps != nullptr) {
-            g_onCaps(0);
+            g_onCaps(0, generation);
         }
         return;
     }
     QMetaObject::invokeMethod(
         app,
-        []() {
+        [generation]() {
             const QDBusPendingCall call =
                 QDBusConnection::sessionBus().asyncCall(notificationsCall(QStringLiteral("GetCapabilities")));
             auto* watcher = new QDBusPendingCallWatcher(call);
-            QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher]() {
+            QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher, generation]() {
                 const QDBusPendingReply<QStringList> answer = *watcher;
                 if (g_onCaps != nullptr) {
                     if (answer.isError()) {
-                        g_onCaps(0);
+                        g_onCaps(0, generation);
                     } else {
-                        g_onCaps(answer.value().contains(QStringLiteral("body-markup")) ? 2 : 1);
+                        g_onCaps(answer.value().contains(QStringLiteral("body-markup")) ? 2 : 1,
+                                 generation);
                     }
                 }
                 watcher->deleteLater();
@@ -214,10 +216,11 @@ void envio_notify_query_caps()
 void envio_notify_send(const Card* card)
 {
     const QString tagText = text(card->tag);
+    const unsigned int generation = card->generation;
     QCoreApplication* app = QCoreApplication::instance();
     if (app == nullptr) {
         // No loop to queue to: answer directly, so the tag is not stuck.
-        reply(tagText, 0);
+        reply(tagText, 0, generation);
         return;
     }
     QVariantMap hints{
@@ -240,29 +243,29 @@ void envio_notify_send(const Card* card)
     };
     QMetaObject::invokeMethod(
         app,
-        [tagText, args]() {
+        [tagText, generation, args]() {
             QDBusConnection bus = QDBusConnection::sessionBus();
             if (!bus.isConnected()) {
-                reply(tagText, 0);
+                reply(tagText, 0, generation);
                 return;
             }
             QDBusMessage message = notificationsCall(QStringLiteral("Notify"));
             message.setArguments(args);
             const QDBusPendingCall call = bus.asyncCall(message);
             if (call.isError()) {
-                reply(tagText, 0);
+                reply(tagText, 0, generation);
                 return;
             }
             auto* watcher = new QDBusPendingCallWatcher(call);
             QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher,
-                             [watcher, tagText]() {
+                             [watcher, tagText, generation]() {
                                  const QDBusPendingReply<quint32> answer = *watcher;
                                  if (answer.isError()) {
                                      qWarning().noquote()
                                          << "envio: Notify failed:" << answer.error().message();
-                                     reply(tagText, 0);
+                                     reply(tagText, 0, generation);
                                  } else {
-                                     reply(tagText, answer.value());
+                                     reply(tagText, answer.value(), generation);
                                  }
                                  watcher->deleteLater();
                              });
