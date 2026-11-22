@@ -93,7 +93,11 @@ fn a_token_without_a_tenant_changes_nothing() {
     let mut worker = open(&config, &sink);
     let key = imap_account(&mut worker);
     update(&mut worker, &key);
-    answer(&mut worker, &sink, super::provider_tests::tokens(ANNA, None));
+    answer(
+        &mut worker,
+        &sink,
+        super::provider_tests::tokens(ANNA, None),
+    );
     assert_eq!(
         outcomes(&sink),
         vec![OAuthOutcome::Failed(OAuthFailure::NoTenant)]

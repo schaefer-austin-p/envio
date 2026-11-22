@@ -267,7 +267,10 @@ fn switch_anyway_drops_the_actions_with_a_notice_and_keeps_unsent_work() {
     assert_eq!(settings(&w, &key).backend, BackendKind::Graph);
     assert_eq!(w.store.journal.pending().count(), 0);
     let done = done(&sink);
-    assert!(!done[0].note_title.is_empty(), "the dropped action is named");
+    assert!(
+        !done[0].note_title.is_empty(),
+        "the dropped action is named"
+    );
     assert!(
         w.store
             .outbox

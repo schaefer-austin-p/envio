@@ -195,7 +195,12 @@ impl Worker<'_> {
             && account
                 .as_ref()
                 .and_then(|key| self.store.accounts.get(key))
-                .is_some_and(|a| crate::migrate_graph::eligible(&a.settings, Some(envio_net::oauth::CONSUMER_TENANT)));
+                .is_some_and(|a| {
+                    crate::migrate_graph::eligible(
+                        &a.settings,
+                        Some(envio_net::oauth::CONSUMER_TENANT),
+                    )
+                });
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => (
@@ -330,7 +335,9 @@ impl Worker<'_> {
         if attempt.update {
             match route(attempt.provider.kind, None, tokens.identity.as_ref()) {
                 Route::Fits => {}
-                Route::Refuse => return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::NoTenant)),
+                Route::Refuse => {
+                    return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::NoTenant));
+                }
                 Route::Other { .. } => {
                     return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::NotPersonal));
                 }
@@ -581,11 +588,9 @@ impl Worker<'_> {
     /// "Update sign-in" worked: the Graph token is kept beside the IMAP one
     /// and the move starts. The account stays on IMAP until it is over.
     fn update_sign_in(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
-        let eligible = self
-            .store
-            .accounts
-            .get(key)
-            .is_some_and(|a| crate::migrate_graph::eligible(&a.settings, Some(envio_net::oauth::CONSUMER_TENANT)));
+        let eligible = self.store.accounts.get(key).is_some_and(|a| {
+            crate::migrate_graph::eligible(&a.settings, Some(envio_net::oauth::CONSUMER_TENANT))
+        });
         if !eligible || !self.live.contains_key(key) {
             return OAuthOutcome::Failed(OAuthFailure::Other);
         }
@@ -619,6 +624,6 @@ impl Worker<'_> {
 #[cfg(test)]
 mod provider_tests;
 #[cfg(test)]
-mod update_tests;
-#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod update_tests;

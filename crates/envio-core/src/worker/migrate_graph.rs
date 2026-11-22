@@ -206,7 +206,10 @@ impl Worker<'_> {
             live.wants.full = true;
         }
         let (note_title, note_text) = if dropped > 0 {
-            (text::migrate::dropped_title(dropped), text::migrate::dropped_text())
+            (
+                text::migrate::dropped_title(dropped),
+                text::migrate::dropped_text(),
+            )
         } else {
             (String::new(), String::new())
         };
