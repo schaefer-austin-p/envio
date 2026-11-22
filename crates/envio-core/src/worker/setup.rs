@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use envio_net::Fingerprint;
 use envio_net::autoconfig::{Found, Setting};
-use envio_store::{Account, AccountSettings};
+use envio_store::{Account, AccountSettings, BackendKind};
 use secrecy::SecretString;
 
 use super::Worker;
@@ -262,9 +262,11 @@ impl Worker<'_> {
             name: setup.name.clone(),
             email: setup.email.clone(),
             username: setup.username.clone(),
-            imap: store_server(&setup.imap, pin_for(&accepted, Service::Imap)),
+            backend: BackendKind::Imap,
+            imap: Some(store_server(&setup.imap, pin_for(&accepted, Service::Imap))),
             auth: None,
-            smtp: store_server(&setup.smtp, pin_for(&accepted, Service::Smtp)),
+            smtp: Some(store_server(&setup.smtp, pin_for(&accepted, Service::Smtp))),
+            migration: None,
         };
         match self.save_account(settings, request.password) {
             Ok(account) => {
@@ -312,6 +314,7 @@ impl Worker<'_> {
         refresh: SecretString,
     ) -> Result<AccountInfo, String> {
         let (name, email) = (settings.name.clone(), settings.email.clone());
+        let kind = super::token::kind_of(&settings);
         let key = self
             .store
             .accounts
@@ -320,7 +323,7 @@ impl Worker<'_> {
                 log::error!("saving the account: {error}");
                 text::setup::not_saved()
             })?;
-        if let Err(error) = self.store.tokens.borrow_mut().set(&key, refresh) {
+        if let Err(error) = self.store.tokens.borrow_mut().set(&key, kind, refresh) {
             log::error!("saving the sign-in: {error}");
             // If the removal fails too, the entry stays without a token; a
             // retry for the same address replaces it (`drop_stranded`) and
@@ -388,9 +391,11 @@ mod tests {
                 name: "N".into(),
                 email: email.into(),
                 username: email.into(),
-                imap: server(),
-                smtp: server(),
+                backend: BackendKind::Imap,
+                imap: Some(server()),
+                smtp: Some(server()),
                 auth: None,
+                migration: None,
             },
             label: None,
             broken: None,

@@ -444,9 +444,13 @@ impl<'s> Worker<'s> {
     /// Tells the app if the account's status is not `before`.
     pub(crate) fn report(&self, account: &str, before: &AccountStatus) {
         let now = self.status_of(account);
-        self.store
-            .token_cells
-            .set_paused(account, conn::paused_problem(&now));
+        if let Some(a) = self.store.accounts.get(account) {
+            self.store.token_cells.set_paused(
+                account,
+                token::kind_of(&a.settings),
+                conn::paused_problem(&now),
+            );
+        }
         if now != *before {
             let status = match self.store.accounts.get(account) {
                 Some(a) => with_host(now, &a.settings),

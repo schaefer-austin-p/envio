@@ -152,9 +152,11 @@ impl Harness {
             name: "Test".into(),
             email: email.into(),
             username: email.into(),
-            imap: server(),
-            smtp: server(),
+            backend: envio_store::BackendKind::Imap,
+            imap: Some(server()),
+            smtp: Some(server()),
             auth: None,
+            migration: None,
         };
         let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
         let key = accounts.add(settings, 1_000).unwrap();
@@ -181,15 +183,21 @@ impl Harness {
             name: "Test".into(),
             email: email.into(),
             username: email.into(),
-            imap: server(imap),
-            smtp: server(smtp),
+            backend: envio_store::BackendKind::Imap,
+            imap: Some(server(imap)),
+            smtp: Some(server(smtp)),
             auth: Some("microsoft".into()),
+            migration: None,
         };
         let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
         let key = accounts.add(settings, 1_000).unwrap();
         let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&self.data_dir()).unwrap();
         tokens
-            .set(&key, SecretString::from(refresh.to_owned()))
+            .set(
+                &key,
+                envio_net::oauth::ProviderKind::Microsoft,
+                SecretString::from(refresh.to_owned()),
+            )
             .unwrap();
         key
     }

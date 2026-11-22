@@ -57,6 +57,7 @@ struct State {
 
 struct Cell {
     key: String,
+    kind: ProviderKind,
     provider: Provider,
     tokens: Rc<RefCell<OAuthTokens>>,
     refresh: Refresher,
@@ -171,7 +172,7 @@ impl Cell {
     }
 
     async fn refresh_once(&self) -> Reply {
-        let Some(stored) = self.tokens.borrow().get(&self.key).cloned() else {
+        let Some(stored) = self.tokens.borrow().get(&self.key, self.kind).cloned() else {
             return Err(TokenError::Revoked(
                 crate::cause::NO_STORED_TOKEN.to_owned(),
             ));
@@ -193,7 +194,7 @@ impl Cell {
             // A failed write keeps the new access token in memory; the next
             // start refreshes from the stored token, which stays valid for a
             // while.
-            if let Err(error) = self.tokens.borrow_mut().set(&self.key, next) {
+            if let Err(error) = self.tokens.borrow_mut().set(&self.key, self.kind, next) {
                 log::error!("could not store the new OAuth refresh token: {error}");
             }
         }
@@ -218,7 +219,7 @@ pub(crate) struct TokenCells {
     refresh: Refresher,
     clock: Clock,
     tokens: Rc<RefCell<OAuthTokens>>,
-    cells: RefCell<BTreeMap<String, Rc<Cell>>>,
+    cells: RefCell<BTreeMap<(String, ProviderKind), Rc<Cell>>>,
 }
 
 impl TokenCells {
@@ -249,9 +250,10 @@ impl TokenCells {
         }
     }
 
-    /// Sets or clears why the account is paused; while set, no refresh is made.
-    pub(crate) fn set_paused(&self, account: &str, problem: Option<Problem>) {
-        if let Some(cell) = self.cells.borrow().get(account) {
+    /// Sets or clears why the account's token of this kind is paused; while
+    /// set, no refresh is made. The account's other kind is not touched.
+    pub(crate) fn set_paused(&self, account: &str, kind: ProviderKind, problem: Option<Problem>) {
+        if let Some(cell) = self.cells.borrow().get(&(account.to_owned(), kind)) {
             cell.state.borrow_mut().paused = problem;
         }
     }
@@ -261,24 +263,35 @@ impl TokenCells {
     pub(crate) fn handle(&self, account: &str, kind: ProviderKind) -> Option<TokenHandle> {
         let provider = self.providers.iter().find(|p| p.kind == kind)?;
         let mut cells = self.cells.borrow_mut();
-        if let Some(cell) = cells.get(account) {
+        let slot = (account.to_owned(), kind);
+        if let Some(cell) = cells.get(&slot) {
             return Some(TokenHandle(Rc::clone(cell)));
         }
         let cell = Rc::new(Cell {
             key: account.to_owned(),
+            kind,
             provider: provider.clone(),
             tokens: Rc::clone(&self.tokens),
             refresh: Rc::clone(&self.refresh),
             clock: Rc::clone(&self.clock),
             state: RefCell::new(State::default()),
         });
-        cells.insert(account.to_owned(), Rc::clone(&cell));
+        cells.insert(slot, Rc::clone(&cell));
         Some(TokenHandle(cell))
     }
 
-    /// The account is gone: its cached token goes with it.
+    /// The account is gone: its cached tokens, of both kinds, go with it.
     pub(crate) fn forget(&self, account: &str) {
-        self.cells.borrow_mut().remove(account);
+        self.cells.borrow_mut().retain(|(key, _), _| key != account);
+    }
+}
+
+/// Which token an account's backend uses: Graph accounts the Graph one,
+/// every other account the IMAP one.
+pub(crate) fn kind_of(settings: &envio_store::AccountSettings) -> ProviderKind {
+    match settings.backend {
+        envio_store::BackendKind::Graph => ProviderKind::MicrosoftGraph,
+        envio_store::BackendKind::Imap => ProviderKind::Microsoft,
     }
 }
 

@@ -60,13 +60,17 @@ pub fn default_oauth_providers() -> Vec<envio_net::oauth::Provider> {
     if !MICROSOFT_SIGN_IN {
         return Vec::new();
     }
-    providers_from(envio_net::oauth::Provider::microsoft())
+    providers_from(
+        envio_net::oauth::Provider::microsoft(),
+        envio_net::oauth::Provider::microsoft_graph(),
+    )
 }
 
 fn providers_from(
     microsoft: Option<envio_net::oauth::Provider>,
+    graph: Option<envio_net::oauth::Provider>,
 ) -> Vec<envio_net::oauth::Provider> {
-    microsoft.into_iter().collect()
+    microsoft.into_iter().chain(graph).collect()
 }
 
 impl Config {
@@ -230,8 +234,12 @@ mod provider_tests {
     #[test]
     fn a_client_id_offers_microsoft() {
         let with_id = Provider::microsoft_template().with_client_id("test-client-id");
-        let list = providers_from(Some(with_id));
-        assert_eq!(list.len(), 1);
+        let graph = Provider::microsoft_graph_template().with_client_id("test-client-id");
+        let list = providers_from(Some(with_id), Some(graph));
+        assert_eq!(list.len(), 2);
         assert_eq!(list[0].client_id, "test-client-id");
+        assert_eq!(list[0].kind, envio_net::oauth::ProviderKind::Microsoft);
+        assert_eq!(list[1].kind, envio_net::oauth::ProviderKind::MicrosoftGraph);
+        assert!(providers_from(None, None).is_empty());
     }
 }

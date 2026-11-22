@@ -42,7 +42,9 @@ struct Rig {
 async fn rig(valid: &[&str]) -> Rig {
     let dir = tempfile::tempdir().unwrap();
     let mut tokens = OAuthTokens::open(dir.path()).unwrap();
-    tokens.set("a", SecretString::from("rt")).unwrap();
+    tokens
+        .set("a", ProviderKind::Microsoft, SecretString::from("rt"))
+        .unwrap();
     let calls = Rc::new(Cell::new(0));
     let counted = Rc::clone(&calls);
     let refresh: Refresher = Rc::new(move |_, _| {
@@ -251,7 +253,11 @@ async fn a_pause_that_lands_mid_connect_stops_the_forced_refresh() {
     r.age();
     let pause = async {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        r.cells.set_paused("a", Some(Problem::Certificate(None)));
+        r.cells.set_paused(
+            "a",
+            ProviderKind::Microsoft,
+            Some(Problem::Certificate(None)),
+        );
     };
     let (imap, ()) = futures::join!(r.imap(), pause);
     assert!(matches!(imap, Err(Problem::Certificate(None))), "{imap:?}");

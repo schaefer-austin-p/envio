@@ -288,7 +288,7 @@ async fn a_changed_pin_stops_and_shows_both_fingerprints() {
     let run = run.restart_with(|paths| {
         let mut accounts = envio_store::Accounts::open(&paths.accounts()).unwrap();
         let mut settings = accounts.get(&key).unwrap().settings.clone();
-        settings.imap.pin = Some(fake.clone());
+        settings.imap.as_mut().unwrap().pin = Some(fake.clone());
         accounts.update(&key, settings).unwrap();
     });
     let details = run.wait(NET, |event| match event {

@@ -34,6 +34,25 @@ fn with_client_id_fills_the_id_and_nothing_else() {
 }
 
 #[test]
+fn microsoft_graph_has_the_graph_scopes_and_kind() {
+    let p = Provider::microsoft_graph().expect("offered");
+    assert_eq!(p.client_id, client_ids::MICROSOFT);
+    assert_eq!(p.kind, ProviderKind::MicrosoftGraph);
+    assert_eq!(
+        p.scopes,
+        "Mail.ReadWrite Mail.Send offline_access openid email profile"
+    );
+    // The same sign-in endpoints and redirect as the IMAP provider.
+    let imap = Provider::microsoft_template();
+    let t = Provider::microsoft_graph_template();
+    assert_eq!(t.client_id, "");
+    assert_eq!(t.authorize_url, imap.authorize_url);
+    assert_eq!(t.token_url, imap.token_url);
+    assert_eq!(t.redirect_uri, imap.redirect_uri);
+    assert_ne!(ProviderKind::Microsoft, ProviderKind::MicrosoftGraph);
+}
+
+#[test]
 fn microsoft_values() {
     let p = Provider::microsoft_template();
     assert_eq!(p.kind, ProviderKind::Microsoft);
