@@ -177,11 +177,11 @@ fn connect_adds_the_account_with_only_the_accepted_pins() {
     assert_eq!(saved.len(), 1);
     assert_eq!(saved[0].key, info.key);
     assert_eq!(
-        saved[0].settings.imap.pin.as_deref(),
+        saved[0].settings.imap.as_ref().unwrap().pin.as_deref(),
         Some(imap.hex.as_str())
     );
     assert_eq!(
-        saved[0].settings.smtp.pin.as_deref(),
+        saved[0].settings.smtp.as_ref().unwrap().pin.as_deref(),
         Some(smtp.hex.as_str())
     );
     let secrets = Secrets::open(&h.data_dir()).unwrap();
@@ -404,7 +404,15 @@ fn accept_certificate_needs_the_presented_fingerprint() {
         _ => None,
     });
     assert_eq!(presented, server.hex);
-    let pin = |h: &Harness| saved_accounts(h)[0].settings.imap.pin.clone();
+    let pin = |h: &Harness| {
+        saved_accounts(h)[0]
+            .settings
+            .imap
+            .as_ref()
+            .unwrap()
+            .pin
+            .clone()
+    };
 
     let wrong = "00".repeat(32);
     h.send(Command::AcceptCertificate {
@@ -638,14 +646,18 @@ fn set_account_label_saves_it_and_keeps_the_sender_name() {
 fn seed_token(h: &Harness, key: &str, token: &str) {
     let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir()).unwrap();
     tokens
-        .set(key, SecretString::from(token.to_owned()))
+        .set(
+            key,
+            envio_net::oauth::ProviderKind::Microsoft,
+            SecretString::from(token.to_owned()),
+        )
         .unwrap();
 }
 
 fn token_of(h: &Harness, key: &str) -> Option<String> {
     envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir())
         .unwrap()
-        .get(key)
+        .get(key, envio_net::oauth::ProviderKind::Microsoft)
         .map(|t| t.expose_secret().to_owned())
 }
 

@@ -9,6 +9,26 @@ fn id(email: Option<&str>, upn: Option<&str>) -> Identity {
 }
 
 #[test]
+fn a_token_with_only_a_tenant_is_taken_and_asks_without_a_name() {
+    let tenant_only = Identity {
+        tid: Some(envio_net::oauth::CONSUMER_TENANT.into()),
+        ..id(None, None)
+    };
+    // The typed address is known, the token names nobody: the wizard asks
+    // (it cannot confirm the address), without inventing a name.
+    assert_eq!(
+        judge("ada@outlook.example", Some(&tenant_only)),
+        Verdict::Ask(None)
+    );
+    // With a mailbox claim the tenant changes nothing.
+    let both = Identity {
+        tid: tenant_only.tid.clone(),
+        ..id(Some("ada@outlook.example"), None)
+    };
+    assert_eq!(judge("ada@outlook.example", Some(&both)), Verdict::Match);
+}
+
+#[test]
 fn a_typed_address_equal_to_either_claim_is_a_match() {
     let both = id(Some("ada@outlook.example"), Some("ada@envio.test"));
     assert_eq!(judge("ada@outlook.example", Some(&both)), Verdict::Match);

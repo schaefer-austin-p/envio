@@ -6,7 +6,7 @@ use envio_net::oauth::{
     Identity, Pkce, Provider, ProviderKind, RedirectError, TokenError, Tokens, authorize_url,
     identity_matches, parse_redirect, provider_kind_for,
 };
-use envio_store::AccountSettings;
+use envio_store::{AccountSettings, BackendKind};
 use secrecy::SecretString;
 
 use super::Worker;
@@ -72,7 +72,7 @@ pub(crate) fn failure_of(error: &TokenError) -> OAuthFailure {
 
 fn provider_name(kind: ProviderKind) -> &'static str {
     match kind {
-        ProviderKind::Microsoft => "Microsoft",
+        ProviderKind::Microsoft | ProviderKind::MicrosoftGraph => "Microsoft",
     }
 }
 
@@ -156,7 +156,7 @@ impl Worker<'_> {
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => {
-                    (a.settings.email.clone(), ProviderKind::Microsoft)
+                    (a.settings.email.clone(), super::token::kind_of(&a.settings))
                 }
                 _ => return self.refuse(email.to_owned(), OAuthFailure::NotOAuth),
             },
@@ -335,7 +335,12 @@ impl Worker<'_> {
     fn stranded(&self, account: &envio_store::Account) -> bool {
         account.settings.is_oauth()
             && !self.live.contains_key(&account.key)
-            && self.store.tokens.borrow().get(&account.key).is_none()
+            && self
+                .store
+                .tokens
+                .borrow()
+                .get(&account.key, super::token::kind_of(&account.settings))
+                .is_none()
     }
 
     fn email_taken(&self, email: &str) -> bool {
@@ -388,9 +393,11 @@ impl Worker<'_> {
             name: email.rsplit_once('@').map_or("", |(l, _)| l).to_owned(),
             email: email.to_owned(),
             username: email.to_owned(),
-            imap: addr(&provider.imap),
-            smtp: addr(&provider.smtp),
+            backend: BackendKind::Imap,
+            imap: Some(addr(&provider.imap)),
+            smtp: Some(addr(&provider.smtp)),
             auth: Some("microsoft".to_owned()),
+            migration: None,
         };
         match self.save_oauth_account(settings, refresh) {
             Ok(account) => {
@@ -405,10 +412,18 @@ impl Worker<'_> {
     }
 
     fn sign_in_again(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
-        if self.store.accounts.get(key).is_none() || !self.live.contains_key(key) {
+        let Some(kind) = self
+            .store
+            .accounts
+            .get(key)
+            .map(|a| super::token::kind_of(&a.settings))
+        else {
+            return OAuthOutcome::Failed(OAuthFailure::Other);
+        };
+        if !self.live.contains_key(key) {
             return OAuthOutcome::Failed(OAuthFailure::Other);
         }
-        if let Err(error) = self.store.tokens.borrow_mut().set(key, refresh) {
+        if let Err(error) = self.store.tokens.borrow_mut().set(key, kind, refresh) {
             log::error!("saving the new sign-in: {error}");
             return OAuthOutcome::Failed(OAuthFailure::NotSaved);
         }

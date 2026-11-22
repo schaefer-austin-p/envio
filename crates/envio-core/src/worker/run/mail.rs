@@ -61,7 +61,13 @@ pub(super) async fn file(
     let Some(settings) = worker.store.accounts.get(account) else {
         return Err(Problem::Local);
     };
-    let itself = files_itself(&settings.settings.smtp.host);
+    let itself = files_itself(
+        settings
+            .settings
+            .smtp
+            .as_ref()
+            .map_or("", |s| s.host.as_str()),
+    );
     let filed = driver::file_sent(server, &mut worker.store.local(), account, itself)
         .await
         .map_err(|e| problem::from_sync(&e, Service::Imap))?;

@@ -75,8 +75,12 @@ struct Setup {
 fn setup(replies: Vec<Reply>) -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let mut tokens = OAuthTokens::open(dir.path()).unwrap();
-    tokens.set("a", SecretString::from("stored-1")).unwrap();
-    tokens.set("b", SecretString::from("stored-b")).unwrap();
+    tokens
+        .set("a", ProviderKind::Microsoft, SecretString::from("stored-1"))
+        .unwrap();
+    tokens
+        .set("b", ProviderKind::Microsoft, SecretString::from("stored-b"))
+        .unwrap();
     let tokens = Rc::new(RefCell::new(tokens));
     let fake = Fake::new(replies);
     let now = Rc::new(Cell::new(1_000_000));
@@ -121,7 +125,10 @@ async fn callers_sharing_a_refused_refresh_log_one_cause_line() {
 #[tokio::test]
 async fn a_missing_refresh_token_logs_one_line_and_no_provider_error() {
     let s = setup(vec![Ok(("acc-1", None, 3600))]);
-    s.tokens.borrow_mut().remove("a").unwrap();
+    s.tokens
+        .borrow_mut()
+        .remove("a", ProviderKind::Microsoft)
+        .unwrap();
     let h = handle(&s, "a");
     crate::cause::take_seen();
     assert_eq!(h.access(false).await.unwrap_err(), Problem::SignIn);
@@ -332,8 +339,20 @@ async fn new_refresh_token_is_stored_before_the_access_token_is_returned() {
     let h = handle(&s, "a");
     h.access(false).await.unwrap();
     let on_disk = OAuthTokens::open(s.dir.path()).unwrap();
-    assert_eq!(on_disk.get("a").unwrap().expose_secret(), "stored-2");
-    assert_eq!(on_disk.get("b").unwrap().expose_secret(), "stored-b");
+    assert_eq!(
+        on_disk
+            .get("a", ProviderKind::Microsoft)
+            .unwrap()
+            .expose_secret(),
+        "stored-2"
+    );
+    assert_eq!(
+        on_disk
+            .get("b", ProviderKind::Microsoft)
+            .unwrap()
+            .expose_secret(),
+        "stored-b"
+    );
 }
 
 #[tokio::test]
@@ -353,7 +372,13 @@ async fn a_reply_without_a_refresh_token_keeps_the_stored_one() {
     let s = setup(vec![Ok(("acc-1", None, 3600))]);
     handle(&s, "a").access(false).await.unwrap();
     let on_disk = OAuthTokens::open(s.dir.path()).unwrap();
-    assert_eq!(on_disk.get("a").unwrap().expose_secret(), "stored-1");
+    assert_eq!(
+        on_disk
+            .get("a", ProviderKind::Microsoft)
+            .unwrap()
+            .expose_secret(),
+        "stored-1"
+    );
 }
 
 #[tokio::test]
@@ -366,7 +391,11 @@ async fn a_failed_write_keeps_the_new_access_token_and_the_old_refresh_token() {
     let h = handle(&s, "a");
     assert_eq!(text(h.access(false).await), "acc-1");
     assert_eq!(
-        s.tokens.borrow().get("a").unwrap().expose_secret(),
+        s.tokens
+            .borrow()
+            .get("a", ProviderKind::Microsoft)
+            .unwrap()
+            .expose_secret(),
         "stored-1"
     );
     // Cached: no second request.
@@ -527,12 +556,91 @@ fn constants_match_the_plan() {
 async fn a_paused_token_account_makes_no_refresh_request() {
     let s = setup(vec![Ok(("acc-1", None, 3600))]);
     let h = handle(&s, "a");
-    s.cells.set_paused("a", Some(Problem::SignIn));
+    s.cells
+        .set_paused("a", ProviderKind::Microsoft, Some(Problem::SignIn));
     assert_eq!(h.access(false).await.unwrap_err(), Problem::SignIn);
     assert_eq!(h.access(true).await.unwrap_err(), Problem::SignIn);
     assert_eq!(s.fake.calls.get(), 0);
     // Resumed, it refreshes again.
-    s.cells.set_paused("a", None);
+    s.cells.set_paused("a", ProviderKind::Microsoft, None);
     assert_eq!(text(h.access(false).await), "acc-1");
     assert_eq!(s.fake.calls.get(), 1);
+}
+
+fn both_kinds(replies: Vec<Reply>) -> Setup {
+    let mut s = setup(replies);
+    s.tokens
+        .borrow_mut()
+        .set(
+            "a",
+            ProviderKind::MicrosoftGraph,
+            SecretString::from("graph-1"),
+        )
+        .unwrap();
+    let clock = Rc::clone(&s.now);
+    s.cells = TokenCells::with(
+        vec![
+            Provider::microsoft_template(),
+            Provider::microsoft_graph_template(),
+        ],
+        s.fake.refresher(),
+        Rc::new(move || clock.get()),
+        Rc::clone(&s.tokens),
+    );
+    s
+}
+
+#[tokio::test]
+async fn the_paused_state_of_one_kind_does_not_pause_the_other() {
+    let s = both_kinds(vec![Ok(("graph-acc", None, 3600))]);
+    let imap = s.cells.handle("a", ProviderKind::Microsoft).unwrap();
+    let graph = s.cells.handle("a", ProviderKind::MicrosoftGraph).unwrap();
+    s.cells
+        .set_paused("a", ProviderKind::Microsoft, Some(Problem::SignIn));
+    assert_eq!(imap.access(false).await.unwrap_err(), Problem::SignIn);
+    assert_eq!(s.fake.calls.get(), 0);
+    assert_eq!(text(graph.access(false).await), "graph-acc");
+    assert_eq!(s.fake.calls.get(), 1);
+}
+
+#[tokio::test]
+async fn pausing_the_graph_kind_leaves_the_imap_kind_running() {
+    let s = both_kinds(vec![Ok(("imap-acc", None, 3600))]);
+    let imap = s.cells.handle("a", ProviderKind::Microsoft).unwrap();
+    let graph = s.cells.handle("a", ProviderKind::MicrosoftGraph).unwrap();
+    s.cells
+        .set_paused("a", ProviderKind::MicrosoftGraph, Some(Problem::SignIn));
+    assert_eq!(graph.access(false).await.unwrap_err(), Problem::SignIn);
+    assert_eq!(s.fake.calls.get(), 0);
+    assert_eq!(text(imap.access(false).await), "imap-acc");
+}
+
+#[tokio::test]
+async fn each_kind_has_its_own_cell_and_cached_access_token() {
+    let s = both_kinds(vec![Ok(("a1", None, 3600)), Ok(("a2", None, 3600))]);
+    let imap = s.cells.handle("a", ProviderKind::Microsoft).unwrap();
+    let graph = s.cells.handle("a", ProviderKind::MicrosoftGraph).unwrap();
+    assert_eq!(text(imap.access(false).await), "a1");
+    assert_eq!(text(graph.access(false).await), "a2");
+    assert_eq!(s.fake.calls.get(), 2);
+}
+
+#[tokio::test]
+async fn forget_drops_the_cells_of_both_kinds() {
+    let s = both_kinds(vec![
+        Ok(("a1", None, 3600)),
+        Ok(("a2", None, 3600)),
+        Ok(("a3", None, 3600)),
+        Ok(("a4", None, 3600)),
+    ]);
+    let imap = s.cells.handle("a", ProviderKind::Microsoft).unwrap();
+    let graph = s.cells.handle("a", ProviderKind::MicrosoftGraph).unwrap();
+    assert_eq!(text(imap.access(false).await), "a1");
+    assert_eq!(text(graph.access(false).await), "a2");
+    drop((imap, graph));
+    s.cells.forget("a");
+    let imap = s.cells.handle("a", ProviderKind::Microsoft).unwrap();
+    let graph = s.cells.handle("a", ProviderKind::MicrosoftGraph).unwrap();
+    assert_eq!(text(imap.access(false).await), "a3");
+    assert_eq!(text(graph.access(false).await), "a4");
 }
