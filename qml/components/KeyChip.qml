@@ -1,39 +1,58 @@
 import QtQuick 2.15
 import "../platform"
 
-// One key of a shortcut as a small outlined mono chip (two-pane board,
-// frame 7): "Ctrl" and "N" are two chips.
+// One key of a shortcut drawn as a keycap (#434, variant B on the two-pane
+// board, frame 7): "Ctrl" and "N" are two chips. The root is the skirt, a
+// darker base that shows 3 px below the face; the face has a vertical
+// gradient, a hairline border and a 1 px lighter top edge. Plain Rectangles,
+// no shaders. Light skirts derive from hairline, dark ones from ground (the
+// dark hairline is barely darker than the surface).
 Rectangle {
     id: root
     objectName: "keyChip"
     required property Theme theme
     property string text: ""
 
-    implicitWidth: Math.max(implicitHeight, label.implicitWidth + theme.gu(2))
-    implicitHeight: label.implicitHeight + theme.gu(0.75) + 2
+    readonly property int skirt: 3
+
+    implicitWidth: Math.max(implicitHeight, label.implicitWidth + 14)
+    implicitHeight: face.height + skirt
     width: implicitWidth
     height: implicitHeight
     radius: theme.chipRadius
-    color: theme.surface
-    border.color: theme.hairline
+    color: theme.dark ? Qt.darker(theme.ground, 1.55) : Qt.darker(theme.hairline, 1.6)
 
-    // The keycap's raised bottom edge, darker than the hairline.
     Rectangle {
-        objectName: "keyEdge"
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        anchors.leftMargin: root.radius / 2
-        anchors.rightMargin: root.radius / 2
-        height: 2
-        color: Qt.darker(root.theme.hairline, 1.8)
-    }
+        id: face
+        objectName: "keyFace"
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        height: label.implicitHeight + 2
+        radius: root.theme.chipRadius
+        border.color: root.theme.hairline
+        gradient: Gradient {
+            GradientStop { position: 0; color: Qt.lighter(root.theme.surface, 1.10) }
+            GradientStop { position: 1; color: Qt.darker(root.theme.surface, root.theme.dark ? 1.08 : 1.05) }
+        }
 
-    Text {
-        id: label
-        anchors.centerIn: parent
-        textFormat: Text.PlainText
-        text: root.text
-        color: root.theme.text
-        font.family: root.theme.fontLabel
-        font.pixelSize: 12
+        // The lighter 1 px top edge.
+        Rectangle {
+            objectName: "keyTop"
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            anchors.leftMargin: root.radius / 2
+            anchors.rightMargin: root.radius / 2
+            anchors.topMargin: 1
+            height: 1
+            color: Qt.rgba(1, 1, 1, root.theme.dark ? 0.14 : 0.9)
+        }
+
+        Text {
+            id: label
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: root.text
+            color: root.theme.text
+            font.family: root.theme.fontLabel
+            font.pixelSize: 12
+        }
     }
 }
