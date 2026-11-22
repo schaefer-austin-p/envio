@@ -3,8 +3,8 @@
 
 use std::cell::RefCell;
 
-use envio_net::NetError;
 use envio_net::graph::Bearer;
+use envio_net::{NetError, StorageKind};
 use futures::future::LocalBoxFuture;
 use secrecy::SecretString;
 
@@ -27,12 +27,22 @@ impl CoreBearer {
     }
 }
 
-/// A temporary problem is `Busy` (the client retries later); every other
-/// one is a pause, which asks the user to sign in again.
+/// What the token cell reports, as the net error of the same kind (the
+/// way `problem::from_net` reads them back): only a sign-in cause is
+/// `SignIn`.
 fn net_error(problem: &Problem) -> NetError {
+    let storage = |kind| NetError::Storage {
+        kind,
+        msg: "Outlook.com access token".into(),
+    };
     match problem {
         Problem::Temporary => NetError::Busy("no access token yet".into()),
-        _ => NetError::SignIn("Outlook.com access token".into()),
+        Problem::SignIn => NetError::SignIn("Outlook.com access token".into()),
+        Problem::Certificate(_) => NetError::Tls("Outlook.com access token".into()),
+        Problem::Refused(text) => NetError::Refused(text.clone()),
+        Problem::DiskFull => storage(StorageKind::DiskFull),
+        Problem::Damaged => storage(StorageKind::Damaged),
+        Problem::Local => storage(StorageKind::Other),
     }
 }
 
@@ -167,16 +177,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_pause_of_any_kind_is_sign_in() {
-        let rig = rig(None);
-        rig.cells.set_paused(
-            "a",
-            ProviderKind::MicrosoftGraph,
-            Some(Problem::Certificate(None)),
-        );
-        let bearer = CoreBearer::new(rig.handle.clone());
-        let error = bearer.bearer(false).await.unwrap_err();
-        assert!(matches!(error, NetError::SignIn(_)), "{error}");
-        assert_eq!(rig.calls.get(), 0);
+    async fn a_pause_is_the_net_error_of_its_own_kind() {
+        let cases = [
+            (Problem::SignIn, "SignIn"),
+            (Problem::Certificate(None), "Tls"),
+            (Problem::Refused("no".into()), "Refused"),
+            (Problem::DiskFull, "DiskFull"),
+            (Problem::Damaged, "Damaged"),
+            (Problem::Local, "Other"),
+        ];
+        for (problem, want) in cases {
+            let rig = rig(None);
+            rig.cells
+                .set_paused("a", ProviderKind::MicrosoftGraph, Some(problem.clone()));
+            let bearer = CoreBearer::new(rig.handle.clone());
+            let error = bearer.bearer(false).await.unwrap_err();
+            let got = match &error {
+                NetError::SignIn(_) => "SignIn",
+                NetError::Tls(_) => "Tls",
+                NetError::Refused(_) => "Refused",
+                NetError::Storage { kind, .. } => match kind {
+                    StorageKind::DiskFull => "DiskFull",
+                    StorageKind::Damaged => "Damaged",
+                    StorageKind::Other => "Other",
+                },
+                _ => "other",
+            };
+            assert_eq!(got, want, "{problem:?}: {error}");
+            assert_eq!(rig.calls.get(), 0);
+        }
     }
 }
