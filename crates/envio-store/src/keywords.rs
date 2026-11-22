@@ -67,11 +67,9 @@ impl Db {
     /// unknown (`NULL`) keywords. One indexed lookup, however long the
     /// folder is; rows outside the range never count.
     pub fn has_unknown_keywords_between(&self, folder: FolderId, lo: u32, hi: u32) -> Result<bool> {
-        Ok(self.conn().query_row(
-            UNKNOWN_SQL,
-            params![folder.0, lo, hi],
-            |row| row.get(0),
-        )?)
+        Ok(self
+            .conn()
+            .query_row(UNKNOWN_SQL, params![folder.0, lo, hi], |row| row.get(0))?)
     }
 }
 
