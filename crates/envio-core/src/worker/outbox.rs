@@ -120,7 +120,7 @@ impl Worker<'_> {
                 if let Some(live) = self.live.get_mut(&item.meta.account) {
                     // Accepted is only filed in Sent; the rest is sent.
                     if state == SendState::Accepted {
-                        live.wants.file = true;
+                        live.want_file(now_ms());
                     } else {
                         live.wants.send = true;
                     }

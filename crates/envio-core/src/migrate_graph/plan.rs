@@ -13,6 +13,22 @@ use envio_store::Migration;
 /// offered.
 pub const TRIES: u32 = 3;
 
+/// Filing of an `Accepted` item is asked for again at most this often: a
+/// refused Sent copy is no error, so each try needs a real delay or the 3
+/// tries to Stuck would pass within a second (#439).
+pub const FILE_TICK_MS: i64 = 10_000;
+
+/// When the move may next ask for filing, after it did at `armed_ms`.
+pub fn file_due_ms(armed_ms: i64) -> i64 {
+    armed_ms.saturating_add(FILE_TICK_MS)
+}
+
+/// Filing may be asked for now: the tick has come, or the clock went back
+/// past the last ask (a step back must not starve the item).
+pub fn file_due(armed_ms: i64, now: i64) -> bool {
+    now < armed_ms || now >= file_due_ms(armed_ms)
+}
+
 pub const REPLAY: u8 = 1;
 pub const CLEAR: u8 = 2;
 pub const SWITCH: u8 = 3;
@@ -76,6 +92,11 @@ mod tests {
     #[test]
     fn an_empty_journal_and_nothing_to_file_goes_on_to_clearing() {
         assert_eq!(next(&at(1, 0), true, false, false), MigrationStep::Clear);
+    }
+
+    #[test]
+    fn filing_is_asked_for_once_per_tick() {
+        assert_eq!(file_due_ms(5), 5 + FILE_TICK_MS);
     }
 
     #[test]
