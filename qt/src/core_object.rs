@@ -90,6 +90,7 @@ pub mod qobject {
             email: &QString,
             title: &QString,
             text: &QString,
+            manual_ok: bool,
         );
         /// The domain's mail is on Microsoft 365 (#384): a card with sign-in.
         #[qsignal]

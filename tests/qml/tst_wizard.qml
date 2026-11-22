@@ -282,7 +282,7 @@ Item {
             find("emailField").text = "ann@outlook.com"
             mouseClick(find("continueButton"))
             core.setupRefused("ann@outlook.com", "Microsoft accounts aren\u2019t supported yet",
-                              "Envio can\u2019t connect to Outlook, Hotmail or Microsoft 365 mail for now. Try another address.")
+                              "Envio can\u2019t connect to Outlook, Hotmail or Microsoft 365 mail for now. Try another address.", false)
         }
         function test_refusal_shows_a_notice_card() {
             refuse()
@@ -293,6 +293,42 @@ Item {
             compare(card.title, "Microsoft accounts aren\u2019t supported yet")
             compare(card.text, "Envio can\u2019t connect to Outlook, Hotmail or Microsoft 365 mail for now. Try another address.")
             verify(!wizard.busy)
+        }
+        // #384: the mail is on Microsoft 365. The wizard must not keep
+        // "Looking up settings" up; the card says it, with the way out.
+        function test_mail_on_microsoft_ends_the_lookup_and_shows_the_card() {
+            find("emailField").text = "ann@contoso.example"
+            mouseClick(find("continueButton"))
+            verify(wizard.busy)
+            core.mailOnMicrosoft("ann@contoso.example", "This mail is on Microsoft",
+                                 "Mail for contoso.example is handled by Microsoft. Sign in with Microsoft to add it.")
+            compare(wizard.step, "email")
+            verify(!wizard.busy)
+            const card = find("refusalCard")
+            verify(card.visible)
+            compare(card.title, "This mail is on Microsoft")
+            verify(find("manualButton").visible)
+        }
+        function test_mail_on_microsoft_for_another_address_does_nothing() {
+            find("emailField").text = "ann@contoso.example"
+            mouseClick(find("continueButton"))
+            core.mailOnMicrosoft("bob@other.example", "T", "X")
+            verify(wizard.busy)
+            verify(!find("refusalCard").visible)
+        }
+        // #384 Decision 7: a false MX positive keeps manual setup; the other
+        // refusals (an Outlook address) still hide it.
+        function test_hosted_refusal_keeps_manual_setup_and_others_hide_it() {
+            find("emailField").text = "ann@contoso.example"
+            mouseClick(find("continueButton"))
+            core.setupRefused("ann@contoso.example", "T", "Mail for contoso.example is hosted by Microsoft 365.", true)
+            verify(find("refusalCard").visible)
+            verify(find("manualButton").visible)
+            find("emailField").text = "ann@outlook.com"
+            mouseClick(find("continueButton"))
+            core.setupRefused("ann@outlook.com", "T", "X", false)
+            verify(find("refusalCard").visible)
+            verify(!find("manualButton").visible)
         }
         function test_no_card_before_a_refusal() {
             typeEmail()
@@ -329,7 +365,7 @@ Item {
         function test_a_refusal_for_another_address_is_ignored() {
             typeEmail()
             mouseClick(find("continueButton"))
-            core.setupRefused("someone@outlook.com", "T", "X")
+            core.setupRefused("someone@outlook.com", "T", "X", false)
             verify(!find("refusalCard").visible)
         }
 
@@ -546,7 +582,7 @@ Item {
             find("serversPassword").text = "hunter2"
             find("connectButton").clicked()
             verify(wizard.busy)
-            core.setupRefused("ann@outlook.com", "Microsoft accounts aren\u2019t supported yet", "Try another address.")
+            core.setupRefused("ann@outlook.com", "Microsoft accounts aren\u2019t supported yet", "Try another address.", false)
             compare(wizard.step, "email")
             verify(!wizard.busy)
             verify(find("refusalCard").visible)

@@ -109,6 +109,18 @@ pub fn fake_setup(email: &str, fake: SetupFake) {
     }
 }
 
+static REAL_DETECTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many `Detect` jobs ran the real lookups (built an `Internet`) in this
+/// process; a registered `SetupFake` must keep it unchanged.
+pub fn real_detects() -> usize {
+    REAL_DETECTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub(crate) fn real_detect_started() {
+    REAL_DETECTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// How many setup jobs for `email` have started since `fake_setup`.
 pub fn setup_runs(email: &str) -> usize {
     SETUP.lock().ok().map_or(0, |fakes| {

@@ -272,6 +272,8 @@ async fn do_job(roots: &Roots, job: &SetupJob) -> SetupDone {
 }
 
 async fn detect_for_real(email: &str, roots: &Roots) -> (Result<Found, Problem>, Hosting) {
+    #[cfg(feature = "test-hooks")]
+    crate::hooks::real_detect_started();
     let lookups = Internet::new(roots.clone());
     match autoconfig::detect_with_hosting(email, &lookups, autoconfig::DETECT_TIMEOUT).await {
         Ok(detection) => (Ok(detection.found), detection.hosting),

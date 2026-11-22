@@ -193,6 +193,10 @@ pub enum Event {
         email: String,
         title: String,
         text: String,
+        /// "Set up manually" stays offered: a custom domain on Microsoft 365
+        /// by MX (#384) may be a false positive, and `connect` does not
+        /// refuse it.
+        manual_ok: bool,
     },
     /// The domain's MX records say its mail is on Microsoft 365 (#384): a
     /// card that offers Microsoft sign-in. Comes instead of `Detected`.

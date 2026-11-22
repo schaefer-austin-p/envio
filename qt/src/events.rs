@@ -161,8 +161,13 @@ impl qobject::EnvioCore {
                 &q(oauth.as_ref().map_or("", |o| o.provider.as_str())),
             ),
             Signal::SetupProblem { email, text } => self.setup_problem(&q(&email), &q(&text)),
-            Signal::SetupRefused { email, title, text } => {
-                self.setup_refused(&q(&email), &q(&title), &q(&text))
+            Signal::SetupRefused {
+                email,
+                title,
+                text,
+                manual_ok,
+            } => {
+                self.setup_refused(&q(&email), &q(&title), &q(&text), manual_ok)
             }
             Signal::MailOnMicrosoft { email, title, text } => {
                 self.mail_on_microsoft(&q(&email), &q(&title), &q(&text))

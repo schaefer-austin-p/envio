@@ -246,7 +246,17 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             oauth,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
-        Event::SetupRefused { email, title, text } => Signal::SetupRefused { email, title, text },
+        Event::SetupRefused {
+            email,
+            title,
+            text,
+            manual_ok,
+        } => Signal::SetupRefused {
+            email,
+            title,
+            text,
+            manual_ok,
+        },
         Event::MailOnMicrosoft { email, title, text } => {
             Signal::MailOnMicrosoft { email, title, text }
         }

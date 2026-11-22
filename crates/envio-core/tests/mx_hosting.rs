@@ -5,7 +5,7 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use envio_core::hooks::{SetupFake, fake_setup, setup_runs};
+use envio_core::hooks::{SetupFake, fake_setup, real_detects, setup_runs};
 use envio_core::{AccountSetup, Command, ConnectRequest, Event, ServerAddr};
 use envio_net::autoconfig::{Found, Hosting, Setting, Source};
 use envio_net::oauth::Provider;
@@ -101,7 +101,13 @@ fn a_microsoft_verdict_with_sign_in_off_is_refused_with_the_domain() {
     arm(email, Hosting::Microsoft365);
     detect(&h, email);
     let (who, title, text) = h.wait(|e| match e {
-        Event::SetupRefused { email, title, text } => {
+        Event::SetupRefused {
+            email,
+            title,
+            text,
+            manual_ok,
+        } => {
+            assert!(*manual_ok);
             Some((email.clone(), title.clone(), text.clone()))
         }
         _ => None,
@@ -181,6 +187,7 @@ fn a_fake_with_only_a_verdict_looks_nothing_up_and_guesses() {
         },
     );
     let started = Instant::now();
+    let before = real_detects();
     detect(&h, email);
     let setup = h.wait(|e| match e {
         Event::Detected { setup, .. } => Some(setup.clone()),
@@ -189,6 +196,22 @@ fn a_fake_with_only_a_verdict_looks_nothing_up_and_guesses() {
     assert_eq!(setup.source, Some(Source::Guess));
     assert_eq!(setup.imap.host, "imap.only-hosting.invalid");
     assert!(started.elapsed() < Duration::from_secs(2));
+    // The answer is the fake's: no Internet was built for it.
+    assert_eq!(real_detects(), before);
+}
+
+/// Whether a connection arrives before the deadline (a regression must fail,
+/// not hang).
+fn accepted_within(listener: &std::net::TcpListener, span: Duration) -> bool {
+    listener.set_nonblocking(true).unwrap();
+    let until = Instant::now() + span;
+    while Instant::now() < until {
+        if listener.accept().is_ok() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    false
 }
 
 /// Connect does not refuse a custom domain: only the address decides there.
@@ -203,7 +226,6 @@ fn connecting_an_mx_hosted_domain_by_hand_is_not_refused() {
     };
     let h = Harness::start();
     let email = "ann@manual-mx.example";
-    arm(email, Hosting::Microsoft365);
     h.send(Command::Connect(Box::new(ConnectRequest {
         setup: AccountSetup {
             name: "Ann".into(),
@@ -226,5 +248,8 @@ fn connecting_an_mx_hosted_domain_by_hand_is_not_refused() {
         )),
         "{rest:?}"
     );
-    assert!(listener.accept().is_ok(), "the core never connected");
+    assert!(
+        accepted_within(&listener, Duration::from_secs(5)),
+        "the core never connected"
+    );
 }

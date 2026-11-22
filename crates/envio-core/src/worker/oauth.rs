@@ -173,6 +173,7 @@ impl Worker<'_> {
             email: email.trim().to_owned(),
             title,
             text,
+            manual_ok: false,
         });
         true
     }

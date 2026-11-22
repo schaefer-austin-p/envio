@@ -20,7 +20,12 @@ impl Worker<'_> {
             self.emit(Event::MailOnMicrosoft { email, title, text });
         } else {
             let (title, text) = text::setup::microsoft_hosted_refused(&domain);
-            self.emit(Event::SetupRefused { email, title, text });
+            self.emit(Event::SetupRefused {
+                email,
+                title,
+                text,
+                manual_ok: true,
+            });
         }
     }
 }
