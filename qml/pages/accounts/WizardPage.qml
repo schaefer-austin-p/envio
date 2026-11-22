@@ -136,6 +136,8 @@ Item {
         hostedNoticeText = ""
         oauthProvider = "Microsoft"
         oauthKind = "imap"
+        // The confirm and mismatch questions show this address read-only.
+        signIn.oauthEmail = emailStep.email.trim()
         signInWithMicrosoft()
     }
     function close() {

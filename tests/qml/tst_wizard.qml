@@ -410,17 +410,31 @@ Item {
             compare(wizard.step, "signin")
             compare(wizard.oauthSession.state, "mismatch")
             verify(find("mismatchContinue").visible)
+            compare(find("oauthEmail").text, "ann@contoso.example")
             core.reset()
             mouseClick(find("mismatchContinue"))
             compare(core.called("confirmOAuth").length, 1)
             compare(core.called("confirmOAuth")[0].args[0], true)
             compare(wizard.oauthSession.state, "waiting")
         }
+        function test_an_earlier_detect_leaves_no_stale_address_on_the_hosted_questions() {
+            // A found-settings sign-in for another address set the field.
+            typeEmail()
+            mouseClick(find("continueButton"))
+            core.detected("ann@example.org", "Settings found", false, plainJson, serversLines, "Microsoft")
+            compare(find("oauthEmail").text, "ann@example.org")
+            wizard.back()
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthMismatch("ann@contoso.example", "This is a personal account", "Sign in once more.")
+            compare(find("oauthEmail").text, "ann@contoso.example")
+        }
         function test_declining_the_confirm_question_returns_to_the_card() {
             hosted()
             mouseClick(find("continueButton"))
             core.oauthConfirm("ann@contoso.example", "bob@contoso.example", "")
             compare(wizard.step, "signin")
+            compare(find("oauthEmail").text, "ann@contoso.example")
             wizard.oauthSession.answer(false)
             compare(wizard.step, "email")
             verify(find("hostedCard").visible)
