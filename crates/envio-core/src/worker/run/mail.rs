@@ -2,7 +2,7 @@
 
 use envio_mime::Address;
 use envio_store::BackendKind;
-use envio_sync::driver;
+use envio_sync::driver::{self, FileOpts};
 use envio_sync::plan::outbox::files_itself;
 use envio_sync::server::MailServer;
 
@@ -103,9 +103,18 @@ pub(super) async fn file(
             .as_ref()
             .map_or("", |s| s.host.as_str()),
     );
-    let filed = driver::file_sent(server, &mut worker.store.local(), account, itself)
-        .await
-        .map_err(|e| problem::from_sync(&e, Service::Imap, kind))?;
+    let filed = driver::file_sent(
+        server,
+        &mut worker.store.local(),
+        account,
+        FileOpts {
+            files_itself: itself,
+            now_ms: now_ms(),
+            retries: kind == BackendKind::Graph,
+        },
+    )
+    .await
+    .map_err(|e| problem::from_sync(&e, Service::Imap, kind))?;
     for id in &filed.removed {
         worker.asked.remove(id);
         worker.unfiled.remove(id);
@@ -115,6 +124,8 @@ pub(super) async fn file(
     }
     worker.asked.extend(filed.ask.iter().cloned());
     worker.unfiled.extend(filed.unfiled.iter().cloned());
+    // A look that missed is made again at `resolve_after_ms`: the timer
+    // (`on_timers`) asks for the next file run.
     if !(filed.removed.is_empty() && filed.ask.is_empty() && filed.unfiled.is_empty()) {
         worker.emit(Event::OutboxChanged);
         worker.emit_outbox();

@@ -7,7 +7,7 @@ use envio_sync::Schedule;
 use crate::health::{AccountStatus, Health};
 
 use super::Worker;
-use envio_sync::plan::outbox::next_release;
+use envio_sync::plan::outbox::{next_release, next_resolve};
 
 use super::conn::Conn;
 use super::plan::{
@@ -28,6 +28,13 @@ impl Worker<'_> {
             self.handled_release_ms = at;
             for live in self.live.values_mut() {
                 live.wants.send = true;
+            }
+        }
+        if let Some(at) = self.next_resolve().filter(|at| *at <= now) {
+            // An unconfirmed send is looked for in Sent again.
+            self.handled_resolve_ms = at;
+            for live in self.live.values_mut() {
+                live.wants.file = true;
             }
         }
         if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {
@@ -215,6 +222,12 @@ impl Worker<'_> {
         next_release(items.iter().map(|item| &item.meta), self.handled_release_ms)
     }
 
+    /// The next time an unconfirmed send is looked for, past its watermark.
+    fn next_resolve(&self) -> Option<i64> {
+        let items = self.store.outbox.items().ok()?;
+        next_resolve(items.iter().map(|item| &item.meta), self.handled_resolve_ms)
+    }
+
     /// When to look again with nothing to do: the earliest timer.
     pub(super) fn wake_at(&self, now: i64) -> Option<i64> {
         let retry = self.store.schedule.next_due_after(self.handled_due_ms);
@@ -230,6 +243,7 @@ impl Worker<'_> {
             disk,
             retry,
             self.next_release(),
+            self.next_resolve(),
             self.undo.next_expiry(),
             self.oauth_deadline(),
         ]
@@ -736,5 +750,49 @@ mod tests {
         assert_eq!(worker.wake_at(now), None);
         worker.disk_full_until = Some(now + 60_000);
         assert_eq!(worker.wake_at(now), Some(now + 60_000));
+    }
+
+    /// The seeded worker with an unconfirmed item whose next look is at
+    /// `at`; the account's IDLE capability is set so no poll timer shows.
+    fn with_resolve_due(at: i64) -> (Worker<'static>, String) {
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        let (config, seeded) = seed(dir.path());
+        let config = Box::leak(Box::new(config));
+        let sink = Box::leak(Box::new(Sink::default()));
+        let worker = open(config, sink);
+        let new = envio_store::NewOutboxItem {
+            send_after_ms: 0,
+            account: seeded.account.clone(),
+            message_id: "<a@example.org>".into(),
+            queued_at_ms: 1,
+            from: "me@example.org".into(),
+            recipients: vec!["ada@example.org".into()],
+        };
+        let id = worker.store.outbox.enqueue(new, b"x").unwrap().id;
+        // Seeding only (the grep test allows one `set_state` call).
+        let seed_state = envio_store::Outbox::set_state;
+        seed_state(
+            &worker.store.outbox,
+            &id,
+            envio_store::SendState::MayHaveBeenSent,
+        )
+        .unwrap();
+        worker.store.outbox.set_resolve(&id, 1, at).unwrap();
+        let mut worker = worker;
+        worker.live.get_mut(&seeded.account).unwrap().idle_capable = None;
+        (worker, seeded.account)
+    }
+
+    #[test]
+    fn a_due_look_for_a_sent_copy_wakes_the_loop_and_asks_for_a_file_run() {
+        let now = now_ms();
+        let (mut worker, account) = with_resolve_due(now + 10_000);
+        assert_eq!(worker.wake_at(now), Some(now + 10_000));
+        worker.on_timers(now);
+        assert!(!worker.live[&account].wants.file, "not yet");
+        worker.on_timers(now + 10_000);
+        assert!(worker.live[&account].wants.file);
+        // Acted on: the same time does not wake the loop again.
+        assert_eq!(worker.wake_at(now + 10_000), None);
     }
 }

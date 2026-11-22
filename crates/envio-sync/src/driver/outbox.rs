@@ -9,7 +9,7 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 use super::Local;
 use crate::error::{ErrorKind, Result};
 use crate::plan::message_id::search_id;
-use crate::plan::outbox::{ItemStep, after_send, held, item_step};
+use crate::plan::outbox::{ItemStep, RESOLVE_GAP_MS, RESOLVE_TRIES, after_send, held, item_step};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
 
@@ -115,6 +115,20 @@ pub struct Filed {
     /// Sent (or an item's filing) was refused: the cached folder list may be
     /// stale, so the next run should fetch it again.
     pub relist: bool,
+    /// May have been sent, not found in Sent yet, and looked for again
+    /// later (`retries`); the Outbox meta has when.
+    pub retry: Vec<String>,
+}
+
+/// What `file_sent` needs besides the server and the stores.
+#[derive(Debug, Clone, Copy)]
+pub struct FileOpts {
+    /// The server files sent mail itself (Gmail, Graph).
+    pub files_itself: bool,
+    pub now_ms: i64,
+    /// A miss on a May have been sent item is looked for again later
+    /// (Graph) instead of asked about at once.
+    pub retries: bool,
 }
 
 /// Files accepted items in Sent (APPEND, unless the server does it itself
@@ -129,8 +143,13 @@ pub async fn file_sent(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
     account: &str,
-    files_itself: bool,
+    opts: FileOpts,
 ) -> Result<Filed> {
+    let FileOpts {
+        files_itself,
+        now_ms,
+        retries,
+    } = opts;
     let folders = local.db.folders(account)?;
     if folders.is_empty() {
         return Ok(Filed::default());
@@ -146,40 +165,42 @@ pub async fn file_sent(
         if !matches!(step, ItemStep::File | ItemStep::Resolve) {
             continue;
         }
+        // Waiting for the next look: nothing is selected, no try is used.
+        if step == ItemStep::Resolve && item.meta.resolve_after_ms > now_ms {
+            continue;
+        }
+        let retry_here = retries && step == ItemStep::Resolve;
         let search = step == ItemStep::Resolve || !files_itself;
         let done = match &sent_folder {
             Some(path) if search => {
-                if !sent_refused {
-                    match server.select(path).await {
-                        Ok(_) => {}
-                        Err(NetError::Refused(_)) => sent_refused = true,
-                        Err(error) => return Err(error.into()),
-                    }
-                }
-                // Sent can't be selected: this item and every later one
-                // that needs Sent stay. The accepted ones are reported;
-                // a May have been sent one is asked about. Items settled
-                // before, or needing no Sent, still count.
-                if sent_refused {
-                    refused(&mut filed, step, item.id);
-                    continue;
-                }
                 // Only an accepted item is appended; a May have been sent
                 // one is only looked for.
                 let eml = match step {
                     ItemStep::File => Some(local.outbox.eml(&item.id)?),
                     _ => None,
                 };
-                match settle(server, &item, eml.as_deref(), path).await {
-                    Ok(done) => done,
-                    // One item's refusal (quota, a Message-ID the server
-                    // won't take) leaves it in the Outbox, untouched, and
-                    // doesn't hold up the others.
-                    Err(error) if error.kind() == ErrorKind::Refused => {
+                let mut sent = SentBox {
+                    path,
+                    refused: sent_refused,
+                };
+                let looked = look(server, &item, eml.as_deref(), &mut sent).await?;
+                sent_refused = sent.refused;
+                match looked {
+                    Look::Done(done) => done,
+                    // Sent can't be selected, or refused this item: this
+                    // one stays (an unconfirmed one is looked for again
+                    // later where that applies, without using a try).
+                    Look::Refused => {
+                        if retry_here {
+                            let at = now_ms + RESOLVE_GAP_MS;
+                            local
+                                .outbox
+                                .set_resolve(&item.id, item.meta.resolve_tries, at)?;
+                            filed.retry.push(item.id.clone());
+                        }
                         refused(&mut filed, step, item.id);
                         continue;
                     }
-                    Err(error) => return Err(error),
                 }
             }
             // Gmail files it itself; with no Sent folder there's nowhere
@@ -189,11 +210,57 @@ pub async fn file_sent(
         if done {
             local.outbox.remove(&item.id)?;
             filed.removed.push(item.id);
+        } else if retry_here && sent_folder.is_some() && item.meta.resolve_tries + 1 < RESOLVE_TRIES
+        {
+            // Graph: the sent copy may take a moment to show up.
+            let tries = item.meta.resolve_tries + 1;
+            local
+                .outbox
+                .set_resolve(&item.id, tries, now_ms + RESOLVE_GAP_MS)?;
+            filed.retry.push(item.id);
         } else {
             filed.ask.push(item.id);
         }
     }
     Ok(filed)
+}
+
+enum Look {
+    Done(bool),
+    Refused,
+}
+
+/// The Sent folder for one run; `refused` remembers that it can't be
+/// selected, so it is asked once.
+struct SentBox<'a> {
+    path: &'a str,
+    refused: bool,
+}
+
+/// Selects Sent and settles the item there (`eml` is appended if it isn't
+/// found). One item's refusal (quota, a Message-ID the server won't take)
+/// doesn't hold up the others.
+async fn look(
+    server: &mut impl MailServer,
+    item: &OutboxItem,
+    eml: Option<&[u8]>,
+    sent: &mut SentBox<'_>,
+) -> Result<Look> {
+    if !sent.refused {
+        match server.select(sent.path).await {
+            Ok(_) => {}
+            Err(NetError::Refused(_)) => sent.refused = true,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    if sent.refused {
+        return Ok(Look::Refused);
+    }
+    match settle(server, item, eml, sent.path).await {
+        Ok(done) => Ok(Look::Done(done)),
+        Err(error) if error.kind() == ErrorKind::Refused => Ok(Look::Refused),
+        Err(error) => Err(error),
+    }
 }
 
 /// Sent refused something for this item: an accepted one is reported as

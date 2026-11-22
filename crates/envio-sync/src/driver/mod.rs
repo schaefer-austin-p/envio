@@ -24,7 +24,7 @@ pub use folders::{
 };
 pub use keywords::refresh_flags;
 pub use older::{Older, load_older};
-pub use outbox::{Filed, Sent, file_sent, refuse_outbox, send_outbox};
+pub use outbox::{FileOpts, Filed, Sent, file_sent, refuse_outbox, send_outbox};
 pub use prefetch::{Prefetched, prefetch_bodies};
 pub use replay::{Replayed, replay};
 pub use search::search_server;

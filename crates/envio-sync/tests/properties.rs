@@ -11,7 +11,7 @@ use envio_net::smtp::SendError;
 use envio_store::{ActionKind, Flags, NewOutboxItem, Outbox, SendState};
 use envio_sync::UNDO_MS;
 use envio_sync::convert::store_flags;
-use envio_sync::driver::{file_sent, record, send_outbox, sync_account};
+use envio_sync::driver::{FileOpts, file_sent, record, send_outbox, sync_account};
 use envio_sync::error::{ErrorKind, SyncError};
 use envio_sync::server::MailSender;
 use support::fake::{FakeSender, FakeServer, NOW_MS, NOW_SECS, eml};
@@ -157,7 +157,17 @@ async fn unsent_mail_is_never_lost_or_resent() {
                     server.fail_on(op, NetError::Timeout);
                 }
                 4 => tolerate(
-                    file_sent(&mut server, &mut store.local(), ACCOUNT, gmail).await,
+                    file_sent(
+                        &mut server,
+                        &mut store.local(),
+                        ACCOUNT,
+                        FileOpts {
+                            files_itself: gmail,
+                            now_ms: now,
+                            retries: false,
+                        },
+                    )
+                    .await,
                     seed,
                 ),
                 5 => now += SETTLE_MS,
@@ -206,7 +216,17 @@ async fn unsent_mail_is_never_lost_or_resent() {
                 mirror_accepted(&mut server, &sender, &mut mirrored);
             }
             tolerate(
-                file_sent(&mut server, &mut store.local(), ACCOUNT, gmail).await,
+                file_sent(
+                    &mut server,
+                    &mut store.local(),
+                    ACCOUNT,
+                    FileOpts {
+                        files_itself: gmail,
+                        now_ms: now,
+                        retries: false,
+                    },
+                )
+                .await,
                 seed,
             );
             let synced = sync_account(&mut server, &mut store.local(), ACCOUNT, now, Some(30), &[])
