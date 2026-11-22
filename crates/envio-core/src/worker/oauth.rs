@@ -156,7 +156,7 @@ impl Worker<'_> {
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => {
-                    (a.settings.email.clone(), ProviderKind::Microsoft)
+                    (a.settings.email.clone(), super::token::kind_of(&a.settings))
                 }
                 _ => return self.refuse(email.to_owned(), OAuthFailure::NotOAuth),
             },

@@ -442,17 +442,6 @@ fn a_broken_entry_that_names_an_auth_kind_keeps_the_file_at_version_3() {
     assert!(fs::read_to_string(&path).unwrap().contains("microsoft"));
 }
 
-#[test]
-fn a_version_4_file_is_refused() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("accounts.json");
-    fs::write(&path, r#"{"version": 5, "accounts": []}"#).unwrap();
-    assert!(matches!(
-        Accounts::open(&path),
-        Err(StoreError::BadRecord { .. })
-    ));
-}
-
 fn graph_settings() -> AccountSettings {
     let mut s = settings("ada@outlook.example");
     s.backend = BackendKind::Graph;

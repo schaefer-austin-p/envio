@@ -821,3 +821,35 @@ fn sign_in_again(r: &Rig) -> (OAuthOutcome, Vec<Event>) {
     });
     (outcome, seen.into_inner())
 }
+
+#[test]
+fn a_new_sign_in_for_a_graph_account_asks_for_the_graph_scopes() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_oauth_account("ada@outlook.example", (1, 1), "rt-1");
+    let path = h.paths().accounts();
+    let mut json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    for entry in json["accounts"].as_array_mut().unwrap() {
+        let settings = &mut entry["settings"];
+        settings["backend"] = "graph".into();
+        settings["imap"] = serde_json::Value::Null;
+        settings["smtp"] = serde_json::Value::Null;
+    }
+    std::fs::write(&path, json.to_string()).unwrap();
+    h.oauth = vec![
+        Provider::microsoft_template().with_client_id("test-client-id"),
+        Provider::microsoft_graph_template().with_client_id("test-client-id"),
+    ];
+    h.start_core();
+    h.send(Command::AppActive(true));
+    h.send(Command::StartOAuth {
+        email: String::new(),
+        account: Some(key),
+    });
+    let url = h.wait(|e| match e {
+        Event::OAuthBrowser { url, .. } => Some(url.clone()),
+        _ => None,
+    });
+    assert!(url.contains("Mail.Send"), "{url}");
+    assert!(!url.contains("IMAP.AccessAsUser"), "{url}");
+}
