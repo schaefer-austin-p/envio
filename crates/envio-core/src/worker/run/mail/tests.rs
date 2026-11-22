@@ -463,22 +463,38 @@ fn a_refused_sent_copy_does_not_count_while_actions_are_pending() {
 }
 
 #[test]
-fn a_clean_filing_run_resets_the_failures() {
+fn full_runs_between_refused_filings_do_not_hide_a_stuck_move() {
     let r = rig();
     let account = r.seeded.account.clone();
     let mut w = opened(&r);
-    refused_filing_while_moving(&mut w, &account, 2);
-    let mut server = Scripted {
-        miss: true,
-        ..Scripted::default()
-    };
-    tokio::runtime::Builder::new_current_thread()
+    refused_filing_while_moving(&mut w, &account, 1);
+    let rt = tokio::runtime::Builder::new_current_thread()
         .build()
-        .unwrap()
-        .block_on(file(&mut w, &account, &mut server))
         .unwrap();
+    for _ in 0..2 {
+        // A full run plans a Replay with nothing to do.
+        rt.block_on(super::super::sync::replay(
+            &mut w,
+            &account,
+            &mut Scripted::default(),
+        ))
+        .unwrap();
+        let mut server = Scripted {
+            miss: true,
+            appends: VecDeque::from([quota()]),
+            ..Scripted::default()
+        };
+        rt.block_on(file(&mut w, &account, &mut server)).unwrap();
+    }
     let m = w.store.accounts.get(&account).unwrap().settings.migration;
-    assert_eq!(m.unwrap().failures, 0);
+    assert_eq!(m.unwrap().failures, 3);
+    w.migrate_all(crate::clock::now_ms());
+    let stuck = r.sink.events().into_iter().rev().find_map(|e| match e {
+        Event::Migration { state: Some(s), .. } => Some(s),
+        _ => None,
+    });
+    let stuck = stuck.unwrap();
+    assert_eq!(stuck.stage, crate::api::view::MigrationStage::Stuck);
 }
 
 #[test]

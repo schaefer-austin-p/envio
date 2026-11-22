@@ -243,9 +243,7 @@ pub(super) async fn replay(
     let replayed = replayed.map_err(|e| imap_error(worker.kind_of(account), &e))?;
     worker.report_replayed(account, &replayed);
     // A replay that stopped, Local included, is the account's problem.
-    problem::from_stopped("replay", replayed.stopped)?;
-    worker.migrate_succeeded(account, false);
-    Ok(())
+    problem::from_stopped("replay", replayed.stopped)
 }
 
 impl Worker<'_> {
