@@ -111,6 +111,8 @@ Item {
             verify(!find("moveStrip").visible)
             move({ moveStage: "stuck", moveTitle: "Stuck", moveText: "x", canSwitch: true })
             tryVerify(function() { return find("switchAnyway").visible })
+            verify(find("keepWaiting").primary, "Keep waiting is the filled primary")
+            verify(find("switchAnyway").danger && !find("switchAnyway").primary, "Switch anyway is the red outline")
             mouseClick(find("switchAnyway"))
             compare(core.called("switchAnyway").length, 1)
             compare(core.called("switchAnyway")[0].args[0], "ann")

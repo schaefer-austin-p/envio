@@ -3,11 +3,14 @@ import QtQuick.Controls 2.15
 import "../platform"
 
 // A full-width-capable text button: `primary` is filled (primary role),
-// otherwise outlined (1 px primary). At least 44 px high.
+// otherwise outlined (1 px primary). `danger` (outlined only) draws the
+// border, label and icon in the accent colour instead, for a destructive
+// choice. At least 44 px high.
 AbstractButton {
     id: root
     required property Theme theme
     property bool primary: false
+    property bool danger: false
     // Optional leading icon name (see Icon.qml).
     property string iconName: ""
     // The drawn pill's height; the tap target stays implicitHeight.
@@ -39,7 +42,7 @@ AbstractButton {
             id: label
             objectName: "buttonLabel"
             text: root.text
-            color: root.primary ? root.theme.primaryText : root.theme.primary
+            color: root.primary ? root.theme.primaryText : (root.danger ? root.theme.accent : root.theme.primary)
             font: root.theme.controlFont
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -52,6 +55,6 @@ AbstractButton {
         radius: root.visibleHeight < root.theme.controlHeight ? root.theme.compactControlRadius : root.theme.controlRadius
         color: root.primary ? root.theme.primary : (root.down ? root.theme.selected : "transparent")
         border.width: root.primary ? 0 : 1
-        border.color: root.theme.primary
+        border.color: root.danger ? root.theme.accent : root.theme.primary
     }
 }

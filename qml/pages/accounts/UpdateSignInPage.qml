@@ -315,7 +315,7 @@ Item {
             visible: root.stage === "stuck" || root.stage === "signin"
             width: parent.width
             theme: root.theme
-            primary: root.stage === "stuck" && !found.canSwitch
+            primary: root.stage === "stuck"
             text: qsTr("Keep waiting")
             onClicked: root.close()
         }
@@ -334,6 +334,7 @@ Item {
             visible: root.stage === "stuck" && found.canSwitch
             width: parent.width
             theme: root.theme
+            danger: true
             text: qsTr("Switch anyway")
             onClicked: root.core.switchAnyway(root.account)
         }
