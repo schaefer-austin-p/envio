@@ -192,12 +192,19 @@ impl Worker<'_> {
         }
     }
 
+    /// An edit that cannot happen: the compose the page already opened
+    /// learns it will never be ready. Its text reaches the user once, from
+    /// the page (no `Notice` as well).
+    fn refuse_edit(&mut self, compose: ComposeId, text: String) {
+        self.compose_refused(compose, text);
+    }
+
     /// Edit: a refused message, or one held for a sign-in, becomes a draft
     /// in `compose`. The item goes only after the draft is stored, so a
     /// crash leaves both, never none. See `editable` for what may be taken.
     pub(super) fn edit_outbox(&mut self, id: &str, compose: ComposeId) {
         let Some(item) = self.find_item(id) else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         let editable = self.editable(&item);
         let account_known = self.store.accounts.get(&item.meta.account).is_some();
@@ -206,21 +213,21 @@ impl Worker<'_> {
             .then(|| self.store.outbox.eml(id).ok())
             .flatten();
         let Some(eml) = eml else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         if outbox::is_invite_reply(&eml) {
-            return self.notice(text::outbox::edit_invite_reply());
+            return self.refuse_edit(compose, text::outbox::edit_invite_reply());
         }
         let draft = outbox::draft_from_eml(&item.meta.account, &eml, &item.meta.recipients);
         let Some(mut draft) = draft else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         let stored = crate::compose::to_store(&draft, now_ms());
         let draft_id = match self.store.drafts.create(&stored) {
             Ok(draft_id) => draft_id,
             Err(e) => {
                 log::warn!("saving a draft from the Outbox: {e}");
-                return self.notice(text::compose::draft_not_saved());
+                return self.refuse_edit(compose, text::compose::draft_not_saved());
             }
         };
         // The message's attachments go into the draft's own files folder
@@ -233,7 +240,7 @@ impl Worker<'_> {
                 if let Err(e) = self.store.drafts.delete(&draft_id) {
                     log::warn!("deleting the half-made draft: {e}");
                 }
-                return self.notice(text::compose::draft_not_saved());
+                return self.refuse_edit(compose, text::compose::draft_not_saved());
             }
         }
         self.book.adopt(compose, draft_id.clone());
@@ -354,6 +361,16 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         SendState::Failed { reason: "r".into() }
     }
 
+    /// Refused composes: an Outbox edit's refusal reaches the user once,
+    /// through the page, never as a `Notice` as well.
+    fn refusals(t: &T) -> usize {
+        let events = t.sink.events();
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::ComposeRefused { .. }))
+            .count()
+    }
+
     fn notices(t: &T) -> usize {
         let events = t.sink.events();
         events
@@ -448,7 +465,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(failed()));
         assert!(w.book.id_of(C).is_none());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]
@@ -501,7 +518,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         w.edit_outbox(&id, C);
         // The item stays (it holds the answer), and no draft is made.
         assert!(state(&w, &id).is_some());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
@@ -516,7 +533,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
             w.edit_outbox(id, C);
             assert!(state(&w, id).is_some());
         }
-        assert_eq!(notices(&t), 2);
+        assert_eq!((refusals(&t), notices(&t)), (2, 0));
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
@@ -533,7 +550,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         assert!(state(&w, &id).is_some());
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]
@@ -573,7 +590,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         let id = item(&w, &t, EML, SendState::Queued);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Queued));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
@@ -585,7 +602,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         pause_for_sign_in(&mut w, &t);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Sending));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
@@ -598,7 +615,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
             crate::health::AccountStatus::Certificate(None);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Queued));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]

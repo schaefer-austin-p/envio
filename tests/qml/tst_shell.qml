@@ -314,6 +314,41 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_refused_unfilled_compose_closes_and_toasts_the_reason() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            compare(b.shell.depth, 2)
+            b.core.composeRefused(1, "That message is no longer available")
+            tryVerify(function() { return b.shell.depth === 1 })
+            compare(findByName(b.shell, "sentToast").text, "That message is no longer available")
+            b.shell.destroy()
+        }
+
+        function test_a_refused_buried_compose_leaves_the_top_compose_alone_data() {
+            return [{ tag: "first is composeItem", opens: [1, 2], refuse: 1, top: 2 },
+                    { tag: "not composeItem", opens: [1, 2, 3], refuse: 2, top: 3 }]
+        }
+        function test_a_refused_buried_compose_leaves_the_top_compose_alone(data) {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            for (const c of data.opens) b.shell.composeOpened(c)
+            const depth = b.shell.depth
+            compare(depth, data.opens.length + 1)
+            const top = b.shell.currentPage
+            b.core.composeRefused(data.refuse, "That message is no longer available")
+            wait(100)
+            compare(b.shell.depth, depth, "the buried page waits under the top one")
+            verify(b.shell.currentPage === top)
+            compare(b.shell.currentPage.compose, data.top)
+            compare(b.core.called("closeCompose").length, 0, "the other compose stays open in the core")
+            compare(findByName(b.shell, "sentToast").text, "That message is no longer available")
+            // The top compose ends; the refused page is shown again and goes.
+            b.core.queued(data.top, "Sent")
+            tryVerify(function() { return b.shell.depth === depth - 2 }, 3000)
+            b.shell.destroy()
+        }
+
         function test_back_before_composeReady_attaches_nothing_and_finalizes() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })
