@@ -9,6 +9,7 @@ mod events;
 mod json;
 mod lifecycle;
 mod models;
+mod notify;
 mod postal;
 mod settings_calls;
 mod sink;
