@@ -90,6 +90,15 @@ Item {
             compare(find("signInAgainNotice").text, "This account does not sign in with Microsoft")
             verify(find("signInAgainButton").visible)
         }
+        function test_an_admin_block_or_a_wrong_account_shows_its_reason() {
+            for (const outcome of ["admin", "mismatch"]) {
+                mouseClick(find("signInAgainButton"))
+                core.oauthDone("ann@example.org", outcome, "Reason for " + outcome)
+                compare(find("signInAgainNotice").text, "Reason for " + outcome)
+                compare(find("signInAgainNotice").kind, "warning")
+                verify(find("signInAgainButton").visible)
+            }
+        }
         function test_a_failure_replaces_the_expired_card() {
             mouseClick(find("signInAgainButton"))
             core.oauthDone("ann@example.org", "failed", "Microsoft refused.")

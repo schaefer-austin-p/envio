@@ -311,7 +311,8 @@ Item {
             compare(find("appPasswordSteps").text,
                 "1. Open your Apple Account settings.\n2. Under Sign-In and Security, choose App-Specific Passwords.\n3. Create one named \"Envio\" and copy it.")
             compare(find("appPasswordLink").text, "Open Apple Account settings")
-            compare(find("appPasswordField").placeholder, "16 letters, dashes and spaces don't matter")
+            // The password goes through unchanged, so no hint says otherwise.
+            compare(find("appPasswordField").placeholder, "")
         }
 
         function test_the_gmail_and_yahoo_pages_differ_in_text_and_link() {

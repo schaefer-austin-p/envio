@@ -113,7 +113,6 @@ Item {
                 theme: root.theme
                 password: true
                 label: qsTr("App password")
-                placeholder: qsTr("16 letters, dashes and spaces don't matter")
                 onAccepted: if (root.hasAddress && text !== "" && !root.busy) root.continued()
             }
             Text {
