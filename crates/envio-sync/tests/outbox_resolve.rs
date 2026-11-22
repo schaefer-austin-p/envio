@@ -7,7 +7,7 @@ use envio_net::NetError;
 use envio_net::imap::Role;
 use envio_store::{NewOutboxItem, Outbox, SendState};
 use envio_sync::driver::{FileOpts, Filed, file_sent, sync_folders};
-use envio_sync::plan::outbox::{RESOLVE_GAP_MS, RESOLVE_TRIES};
+use envio_sync::plan::outbox::{RESOLVE_GAP_MS, RESOLVE_REFUSALS, RESOLVE_TRIES};
 use support::fake::{FakeServer, NOW_MS, eml};
 use support::local::{ACCOUNT, Store};
 
@@ -64,16 +64,14 @@ async fn a_graph_send_is_looked_for_three_times_10_s_apart_then_asked_about() {
     let mut store = store_with_sent(&mut server, true).await;
     let id = unconfirmed(&store);
     let first = file(&mut server, &mut store, NOW_MS, true).await;
-    assert_eq!(first.retry, [id.as_str()]);
     assert!(first.ask.is_empty());
     assert_eq!(meta(&store, &id), (1, NOW_MS + RESOLVE_GAP_MS));
     let at = NOW_MS + RESOLVE_GAP_MS;
     let second = file(&mut server, &mut store, at, true).await;
-    assert_eq!(second.retry, [id.as_str()]);
+    assert!(second.ask.is_empty());
     assert_eq!(meta(&store, &id), (2, at + RESOLVE_GAP_MS));
     let third = file(&mut server, &mut store, at + RESOLVE_GAP_MS, true).await;
     assert_eq!(third.ask, [id.as_str()]);
-    assert!(third.retry.is_empty());
     assert_eq!(
         store.outbox.items().unwrap()[0].meta.state,
         SendState::MayHaveBeenSent
@@ -123,7 +121,8 @@ async fn send_again_starts_the_count_afresh() {
         .unwrap();
     assert_eq!(meta(&store, &id), (0, 0));
     let again = file(&mut server, &mut store, NOW_MS + 1, true).await;
-    assert_eq!(again.retry, [id.as_str()]);
+    assert!(again.ask.is_empty());
+    assert_eq!(meta(&store, &id), (1, NOW_MS + 1 + RESOLVE_GAP_MS));
 }
 
 #[tokio::test]
@@ -145,7 +144,6 @@ async fn imap_still_asks_on_the_first_miss() {
     let id = unconfirmed(&store);
     let filed = file(&mut server, &mut store, NOW_MS, false).await;
     assert_eq!(filed.ask, [id.as_str()]);
-    assert!(filed.retry.is_empty());
     assert_eq!(meta(&store, &id), (0, 0));
 }
 
@@ -156,7 +154,6 @@ async fn an_account_without_sent_asks_at_once() {
     let id = unconfirmed(&store);
     let filed = file(&mut server, &mut store, NOW_MS, true).await;
     assert_eq!(filed.ask, [id.as_str()]);
-    assert!(filed.retry.is_empty());
 }
 
 #[tokio::test]
@@ -166,8 +163,60 @@ async fn a_refused_sent_select_waits_and_burns_no_try_and_asks_nothing() {
     let id = unconfirmed(&store);
     server.fail_on("select", NetError::Refused("no".into()));
     let filed = file(&mut server, &mut store, NOW_MS, true).await;
-    assert_eq!(filed.retry, [id.as_str()]);
     assert!(filed.ask.is_empty() && filed.removed.is_empty());
     assert!(filed.relist);
     assert_eq!(meta(&store, &id), (0, NOW_MS + RESOLVE_GAP_MS));
+}
+
+/// The next select is refused.
+fn refuse(server: &mut FakeServer) {
+    server.fail_on("select", NetError::Refused("no".into()));
+}
+
+#[tokio::test]
+async fn a_sent_that_is_always_refused_ends_in_the_ask() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server, true).await;
+    let id = unconfirmed(&store);
+    let mut now = NOW_MS;
+    // The refusals up to the limit use no try and ask nothing.
+    for n in 1..RESOLVE_REFUSALS {
+        refuse(&mut server);
+        let filed = file(&mut server, &mut store, now, true).await;
+        assert!(filed.ask.is_empty() && filed.removed.is_empty(), "{n}");
+        assert_eq!(meta(&store, &id), (0, now + RESOLVE_GAP_MS), "{n}");
+        now += RESOLVE_GAP_MS;
+    }
+    // The next one counts as a miss: a try is used and the refusals start over.
+    refuse(&mut server);
+    let filed = file(&mut server, &mut store, now, true).await;
+    assert!(filed.ask.is_empty() && filed.relist);
+    assert_eq!(meta(&store, &id), (1, now + RESOLVE_GAP_MS));
+    let refusals = store.outbox.items().unwrap()[0].meta.resolve_refusals;
+    assert_eq!(refusals, 0);
+    // Every try used up this way, the user is asked.
+    let mut asked = false;
+    for _ in 0..(RESOLVE_REFUSALS * RESOLVE_TRIES) {
+        now += RESOLVE_GAP_MS;
+        refuse(&mut server);
+        asked = file(&mut server, &mut store, now, true).await.ask == [id.as_str()];
+        if asked {
+            break;
+        }
+    }
+    assert!(asked);
+}
+
+#[tokio::test]
+async fn a_miss_between_refusals_starts_the_refusals_over() {
+    let mut server = FakeServer::new();
+    let mut store = store_with_sent(&mut server, true).await;
+    let id = unconfirmed(&store);
+    server.fail_on("select", NetError::Refused("no".into()));
+    file(&mut server, &mut store, NOW_MS, true).await;
+    server.clear_failures();
+    file(&mut server, &mut store, NOW_MS + RESOLVE_GAP_MS, true).await;
+    let items = store.outbox.items().unwrap();
+    assert_eq!(items[0].meta.resolve_refusals, 0);
+    assert_eq!(items[0].id, id);
 }

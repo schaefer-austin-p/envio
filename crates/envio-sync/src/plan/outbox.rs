@@ -12,6 +12,9 @@ use crate::error::{ErrorKind, net_kind};
 /// user is asked, `RESOLVE_GAP_MS` apart.
 pub const RESOLVE_TRIES: u32 = 3;
 pub const RESOLVE_GAP_MS: i64 = 10_000;
+/// Consecutive refused looks (Sent cannot be selected) that count as one
+/// miss, so a Sent that never opens ends in the ask.
+pub const RESOLVE_REFUSALS: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemStep {
@@ -152,6 +155,7 @@ mod tests {
         OutboxMeta {
             resolve_tries: 0,
             resolve_after_ms: 0,
+            resolve_refusals: 0,
             account: "1".into(),
             message_id: "<a@example.org>".into(),
             queued_at_ms: 0,

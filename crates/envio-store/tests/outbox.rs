@@ -241,7 +241,9 @@ fn queueing_again_or_accepting_zeroes_the_resolve_count() {
     let meta = |o: &Outbox| o.items().unwrap().remove(0).meta;
     for state in [SendState::Queued, SendState::Accepted] {
         outbox.set_resolve(&item.id, 2, 77_000).unwrap();
+        outbox.set_resolve_refused(&item.id, 4, 77_000).unwrap();
         outbox.set_state(&item.id, state.clone()).unwrap();
+        assert_eq!(meta(&outbox).resolve_refusals, 0, "{state:?}");
         assert_eq!(meta(&outbox).resolve_tries, 0, "{state:?}");
         assert_eq!(meta(&outbox).resolve_after_ms, 0, "{state:?}");
     }

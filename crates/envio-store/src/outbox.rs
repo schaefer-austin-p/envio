@@ -54,6 +54,10 @@ pub struct OutboxMeta {
     pub resolve_tries: u32,
     #[serde(default)]
     pub resolve_after_ms: i64,
+    /// Consecutive looks that were refused (Sent could not be selected);
+    /// they use no try until the sync driver's limit, then count as a miss.
+    #[serde(default)]
+    pub resolve_refusals: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +122,7 @@ impl Outbox {
             send_after_ms: new.send_after_ms,
             resolve_tries: 0,
             resolve_after_ms: 0,
+            resolve_refusals: 0,
         };
         self.write_meta(&id, &meta)?;
         Ok(OutboxItem { id, meta })
@@ -185,6 +190,7 @@ impl Outbox {
         if matches!(meta.state, SendState::Queued | SendState::Accepted) {
             meta.resolve_tries = 0;
             meta.resolve_after_ms = 0;
+            meta.resolve_refusals = 0;
         }
         self.write_meta(id, &meta)?;
         self.unwritten().remove(id);
@@ -197,6 +203,19 @@ impl Outbox {
         check(id)?;
         let meta = OutboxMeta {
             resolve_tries: tries,
+            resolve_after_ms: after_ms,
+            resolve_refusals: 0,
+            ..self.meta(id)?
+        };
+        self.write_meta(id, &meta)
+    }
+
+    /// Records a refused look (Sent could not be selected): `refusals` in a
+    /// row so far, no try used, and when to look again.
+    pub fn set_resolve_refused(&self, id: &str, refusals: u32, after_ms: i64) -> Result<()> {
+        check(id)?;
+        let meta = OutboxMeta {
+            resolve_refusals: refusals,
             resolve_after_ms: after_ms,
             ..self.meta(id)?
         };

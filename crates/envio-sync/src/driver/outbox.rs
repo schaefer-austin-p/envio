@@ -9,7 +9,9 @@ use envio_store::{FolderRole, OutboxItem, SendState};
 use super::Local;
 use crate::error::{ErrorKind, Result};
 use crate::plan::message_id::search_id;
-use crate::plan::outbox::{ItemStep, RESOLVE_GAP_MS, RESOLVE_TRIES, after_send, held, item_step};
+use crate::plan::outbox::{
+    ItemStep, RESOLVE_GAP_MS, RESOLVE_REFUSALS, RESOLVE_TRIES, after_send, held, item_step,
+};
 use crate::schedule::Key;
 use crate::server::{MailSender, MailServer};
 
@@ -115,9 +117,6 @@ pub struct Filed {
     /// Sent (or an item's filing) was refused: the cached folder list may be
     /// stale, so the next run should fetch it again.
     pub relist: bool,
-    /// May have been sent, not found in Sent yet, and looked for again
-    /// later (`retries`); the Outbox meta has when.
-    pub retry: Vec<String>,
 }
 
 /// What `file_sent` needs besides the server and the stores.
@@ -191,15 +190,18 @@ pub async fn file_sent(
                     // one stays (an unconfirmed one is looked for again
                     // later where that applies, without using a try).
                     Look::Refused => {
-                        if retry_here {
-                            let at = now_ms + RESOLVE_GAP_MS;
-                            local
-                                .outbox
-                                .set_resolve(&item.id, item.meta.resolve_tries, at)?;
-                            filed.retry.push(item.id.clone());
+                        let refusals = item.meta.resolve_refusals + 1;
+                        if !retry_here || refusals < RESOLVE_REFUSALS {
+                            if retry_here {
+                                let at = now_ms + RESOLVE_GAP_MS;
+                                local.outbox.set_resolve_refused(&item.id, refusals, at)?;
+                            }
+                            refused(&mut filed, step, item.id);
+                            continue;
                         }
-                        refused(&mut filed, step, item.id);
-                        continue;
+                        // Refused too often in a row: that counts as a miss.
+                        filed.relist = true;
+                        false
                     }
                 }
             }
@@ -217,7 +219,6 @@ pub async fn file_sent(
             local
                 .outbox
                 .set_resolve(&item.id, tries, now_ms + RESOLVE_GAP_MS)?;
-            filed.retry.push(item.id);
         } else {
             filed.ask.push(item.id);
         }
