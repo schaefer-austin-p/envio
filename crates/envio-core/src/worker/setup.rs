@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use envio_net::Fingerprint;
-use envio_net::autoconfig::{Found, Setting};
+use envio_net::autoconfig::{Found, Hosting, Setting};
 use envio_store::{Account, AccountSettings, BackendKind};
 use secrecy::SecretString;
 
@@ -166,6 +166,7 @@ impl Worker<'_> {
             email,
             ticket,
             result,
+            hosting,
         } = done;
         if self.detecting.get(&email) != Some(&ticket) {
             log::info!(
@@ -175,6 +176,10 @@ impl Worker<'_> {
             return;
         }
         self.detecting.remove(&email);
+        if hosting == Hosting::Microsoft365 && result.is_ok() {
+            self.mail_on_microsoft(email);
+            return;
+        }
         match result {
             Ok(found) => {
                 let text = if found.confirm {

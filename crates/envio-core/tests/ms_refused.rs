@@ -40,6 +40,7 @@ fn arm(email: &str) {
         SetupFake {
             delay: Duration::ZERO,
             found: Some(found()),
+            ..Default::default()
         },
     );
 }
@@ -65,9 +66,9 @@ fn a_microsoft_address_is_refused_and_nothing_is_looked_up() {
             email: (*email).into(),
         });
         let (who, title, text) = h.wait(|e| match e {
-            Event::SetupRefused { email, title, text } => {
-                Some((email.clone(), title.clone(), text.clone()))
-            }
+            Event::SetupRefused {
+                email, title, text, ..
+            } => Some((email.clone(), title.clone(), text.clone())),
             _ => None,
         });
         assert_eq!(who, *email);

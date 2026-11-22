@@ -248,7 +248,20 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             oauth,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
-        Event::SetupRefused { email, title, text } => Signal::SetupRefused { email, title, text },
+        Event::SetupRefused {
+            email,
+            title,
+            text,
+            manual_ok,
+        } => Signal::SetupRefused {
+            email,
+            title,
+            text,
+            manual_ok,
+        },
+        Event::MailOnMicrosoft { email, title, text } => {
+            Signal::MailOnMicrosoft { email, title, text }
+        }
         Event::OAuthBrowser {
             email,
             url,
@@ -468,6 +481,22 @@ mod tests {
         assert_eq!(
             ui.value("canFile"),
             Some(crate::rows::RowValue::Bool(false))
+        );
+    }
+
+    #[test]
+    fn mail_on_microsoft_becomes_its_signal_with_all_three_fields() {
+        let event = Event::MailOnMicrosoft {
+            email: "ann@contoso.example".into(),
+            title: "T".into(),
+            text: "X".into(),
+        };
+        let Some(Signal::MailOnMicrosoft { email, title, text }) = signal_of(&event) else {
+            panic!("no MailOnMicrosoft signal");
+        };
+        assert_eq!(
+            (email.as_str(), title.as_str(), text.as_str()),
+            ("ann@contoso.example", "T", "X")
         );
     }
 }

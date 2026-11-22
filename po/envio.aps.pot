@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 18:20+0100\n"
+"POT-Creation-Date: 2026-11-22 18:23+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -173,7 +173,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:38 qml/pages/accounts/WizardPage.qml:190
+#: qml/pages/accounts/AccountsPage.qml:38 qml/pages/accounts/WizardPage.qml:192
 msgid "Add account"
 msgstr ""
 
@@ -269,7 +269,7 @@ msgid "Open Yahoo account security"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:107
-#: qml/pages/accounts/EmailStep.qml:60 qml/pages/accounts/SignInStep.qml:131
+#: qml/pages/accounts/EmailStep.qml:62 qml/pages/accounts/SignInStep.qml:131
 msgid "Email address"
 msgstr ""
 
@@ -286,7 +286,7 @@ msgid "Signing in…"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:142
-#: qml/pages/accounts/EmailStep.qml:119 qml/pages/accounts/SignInStep.qml:218
+#: qml/pages/accounts/EmailStep.qml:121 qml/pages/accounts/SignInStep.qml:218
 msgid "Continue"
 msgstr ""
 
@@ -339,19 +339,19 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:49
+#: qml/pages/accounts/EmailStep.qml:51
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:100
+#: qml/pages/accounts/EmailStep.qml:102
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:112
+#: qml/pages/accounts/EmailStep.qml:114
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:119
+#: qml/pages/accounts/EmailStep.qml:121
 msgid "Change address"
 msgstr ""
 
@@ -591,19 +591,19 @@ msgstr ""
 msgid "Switch anyway"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:192 qml/pages/accounts/WizardPage.qml:193
+#: qml/pages/accounts/WizardPage.qml:194 qml/pages/accounts/WizardPage.qml:195
 msgid "Sign in · %1"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:194
+#: qml/pages/accounts/WizardPage.qml:196
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:195
+#: qml/pages/accounts/WizardPage.qml:197
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:196
+#: qml/pages/accounts/WizardPage.qml:198
 msgid "Account options"
 msgstr ""
 
@@ -1674,11 +1674,13 @@ msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:13
 msgid ""
-"To find your mail servers, Envio asks the Thunderbird configuration database "
-"and your mail provider. Only the part of your address after the @ is sent."
+"To find your mail servers, Envio asks the Thunderbird configuration "
+"database, your mail provider and the DNS records of your domain. Only the "
+"part of your address after the @ is sent."
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:21
+#: crates/envio-core/src/text/setup.rs:43
 msgid "Microsoft accounts aren\\u{2019}t supported yet"
 msgstr ""
 
@@ -1688,31 +1690,46 @@ msgid ""
 "now. Try another address."
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:30
-msgid "Microsoft accounts aren\\u{2019}t supported yet. Remove this account."
+#: crates/envio-core/src/text/setup.rs:32
+msgid "This mail is on Microsoft"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:35
-msgid "Settings found in the Thunderbird configuration database"
-msgstr ""
-
-#: crates/envio-core/src/text/setup.rs:36
-msgid "Settings found at your mail provider"
-msgstr ""
-
-#: crates/envio-core/src/text/setup.rs:37
-msgid "Settings found on your mail domain"
-msgstr ""
-
-#: crates/envio-core/src/text/setup.rs:38
-msgid "Settings found in your domain DNS records"
-msgstr ""
-
-#: crates/envio-core/src/text/setup.rs:39
-msgid "No settings found. These are a guess, please check them"
+#: crates/envio-core/src/text/setup.rs:34
+msgid ""
+"Mail for {domain} is handled by Microsoft. Sign in with Microsoft to add it."
 msgstr ""
 
 #: crates/envio-core/src/text/setup.rs:46
+msgid ""
+"Mail for {domain} is hosted by Microsoft 365, which Envio can\\u{2019}t "
+"connect to for now. Try another address."
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:55
+msgid "Microsoft accounts aren\\u{2019}t supported yet. Remove this account."
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:60
+msgid "Settings found in the Thunderbird configuration database"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:61
+msgid "Settings found at your mail provider"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:62
+msgid "Settings found on your mail domain"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:63
+msgid "Settings found in your domain DNS records"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:64
+msgid "No settings found. These are a guess, please check them"
+msgstr ""
+
+#: crates/envio-core/src/text/setup.rs:71
 msgid ""
 "These servers are not on your address's domain:\n"
 "Incoming: {imap}\n"
@@ -1720,95 +1737,95 @@ msgid ""
 "Your password is sent to them. Only continue if you trust them"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:61
+#: crates/envio-core/src/text/setup.rs:86
 msgid "{label}: {host}:{port}, {security}"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:72
+#: crates/envio-core/src/text/setup.rs:97
 msgid "Incoming (IMAP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:73
+#: crates/envio-core/src/text/setup.rs:98
 msgid "Outgoing (SMTP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:79
+#: crates/envio-core/src/text/setup.rs:104
 #: crates/envio-core/src/text/status.rs:50
 msgid "incoming mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:80
+#: crates/envio-core/src/text/setup.rs:105
 #: crates/envio-core/src/text/status.rs:51
 msgid "outgoing mail"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:84
+#: crates/envio-core/src/text/setup.rs:109
 msgid ""
 "The certificate of the {service} server {host} is not trusted: {reason}. "
 "Check the fingerprint before you accept it"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:97
+#: crates/envio-core/src/text/setup.rs:122
 msgid "Can't verify the incoming mail server (IMAP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:98
+#: crates/envio-core/src/text/setup.rs:123
 msgid "Can't verify the outgoing mail server (SMTP)"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:106
+#: crates/envio-core/src/text/setup.rs:131
 msgid ""
 "Envio has no trusted certificate authorities on this device, so it cannot "
 "check the server. Please report this problem"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:111
+#: crates/envio-core/src/text/setup.rs:136
 msgid "Confirm the servers before signing in"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:115
+#: crates/envio-core/src/text/setup.rs:140
 msgid "This account is already added"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:119
+#: crates/envio-core/src/text/setup.rs:144
 msgid "Sign-in failed. Check the address, username and password"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:123
+#: crates/envio-core/src/text/setup.rs:148
 msgid "That certificate fingerprint is not valid"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:127
+#: crates/envio-core/src/text/setup.rs:152
 msgid "That does not look like an email address"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:131
+#: crates/envio-core/src/text/setup.rs:156
 msgid "Could not reach the server. Check the settings and your connection"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:136
+#: crates/envio-core/src/text/setup.rs:161
 msgid ""
 "The server closed the connection. Check the security setting and password, "
 "or try again in a moment"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:141
+#: crates/envio-core/src/text/setup.rs:166
 msgid "Could not save the account settings. Check the free storage"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:145
+#: crates/envio-core/src/text/setup.rs:170
 msgid "There is no certificate waiting to be accepted for this account"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:149
+#: crates/envio-core/src/text/setup.rs:174
 msgid "Could not remove the account. Restart Envio, which finishes the removal"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:157
+#: crates/envio-core/src/text/setup.rs:182
 msgid "This account still has work that is not on the server:"
 msgstr ""
 
-#: crates/envio-core/src/text/setup.rs:176
+#: crates/envio-core/src/text/setup.rs:201
 msgid ""
 "Removing the account loses all of it, and the Sent copies of messages that "
 "were sent but not yet filed in Sent."

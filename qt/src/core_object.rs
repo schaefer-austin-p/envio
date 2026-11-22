@@ -90,6 +90,16 @@ pub mod qobject {
             email: &QString,
             title: &QString,
             text: &QString,
+            manual_ok: bool,
+        );
+        /// The domain's mail is on Microsoft 365 (#384): a card with sign-in.
+        #[qsignal]
+        #[cxx_name = "mailOnMicrosoft"]
+        fn mail_on_microsoft(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            title: &QString,
+            text: &QString,
         );
         /// The browser must open `url`; the answer comes back as a link.
         #[qsignal]

@@ -33,6 +33,7 @@ Item {
     // email step until the address is edited.
     property string refusedTitle: ""
     property string refusedText: ""
+    property bool manualOk: false
     property bool busy: false
     // The address `detect` was asked about; an answer for another is stale.
     property string asked: ""
@@ -124,6 +125,7 @@ Item {
         error = ""
         refusedTitle = ""
         refusedText = ""
+        manualOk = false
     }
     function back() {
         // The core is storing the account: Back would drop its AccountAdded.
@@ -236,6 +238,7 @@ Item {
         error: root.error
         refusedTitle: root.refusedTitle
         refusedText: root.refusedText
+        manualOk: root.manualOk
         busy: root.busy
         onContinued: root.detect()
         // Editing the address ends the attempt for the old one.
@@ -358,11 +361,22 @@ Item {
             root.busy = false
             root.error = text
         }
-        function onSetupRefused(email, title, text) {
+        // The mail is on Microsoft 365 (#384): for now the card says so, with
+        // the way out of "Set up manually"; the sign-in button comes with the
+        // wizard banner.
+        function onMailOnMicrosoft(email, title, text) {
             if (!root.current(email)) return
             root.busy = false
             root.refusedTitle = title
             root.refusedText = text
+            root.manualOk = true
+        }
+        function onSetupRefused(email, title, text, manualOk) {
+            if (!root.current(email)) return
+            root.busy = false
+            root.refusedTitle = title
+            root.refusedText = text
+            root.manualOk = manualOk
             // Manual setup skips Detect: the refusal comes back from Connect,
             // so the card is shown where the address is.
             if (root.step === "servers") {

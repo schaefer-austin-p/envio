@@ -86,12 +86,15 @@ pub(crate) fn reached(point: Point, account: &str) {
 
 /// What the setup thread does for one address instead of (or before) its
 /// network work: a slow Internet, and a ready answer for `Detect`.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SetupFake {
     /// The job waits this long before it runs.
     pub delay: std::time::Duration,
-    /// The answer of `Detect`; `None` runs the real lookups after the wait.
+    /// The settings `Detect` answers; `None` is the guess. A registered fake
+    /// never runs the real lookups.
     pub found: Option<envio_net::autoconfig::Found>,
+    /// The MX verdict `Detect` answers; `None` is `Unknown`.
+    pub hosting: Option<envio_net::autoconfig::Hosting>,
 }
 
 type Fakes = Vec<(String, SetupFake, usize)>;
@@ -104,6 +107,18 @@ pub fn fake_setup(email: &str, fake: SetupFake) {
         fakes.retain(|(e, _, _)| e != email);
         fakes.push((email.to_owned(), fake, 0));
     }
+}
+
+static REAL_DETECTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many `Detect` jobs ran the real lookups (built an `Internet`) in this
+/// process; a registered `SetupFake` must keep it unchanged.
+pub fn real_detects() -> usize {
+    REAL_DETECTS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub(crate) fn real_detect_started() {
+    REAL_DETECTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// How many setup jobs for `email` have started since `fake_setup`.

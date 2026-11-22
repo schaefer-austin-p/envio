@@ -550,6 +550,7 @@ fn an_srv_host_needs_confirmation_end_to_end() {
                 source: Source::Srv,
                 confirm: true,
             }),
+            ..Default::default()
         },
     );
     h.send(Command::Detect {
