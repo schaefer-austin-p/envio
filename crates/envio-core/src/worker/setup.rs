@@ -314,6 +314,7 @@ impl Worker<'_> {
         refresh: SecretString,
     ) -> Result<AccountInfo, String> {
         let (name, email) = (settings.name.clone(), settings.email.clone());
+        let kind = super::token::kind_of(&settings);
         let key = self
             .store
             .accounts
@@ -322,7 +323,7 @@ impl Worker<'_> {
                 log::error!("saving the account: {error}");
                 text::setup::not_saved()
             })?;
-        if let Err(error) = self.store.tokens.borrow_mut().set(&key, refresh) {
+        if let Err(error) = self.store.tokens.borrow_mut().set(&key, kind, refresh) {
             log::error!("saving the sign-in: {error}");
             // If the removal fails too, the entry stays without a token; a
             // retry for the same address replaces it (`drop_stranded`) and

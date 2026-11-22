@@ -155,7 +155,7 @@ fn state_of(url: &str) -> String {
 fn refresh_of(h: &Harness, key: &str) -> Option<String> {
     OAuthTokens::open(&h.data_dir())
         .unwrap()
-        .get(key)
+        .get(key, envio_net::oauth::ProviderKind::Microsoft)
         .map(|t| t.expose_secret().to_owned())
 }
 

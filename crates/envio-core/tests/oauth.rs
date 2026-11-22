@@ -27,7 +27,7 @@ fn the_account_signs_in_with_a_token_made_from_its_refresh_token() {
     wait_until("the rotated refresh token is stored", || {
         let tokens = envio_core::oauth_tokens::OAuthTokens::open(&r.h.data_dir()).unwrap();
         tokens
-            .get(&r.key)
+            .get(&r.key, envio_net::oauth::ProviderKind::Microsoft)
             .is_some_and(|t| secrecy::ExposeSecret::expose_secret(t) == "rt-2")
     });
 }

@@ -32,7 +32,11 @@ fn a_second_removal_failure_is_logged_without_the_token() {
     let key = h.seed_account("ada@example.org", Some("pw-secret-9"));
     let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir()).unwrap();
     tokens
-        .set(&key, SecretString::from("rt-secret-9".to_owned()))
+        .set(
+            &key,
+            envio_net::oauth::ProviderKind::Microsoft,
+            SecretString::from("rt-secret-9".to_owned()),
+        )
         .unwrap();
     h.start_core();
     h.wait(|e| matches!(e, Event::Started { .. }).then_some(()));

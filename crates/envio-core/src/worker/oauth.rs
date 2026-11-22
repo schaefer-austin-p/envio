@@ -72,7 +72,7 @@ pub(crate) fn failure_of(error: &TokenError) -> OAuthFailure {
 
 fn provider_name(kind: ProviderKind) -> &'static str {
     match kind {
-        ProviderKind::Microsoft => "Microsoft",
+        ProviderKind::Microsoft | ProviderKind::MicrosoftGraph => "Microsoft",
     }
 }
 
@@ -335,7 +335,12 @@ impl Worker<'_> {
     fn stranded(&self, account: &envio_store::Account) -> bool {
         account.settings.is_oauth()
             && !self.live.contains_key(&account.key)
-            && self.store.tokens.borrow().get(&account.key).is_none()
+            && self
+                .store
+                .tokens
+                .borrow()
+                .get(&account.key, super::token::kind_of(&account.settings))
+                .is_none()
     }
 
     fn email_taken(&self, email: &str) -> bool {
@@ -407,10 +412,18 @@ impl Worker<'_> {
     }
 
     fn sign_in_again(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
-        if self.store.accounts.get(key).is_none() || !self.live.contains_key(key) {
+        let Some(kind) = self
+            .store
+            .accounts
+            .get(key)
+            .map(|a| super::token::kind_of(&a.settings))
+        else {
+            return OAuthOutcome::Failed(OAuthFailure::Other);
+        };
+        if !self.live.contains_key(key) {
             return OAuthOutcome::Failed(OAuthFailure::Other);
         }
-        if let Err(error) = self.store.tokens.borrow_mut().set(key, refresh) {
+        if let Err(error) = self.store.tokens.borrow_mut().set(key, kind, refresh) {
             log::error!("saving the new sign-in: {error}");
             return OAuthOutcome::Failed(OAuthFailure::NotSaved);
         }

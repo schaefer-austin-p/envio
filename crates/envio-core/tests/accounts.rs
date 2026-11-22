@@ -646,14 +646,18 @@ fn set_account_label_saves_it_and_keeps_the_sender_name() {
 fn seed_token(h: &Harness, key: &str, token: &str) {
     let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir()).unwrap();
     tokens
-        .set(key, SecretString::from(token.to_owned()))
+        .set(
+            key,
+            envio_net::oauth::ProviderKind::Microsoft,
+            SecretString::from(token.to_owned()),
+        )
         .unwrap();
 }
 
 fn token_of(h: &Harness, key: &str) -> Option<String> {
     envio_core::oauth_tokens::OAuthTokens::open(&h.data_dir())
         .unwrap()
-        .get(key)
+        .get(key, envio_net::oauth::ProviderKind::Microsoft)
         .map(|t| t.expose_secret().to_owned())
 }
 

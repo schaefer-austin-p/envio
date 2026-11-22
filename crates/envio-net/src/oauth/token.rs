@@ -7,11 +7,18 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use secrecy::SecretString;
 use serde::Deserialize;
 
-/// The mailbox claims of an id_token; either may be absent.
+/// The `tid` of every personal Microsoft account (Outlook.com, Hotmail).
+pub const CONSUMER_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
+
+/// The claims of an id_token that name the mailbox and its tenant; any may
+/// be absent.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Identity {
     pub email: Option<String>,
     pub preferred_username: Option<String>,
+    /// The directory (tenant) the account lives in.
+    #[serde(default)]
+    pub tid: Option<String>,
 }
 
 pub struct Tokens {
@@ -124,8 +131,8 @@ fn tokens(r: Reply) -> Result<Tokens, TokenError> {
     })
 }
 
-/// The `email` and `preferred_username` claims of an id_token, or `None`
-/// when it is not a JWT or has neither. The signature is NOT verified: the
+/// The `email`, `preferred_username` and `tid` claims of an id_token, or
+/// `None` when it is not a JWT or has none of them. The signature is NOT verified: the
 /// token came straight from the token endpoint over TLS, which is the OIDC
 /// rule for the code flow. Never use this on a token from anywhere else.
 pub fn identity_of(id_token: &str) -> Option<Identity> {
@@ -136,8 +143,9 @@ pub fn identity_of(id_token: &str) -> Option<Identity> {
     let id = Identity {
         email: clean(claims.email),
         preferred_username: clean(claims.preferred_username),
+        tid: clean(claims.tid),
     };
-    (id.email.is_some() || id.preferred_username.is_some()).then_some(id)
+    (id.email.is_some() || id.preferred_username.is_some() || id.tid.is_some()).then_some(id)
 }
 
 /// Decision 9: the typed address (trimmed, ASCII case-insensitive) equals

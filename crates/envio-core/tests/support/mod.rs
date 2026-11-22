@@ -193,7 +193,11 @@ impl Harness {
         let key = accounts.add(settings, 1_000).unwrap();
         let mut tokens = envio_core::oauth_tokens::OAuthTokens::open(&self.data_dir()).unwrap();
         tokens
-            .set(&key, SecretString::from(refresh.to_owned()))
+            .set(
+                &key,
+                envio_net::oauth::ProviderKind::Microsoft,
+                SecretString::from(refresh.to_owned()),
+            )
             .unwrap();
         key
     }
