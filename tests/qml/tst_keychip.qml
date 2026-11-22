@@ -58,9 +58,20 @@ Item {
 
         function test_face_follows_label() {
             var face = find(chip, "keyFace")
-            compare(face.height, chip.implicitHeight - 3)
-            verify(face.height > 14)
+            var label = null
+            for (var i = 0; i < face.children.length; i++)
+                if (face.children[i].text !== undefined) label = face.children[i]
+            verify(label !== null)
+            compare(face.height, Math.max(22, label.implicitHeight + 6))
+            verify(face.height >= 22)
+            compare(chip.height, face.height + 3)
             verify(chip.width >= chip.height)
+            // A taller label makes a taller face.
+            var small = face.height
+            label.font.pixelSize = 30
+            verify(face.height > small)
+            compare(face.height, label.implicitHeight + 6)
+            label.font.pixelSize = 12
         }
     }
 }

@@ -26,7 +26,7 @@ Rectangle {
         id: face
         objectName: "keyFace"
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: label.implicitHeight + 2
+        height: Math.max(22, label.implicitHeight + 6)
         radius: root.theme.chipRadius
         border.color: root.theme.hairline
         gradient: Gradient {
