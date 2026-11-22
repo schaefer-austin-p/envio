@@ -315,12 +315,12 @@ Item {
             compare(find("composeError").text, "Add a recipient first.")
         }
 
-        function test_refused_before_it_is_filled_closes_the_page() {
+        function test_refused_before_it_is_filled_hands_the_text_to_the_shell() {
             // An Outbox edit the core no longer allows: no draft will come.
             mock.composeRefused(2, "someone else's")
-            compare(closed.count, 0)
+            compare(refused.count, 0)
             mock.composeRefused(1, "Not possible right now")
-            compare(closed.count, 1)
+            compare(closed.count, 0, "the shell removes the page, as for queued")
             compare(refused.count, 1, "its text goes out once, as a toast")
             compare(refused.signalArguments[0][0], "Not possible right now")
         }
