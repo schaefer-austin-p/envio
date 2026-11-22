@@ -13,7 +13,7 @@ use crate::{NetError, Result};
 const SELECT: &str = "$select=receivedDateTime,isRead,flag,categories,isDraft";
 /// Folder tree guards: Graph nests mail folders at most 10 deep.
 const MAX_FOLDER_DEPTH: usize = 20;
-const MAX_FOLDERS: usize = 5000;
+pub(super) const MAX_FOLDERS: usize = 5000;
 /// Pages followed at most in one list call (a runaway link guard).
 const MAX_PAGES: usize = 1000;
 
@@ -49,10 +49,20 @@ impl GraphClient {
             .await?;
         let mut seen = std::collections::HashSet::new();
         let mut all: Vec<(GFolder, usize)> = Vec::new();
-        for f in top {
-            if seen.insert(f.id.clone()) {
-                all.push((f, 1));
+        let mut add = |all: &mut Vec<(GFolder, usize)>, f: GFolder, depth: usize| {
+            // A folder seen before adds nothing, so only a new one can hit
+            // the cap.
+            if !seen.insert(f.id.clone()) {
+                return Ok(());
             }
+            if all.len() >= MAX_FOLDERS {
+                return Err(NetError::Protocol("too many Graph folders".into()));
+            }
+            all.push((f, depth));
+            Ok(())
+        };
+        for f in top {
+            add(&mut all, f, 1)?;
         }
         let mut at = 0;
         while at < all.len() {
@@ -63,12 +73,7 @@ impl GraphClient {
             }
             let path = format!("/v1.0/me/mailFolders/{}/childFolders?{q}", enc(&id));
             for f in self.pages(path, parse::folders).await? {
-                if all.len() >= MAX_FOLDERS {
-                    return Err(NetError::Protocol("too many Graph folders".into()));
-                }
-                if seen.insert(f.id.clone()) {
-                    all.push((f, depth + 1));
-                }
+                add(&mut all, f, depth + 1)?;
             }
         }
         Ok(all.into_iter().map(|(f, _)| f).collect())

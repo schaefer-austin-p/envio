@@ -514,3 +514,35 @@ async fn a_self_referencing_folder_is_listed_once() {
     assert_eq!(all.len(), 1);
     assert_eq!(server.requests().len(), 2, "its children were read once");
 }
+
+fn folder_json(id: &str, kids: u32) -> String {
+    format!(
+        r#"{{"id":"{id}","displayName":"F","childFolderCount":{kids},"parentFolderId":"p","totalItemCount":0,"unreadItemCount":0}}"#
+    )
+}
+
+fn folder_page(ids: impl Iterator<Item = String>, first_kids: u32) -> String {
+    let list: Vec<String> = ids
+        .enumerate()
+        .map(|(i, id)| folder_json(&id, if i == 0 { first_kids } else { 0 }))
+        .collect();
+    format!(r#"{{"value":[{}]}}"#, list.join(","))
+}
+
+#[tokio::test]
+async fn a_duplicate_child_at_the_folder_cap_is_not_an_error() {
+    let top = folder_page((0..5000).map(|i| format!("f{i}")), 1);
+    let kids = folder_page(std::iter::once("f1".to_owned()), 0);
+    let server = Server::start(vec![Action::json(200, &top), Action::json(200, &kids)]).await;
+    let (mut c, _) = client(&server);
+    assert_eq!(c.folders().await.unwrap().len(), 5000);
+}
+
+#[tokio::test]
+async fn top_level_folders_count_against_the_folder_cap() {
+    let top = folder_page((0..5001).map(|i| format!("f{i}")), 0);
+    let server = Server::start(vec![Action::json(200, &top)]).await;
+    let (mut c, _) = client(&server);
+    let e = c.folders().await.unwrap_err();
+    assert!(matches!(e, NetError::Protocol(_)), "{e:?}");
+}

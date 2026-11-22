@@ -15,6 +15,16 @@ use super::http::Response;
 
 /// The longest chunk-size line (size and extensions) read.
 const MAX_CHUNK_LINE: usize = 1024;
+/// The slowest link a sized body is still waited for: the reply's deadline
+/// grows with its announced length at this rate.
+const MIN_RATE: u64 = 16 * 1024;
+
+/// The time allowed for a reply announcing `len` body bytes: `base`, or
+/// `len` at `MIN_RATE` if that is longer.
+pub(super) fn allowed(base: Duration, len: usize) -> Duration {
+    base.max(Duration::from_secs(len as u64 / MIN_RATE))
+}
+
 /// Interim (1xx) replies skipped before the reply is called broken.
 const MAX_INTERIM: usize = 8;
 
@@ -204,6 +214,7 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
         timeout,
         due: Instant::now() + total,
     };
+    let started = Instant::now();
     let mut interim = 0;
     let (status, http10, headers) = loop {
         let start = r.pos;
@@ -238,7 +249,10 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
     let body = match framing(status, &headers).map_err(|e| r.protocol(e))? {
         Framing::None => Vec::new(),
         Framing::Length(n) if n > cap => return Err(too_big(&r)),
-        Framing::Length(n) => r.take_body(n).await?,
+        Framing::Length(n) => {
+            r.due = started + allowed(total, n);
+            r.take_body(n).await?
+        }
         Framing::Chunked => chunked(&mut r, cap).await?,
         Framing::ToEof => {
             close = true;
@@ -325,6 +339,14 @@ mod tests {
     async fn read(bytes: &[u8], cap: usize) -> Result<Read, Fail> {
         let mut cursor = bytes;
         read_reply(&mut cursor, cap, T, T).await
+    }
+
+    #[test]
+    fn a_big_announced_body_gets_a_longer_deadline() {
+        let base = Duration::from_secs(600);
+        assert_eq!(allowed(base, 1024), base);
+        // 64 MiB at 16 KiB/s is 4096 s.
+        assert_eq!(allowed(base, 64 * 1024 * 1024), Duration::from_secs(4096));
     }
 
     #[tokio::test]
