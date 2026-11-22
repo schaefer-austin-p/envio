@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 19:03+0100\n"
+"POT-Creation-Date: 2026-11-22 19:44+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -112,11 +112,11 @@ msgstr ""
 msgid "Esc"
 msgstr ""
 
-#: qml/components/StepCounter.qml:20
+#: qml/components/StepCounter.qml:24
 msgid "Step %1 of %2"
 msgstr ""
 
-#: qml/components/StepCounter.qml:21
+#: qml/components/StepCounter.qml:25
 msgid "Step %1"
 msgstr ""
 
