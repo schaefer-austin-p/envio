@@ -7,7 +7,7 @@ use envio_net::{NetError, Result};
 use envio_store::{Draft, FolderRole, RefusalKind, SendState};
 
 use super::*;
-use crate::worker::testing::{Seeded, Sink, open, seed};
+use crate::worker::testing::{Seeded, Sink, into_graph, open, seed};
 
 /// Answers SELECT and LIST; APPEND and DELETE follow a script (OK when it
 /// runs out); everything else is never asked.
@@ -17,6 +17,8 @@ struct Scripted {
     delete_error: Option<String>,
     appended: usize,
     deletes: usize,
+    /// Sent has no copy of anything.
+    miss: bool,
 }
 
 impl MailServer for Scripted {
@@ -41,7 +43,7 @@ impl MailServer for Scripted {
         unreachable!()
     }
     async fn search_message_id(&mut self, _: &str) -> Result<Vec<u32>> {
-        Ok(vec![1])
+        Ok(if self.miss { vec![] } else { vec![1] })
     }
     async fn search_message_id_deep(&mut self, _: &str) -> Result<Vec<u32>> {
         Ok(vec![1])
@@ -327,4 +329,67 @@ fn graph_files_its_sent_mail_itself() {
     assert!(files_itself_for(BackendKind::Graph, ""));
     assert!(!files_itself_for(BackendKind::Imap, "smtp.example.org"));
     assert!(files_itself_for(BackendKind::Imap, "smtp.gmail.com"));
+}
+
+/// An unconfirmed send is filed on a server with no copy in Sent: whether
+/// the user is asked at once, and what the Outbox says of the next look
+/// (tries, not-before).
+fn file_unconfirmed(graph: bool) -> (bool, (u32, i64)) {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    w.store
+        .db
+        .upsert_folder(&account, "Sent", FolderRole::Sent)
+        .unwrap();
+    if graph {
+        into_graph(&mut w, &account);
+    }
+    let new = envio_store::NewOutboxItem {
+        send_after_ms: 0,
+        account: account.clone(),
+        message_id: "<a@example.org>".into(),
+        queued_at_ms: 1,
+        from: "me@example.org".into(),
+        recipients: vec!["ada@example.org".into()],
+    };
+    let id = w
+        .store
+        .outbox
+        .enqueue(new, b"Subject: x\r\n\r\nhi")
+        .unwrap()
+        .id;
+    // Seeding only (the grep test allows one `set_state` call).
+    let seed_state = envio_store::Outbox::set_state;
+    seed_state(&w.store.outbox, &id, SendState::MayHaveBeenSent).unwrap();
+    let mut server = Scripted {
+        miss: true,
+        ..Scripted::default()
+    };
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap()
+        .block_on(file(&mut w, &account, &mut server))
+        .unwrap();
+    let items = w.store.outbox.items().unwrap();
+    let meta = &items[0].meta;
+    (
+        w.asked.contains(&id),
+        (meta.resolve_tries, meta.resolve_after_ms),
+    )
+}
+
+#[test]
+fn a_graph_miss_in_sent_is_looked_for_again_before_the_user_is_asked() {
+    let (asked, (tries, after)) = file_unconfirmed(true);
+    assert!(!asked);
+    assert_eq!(tries, 1);
+    assert!(after > 0, "the next look has a time");
+}
+
+#[test]
+fn an_imap_miss_in_sent_asks_the_user_at_once() {
+    let (asked, meta) = file_unconfirmed(false);
+    assert!(asked);
+    assert_eq!(meta, (0, 0));
 }
