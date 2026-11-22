@@ -285,6 +285,7 @@ fn edit_refuses_an_item_that_is_not_failed() {
     let item = seed_item(&h, &key, SendState::Queued);
     h.start_core();
     h.send(Command::EditOutbox { item, compose: C });
+    h.wait(|e| matches!(e, Event::ComposeRefused { compose, .. } if *compose == C).then_some(()));
     h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
     assert_eq!(rows(&h).len(), 1);
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
@@ -320,6 +321,7 @@ fn edit_of_an_unknown_account_is_refused() {
     let item = seed_item(&h, "9999999", failed());
     h.start_core();
     h.send(Command::EditOutbox { item, compose: C });
+    h.wait(|e| matches!(e, Event::ComposeRefused { compose, .. } if *compose == C).then_some(()));
     h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
     assert_eq!(rows(&h).len(), 1);
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();

@@ -192,12 +192,19 @@ impl Worker<'_> {
         }
     }
 
+    /// An edit that cannot happen: the notice, and the compose the page
+    /// already opened learns it will never be ready.
+    fn refuse_edit(&mut self, compose: ComposeId, text: String) {
+        self.compose_refused(compose, text.clone());
+        self.notice(text);
+    }
+
     /// Edit: a refused message, or one held for a sign-in, becomes a draft
     /// in `compose`. The item goes only after the draft is stored, so a
     /// crash leaves both, never none. See `editable` for what may be taken.
     pub(super) fn edit_outbox(&mut self, id: &str, compose: ComposeId) {
         let Some(item) = self.find_item(id) else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         let editable = self.editable(&item);
         let account_known = self.store.accounts.get(&item.meta.account).is_some();
@@ -206,21 +213,21 @@ impl Worker<'_> {
             .then(|| self.store.outbox.eml(id).ok())
             .flatten();
         let Some(eml) = eml else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         if outbox::is_invite_reply(&eml) {
-            return self.notice(text::outbox::edit_invite_reply());
+            return self.refuse_edit(compose, text::outbox::edit_invite_reply());
         }
         let draft = outbox::draft_from_eml(&item.meta.account, &eml, &item.meta.recipients);
         let Some(mut draft) = draft else {
-            return self.notice(text::outbox::not_now());
+            return self.refuse_edit(compose, text::outbox::not_now());
         };
         let stored = crate::compose::to_store(&draft, now_ms());
         let draft_id = match self.store.drafts.create(&stored) {
             Ok(draft_id) => draft_id,
             Err(e) => {
                 log::warn!("saving a draft from the Outbox: {e}");
-                return self.notice(text::compose::draft_not_saved());
+                return self.refuse_edit(compose, text::compose::draft_not_saved());
             }
         };
         // The message's attachments go into the draft's own files folder
@@ -233,7 +240,7 @@ impl Worker<'_> {
                 if let Err(e) = self.store.drafts.delete(&draft_id) {
                     log::warn!("deleting the half-made draft: {e}");
                 }
-                return self.notice(text::compose::draft_not_saved());
+                return self.refuse_edit(compose, text::compose::draft_not_saved());
             }
         }
         self.book.adopt(compose, draft_id.clone());

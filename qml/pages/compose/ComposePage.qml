@@ -452,6 +452,9 @@ Item {
         }
         function onComposeRefused(compose, text) {
             if (compose !== root.compose) return
+            // Refused before the page was ever filled (an Outbox edit the
+            // core no longer allows): there is nothing to show, so go.
+            if (!root.filled) { root.closed(); return }
             root.sending = false
             root.error = text
         }

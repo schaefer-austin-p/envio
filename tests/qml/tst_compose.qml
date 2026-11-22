@@ -313,6 +313,14 @@ Item {
             compare(find("composeError").text, "Add a recipient first.")
         }
 
+        function test_refused_before_it_is_filled_closes_the_page() {
+            // An Outbox edit the core no longer allows: no draft will come.
+            mock.composeRefused(2, "someone else's")
+            compare(closed.count, 0)
+            mock.composeRefused(1, "Not possible right now")
+            compare(closed.count, 1)
+        }
+
         function test_queued_closes_the_page() {
             mock.composeReady(1, reply, "", "")
             mock.queued(2, "Sent")
