@@ -40,6 +40,7 @@ fn arm(email: &str) {
         SetupFake {
             delay: Duration::ZERO,
             found: Some(found()),
+            ..Default::default()
         },
     );
 }

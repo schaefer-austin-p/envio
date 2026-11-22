@@ -86,12 +86,15 @@ pub(crate) fn reached(point: Point, account: &str) {
 
 /// What the setup thread does for one address instead of (or before) its
 /// network work: a slow Internet, and a ready answer for `Detect`.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SetupFake {
     /// The job waits this long before it runs.
     pub delay: std::time::Duration,
-    /// The answer of `Detect`; `None` runs the real lookups after the wait.
+    /// The settings `Detect` answers; `None` is the guess. A registered fake
+    /// never runs the real lookups.
     pub found: Option<envio_net::autoconfig::Found>,
+    /// The MX verdict `Detect` answers; `None` is `Unknown`.
+    pub hosting: Option<envio_net::autoconfig::Hosting>,
 }
 
 type Fakes = Vec<(String, SetupFake, usize)>;

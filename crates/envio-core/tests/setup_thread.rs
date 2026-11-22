@@ -38,6 +38,7 @@ fn slow(email: &str, confirm: bool) {
         SetupFake {
             delay: Duration::from_secs(2),
             found: Some(found(confirm)),
+            ..Default::default()
         },
     );
 }
@@ -117,6 +118,7 @@ fn a_second_detect_replaces_the_queued_one() {
         SetupFake {
             delay: Duration::from_millis(800),
             found: Some(found(false)),
+            ..Default::default()
         },
     );
     for _ in 0..3 {
@@ -142,6 +144,7 @@ fn detected_carries_the_servers_text() {
         SetupFake {
             delay: Duration::ZERO,
             found: Some(found(false)),
+            ..Default::default()
         },
     );
     h.send(Command::Detect {
@@ -167,6 +170,7 @@ fn setup_results_keep_the_srv_confirm_rule() {
         SetupFake {
             delay: Duration::ZERO,
             found: Some(found(true)),
+            ..Default::default()
         },
     );
     h.send(Command::Detect {
