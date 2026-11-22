@@ -367,6 +367,103 @@ fn the_switch_resets_the_live_state_and_asks_for_a_full_sync() {
 }
 
 #[test]
+fn the_switch_drops_the_stale_token_cell() {
+    let t = moving(3);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    let refresh: crate::worker::token::Refresher = std::rc::Rc::new(|_, _| unreachable!());
+    w.store.token_cells = crate::worker::token::TokenCells::with(
+        vec![envio_net::oauth::Provider::microsoft_graph_template()],
+        refresh,
+        std::rc::Rc::new(now_ms),
+        std::rc::Rc::clone(&w.store.tokens),
+    );
+    let cell = w
+        .store
+        .token_cells
+        .handle(&key, ProviderKind::MicrosoftGraph)
+        .expect("the test config has a Graph provider");
+    cell.set_imap_ok();
+    tick(&mut w);
+    assert_eq!(settings(&w, &key).backend, BackendKind::Graph);
+    let again = w
+        .store
+        .token_cells
+        .handle(&key, ProviderKind::MicrosoftGraph)
+        .unwrap();
+    assert!(
+        !again.imap_ok(),
+        "a cell cached before the move must not outlive the move"
+    );
+}
+
+/// A crash after each stage of the move, then a restart: the Outbox and
+/// the drafts are all still there, and the move ends on Graph. At step 1 the
+/// pending action also survives (it is replayed first, not dropped).
+#[test]
+fn a_crash_after_each_stage_keeps_the_outbox_and_drafts() {
+    // (step, remove bodies, remove rows, remove the IMAP token)
+    let stages = [
+        (1u8, false, false, false),
+        (2, false, false, false),
+        (2, true, false, false),
+        (2, true, true, false),
+        (3, true, true, false),
+        (3, true, true, true),
+    ];
+    for (step, bodies, rows, token) in stages {
+        let t = moving(step);
+        let key = t.seeded.account.clone();
+        let sink = Sink::default();
+        let (queued, failed, unsent) = {
+            let mut w = open(&t.config, &sink);
+            let queued = outbox_item(&w, &key, SendState::Queued);
+            let failed = outbox_item(&w, &key, SendState::Failed { reason: "x".into() });
+            let unsent = draft(&w, &key);
+            if step == 1 {
+                pending(&mut w, &key);
+            }
+            if bodies {
+                w.store.bodies.remove_folder(t.seeded.folder).unwrap();
+            }
+            if rows {
+                w.store.db.remove_account_cache(&key).unwrap();
+            }
+            if token {
+                w.store
+                    .tokens
+                    .borrow_mut()
+                    .remove(&key, ProviderKind::Microsoft)
+                    .unwrap();
+            }
+            (queued, failed, unsent)
+        };
+        let mut w = open(&t.config, &sink);
+        tick(&mut w);
+        let at = format!("crash at step {step} bodies={bodies} rows={rows} token={token}");
+        let ids: Vec<String> = w
+            .store
+            .outbox
+            .items()
+            .unwrap()
+            .into_iter()
+            .map(|i| i.id)
+            .collect();
+        assert!(ids.contains(&queued) && ids.contains(&failed), "{at}");
+        assert!(w.store.drafts.load(&unsent).is_ok(), "{at}");
+        if step == 1 {
+            // Replay is asked first; nothing was dropped.
+            assert_eq!(w.store.journal.pending().count(), 1, "{at}");
+            assert_eq!(settings(&w, &key).backend, BackendKind::Imap, "{at}");
+        } else {
+            assert_eq!(settings(&w, &key).backend, BackendKind::Graph, "{at}");
+            assert!(cleared(&w, &t), "{at}");
+        }
+    }
+}
+
+#[test]
 fn begin_starts_only_an_imap_account_not_already_moving() {
     let dir = tempfile::tempdir().unwrap();
     let (config, seeded) = seed(dir.path());
