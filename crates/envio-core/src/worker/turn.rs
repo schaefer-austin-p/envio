@@ -11,8 +11,8 @@ use envio_sync::plan::outbox::next_release;
 
 use super::conn::Conn;
 use super::plan::{
-    Env, Next, POLL_MS, Step, Timing, Wants, background_steps, idle_problem, may_idle, next,
-    prefetch_step, steps,
+    BACKGROUND_POLL_MS, Env, Next, POLL_MS, Step, Timing, Wants, background_steps, idle_problem,
+    may_idle, next, prefetch_step, steps,
 };
 
 impl Worker<'_> {
@@ -104,6 +104,7 @@ impl Worker<'_> {
                 prefetch,
             };
             let inbox_wanted = !disk_full && !background_steps(&live.wants, &folders).is_empty();
+            let notifies = !self.store.settings.notify_off.contains(account);
             let timing = Timing {
                 foreground: self.foreground,
                 can_run: live.health.can_run(now),
@@ -120,7 +121,9 @@ impl Worker<'_> {
                     live.idle_capable,
                     folders.iter().any(|f| f.role == FolderRole::Inbox),
                 ),
-                notifies: !self.store.settings.notify_off.contains(account),
+                notifies,
+                poll_ms: (notifies && live.idle_capable == Some(false))
+                    .then_some(BACKGROUND_POLL_MS),
             };
             match next(&timing, now) {
                 Next::Sleep { .. } => return None,
@@ -146,6 +149,18 @@ impl Worker<'_> {
                         return None;
                     }
                     if !env.foreground {
+                        // A poll that is due: the clock moves on first,
+                        // whatever the step does, so a failing one cannot
+                        // spin. The Inbox is then wanted like after a wake.
+                        if timing.poll_ms.is_some() && now >= live.next_full_ms {
+                            live.next_full_ms = now + BACKGROUND_POLL_MS;
+                            if !disk_full
+                                && let Some(inbox) =
+                                    folders.iter().find(|f| f.role == FolderRole::Inbox)
+                            {
+                                live.wants.folders.insert(inbox.id);
+                            }
+                        }
                         // Only the Inbox, after a wake: the rest waits for
                         // the app to come back.
                         let todo = background_steps(&live.wants, &folders).into_iter().next();
@@ -225,7 +240,8 @@ impl Worker<'_> {
             let at = account_wake(
                 needs_timer(self.foreground, self.notifies(account), &live.conn),
                 &live.health,
-                self.foreground.then_some(live.next_full_ms),
+                (self.foreground || (self.notifies(account) && live.idle_capable == Some(false)))
+                    .then_some(live.next_full_ms),
                 now,
             );
             wake = match (wake, at) {
@@ -346,7 +362,8 @@ mod tests {
             .build()
             .unwrap();
         let account = seeded.account.clone();
-        // Nothing is wanted: the background stays quiet.
+        // Nothing is wanted: the background stays quiet (and no poll is due).
+        worker.live.get_mut(&account).unwrap().next_full_ms = i64::MAX;
         let idle = runtime.block_on(worker.pick_for(&account, now_ms(), false));
         assert_eq!(idle, None);
         // The reader opens a message that was never downloaded.
@@ -360,6 +377,80 @@ mod tests {
         // Not with a full disk, which has no room for it.
         let full = runtime.block_on(worker.pick_for(&account, now_ms(), true));
         assert_eq!(full, None);
+    }
+
+    /// The seeded account, in the background, with its IDLE capability
+    /// set and a poll due; what `pick_for` made of it and the clock then.
+    fn background_pick(idle: Option<bool>, graph: bool) -> (Option<Step>, i64, i64) {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        if graph {
+            crate::worker::testing::into_graph(&mut worker, &seeded.account);
+        }
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let live = worker.live.get_mut(&seeded.account).unwrap();
+        live.idle_capable = idle;
+        live.next_full_ms = 0;
+        let now = now_ms();
+        let step = runtime.block_on(worker.pick_for(&seeded.account, now, false));
+        let after = worker.live[&seeded.account].next_full_ms;
+        (step, after, now)
+    }
+
+    #[test]
+    fn a_background_account_without_idle_polls_its_inbox() {
+        for graph in [false, true] {
+            let (step, after, now) = background_pick(Some(false), graph);
+            assert!(matches!(step, Some(Step::Folder(_))), "{graph}: {step:?}");
+            assert!(
+                (now + BACKGROUND_POLL_MS..=now + BACKGROUND_POLL_MS + 5_000).contains(&after),
+                "{graph}: {after}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_background_account_with_idle_keeps_its_clock() {
+        let (step, after, _) = background_pick(Some(true), false);
+        assert_eq!(step, None);
+        assert_eq!(after, 0);
+    }
+
+    #[test]
+    fn a_failing_poll_does_not_spin() {
+        // The clock moved on when the poll was picked, before the step ran:
+        // asking again at once picks nothing.
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let live = worker.live.get_mut(&seeded.account).unwrap();
+        live.idle_capable = Some(false);
+        live.next_full_ms = 0;
+        let now = now_ms();
+        let first = runtime.block_on(worker.pick_for(&seeded.account, now, false));
+        assert!(first.is_some());
+        worker
+            .live
+            .get_mut(&seeded.account)
+            .unwrap()
+            .wants
+            .folders
+            .clear();
+        let again = runtime.block_on(worker.pick_for(&seeded.account, now + 1, false));
+        assert_eq!(again, None);
+        let at = worker.wake_at(now + 1);
+        assert!(
+            at.is_some_and(|at| at >= now + BACKGROUND_POLL_MS),
+            "{at:?}"
+        );
     }
 
     #[test]
@@ -550,6 +641,8 @@ mod tests {
         let (config, seeded) = seed(dir.path());
         let sink = Sink::default();
         let mut worker = open(&config, &sink);
+        // An IDLE account: no poll timer among the wakes.
+        worker.live.get_mut(&seeded.account).unwrap().idle_capable = None;
         let at = now_ms() + 600_000;
         let new = envio_store::NewOutboxItem {
             send_after_ms: at,
@@ -635,13 +728,10 @@ mod tests {
         let sink = Sink::default();
         let mut worker = open(&config, &sink);
         let inbox = seeded.folder;
-        worker
-            .live
-            .get_mut(&seeded.account)
-            .unwrap()
-            .wants
-            .folders
-            .insert(inbox);
+        let live = worker.live.get_mut(&seeded.account).unwrap();
+        // An IDLE account: no poll timer among the wakes.
+        live.idle_capable = None;
+        live.wants.folders.insert(inbox);
         let now = now_ms();
         assert_eq!(worker.wake_at(now), None);
         worker.disk_full_until = Some(now + 60_000);
