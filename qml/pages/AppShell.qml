@@ -674,6 +674,7 @@ Item {
             core: root.core
             accounts: root.accounts
             onClosed: stack.pop()
+            onSignInAgainRequested: function(account) { stack.push(signInAgainPage, { account: account }) }
         }
     }
     Component {

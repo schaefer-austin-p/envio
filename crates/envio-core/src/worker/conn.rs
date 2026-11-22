@@ -360,10 +360,13 @@ pub(crate) fn start_idle(
 impl Worker<'_> {
     /// The account's connection: the ready one, or a new one.
     pub(crate) async fn backend(&mut self, account: &str) -> Result<Backend, Problem> {
+        let graph = self.kind_of(account) == BackendKind::Graph;
         let Some(live) = self.live.get_mut(account) else {
             return Err(Problem::Local);
         };
         match std::mem::replace(&mut live.conn, Conn::Closed) {
+            // An IMAP session never serves an account that is Graph now.
+            Conn::Ready(Backend::Imap(_)) if graph => {}
             Conn::Ready(backend) => return Ok(backend),
             Conn::Closed => {}
             // A step needs the session: the background connect gives way
@@ -422,6 +425,11 @@ impl Worker<'_> {
         account: &str,
         result: envio_net::Result<(ImapSession, Woke)>,
     ) {
+        // The account moved to Graph while its IDLE ran (#342): the session
+        // is the old IMAP one and goes away with the result.
+        if self.kind_of(account) == BackendKind::Graph {
+            return;
+        }
         let before = self.status_of(account);
         // A background session stays only for an account that notifies: its
         // Inbox goes back to IDLE.

@@ -60,7 +60,8 @@ Item {
                 root.currentState = row.model.state
                 root.currentOAuth = !!row.model.oauth
                 root.currentUpdate = !!row.model.updateSignIn
-                    || (row.model.moveStage !== undefined && row.model.moveStage !== "")
+                    || (row.model.moveStage !== undefined && row.model.moveStage !== ""
+                        && row.model.moveStage !== "done")
                 actions.open()
             }
             Column {
@@ -173,8 +174,8 @@ Item {
                 font.weight: Font.Medium
             }
         }
-        // An Outlook.com account on IMAP, or one already moving or just moved
-        // (the page shows where it is).
+        // An Outlook.com account on IMAP, or one that is moving (the page
+        // shows where it is). Not one that has moved: it is Graph now.
         ListRow {
             objectName: "updateSignInRow"
             iconName: "log-in"

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 17:45+0100\n"
+"POT-Creation-Date: 2026-11-22 18:20+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -177,42 +177,43 @@ msgstr ""
 msgid "Add account"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:109
+#: qml/pages/accounts/AccountsPage.qml:110
 #: crates/envio-core/src/text/outbox.rs:30
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:146
+#: qml/pages/accounts/AccountsPage.qml:147
 msgid "Rename"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:169
-#: qml/pages/accounts/SignInAgainPage.qml:72 qml/pages/inbox/OutboxRow.qml:94
+#: qml/pages/accounts/AccountsPage.qml:170
+#: qml/pages/accounts/SignInAgainPage.qml:72
+#: qml/pages/accounts/UpdateSignInPage.qml:233 qml/pages/inbox/OutboxRow.qml:94
 #: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:193
-#: qml/pages/accounts/UpdateSignInPage.qml:90
+#: qml/pages/accounts/AccountsPage.qml:194
+#: qml/pages/accounts/UpdateSignInPage.qml:92
 msgid "Update sign-in"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:214
+#: qml/pages/accounts/AccountsPage.qml:215
 #: qml/pages/accounts/UpdatePasswordPage.qml:26
 msgid "Update password"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:235
-#: qml/pages/accounts/AccountsPage.qml:256
+#: qml/pages/accounts/AccountsPage.qml:236
+#: qml/pages/accounts/AccountsPage.qml:257
 #: qml/pages/settings/ImagesPage.qml:100
 msgid "Remove"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:254
+#: qml/pages/accounts/AccountsPage.qml:255
 msgid "Remove this account?"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:255
+#: qml/pages/accounts/AccountsPage.qml:256
 msgid "Keep account"
 msgstr ""
 
@@ -280,7 +281,7 @@ msgstr ""
 #: qml/pages/accounts/AppPasswordStep.qml:136
 #: qml/pages/accounts/SignInAgainPage.qml:152
 #: qml/pages/accounts/SignInStep.qml:210
-#: qml/pages/accounts/UpdateSignInPage.qml:203
+#: qml/pages/accounts/UpdateSignInPage.qml:205
 msgid "Signing in…"
 msgstr ""
 
@@ -404,7 +405,7 @@ msgid "Last 30 days"
 msgstr ""
 
 #: qml/pages/accounts/OptionsStep.qml:110
-#: qml/pages/accounts/UpdateSignInPage.qml:239
+#: qml/pages/accounts/UpdateSignInPage.qml:250
 msgid "Done"
 msgstr ""
 
@@ -516,19 +517,19 @@ msgid "Microsoft opens in the browser. Sign in with %1."
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:138
-#: qml/pages/accounts/UpdateSignInPage.qml:189
+#: qml/pages/accounts/UpdateSignInPage.qml:191
 msgid "Your password never passes through Envio."
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:160
 #: qml/pages/accounts/SignInStep.qml:230 qml/pages/accounts/SignInStep.qml:240
-#: qml/pages/accounts/UpdateSignInPage.qml:211
+#: qml/pages/accounts/UpdateSignInPage.qml:213
 msgid "Sign in with Microsoft"
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:171
 #: qml/pages/accounts/SignInStep.qml:250
-#: qml/pages/accounts/UpdateSignInPage.qml:222
+#: qml/pages/accounts/UpdateSignInPage.qml:224
 msgid "Use this account"
 msgstr ""
 
@@ -580,13 +581,13 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/UpdateSignInPage.qml:158
+#: qml/pages/accounts/UpdateSignInPage.qml:160
 msgid ""
 "Outlook.com is moving to a new kind of connection. Sign in once more with %1 "
 "to update it. Mail on this phone stays, and unsent messages are kept."
 msgstr ""
 
-#: qml/pages/accounts/UpdateSignInPage.qml:230
+#: qml/pages/accounts/UpdateSignInPage.qml:241
 msgid "Switch anyway"
 msgstr ""
 

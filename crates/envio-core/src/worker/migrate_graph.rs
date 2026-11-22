@@ -10,6 +10,8 @@
 
 use envio_net::oauth::ProviderKind;
 use envio_store::{AccountSettings, BackendKind, Migration, SendState};
+use envio_sync::UNDO_MS;
+use envio_sync::plan::replay::is_due;
 
 use super::Worker;
 use super::conn::{Conn, Live};
@@ -70,10 +72,14 @@ impl Worker<'_> {
             .get(account)
             .is_some_and(|live| !live.health.can_run(now));
         let step = plan::next(&m, pending == 0, accepted > 0, blocked);
+        let waits = self.replay_wait(account, now);
         match step {
             MigrationStep::Replay | MigrationStep::Wait => {
                 if let Some(live) = self.live.get_mut(account) {
-                    live.wants.replay |= step == MigrationStep::Replay;
+                    // Only when an action is due: while the Undo window or a
+                    // backoff holds them all, `migration_wake` has the turn
+                    // look again at the due time instead of spinning.
+                    live.wants.replay |= step == MigrationStep::Replay && waits.is_none();
                     live.wants.file |= accepted > 0;
                 }
             }
@@ -95,6 +101,42 @@ impl Worker<'_> {
             }
         }
         self.show_migration((account, &m), step, (pending, accepted));
+    }
+
+    /// When the pending actions of `account` are next due, if none is now.
+    fn replay_wait(&self, account: &str, now: i64) -> Option<i64> {
+        let mut earliest: Option<i64> = None;
+        for action in self.store.journal.pending() {
+            if action.target.account != account {
+                continue;
+            }
+            if is_due(action, &self.store.schedule, now) {
+                return None;
+            }
+            let undo_ends = action.at_ms + UNDO_MS;
+            let at = if undo_ends > now {
+                Some(undo_ends)
+            } else {
+                self.store.schedule.next_due_after(now)
+            };
+            earliest = match (earliest, at) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+        }
+        earliest
+    }
+
+    /// The earliest time a moving account's pending actions fall due, for
+    /// the turn's wake timer.
+    pub(super) fn migration_wake(&self, now: i64) -> Option<i64> {
+        self.store
+            .accounts
+            .list()
+            .iter()
+            .filter(|a| a.settings.migration.is_some_and(|m| m.step == REPLAY))
+            .filter_map(|a| self.replay_wait(&a.key, now))
+            .min()
     }
 
     /// A step 1 run failed: counted, and saved so a restart keeps it.
@@ -156,15 +198,39 @@ impl Worker<'_> {
                 return None;
             }
         }
-        // Bodies first: a crash between the two leaves rows whose bodies
-        // are gone, which the next run clears again.
+        self.clear_cache(account)?;
+        Some(seqs.len())
+    }
+
+    /// The cache's bodies, then its rows. Bodies first: a crash between the
+    /// two leaves rows whose bodies are gone, which the next run clears again.
+    fn clear_cache(&mut self, account: &str) -> Option<()> {
         let folders = self.store.db.folders(account).ok()?;
         for folder in &folders {
             self.store.bodies.remove_folder(folder.id).ok()?;
         }
+        // Another account's open message keeps its inline images.
+        let shown = self
+            .store
+            .open_message
+            .filter(|id| {
+                let db = &self.store.db;
+                db.message(*id)
+                    .and_then(|m| db.folder(m.folder))
+                    .is_ok_and(|f| f.account != account)
+            })
+            .map(|id| id.0.to_string());
         self.store.db.remove_account_cache(account).ok()?;
+        super::inline::clear_except(&self.store.paths.inline(), shown.as_deref());
         self.open_failed(Some(account));
-        Some(seqs.len())
+        // Open lists drop the rows that are gone.
+        self.emit(Event::FoldersChanged {
+            account: account.to_owned(),
+        });
+        self.emit(Event::MessagesChanged {
+            folders: folders.iter().map(|f| f.id).collect(),
+        });
+        Some(())
     }
 
     /// Steps 3 and 4: the backend, the IMAP token and servers, then a fresh
@@ -177,6 +243,11 @@ impl Worker<'_> {
             return;
         };
         let mut settings: AccountSettings = entry.settings.clone();
+        // A sync may have refilled the cache since CLEAR (a retried step 3):
+        // it is emptied again before the account becomes Graph.
+        if self.clear_cache(account).is_none() {
+            return;
+        }
         // The IMAP token goes first: a crash leaves step 3 saved, and the
         // next run removes what is left.
         let removed = self
@@ -196,13 +267,14 @@ impl Worker<'_> {
             return;
         }
         self.store.token_cells.forget(account);
-        if let Some(live) = self.live.get_mut(account) {
+        let fresh = self.store.accounts.get(account).map(Live::for_account);
+        if let (Some(live), Some(fresh)) = (self.live.get_mut(account), fresh) {
             match &live.conn {
                 Conn::Idling(stop) => stop.notify_one(),
                 Conn::Opening(handle) => handle.abort(),
                 _ => {}
             }
-            *live = Live::new();
+            *live = fresh;
             live.wants.full = true;
         }
         let (note_title, note_text) = if dropped > 0 {

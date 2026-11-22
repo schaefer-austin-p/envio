@@ -133,6 +133,35 @@ fn pending_actions_are_replayed_before_anything_is_cleared() {
     assert_eq!(settings(&w, &t.seeded.account).backend, BackendKind::Imap);
 }
 
+/// An action inside its Undo window is not due: no replay is asked for, the
+/// turn is told when to look again, and at that time the replay is asked.
+#[test]
+fn nothing_replays_before_the_actions_are_due() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    let target = MessageRef {
+        account: key.clone(),
+        folder: "INBOX".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: None,
+    };
+    let at = 1_000_000;
+    w.store
+        .journal
+        .push(at, target, ActionKind::Delete)
+        .unwrap();
+    let due = at + envio_sync::UNDO_MS;
+    w.migrate_all(at + 1);
+    assert!(!w.live[&key].wants.replay, "spun before the due time");
+    assert_eq!(w.migration_wake(at + 1), Some(due));
+    w.migrate_all(due);
+    assert!(w.live[&key].wants.replay);
+    assert_eq!(w.migration_wake(due), None);
+}
+
 #[test]
 fn an_empty_journal_runs_all_steps_and_the_account_is_graph() {
     let t = moving(1);
@@ -461,6 +490,77 @@ fn a_crash_after_each_stage_keeps_the_outbox_and_drafts() {
             assert!(cleared(&w, &t), "{at}");
         }
     }
+}
+
+/// The IDLE future that was running at the switch ends afterwards and hands
+/// its IMAP session back: it must not become the Graph account's backend.
+#[test]
+fn a_late_idle_does_not_hand_the_imap_session_to_graph() {
+    use crate::worker::backend::{Backend, fake::Kind, fake_backend};
+    use crate::worker::conn::Conn;
+
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    let stop = std::rc::Rc::new(tokio::sync::Notify::new());
+    w.live.get_mut(&key).unwrap().conn = Conn::Idling(stop);
+    tick(&mut w);
+    assert_eq!(settings(&w, &key).backend, BackendKind::Graph);
+    let (Backend::Imap(session), _runtime) = fake_backend(Kind::Imap) else {
+        unreachable!()
+    };
+    w.idle_done(&key, Ok((session, envio_net::imap::Woke::Stopped)));
+    assert!(
+        !matches!(w.live[&key].conn, Conn::Ready(Backend::Imap(_))),
+        "the old IMAP session became a Graph account's connection"
+    );
+}
+
+/// Sync refilled the cache after CLEAR (step 3 saved, rows back): the
+/// switch empties it again.
+#[test]
+fn a_cache_refilled_since_the_clear_is_emptied_at_the_switch() {
+    let t = moving(3);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    assert!(!cleared(&w, &t), "the seeded rows are the refilled cache");
+    tick(&mut w);
+    assert!(cleared(&w, &t));
+    assert_eq!(settings(&w, &t.seeded.account).backend, BackendKind::Graph);
+}
+
+/// Open lists and the inline-image cache follow the clear.
+#[test]
+fn the_clear_refreshes_open_lists_and_drops_inline_images() {
+    let t = moving(2);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let dir = w.store.paths.inline().join("1");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.png"), b"x").unwrap();
+    tick(&mut w);
+    let events = sink.events();
+    assert!(
+        events.iter().any(
+            |e| matches!(e, Event::FoldersChanged { account } if *account == t.seeded.account)
+        )
+    );
+    assert!(events.iter().any(
+        |e| matches!(e, Event::MessagesChanged { folders } if folders.contains(&t.seeded.folder))
+    ));
+    assert!(!dir.exists(), "the inline images stayed");
+}
+
+/// The switch leaves Graph's own `idle_capable`: no IDLE, so the poll timer
+/// runs (`Live::for_account`).
+#[test]
+fn the_reset_live_state_is_a_graph_one() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    tick(&mut w);
+    assert_eq!(w.live[&t.seeded.account].idle_capable, Some(false));
 }
 
 #[test]

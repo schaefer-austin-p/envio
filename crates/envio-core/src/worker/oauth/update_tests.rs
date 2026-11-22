@@ -137,3 +137,39 @@ fn an_account_already_moving_is_not_updated_again() {
     // second move.
     assert_ne!(outcomes(&sink), vec![OAuthOutcome::Updated]);
 }
+
+/// A personal tenant that names another address asks first (`judge`); only
+/// a yes stores the Graph token and starts the move.
+#[test]
+fn another_address_in_a_personal_tenant_asks_and_a_no_stores_nothing() {
+    for accept in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, sink) = (config(dir.path()), Sink::default());
+        let mut worker = open(&config, &sink);
+        let key = imap_account(&mut worker);
+        update(&mut worker, &key);
+        answer(
+            &mut worker,
+            &sink,
+            super::provider_tests::tokens("bob@example.net", Some(CONSUMER_TENANT)),
+        );
+        assert!(
+            sink.events()
+                .iter()
+                .any(|e| matches!(e, crate::api::event::Event::OAuthConfirm { .. })),
+            "no question was asked"
+        );
+        assert!(outcomes(&sink).is_empty(), "decided before the answer");
+        worker.confirm_oauth(accept);
+        let graph = token_of(&worker, &key, ProviderKind::MicrosoftGraph);
+        let moving = worker.store.accounts.get(&key).unwrap().settings.migration;
+        if accept {
+            assert_eq!(outcomes(&sink), vec![OAuthOutcome::Updated]);
+            assert_eq!(graph.as_deref(), Some("rt-new"));
+            assert!(moving.is_some());
+        } else {
+            assert_eq!(outcomes(&sink), vec![OAuthOutcome::Cancelled]);
+            assert!(graph.is_none() && moving.is_none());
+        }
+    }
+}

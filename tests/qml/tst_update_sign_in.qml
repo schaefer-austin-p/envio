@@ -19,6 +19,7 @@ Item {
         anchors.fill: parent
     }
     SignalSpy { id: closed; target: page; signalName: "closed" }
+    SignalSpy { id: again; target: page; signalName: "signInAgainRequested" }
 
     TestCase {
         name: "UpdateSignIn"
@@ -100,6 +101,17 @@ Item {
             mouseClick(find("switchAnyway"))
             compare(core.called("switchAnyway").length, 1)
             compare(core.called("switchAnyway")[0].args[0], "ann")
+        }
+        function test_a_refused_sign_in_offers_sign_in_again() {
+            move({ moveStage: "signin", moveTitle: "Sign in again", moveText: "x", canSwitch: true })
+            tryVerify(function() { return find("signInAgain").visible })
+            verify(!find("updateSignInButton").visible)
+            again.clear()
+            mouseClick(find("signInAgain"))
+            compare(again.count, 1)
+            compare(again.signalArguments[0][0], "ann")
+            move({ moveStage: "moving", moveTitle: "Moving", moveText: "x" })
+            tryVerify(function() { return !find("signInAgain").visible })
         }
         function test_done_shows_the_dropped_notice_and_closes() {
             move({ moveStage: "done", moveTitle: "Done", moveText: "ok",

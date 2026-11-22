@@ -58,7 +58,8 @@ Item {
             core.accounts.clear()
             core.accounts.append({ key: "ann", name: "Ann", display: "Ann", label: "", email: "ann@example.org",
                                    status: "Up to date", state: "ok", oauth: false, unread: 0, unreadText: "",
-                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "" })
+                                   pinService: "", pinHost: "", pinTitle: "", pinFingerprint: "", pinHex: "", pinText: "",
+                                   updateSignIn: false, moveStage: "" })
             wantsPassword.clear()
             wantsSignIn.clear()
             updateClosed.clear()
@@ -179,6 +180,16 @@ Item {
             compare(wantsPassword.signalArguments[0][0], "ann")
         }
 
+        function test_update_sign_in_is_offered_while_moving_not_once_done() {
+            for (const c of [["", true, true], ["moving", false, true], ["stuck", false, true], ["done", false, false]]) {
+                core.accounts.setProperty(0, "updateSignIn", c[1])
+                core.accounts.setProperty(0, "moveStage", c[0])
+                openActions()
+                compare(find("updateSignInRow", page).visible, c[2], "stage '" + c[0] + "'")
+                find("actionSheet", page).close()
+                tryVerify(function() { return !find("actionSheet", page).visible })
+            }
+        }
         function test_sign_in_again_shows_only_for_a_microsoft_account_in_auth_state() {
             // A password account that failed to sign in: no such row.
             core.accounts.setProperty(0, "state", "auth")

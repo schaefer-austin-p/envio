@@ -22,6 +22,8 @@ Item {
     readonly property string accountEmail: found.email
     readonly property string stage: found.stage
     signal closed()
+    // "Sign in again" (the stuck frame where IMAP refuses the sign-in).
+    signal signInAgainRequested(string account)
 
     function close() {
         session.reset()
@@ -221,6 +223,15 @@ Item {
             iconName: "external"
             text: qsTr("Use this account")
             onClicked: session.answer(true)
+        }
+        AppButton {
+            objectName: "signInAgain"
+            visible: root.stage === "signin"
+            width: parent.width
+            theme: root.theme
+            primary: true
+            text: qsTr("Sign in again")
+            onClicked: root.signInAgainRequested(root.account)
         }
         AppButton {
             objectName: "switchAnyway"
