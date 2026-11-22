@@ -9,6 +9,7 @@ use envio_net::oauth::{
 use envio_store::{AccountSettings, BackendKind};
 use secrecy::SecretString;
 
+use self::route::{Route, Seen, route};
 use super::Worker;
 use super::conn::Live;
 use crate::api::event::{Event, OAuthFailure, OAuthOffer, OAuthOutcome};
@@ -17,6 +18,8 @@ use crate::mask;
 use crate::servers::{ServerAddr, store_server};
 use crate::setup_thread::{ExchangeJob, ExchangeResult, SetupJob, next_ticket};
 use crate::text;
+
+mod route;
 
 /// How long the user has to sign in (and to answer the identity question).
 const TIMEOUT_MS: i64 = 5 * 60 * 1000;
@@ -29,6 +32,9 @@ enum Phase {
     /// Signed in as someone else than the typed address: waits for the
     /// answer, holding the refresh token (memory only).
     Confirming(SecretString),
+    /// The token is the other kind of account than the pick; waits for the
+    /// answer to the one second sign-in. No token is kept.
+    Mismatch,
 }
 
 pub(crate) struct Attempt {
@@ -42,6 +48,11 @@ pub(crate) struct Attempt {
     /// Told to the setup thread; only its answer is used.
     ticket: u64,
     phase: Phase,
+    /// The wizard's pick decides the scopes and the tenant is checked
+    /// (a new account with an explicit kind).
+    routed: bool,
+    /// Who the first token named, once the second sign-in was asked for.
+    first: Option<Seen>,
 }
 
 /// What the id token says about the typed address (decision 9).
@@ -65,9 +76,16 @@ pub(crate) fn judge(typed: &str, identity: Option<&Identity>) -> Verdict {
 pub(crate) fn failure_of(error: &TokenError) -> OAuthFailure {
     match error {
         TokenError::Temporary => OAuthFailure::Offline,
+        TokenError::Refused(code) if is_admin_code(code) => OAuthFailure::Admin,
         TokenError::Refused(_) => OAuthFailure::Blocked,
         TokenError::Revoked(_) => OAuthFailure::Other,
     }
+}
+
+/// The provider's `error` codes for a tenant whose admin has not allowed
+/// the app: trying again will not help.
+fn is_admin_code(code: &str) -> bool {
+    matches!(code, "consent_required" | "interaction_required")
 }
 
 fn provider_name(kind: ProviderKind) -> &'static str {
@@ -152,17 +170,27 @@ impl Worker<'_> {
         true
     }
 
-    pub(crate) fn start_oauth(&mut self, email: &str, account: Option<String>) {
+    /// `kind`: the provider to sign in with. A new account from the wizard
+    /// passes its pick (any address); `None` takes the address's own
+    /// provider, or the account's own for "Sign in again".
+    pub(crate) fn start_oauth(
+        &mut self,
+        email: &str,
+        account: Option<String>,
+        kind: Option<ProviderKind>,
+    ) {
+        let routed = account.is_none() && kind.is_some();
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
-                Some(a) if a.settings.is_oauth() && a.broken.is_none() => {
-                    (a.settings.email.clone(), super::token::kind_of(&a.settings))
-                }
+                Some(a) if a.settings.is_oauth() && a.broken.is_none() => (
+                    a.settings.email.clone(),
+                    kind.unwrap_or_else(|| super::token::kind_of(&a.settings)),
+                ),
                 _ => return self.refuse(email.to_owned(), OAuthFailure::NotOAuth),
             },
             None => {
                 let email = email.trim().to_owned();
-                let Some(kind) = provider_kind_for(&email) else {
+                let Some(kind) = kind.or_else(|| provider_kind_for(&email)) else {
                     return self.refuse(email, OAuthFailure::Unavailable);
                 };
                 if self.email_taken(&email) {
@@ -186,6 +214,8 @@ impl Worker<'_> {
             deadline_ms,
             ticket: next_ticket(),
             phase: Phase::Waiting,
+            routed,
+            first: None,
         });
         self.emit(Event::OAuthBrowser {
             email,
@@ -235,8 +265,13 @@ impl Worker<'_> {
                 self.setup.send(SetupJob::Exchange(Box::new(job)));
             }
             Err(RedirectError::Denied) => self.finish_oauth(OAuthOutcome::Cancelled),
-            Err(RedirectError::Server(_)) => {
-                self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Other));
+            Err(RedirectError::Server(code)) => {
+                let why = if is_admin_code(&code) {
+                    OAuthFailure::Admin
+                } else {
+                    OAuthFailure::Other
+                };
+                self.finish_oauth(OAuthOutcome::Failed(why));
             }
             Err(RedirectError::Mismatch | RedirectError::Malformed) => {
                 log::info!("ignored a sign-in link that does not belong to this sign-in");
@@ -274,6 +309,27 @@ impl Worker<'_> {
             log::warn!("the sign-in gave no refresh token");
             return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Other));
         };
+        if attempt.routed {
+            match route(
+                attempt.provider.kind,
+                attempt.first.as_ref(),
+                tokens.identity.as_ref(),
+            ) {
+                Route::Fits => {}
+                Route::Refuse => {
+                    return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Mismatch));
+                }
+                Route::Other { personal } => {
+                    let seen = Seen::of(tokens.identity.as_ref());
+                    let who = seen.who().unwrap_or(&attempt.email).to_owned();
+                    let (title, text) = text::oauth::mismatch(&who, personal);
+                    attempt.first = Some(seen);
+                    attempt.phase = Phase::Mismatch;
+                    let email = attempt.email.clone();
+                    return self.emit(Event::OAuthMismatch { email, title, text });
+                }
+            }
+        }
         match judge(&attempt.email, tokens.identity.as_ref()) {
             Verdict::Match => self.go_on(refresh),
             Verdict::Ask(signed_in_as) => {
@@ -290,6 +346,17 @@ impl Worker<'_> {
     }
 
     pub(crate) fn confirm_oauth(&mut self, accept: bool) {
+        if self
+            .oauth
+            .as_ref()
+            .is_some_and(|a| matches!(a.phase, Phase::Mismatch))
+        {
+            return if accept {
+                self.second_sign_in()
+            } else {
+                self.finish_oauth(OAuthOutcome::Cancelled)
+            };
+        }
         let confirming = self
             .oauth
             .as_ref()
@@ -309,6 +376,38 @@ impl Worker<'_> {
         } else {
             self.finish_oauth(OAuthOutcome::Cancelled);
         }
+    }
+
+    /// The one second sign-in, with the other scope set. It keeps the
+    /// attempt's address and what the first token named; the answer must
+    /// match both (`route`).
+    fn second_sign_in(&mut self) {
+        let Some(attempt) = self.oauth.as_ref() else {
+            return;
+        };
+        let other = match attempt.provider.kind {
+            ProviderKind::Microsoft => ProviderKind::MicrosoftGraph,
+            ProviderKind::MicrosoftGraph => ProviderKind::Microsoft,
+        };
+        let email = attempt.email.clone();
+        let Some(provider) = self.provider_of(other) else {
+            return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Unavailable));
+        };
+        let pkce = Pkce::new();
+        let url = authorize_url(&provider, &pkce, &email);
+        log::info!("starting the second sign-in for {}", mask::address(&email));
+        if let Some(attempt) = self.oauth.as_mut() {
+            attempt.provider = provider;
+            attempt.pkce = pkce;
+            attempt.ticket = next_ticket();
+            attempt.deadline_ms = now_ms().saturating_add(timeout_ms(&email));
+            attempt.phase = Phase::Waiting;
+        }
+        self.emit(Event::OAuthBrowser {
+            email,
+            url,
+            user_code: None,
+        });
     }
 
     pub(crate) fn cancel_oauth(&mut self) {
@@ -389,13 +488,19 @@ impl Worker<'_> {
                 None,
             )
         };
+        // A Graph account has no mail servers: Graph is its only endpoint.
+        let graph = provider.kind == ProviderKind::MicrosoftGraph;
         let settings = AccountSettings {
             name: email.rsplit_once('@').map_or("", |(l, _)| l).to_owned(),
             email: email.to_owned(),
             username: email.to_owned(),
-            backend: BackendKind::Imap,
-            imap: Some(addr(&provider.imap)),
-            smtp: Some(addr(&provider.smtp)),
+            backend: if graph {
+                BackendKind::Graph
+            } else {
+                BackendKind::Imap
+            },
+            imap: (!graph).then(|| addr(&provider.imap)),
+            smtp: (!graph).then(|| addr(&provider.smtp)),
             auth: Some("microsoft".to_owned()),
             migration: None,
         };
@@ -446,5 +551,7 @@ impl Worker<'_> {
     }
 }
 
+#[cfg(test)]
+mod provider_tests;
 #[cfg(test)]
 mod tests;

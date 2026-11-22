@@ -261,6 +261,7 @@ fn without_a_provider_the_wizard_path_is_what_it_always_was() {
     h.send(Command::StartOAuth {
         email: "x@outlook.com".into(),
         account: None,
+        kind: None,
     });
     let outcome = h.wait(|e| match e {
         Event::OAuthBrowser { .. } => panic!("a sign-in began"),

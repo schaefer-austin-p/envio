@@ -86,6 +86,7 @@ impl World {
         self.h.send(Command::StartOAuth {
             email: email.into(),
             account,
+            kind: None,
         });
         let url = self.wait(|e| match e {
             Event::OAuthBrowser { url, .. } => Some(url.clone()),

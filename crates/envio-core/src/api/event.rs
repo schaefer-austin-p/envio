@@ -52,6 +52,10 @@ pub enum OAuthFailure {
     Unavailable,
     /// The account could not be written to disk.
     NotSaved,
+    /// A work tenant's admin has not allowed Envio: trying again will not help.
+    Admin,
+    /// The second sign-in named another account or tenant, or no tenant.
+    Mismatch,
 }
 
 impl OAuthFailure {
@@ -66,6 +70,8 @@ impl OAuthFailure {
             Self::NotOAuth => crate::text::oauth::not_an_oauth_account(),
             Self::Unavailable => crate::text::oauth::no_provider(),
             Self::NotSaved => crate::text::setup::not_saved(),
+            Self::Admin => crate::text::oauth::admin(),
+            Self::Mismatch => crate::text::oauth::wrong_account(),
         }
     }
 }
@@ -156,6 +162,14 @@ pub enum Event {
     OAuthConfirm {
         email: String,
         signed_in_as: Option<String>,
+        text: String,
+    },
+    /// The sign-in was for the other kind of account than the pick (a work
+    /// account picked as Outlook.com, or the reverse): the answer to
+    /// `ConfirmOAuth` is yes for the one second sign-in, no to stop.
+    OAuthMismatch {
+        email: String,
+        title: String,
         text: String,
     },
     /// The sign-in ended. `email` is the address it was for.

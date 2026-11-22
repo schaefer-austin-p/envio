@@ -22,6 +22,7 @@ mod compose;
 mod drafts;
 mod fsutil;
 mod invite_card;
+mod known;
 mod outbox;
 mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
@@ -46,11 +47,13 @@ pub use api::view::{
     MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink, default_oauth_providers, microsoft_sign_in_offered};
+pub use envio_net::oauth::ProviderKind;
 pub use envio_store::{
     Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, ListRef, MessageRowId,
     PAGE, Settings, ThemeName,
 };
 pub use health::AccountStatus;
+pub use known::app_password_setup;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
 pub use text::count::{CountKind, count_text};
