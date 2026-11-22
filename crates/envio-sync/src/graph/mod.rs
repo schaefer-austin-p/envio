@@ -13,6 +13,7 @@ mod meta;
 mod moves;
 mod refresh;
 mod search;
+mod send;
 
 use std::collections::BTreeMap;
 

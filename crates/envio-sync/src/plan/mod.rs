@@ -1,6 +1,7 @@
 //! Pure planners: server state and cache state in, steps out. No I/O, so
 //! each is a table test.
 
+pub mod bcc;
 pub mod drafts;
 pub mod folders;
 pub mod message_id;
