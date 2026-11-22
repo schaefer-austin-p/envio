@@ -14,6 +14,8 @@ mod edit_keywords;
 mod folder_order;
 mod graph_bearer;
 mod graph_conn;
+#[cfg(test)]
+mod graph_kind_tests;
 mod inline;
 mod invite;
 mod label;
