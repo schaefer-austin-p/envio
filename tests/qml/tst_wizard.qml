@@ -55,6 +55,7 @@ Item {
             core.reset()
             wizard.clearPasswords()
             wizard.oauthSession.reset()
+            wizard.forget()
             wizard.oauthProvider = ""
             wizard.oauthKind = ""
             wizard.provider = ""
@@ -295,25 +296,141 @@ Item {
             verify(!wizard.busy)
         }
         // #384: the mail is on Microsoft 365. The wizard must not keep
-        // "Looking up settings" up; the card says it, with the way out.
-        function test_mail_on_microsoft_ends_the_lookup_and_shows_the_card() {
+        // "Looking up settings" up; the hosted card says it, with the sign-in
+        // and the way out.
+        readonly property string hostedText: "Mail for contoso.example is handled by Microsoft. Sign in with Microsoft to add it."
+        function hosted() {
             find("emailField").text = "ann@contoso.example"
             mouseClick(find("continueButton"))
             verify(wizard.busy)
-            core.mailOnMicrosoft("ann@contoso.example", "This mail is on Microsoft",
-                                 "Mail for contoso.example is handled by Microsoft. Sign in with Microsoft to add it.")
+            core.mailOnMicrosoft("ann@contoso.example", "This mail is on Microsoft", hostedText)
+        }
+        function test_mail_on_microsoft_shows_the_hosted_card_and_sign_in() {
+            hosted()
             compare(wizard.step, "email")
             verify(!wizard.busy)
-            const card = find("refusalCard")
+            const card = find("hostedCard")
             verify(card.visible)
+            compare(card.kind, "info")
             compare(card.title, "This mail is on Microsoft")
+            compare(card.text, hostedText)
+            verify(!find("refusalCard").visible)
+            compare(find("continueButton").text, "Sign in with Microsoft")
+            verify(find("continueButton").enabled)
+            verify(find("changeButton").visible)
             verify(find("manualButton").visible)
+            verify(!find("ispdbNote").visible)
+            compare(find("stepCounter").step, 2)
+            compare(find("stepCounter").total, 4)
+        }
+        function test_editing_the_address_clears_the_hosted_card() {
+            hosted()
+            find("emailField").text = "ann@contoso.exampl"
+            verify(!find("hostedCard").visible)
+            compare(find("continueButton").text, "Continue")
+            verify(find("ispdbNote").visible)
+        }
+        function test_change_address_clears_the_card_and_focuses_the_field() {
+            hosted()
+            find("emailField").input.focus = false
+            mouseClick(find("changeButton"))
+            verify(!find("hostedCard").visible)
+            verify(find("emailField").input.activeFocus)
+            compare(find("emailField").text, "ann@contoso.example")
+            compare(core.called("detect").length, 1)
+        }
+        function test_set_up_manually_on_the_hosted_card_goes_to_servers() {
+            hosted()
+            mouseClick(find("manualButton"))
+            compare(wizard.step, "servers")
+            compare(wizard.hostedText, "")
+        }
+        function test_sign_in_with_microsoft_starts_the_session_with_kind_imap() {
+            hosted()
+            mouseClick(find("continueButton"))
+            compare(core.called("startOAuth").length, 1)
+            compare(core.called("startOAuth")[0].args[0], "ann@contoso.example")
+            compare(core.called("startOAuth")[0].args[1], "")
+            compare(core.called("startOAuth")[0].args[2], "imap")
+            compare(wizard.step, "browser")
+            compare(wizard.accountName, "ann")
+        }
+        function test_enter_in_the_field_signs_in_on_the_hosted_card() {
+            hosted()
+            find("emailField").input.forceActiveFocus()
+            keyClick(Qt.Key_Return)
+            compare(core.called("startOAuth").length, 1)
+            compare(core.called("detect").length, 1)
+        }
+        function test_cancelling_the_browser_returns_to_the_email_step_with_the_card() {
+            hosted()
+            mouseClick(find("continueButton"))
+            mouseClick(find("cancelSignIn"))
+            core.oauthDone("ann@contoso.example", "cancelled", "")
+            compare(wizard.step, "email")
+            verify(find("hostedCard").visible)
+            verify(!find("hostedNotice").visible)
+            core.reset()
+            mouseClick(find("continueButton"))
+            compare(core.called("startOAuth").length, 1)
+            compare(wizard.step, "browser")
+        }
+        function test_an_admin_refusal_reads_under_the_hosted_card() {
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthDone("ann@contoso.example", "admin", "")
+            compare(wizard.step, "email")
+            verify(find("hostedCard").visible)
+            const note = find("hostedNotice")
+            verify(note.visible)
+            compare(note.kind, "warning")
+            compare(note.title, "Your organization has not allowed Envio")
+            // Another try clears it.
+            mouseClick(find("continueButton"))
+            verify(!find("hostedNotice").visible)
+        }
+        function test_a_failed_sign_in_reads_under_the_hosted_card() {
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthDone("ann@contoso.example", "failed", "This account is already added")
+            compare(wizard.step, "email")
+            compare(find("hostedNotice").text, "This account is already added")
+        }
+        function test_a_second_sign_in_mismatch_refusal_reads_under_the_hosted_card() {
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthDone("ann@contoso.example", "mismatch", "This is still a personal account.")
+            compare(wizard.step, "email")
+            compare(find("hostedNotice").text, "This is still a personal account.")
+        }
+        function test_a_mismatch_question_stays_answerable_and_the_second_sign_in_starts() {
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthMismatch("ann@contoso.example", "This is a personal account", "Sign in once more.")
+            compare(wizard.step, "signin")
+            compare(wizard.oauthSession.state, "mismatch")
+            verify(find("mismatchContinue").visible)
+            core.reset()
+            mouseClick(find("mismatchContinue"))
+            compare(core.called("confirmOAuth").length, 1)
+            compare(core.called("confirmOAuth")[0].args[0], true)
+            compare(wizard.oauthSession.state, "waiting")
+        }
+        function test_declining_the_confirm_question_returns_to_the_card() {
+            hosted()
+            mouseClick(find("continueButton"))
+            core.oauthConfirm("ann@contoso.example", "bob@contoso.example", "")
+            compare(wizard.step, "signin")
+            wizard.oauthSession.answer(false)
+            compare(wizard.step, "email")
+            verify(find("hostedCard").visible)
         }
         function test_mail_on_microsoft_for_another_address_does_nothing() {
             find("emailField").text = "ann@contoso.example"
             mouseClick(find("continueButton"))
             core.mailOnMicrosoft("bob@other.example", "T", "X")
             verify(wizard.busy)
+            verify(!find("hostedCard").visible)
             verify(!find("refusalCard").visible)
         }
         // #384 Decision 7: a false MX positive keeps manual setup; the other
