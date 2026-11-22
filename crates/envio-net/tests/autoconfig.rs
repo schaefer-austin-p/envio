@@ -291,8 +291,10 @@ const BUDGET: Duration = Duration::from_secs(2);
 
 #[tokio::test]
 async fn the_verdict_and_the_settings_come_back_together() {
-    let mut script = ispdb_script();
-    script.mx = m365();
+    let script = Scripted {
+        mx: m365(),
+        ..ispdb_script()
+    };
     let d = autoconfig::detect_with_limits("me@example.org", &script, BUDGET, SHORT)
         .await
         .unwrap();
@@ -362,8 +364,10 @@ impl Lookups for FindHangs {
 
 #[tokio::test]
 async fn a_hanging_find_does_not_cost_the_verdict() {
-    let mut script = Scripted::default();
-    script.mx = m365();
+    let script = Scripted {
+        mx: m365(),
+        ..Default::default()
+    };
     let d = autoconfig::detect_with_limits(
         "me@example.org",
         &FindHangs(script),
