@@ -305,6 +305,19 @@ Item {
             verify(wizard.busy)
             core.mailOnMicrosoft("ann@contoso.example", "This mail is on Microsoft", hostedText)
         }
+        function test_email_step_draws_the_four_segment_step_bar() {
+            wizard.step = "email"
+            const seg = find("stepSegments")
+            verify(seg.visible)
+            compare(seg.count, 4)
+            compare(seg.filled, 2)
+            const cells = everything(seg, []).filter(function(o) { return o.objectName === "stepSegment" })
+            compare(cells.length, 4)
+            compare(cells[0].color, wizard.theme.accent)
+            compare(cells[1].color, wizard.theme.accent)
+            compare(cells[2].color, wizard.theme.hairline)
+            compare(cells[3].color, wizard.theme.hairline)
+        }
         function test_mail_on_microsoft_shows_the_hosted_card_and_sign_in() {
             hosted()
             compare(wizard.step, "email")
