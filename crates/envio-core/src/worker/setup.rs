@@ -133,6 +133,7 @@ fn new_info(key: String, name: String, email: String, oauth: bool) -> AccountInf
         unread: 0,
         broken: false,
         oauth,
+        update_sign_in: false,
     }
 }
 

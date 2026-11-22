@@ -64,6 +64,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.accept_certificate(&account, service, &fingerprint);
             Flow::Continue
         }
+        Command::SwitchAnyway { account } => {
+            worker.switch_anyway(&account);
+            Flow::Continue
+        }
         Command::RemoveAccount { account, confirmed } => {
             worker.remove_account(&account, confirmed);
             Flow::Continue

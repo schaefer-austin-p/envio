@@ -59,6 +59,8 @@ pub enum OAuthFailure {
     /// The first token of a new account named no tenant, so Envio cannot
     /// tell which kind of account it is.
     NoTenant,
+    /// "Update sign-in" with a work or school account: nothing was changed.
+    NotPersonal,
 }
 
 impl OAuthFailure {
@@ -76,6 +78,7 @@ impl OAuthFailure {
             Self::Admin => crate::text::oauth::admin(),
             Self::Mismatch => crate::text::oauth::wrong_account(),
             Self::NoTenant => crate::text::oauth::no_tenant(),
+            Self::NotPersonal => crate::text::migrate::not_personal(),
         }
     }
 }
@@ -86,6 +89,9 @@ pub enum OAuthOutcome {
     Added,
     /// "Sign in again" worked and the account runs again.
     Resumed,
+    /// "Update sign-in" worked: the Graph token is kept and the move runs
+    /// (`Event::Migration` says where it is).
+    Updated,
     Cancelled,
     Failed(OAuthFailure),
 }
@@ -115,6 +121,12 @@ pub enum Event {
         account: String,
         status: AccountStatus,
         text: String,
+    },
+    /// Where the account's move to Graph is (#342); `None` once it is over
+    /// and nothing is left to show.
+    Migration {
+        account: String,
+        state: Option<super::view::MigrationState>,
     },
     /// The account's Inbox unread count changed (sent only when it did).
     AccountUnread {

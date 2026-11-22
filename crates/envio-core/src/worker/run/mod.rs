@@ -38,6 +38,9 @@ fn step_failed(worker: &mut Worker<'_>, account: &str, step: &Step, problem: &Pr
     if let Some(live) = worker.live.get_mut(account) {
         live.continuing = None;
     }
+    if matches!(step, Step::Replay | Step::Folders) {
+        worker.migrate_failed(account);
+    }
     let response = failed(worker, account, step.kind(), problem);
     search_failed(worker, account, step, problem);
     older_failed(worker, account, step, problem);

@@ -22,6 +22,7 @@ mod label;
 mod local_folder;
 mod local_list;
 mod local_rows;
+mod migrate_graph;
 mod oauth;
 mod older;
 mod open;
@@ -341,6 +342,7 @@ impl<'s> Worker<'s> {
                     .map_or(AccountStatus::Ready, AccountStatus::Broken),
                 broken: a.broken.is_some(),
                 oauth: a.settings.is_oauth(),
+                update_sign_in: crate::migrate_graph::eligible(&a.settings, None),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
@@ -360,6 +362,7 @@ impl<'s> Worker<'s> {
         }
         let now = now_ms();
         self.on_timers(now);
+        self.migrate_all(now);
         if let Some((account, step)) = self.pick(now).await {
             self.run_polling(&account, step).await;
             self.last_ran = Some(account);

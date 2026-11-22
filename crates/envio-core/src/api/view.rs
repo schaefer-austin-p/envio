@@ -27,6 +27,48 @@ pub struct AccountInfo {
     pub broken: bool,
     /// Signs in with a provider (OAuth), not a password.
     pub oauth: bool,
+    /// An Outlook.com account on IMAP that can move to Graph: its row offers
+    /// "Update sign-in" (#342).
+    pub update_sign_in: bool,
+}
+
+/// Where the move to Graph is, for the page that shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MigrationStage {
+    /// Running, or waiting for the Outbox.
+    Moving,
+    /// Three failed runs: Keep waiting or Switch anyway.
+    Stuck,
+    /// IMAP refuses the sign-in: Sign in again, Keep waiting or Switch anyway.
+    SignIn,
+    Done,
+}
+
+impl MigrationStage {
+    /// The word QML switches on.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Moving => "moving",
+            Self::Stuck => "stuck",
+            Self::SignIn => "signin",
+            Self::Done => "done",
+        }
+    }
+}
+
+/// What the move's page and the account's row say.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MigrationState {
+    pub stage: MigrationStage,
+    pub title: String,
+    pub text: String,
+    /// The line under `text`: how to leave, or what "Switch anyway" does.
+    pub hint: String,
+    /// Changes dropped by "Switch anyway" or made after step 1: the notice
+    /// above the result, empty for none.
+    pub note_title: String,
+    pub note_text: String,
+    pub can_switch: bool,
 }
 
 /// Work an account has that no server holds yet.

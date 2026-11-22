@@ -6,6 +6,7 @@ pub mod count;
 pub mod draft_chip;
 pub mod invite;
 pub mod link;
+pub mod migrate;
 pub mod notice;
 pub mod oauth;
 pub mod outbox;
