@@ -34,6 +34,12 @@ Hosted on Forgejo (code.austinschaefer.com/schaefera/envio), default branch
   domain `envio.aps`. Run `cargo make pot` after changing strings.
 - Single-crate integration tests go in `crates/<crate>/tests/`; anything
   that needs two crates goes in `envio-e2e`.
+- Bindle first: a new or reworked QML piece that isn't envio-specific (a
+  platform quirk, a behaviour like a sheet, toast or adaptive layout, a
+  generic control) goes into bindle (schaefera/bindle) as its own PR, then
+  envio re-pins `qml/bindle`. Plans and briefs name their bindle
+  candidates; envio-only QML stays here. When re-pinning, take bindle
+  `main` and note what came with it.
 - Plans (from Plan 6): signatures, invariants and test cases; full code
   only for tricky parts. Code sketches stay in the git-ignored
   `.superpowers/sdd/<plan>/`.
