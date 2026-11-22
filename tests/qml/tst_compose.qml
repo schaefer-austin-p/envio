@@ -24,6 +24,7 @@ Item {
     }
     SignalSpy { id: sent; target: page; signalName: "sent" }
     SignalSpy { id: closed; target: page; signalName: "closed" }
+    SignalSpy { id: refused; target: page; signalName: "refused" }
 
     AppShell {
         id: shell
@@ -83,6 +84,7 @@ Item {
             mock.accounts.append({ key: "work", name: "Work", display: "Work", label: "", email: "ann@work.example", status: "", state: "ok", unread: 0, unreadText: "" })
             sent.clear()
             closed.clear()
+            refused.clear()
             page.reset()
         }
 
@@ -311,6 +313,23 @@ Item {
             compare(closed.count, 0)
             mock.composeRefused(2, "someone else's")
             compare(find("composeError").text, "Add a recipient first.")
+        }
+
+        function test_refused_before_it_is_filled_hands_the_text_to_the_shell() {
+            // An Outbox edit the core no longer allows: no draft will come.
+            mock.composeRefused(2, "someone else's")
+            compare(refused.count, 0)
+            mock.composeRefused(1, "Not possible right now")
+            compare(closed.count, 0, "the shell removes the page, as for queued")
+            compare(refused.count, 1, "its text goes out once, as a toast")
+            compare(refused.signalArguments[0][0], "Not possible right now")
+        }
+
+        function test_refused_on_a_filled_page_stays_a_banner() {
+            mock.composeReady(1, reply, "", "")
+            mock.composeRefused(1, "Add a recipient first.")
+            compare(refused.count, 0, "no toast beside the banner")
+            compare(closed.count, 0)
         }
 
         function test_queued_closes_the_page() {

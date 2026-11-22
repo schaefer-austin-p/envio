@@ -288,13 +288,35 @@ fn edit_of_a_failed_item_with_attachments_keeps_them_in_the_draft() {
     assert_eq!(stored[0].1.attachments, draft.attachments);
 }
 
+/// Edits `item` and returns (ComposeRefused for `C`, Notices) seen before
+/// the Outbox list that follows: the text reaches the user once, from the
+/// page, so a refusal is one `ComposeRefused` and no `Notice`.
+fn edit_refusal(h: &Harness, item: String) -> (usize, usize) {
+    use std::cell::Cell;
+    h.send(Command::EditOutbox { item, compose: C });
+    h.send(Command::ListOutbox);
+    let (refused, notices) = (Cell::new(0), Cell::new(0));
+    h.wait(|e| match e {
+        Event::ComposeRefused { compose, .. } if *compose == C => {
+            refused.set(refused.get() + 1);
+            None
+        }
+        Event::Notice { .. } => {
+            notices.set(notices.get() + 1);
+            None
+        }
+        Event::Outbox { .. } => Some(()),
+        _ => None,
+    });
+    (refused.get(), notices.get())
+}
+
 #[test]
 fn edit_refuses_an_item_that_is_not_failed() {
     let (mut h, key) = unstarted();
     let item = seed_item(&h, &key, SendState::Queued);
     h.start_core();
-    h.send(Command::EditOutbox { item, compose: C });
-    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    assert_eq!(edit_refusal(&h, item), (1, 0));
     assert_eq!(rows(&h).len(), 1);
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
     assert!(drafts.list().unwrap().is_empty());
@@ -328,8 +350,7 @@ fn edit_of_an_unknown_account_is_refused() {
     // Its account was removed (or never existed): no draft can be sent from it.
     let item = seed_item(&h, "9999999", failed());
     h.start_core();
-    h.send(Command::EditOutbox { item, compose: C });
-    h.wait(|e| matches!(e, Event::Notice { .. }).then_some(()));
+    assert_eq!(edit_refusal(&h, item), (1, 0));
     assert_eq!(rows(&h).len(), 1);
     let drafts = Drafts::open(&h.paths().drafts()).unwrap();
     assert!(drafts.list().unwrap().is_empty());
