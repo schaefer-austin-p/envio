@@ -14,6 +14,7 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/0004_attachment_mark_name_key.sql"),
     include_str!("../migrations/0005_message_keywords.sql"),
     include_str!("../migrations/0006_graph_map.sql"),
+    include_str!("../migrations/0007_unknown_keywords_index.sql"),
 ];
 
 /// The schema version of a fully migrated database.
@@ -293,7 +294,7 @@ mod tests {
         )
         .unwrap();
         migrate(&mut conn).unwrap();
-        assert_eq!(version(&conn), 6);
+        assert_eq!(version(&conn), SCHEMA_VERSION);
         let row: (u32, String, i64) = conn
             .query_row("SELECT uid, subject, flags FROM messages", [], |row| {
                 Ok((row.get(0)?, row.get(1)?, row.get(2)?))
@@ -308,5 +309,47 @@ mod tests {
                 .unwrap();
             assert_eq!(n, 0, "{table}");
         }
+    }
+
+    #[test]
+    fn rows_cached_before_0007_survive_it_and_the_probe_uses_the_new_index() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        apply(&mut conn, &MIGRATIONS[..6]).unwrap();
+        conn.execute_batch(
+            "INSERT INTO folders (account, path, role, uidvalidity, uidnext)
+                 VALUES ('1700', 'INBOX', 'inbox', 7, 43);
+             INSERT INTO messages (folder_id, uid, subject, date, flags, keywords)
+                 VALUES (1, 41, 'Known', 1800000000, 0, ''),
+                        (1, 42, 'Unknown', 1800000001, 5, NULL);",
+        )
+        .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(version(&conn), SCHEMA_VERSION);
+        let rows: Vec<(u32, String, i64, Option<String>)> = conn
+            .prepare("SELECT uid, subject, flags, keywords FROM messages ORDER BY uid")
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            [
+                (41, "Known".into(), 0, Some(String::new())),
+                (42, "Unknown".into(), 5, None)
+            ]
+        );
+        // The index is built over the existing NULL row, and the probe uses it.
+        let indexed: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM messages INDEXED BY messages_unknown_keywords
+                 WHERE keywords IS NULL",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(indexed, 1);
     }
 }
