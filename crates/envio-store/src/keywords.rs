@@ -22,7 +22,7 @@ fn decode(stored: Option<&str>) -> Option<Vec<String>> {
 
 /// The probe behind [`Db::has_unknown_keywords_between`]; migration 0007's
 /// partial index serves it.
-const UNKNOWN_SQL: &str = "SELECT EXISTS(SELECT 1 FROM messages
+pub(crate) const UNKNOWN_SQL: &str = "SELECT EXISTS(SELECT 1 FROM messages
      WHERE folder_id = ?1 AND uid BETWEEN ?2 AND ?3 AND keywords IS NULL)";
 
 impl Db {

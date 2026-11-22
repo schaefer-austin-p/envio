@@ -54,6 +54,7 @@ impl OlderQueue {
 }
 
 /// The first batch of an [`OlderQueue`].
+#[cfg(test)]
 pub fn plan_older(server: &[u32], cached: &BTreeSet<u32>, planned: Option<&Kept>) -> OlderPlan {
     OlderQueue::new(server, cached, planned).next_batch()
 }

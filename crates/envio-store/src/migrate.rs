@@ -341,15 +341,18 @@ mod tests {
                 (42, "Unknown".into(), 5, None)
             ]
         );
-        // The index is built over the existing NULL row, and the probe uses it.
-        let indexed: i64 = conn
-            .query_row(
-                "SELECT count(*) FROM messages INDEXED BY messages_unknown_keywords
-                 WHERE keywords IS NULL",
-                [],
-                |row| row.get(0),
-            )
+        // The real probe reads the new index.
+        let plan: Vec<String> = conn
+            .prepare(&format!(
+                "EXPLAIN QUERY PLAN {}",
+                crate::keywords::UNKNOWN_SQL
+            ))
+            .unwrap()
+            .query_map(rusqlite::params![1, 1, 99], |row| row.get(3))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
             .unwrap();
-        assert_eq!(indexed, 1);
+        let plan = plan.join(" | ");
+        assert!(plan.contains("messages_unknown_keywords"), "{plan}");
     }
 }
