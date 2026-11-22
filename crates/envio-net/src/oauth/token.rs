@@ -7,17 +7,19 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use secrecy::SecretString;
 use serde::Deserialize;
 
-/// The mailbox claims of an id_token; either may be absent.
+/// The `tid` of every personal Microsoft account (Outlook.com, Hotmail).
+pub const CONSUMER_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
+
+/// The claims of an id_token that name the mailbox and its tenant; any may
+/// be absent.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Identity {
     pub email: Option<String>,
     pub preferred_username: Option<String>,
-    /// The tenant: `CONSUMER_TENANT` for a personal Microsoft account.
+    /// The directory (tenant) the account lives in.
+    #[serde(default)]
     pub tid: Option<String>,
 }
-
-/// The `tid` of personal Microsoft accounts (Outlook.com, Hotmail, Live).
-pub const CONSUMER_TENANT: &str = "9188040d-6c67-4c5b-b112-36a304b66dad";
 
 pub struct Tokens {
     pub access: SecretString,
@@ -129,8 +131,8 @@ fn tokens(r: Reply) -> Result<Tokens, TokenError> {
     })
 }
 
-/// The `email`, `preferred_username` and `tid` claims of an id_token, or `None`
-/// when it is not a JWT or has none. The signature is NOT verified: the
+/// The `email`, `preferred_username` and `tid` claims of an id_token, or
+/// `None` when it is not a JWT or has none of them. The signature is NOT verified: the
 /// token came straight from the token endpoint over TLS, which is the OIDC
 /// rule for the code flow. Never use this on a token from anywhere else.
 pub fn identity_of(id_token: &str) -> Option<Identity> {

@@ -3,9 +3,12 @@
 use super::client_ids;
 use crate::server::{Endpoint, Security};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ProviderKind {
+    /// Microsoft sign-in for IMAP and SMTP with OAuth.
     Microsoft,
+    /// Microsoft sign-in with Graph scopes (Outlook.com accounts, #382).
+    MicrosoftGraph,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +47,28 @@ impl Provider {
             redirect_uri: "enviooauth://callback".to_owned(),
             imap: Endpoint::new("outlook.office365.com", 993, Security::Tls),
             smtp: Endpoint::new("smtp.office365.com", 587, Security::StartTls),
+        }
+    }
+
+    /// Microsoft sign-in with Graph scopes, or `None` while no client ID is
+    /// registered. Same app registration and endpoints as `microsoft()`.
+    pub fn microsoft_graph() -> Option<Provider> {
+        if client_ids::MICROSOFT.is_empty() {
+            return None;
+        }
+        Some(Self::microsoft_graph_template().with_client_id(client_ids::MICROSOFT))
+    }
+
+    /// The Graph provider with an empty client ID, like `microsoft_template`.
+    /// The Graph backend reads `/me/...` mail paths only, which
+    /// `Mail.ReadWrite` covers, so `User.Read` is not requested. The
+    /// `imap` and `smtp` endpoints are unused here.
+    #[doc(hidden)]
+    pub fn microsoft_graph_template() -> Provider {
+        Provider {
+            kind: ProviderKind::MicrosoftGraph,
+            scopes: "Mail.ReadWrite Mail.Send offline_access openid email profile",
+            ..Self::microsoft_template()
         }
     }
 

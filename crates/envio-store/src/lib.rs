@@ -30,7 +30,7 @@ mod refusal;
 mod search;
 mod userdata;
 
-pub use accounts::{Account, AccountSettings, Accounts, Security, Server};
+pub use accounts::{Account, AccountSettings, Accounts, BackendKind, Migration, Security, Server};
 pub use addresses::SeenAddress;
 pub use bodies::Bodies;
 pub use db::Db;

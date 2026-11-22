@@ -15,6 +15,7 @@ pub(crate) const TOKEN_REFRESH: &str = "OAuth token refresh";
 pub(crate) const TOKEN_MISSING: &str = "refresh token missing from the secret store";
 pub(crate) const PASSWORD_MISSING: &str = "password missing from the secret store";
 pub(crate) const NO_PROVIDER: &str = "no OAuth provider configured";
+pub(crate) const NO_SERVER: &str = "the account has no server of that kind";
 pub(crate) const IDLE: &str = "IMAP IDLE";
 pub(crate) const OPEN_INBOX: &str = "IMAP open of the Inbox";
 /// The refresh token was not in the store: `TokenError::Revoked` carries

@@ -70,7 +70,11 @@ fn delete_everything(store: &mut Store, key: &str) -> envio_store::Result<()> {
     // marker keeps the removal to be retried.
     let password = store.secrets.remove(key).map_err(secrets_error);
     store.token_cells.forget(key);
-    let token = store.tokens.borrow_mut().remove(key).map_err(tokens_error);
+    let token = store
+        .tokens
+        .borrow_mut()
+        .remove_account(key)
+        .map_err(tokens_error);
     match (password, token) {
         (Err(error), Err(dropped)) => {
             // Only the first error travels on; the second is logged (the

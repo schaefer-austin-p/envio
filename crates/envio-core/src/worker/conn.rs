@@ -252,8 +252,13 @@ pub(super) fn login(
     service: Service,
 ) -> Result<Login, Problem> {
     let server = match service {
-        Service::Imap => &account.settings.imap,
-        Service::Smtp => &account.settings.smtp,
+        Service::Imap => account.settings.imap.as_ref(),
+        Service::Smtp => account.settings.smtp.as_ref(),
+    };
+    // A Graph account has no IMAP or SMTP server and must never get here.
+    let Some(server) = server else {
+        cause::log_stage(cause::NO_SERVER);
+        return Err(Problem::Local);
     };
     let endpoint = endpoint(server).map_err(|_| {
         cause::log_stage("the stored server pin is malformed");
@@ -554,9 +559,11 @@ mod tests {
                 name: "T".into(),
                 email: "t@example.org".into(),
                 username: "t".into(),
-                imap: server(pin),
-                smtp: server(None),
+                backend: envio_store::BackendKind::Imap,
+                imap: Some(server(pin)),
+                smtp: Some(server(None)),
                 auth: None,
+                migration: None,
             },
             label: None,
             broken: None,
@@ -658,6 +665,26 @@ mod tests {
         let secrets = Secrets::open(dir.path()).unwrap();
         let result = login(&account(None), &secrets, &cells(dir.path()), Service::Imap);
         assert!(matches!(result, Err(Problem::SignIn)));
+    }
+
+    #[tokio::test]
+    async fn a_graph_account_is_given_no_imap_or_smtp_login() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut secrets = Secrets::open(dir.path()).unwrap();
+        secrets
+            .set("a1", SecretString::from("pw".to_owned()))
+            .unwrap();
+        let mut graph = account(None);
+        graph.settings.backend = envio_store::BackendKind::Graph;
+        graph.settings.imap = None;
+        graph.settings.smtp = None;
+        for service in [Service::Imap, Service::Smtp] {
+            crate::cause::take_seen();
+            let result = login(&graph, &secrets, &cells(dir.path()), service);
+            assert!(matches!(result, Err(Problem::Local)));
+            let seen = crate::cause::take_seen();
+            assert!(seen[0].contains(crate::cause::NO_SERVER), "{seen:?}");
+        }
     }
 
     #[test]

@@ -208,12 +208,22 @@ fn identity_of_reads_both_claims() {
 }
 
 #[test]
-fn identity_of_returns_tid_without_email_or_username() {
-    let t = jwt(&format!(r#"{{"tid":" {CONSUMER_TENANT} ","sub":"x"}}"#));
-    let got = identity_of(&t).unwrap();
-    assert_eq!(got.tid.as_deref(), Some(CONSUMER_TENANT));
+fn identity_of_reads_tid_even_without_a_mailbox_claim() {
+    let t = jwt(r#"{"tid":"9188040d-6c67-4c5b-b112-36a304b66dad","sub":"x"}"#);
+    let got = identity_of(&t).expect("tid alone is an identity");
+    assert_eq!(
+        got.tid.as_deref(),
+        Some("9188040d-6c67-4c5b-b112-36a304b66dad")
+    );
     assert_eq!((got.email, got.preferred_username), (None, None));
-    assert_eq!(identity_of(&jwt(r#"{"tid":" "}"#)), None);
+    // It never matches a typed address.
+    assert!(!identity_matches(
+        "a@example.org",
+        &identity_of(&t).unwrap()
+    ));
+    let both = jwt(r#"{"email":"a@example.org","tid":" T "}"#);
+    assert_eq!(identity_of(&both).unwrap().tid.as_deref(), Some("T"));
+    assert_eq!(identity_of(&jwt(r#"{"tid":"  "}"#)), None);
 }
 
 #[test]

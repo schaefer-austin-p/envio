@@ -14,9 +14,14 @@ use crate::error::{Result, StoreError};
 use crate::ids::{fresh_key, is_key};
 
 /// 2 added `security` and `pin`. An envio that only knows 1 refuses the
-/// file rather than rewriting it without the pins.
+/// file rather than rewriting it without the pins. 3 added `auth`; 4 added
+/// `backend`, optional servers and `migration` (Graph accounts).
 /// The newest version this build reads.
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
+/// Written while some account names an `auth` kind.
+const AUTH_VERSION: u32 = 3;
+/// Written only while an account is Graph or mid-migration.
+const GRAPH_VERSION: u32 = 4;
 /// Written while no account has an `auth` kind, so password-only users can
 /// still downgrade.
 const BASE_VERSION: u32 = 2;
@@ -30,6 +35,28 @@ pub enum Security {
     #[default]
     Tls,
     StartTls,
+}
+
+/// Which protocol stack an account syncs through. Absent in the file: IMAP.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BackendKind {
+    #[default]
+    Imap,
+    Graph,
+}
+
+impl BackendKind {
+    pub fn is_imap(&self) -> bool {
+        *self == Self::Imap
+    }
+}
+
+/// Where an IMAP account is in its move to Graph (#342).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Migration {
+    pub step: u8,
+    pub failures: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,13 +79,21 @@ pub struct AccountSettings {
     pub name: String,
     pub email: String,
     pub username: String,
-    pub imap: Server,
-    pub smtp: Server,
+    #[serde(default, skip_serializing_if = "BackendKind::is_imap")]
+    pub backend: BackendKind,
+    /// `None` only on a Graph account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imap: Option<Server>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smtp: Option<Server>,
     /// How the account signs in. Absent: a password. `"microsoft"`: OAuth
     /// 2.0 (the refresh token lives in the core's `oauth.json`, never here).
     /// A plain string, so this crate needs no OAuth types.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<String>,
+    /// Set while the account moves from IMAP to Graph.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub migration: Option<Migration>,
 }
 
 impl AccountSettings {
@@ -217,8 +252,16 @@ impl Accounts {
                 .and_then(|settings| settings.get("auth"))
                 .is_some_and(|auth| !auth.is_null())
         };
-        let version = if entries.iter().any(names_auth) {
-            VERSION
+        let graph = |entry: &serde_json::Value| {
+            entry.get("settings").is_some_and(|settings| {
+                settings.get("backend").is_some_and(|b| !b.is_null())
+                    || settings.get("migration").is_some_and(|m| !m.is_null())
+            })
+        };
+        let version = if entries.iter().any(graph) {
+            GRAPH_VERSION
+        } else if entries.iter().any(names_auth) {
+            AUTH_VERSION
         } else {
             BASE_VERSION
         };
@@ -264,7 +307,7 @@ fn parse(path: &Path, bytes: &[u8]) -> Result<Parsed> {
             .ok_or_else(|| bad(path, "an account has no valid key".into()))?
             .to_owned();
         let account = match serde_json::from_value::<Account>(value.clone()) {
-            Ok(account) => match pin_problem(&account) {
+            Ok(account) => match servers_problem(&account).or_else(|| pin_problem(&account)) {
                 None => account,
                 Some(reason) => stand_in(&value, key.clone(), reason),
             },
@@ -287,6 +330,11 @@ fn unreadable(value: &serde_json::Value) -> String {
             .and_then(|settings| settings.get(which))
             .is_none_or(|server| serde_json::from_value::<Server>(server.clone()).is_err())
     };
+    let graph = settings
+        .and_then(|settings| settings.get("backend"))
+        .and_then(|backend| backend.as_str())
+        == Some("graph");
+    let server_bad = |which: &str| !graph && server_bad(which);
     if server_bad("imap") {
         "unreadable IMAP server settings".to_owned()
     } else if server_bad("smtp") {
@@ -319,9 +367,11 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             name: text("name"),
             email: text("email"),
             username: String::new(),
-            imap: server(),
-            smtp: server(),
+            backend: BackendKind::Imap,
+            imap: Some(server()),
+            smtp: Some(server()),
             auth: None,
+            migration: None,
         },
         label: value
             .get("label")
@@ -331,15 +381,26 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
     }
 }
 
+/// An IMAP account needs both servers; only Graph accounts go without.
+fn servers_problem(account: &Account) -> Option<String> {
+    let s = &account.settings;
+    (s.backend.is_imap() && (s.imap.is_none() || s.smtp.is_none()))
+        .then(|| unreadable(&serde_json::to_value(account).unwrap_or_default()))
+}
+
 fn pin_problem(account: &Account) -> Option<String> {
     let settings = &account.settings;
-    [("imap", &settings.imap.pin), ("smtp", &settings.smtp.pin)]
-        .into_iter()
-        .find_map(|(which, pin)| {
-            pin.as_deref()
-                .filter(|pin| !is_pin(pin))
-                .map(|_| format!("malformed certificate pin for {which}"))
-        })
+    let pin_of = |server: &Option<Server>| server.as_ref().and_then(|s| s.pin.clone());
+    [
+        ("imap", pin_of(&settings.imap)),
+        ("smtp", pin_of(&settings.smtp)),
+    ]
+    .into_iter()
+    .find_map(|(which, pin)| {
+        pin.as_deref()
+            .filter(|pin| !is_pin(pin))
+            .map(|_| format!("malformed certificate pin for {which}"))
+    })
 }
 
 fn check(path: &Path, accounts: &[Account]) -> Result<()> {

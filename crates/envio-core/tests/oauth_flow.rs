@@ -155,7 +155,7 @@ fn state_of(url: &str) -> String {
 fn refresh_of(h: &Harness, key: &str) -> Option<String> {
     OAuthTokens::open(&h.data_dir())
         .unwrap()
-        .get(key)
+        .get(key, envio_net::oauth::ProviderKind::Microsoft)
         .map(|t| t.expose_secret().to_owned())
 }
 
@@ -308,7 +308,7 @@ fn a_sign_in_adds_the_account_and_keeps_the_token_out_of_everything_else() {
         (settings.email.as_str(), settings.username.as_str()),
         (ME, ME)
     );
-    assert_eq!(settings.imap.host, "127.0.0.1");
+    assert_eq!(settings.imap.as_ref().unwrap().host, "127.0.0.1");
     assert_eq!(refresh_of(&f.h, &key).as_deref(), Some("rt-new"));
     assert!(!password_of(&f.h, &key), "a password entry was made");
     // The first sync signs in with the token and the typed address.
@@ -820,4 +820,36 @@ fn sign_in_again(r: &Rig) -> (OAuthOutcome, Vec<Event>) {
         }
     });
     (outcome, seen.into_inner())
+}
+
+#[test]
+fn a_new_sign_in_for_a_graph_account_asks_for_the_graph_scopes() {
+    let mut h = Harness::unstarted();
+    let key = h.seed_oauth_account("ada@outlook.example", (1, 1), "rt-1");
+    let path = h.paths().accounts();
+    let mut json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    for entry in json["accounts"].as_array_mut().unwrap() {
+        let settings = &mut entry["settings"];
+        settings["backend"] = "graph".into();
+        settings["imap"] = serde_json::Value::Null;
+        settings["smtp"] = serde_json::Value::Null;
+    }
+    std::fs::write(&path, json.to_string()).unwrap();
+    h.oauth = vec![
+        Provider::microsoft_template().with_client_id("test-client-id"),
+        Provider::microsoft_graph_template().with_client_id("test-client-id"),
+    ];
+    h.start_core();
+    h.send(Command::AppActive(true));
+    h.send(Command::StartOAuth {
+        email: String::new(),
+        account: Some(key),
+    });
+    let url = h.wait(|e| match e {
+        Event::OAuthBrowser { url, .. } => Some(url.clone()),
+        _ => None,
+    });
+    assert!(url.contains("Mail.Send"), "{url}");
+    assert!(!url.contains("IMAP.AccessAsUser"), "{url}");
 }
