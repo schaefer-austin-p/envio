@@ -5,7 +5,7 @@ use std::fs::{self, OpenOptions};
 use std::io;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use serde::{Deserialize, Serialize};
@@ -65,6 +65,8 @@ pub struct Drafts {
     fail_next_remove: AtomicBool,
     /// Test seam: the next `forget_if_uploaded` finds the file unreadable.
     pub(crate) corrupt_next_forget: AtomicBool,
+    /// Test seam: how many times the drafts directory was scanned.
+    scans: AtomicUsize,
 }
 
 impl Drafts {
@@ -82,6 +84,7 @@ impl Drafts {
             lock: Mutex::new(()),
             fail_next_remove: AtomicBool::new(false),
             corrupt_next_forget: AtomicBool::new(false),
+            scans: AtomicUsize::new(0),
         };
         // For `delete`'s markers, made now so a folder that turns read-only
         // later still takes them. Interrupted marker writes go too.
@@ -174,6 +177,13 @@ impl Drafts {
         self.fail_next_remove.store(true, Ordering::Relaxed);
     }
 
+    /// Test seam: how many full scans of the drafts directory (`list`,
+    /// `damaged`) have run so far.
+    #[doc(hidden)]
+    pub fn scan_count(&self) -> usize {
+        self.scans.load(Ordering::Relaxed)
+    }
+
     pub(crate) fn held(&self) -> MutexGuard<'_, ()> {
         self.lock.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -251,6 +261,7 @@ impl Drafts {
     }
 
     fn scan(&self) -> Result<Scan> {
+        self.scans.fetch_add(1, Ordering::Relaxed);
         let mut drafts = Vec::new();
         let mut damaged = Vec::new();
         for entry in fs::read_dir(&self.dir)? {

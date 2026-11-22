@@ -82,11 +82,13 @@ pub async fn sync_drafts_into(
     run: &DraftRun<'_>,
     done: &mut DraftsSynced,
 ) -> Result<()> {
-    let before = account_reasons(drafts, run.account)?;
-    let result = run_drafts(server, (db, drafts), run, done).await;
+    // The one scan of the drafts directory in this step.
+    let all = drafts.list()?;
+    let before = reasons(&all, run.account);
+    let result = run_drafts(server, (db, drafts), (run, &all), done).await;
     // Judged even when the run failed; a store error here adds nothing to
     // the one already in hand.
-    match account_reasons(drafts, run.account) {
+    match reasons_after(drafts, before.clone(), done) {
         Ok(after) => done.reasons_changed = after != before,
         Err(error) if result.is_ok() => return Err(error),
         Err(_) => {}
@@ -97,7 +99,7 @@ pub async fn sync_drafts_into(
 async fn run_drafts(
     server: &mut impl MailServer,
     (db, drafts): (&Db, &Drafts),
-    run: &DraftRun<'_>,
+    (run, all): (&DraftRun<'_>, &[(String, Draft)]),
     done: &mut DraftsSynced,
 ) -> Result<()> {
     let folders = db.folders(run.account)?;
@@ -117,14 +119,14 @@ async fn run_drafts(
         done.no_folder = true;
         return Ok(());
     };
-    let mut due: Vec<(String, Draft)> = drafts
-        .list()?
-        .into_iter()
+    let mut due: Vec<(String, Draft)> = all
+        .iter()
         .filter(|(id, draft)| {
             draft.account == run.account
                 && !run.open.contains(id)
                 && needs_upload(draft, run.now_ms)
         })
+        .cloned()
         .collect();
     // The least recently tried first: a draft whose upload drops the
     // connection goes to the back, and cannot starve the others.
@@ -185,18 +187,39 @@ async fn run_drafts(
     Ok(())
 }
 
+type Reasons = BTreeMap<String, (Option<RefusalKind>, i64)>;
+
 /// What the account's draft rows show of a refusal: the kind and when it
 /// happened, by draft id.
-fn account_reasons(
-    drafts: &Drafts,
-    account: &str,
-) -> Result<BTreeMap<String, (Option<RefusalKind>, i64)>> {
-    Ok(drafts
-        .list()?
-        .into_iter()
+fn reasons(all: &[(String, Draft)], account: &str) -> Reasons {
+    all.iter()
         .filter(|(_, d)| d.account == account)
-        .map(|(id, d)| (id, (d.server.refusal, d.server.failed_at_ms)))
-        .collect())
+        .map(|(id, d)| (id.clone(), (d.server.refusal, d.server.failed_at_ms)))
+        .collect()
+}
+
+/// `before` brought up to date without scanning the directory again: only
+/// the drafts this run uploaded or refused can have a new reason, so just
+/// those files are read again. A file that is gone or unreadable drops out,
+/// as it would from a listing.
+fn reasons_after(drafts: &Drafts, mut reasons: Reasons, done: &DraftsSynced) -> Result<Reasons> {
+    for id in done
+        .uploaded
+        .iter()
+        .chain(&done.refused)
+        .chain(&done.failed)
+    {
+        match drafts.load(id) {
+            Ok(d) => {
+                reasons.insert(id.clone(), (d.server.refusal, d.server.failed_at_ms));
+            }
+            Err(StoreError::NotFound | StoreError::BadRecord { .. }) => {
+                reasons.remove(id);
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(reasons)
 }
 
 /// Appends the draft's text, then deletes what it replaces. The draft file
