@@ -101,7 +101,7 @@ pub async fn load_older(
     let mut fetched = Vec::new();
     let mut exhausted = false;
     for _ in 0..(if tail.is_some() { MAX_BATCHES } else { 1 }) {
-        let step = batch(server, local, &row, state.uid_validity, &mut queue).await;
+        let step = batch(server, local, (&row, state.uid_validity), &mut queue).await;
         let step = match step {
             Ok(step) => step,
             // Earlier batches are committed: report them, and let the next
@@ -161,8 +161,7 @@ struct Step {
 async fn batch(
     server: &mut impl MailServer,
     local: &mut Local<'_>,
-    row: &envio_store::Folder,
-    uid_validity: u32,
+    (row, uid_validity): (&envio_store::Folder, u32),
     queue: &mut OlderQueue,
 ) -> Result<Step> {
     let plan = queue.next_batch();
