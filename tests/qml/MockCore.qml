@@ -56,6 +56,7 @@ Item {
     signal setupRefused(string email, string title, string text)
     signal oauthBrowser(string email, string url)
     signal oauthConfirm(string email, string signedInAs, string text)
+    signal oauthMismatch(string email, string title, string text)
     signal oauthDone(string email, string outcome, string text)
     signal trustPrompt(string email, string service, string host, string title, string fingerprint, string hex, string text)
     signal accountAdded(string account, string email)
@@ -86,7 +87,17 @@ Item {
     function refresh(account) { record("refresh", [account]) }
     function ispdbNote() { record("ispdbNote", []); return note }
     function detect(email) { record("detect", [email]) }
-    function startOAuth(email, account) { record("startOAuth", [email, account]) }
+    function startOAuth(email, account, kind) { record("startOAuth", [email, account, kind]) }
+    // The real one is envio_core::app_password_setup; the mock names the
+    // account after the address and gives made-up hosts.
+    function appPasswordSetup(provider, email) {
+        record("appPasswordSetup", [provider, email])
+        if (["icloud", "gmail", "yahoo"].indexOf(provider) < 0) return ""
+        return JSON.stringify({ name: email.split("@")[0], email: email, username: email,
+            imapHost: "imap." + provider + ".example", imapPort: 993, imapSecurity: "tls",
+            smtpHost: "smtp." + provider + ".example", smtpPort: 465, smtpSecurity: "tls",
+            source: "provider", needsConfirm: false })
+    }
     function oauthRedirect(url) { record("oauthRedirect", [url]) }
     function confirmOAuth(accept) { record("confirmOAuth", [accept]) }
     function cancelOAuth() { record("cancelOAuth", []) }

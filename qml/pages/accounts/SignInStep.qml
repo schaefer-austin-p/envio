@@ -22,12 +22,18 @@ Item {
     // the question after a sign-in as another address).
     property string oauthProvider: ""
     readonly property bool oauth: oauthProvider !== ""
-    property string oauthEmail: ""
+    // Typed on the page after a provider pick (the address goes to the
+    // provider as a hint); read-only for an address the wizard found.
+    property alias oauthEmail: oauthEmailField.text
+    property bool oauthEditable: false
     property string noticeKind: ""
     property string noticeTitle: ""
     property string noticeText: ""
     // The user is asked whether this account is the right one.
     property bool confirming: false
+    // The account is of the other kind than the pick: the notice says so and
+    // the page offers the one more sign-in.
+    property bool mismatch: false
     signal continued()
     signal editServersRequested()
     signal oauthRequested()
@@ -117,13 +123,14 @@ Item {
             // The Microsoft variant: the address, why no password is typed,
             // and what Envio keeps.
             Field {
+                id: oauthEmailField
                 objectName: "oauthEmail"
-                visible: root.oauth
+                visible: root.oauth && !root.mismatch
                 width: parent.width
                 theme: root.theme
                 label: qsTr("Email address")
-                text: root.oauthEmail
-                readOnly: true
+                readOnly: !root.oauthEditable
+                inputMethodHints: Qt.ImhEmailCharactersOnly
             }
             NoticeCard {
                 objectName: "oauthNotice"
@@ -139,7 +146,9 @@ Item {
                 objectName: "oauthExplain"
                 visible: root.oauth
                 width: parent.width
-                text: root.noticeKind === ""
+                text: root.mismatch
+                    ? qsTr("Microsoft opens in the browser again. Sign in with the same address.")
+                    : root.noticeKind === ""
                     ? qsTr("Microsoft signs you in on its own page in the browser. Your password never passes through Envio, and you come back here when it is done.")
                     : qsTr("Microsoft signs you in on its own page in the browser. Your password never passes through Envio.")
                 wrapMode: Text.WordWrap
@@ -212,13 +221,24 @@ Item {
     }
     AppButton {
         objectName: "oauthButton"
-        visible: root.oauth && !root.confirming
+        visible: root.oauth && !root.confirming && !root.mismatch
+        enabled: !root.oauthEditable || oauthEmailField.text.trim() !== ""
         width: parent.width
         theme: root.theme
         primary: true
         iconName: "external"
         text: qsTr("Sign in with Microsoft")
         onClicked: root.oauthRequested()
+    }
+    AppButton {
+        objectName: "mismatchContinue"
+        visible: root.oauth && root.mismatch
+        width: parent.width
+        theme: root.theme
+        primary: true
+        iconName: "external"
+        text: qsTr("Sign in with Microsoft")
+        onClicked: root.oauthAnswered(true)
     }
     AppButton {
         objectName: "useAccount"

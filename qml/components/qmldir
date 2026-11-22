@@ -25,3 +25,4 @@ SelectionHandles 1.0 SelectionHandles.qml
 KeyChip 1.0 KeyChip.qml
 ShortcutsDialog 1.0 ShortcutsDialog.qml
 StatusChip 1.0 StatusChip.qml
+StepCounter 1.0 StepCounter.qml

@@ -1,18 +1,29 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "wizardFlow.js" as Flow
 
-// The account wizard (boards 13 and 14): address, sign in (or typed
-// servers), options. It holds only UI state; what to do comes from the
+// The account wizard (boards 13 and 14): provider, then address, sign in (or
+// typed servers or an app password), options. It holds only UI state; what to do comes from the
 // core's signals. Passwords stay in the step fields and are cleared after
 // `accountAdded` and when the wizard closes.
 Item {
     id: root
     required property Theme theme
     required property var core
-    // "email", "signin", "browser" (waiting for the provider's page),
-    // "servers" or "options".
-    property string step: "email"
+    // "provider", "email" (Other), "signin", "browser" (waiting for the
+    // provider's page), "apppass" (iCloud, Gmail, Yahoo), "servers" or "options".
+    property string step: "provider"
+    // The pick: "outlook", "m365", "icloud", "gmail", "yahoo" or "other".
+    property string provider: ""
+    // What the pick asks of the sign-in: "graph" (Outlook.com), "imap"
+    // (Microsoft 365), or "" (the address's own provider).
+    property string oauthKind: ""
+    readonly property bool picked: Flow.isMicrosoft(provider)
+    // A refused sign-in is told on the provider step.
+    property string providerNoticeKind: ""
+    property string providerNoticeTitle: ""
+    property string providerNoticeText: ""
     // The provider this address signs in with ("Microsoft"), else "": the
     // sign-in step then has a button and no password.
     property string oauthProvider: ""
@@ -45,6 +56,54 @@ Item {
     function clearPasswords() {
         signIn.password = ""
         servers.password = ""
+        appPass.password = ""
+    }
+    function pick(id) {
+        forget()
+        providerNoticeKind = ""
+        providerNoticeTitle = ""
+        providerNoticeText = ""
+        provider = id
+        if (Flow.isMicrosoft(id)) {
+            oauthProvider = "Microsoft"
+            oauthKind = id === "outlook" ? "graph" : "imap"
+            signIn.oauthEmail = ""
+            step = "signin"
+        } else if (id === "other") {
+            step = "email"
+        } else {
+            appPass.email = ""
+            step = "apppass"
+        }
+    }
+    // The sign-in ended with nothing saved: tell it where the pick was made,
+    // else on the sign-in step.
+    function refuse(outcome, text) {
+        const card = Flow.refusal(outcome, text)
+        if (picked) {
+            forget()
+            provider = ""
+            providerNoticeKind = card.kind
+            providerNoticeTitle = card.title
+            providerNoticeText = card.text
+            step = "provider"
+        } else {
+            session.noticeKind = card.kind
+            session.noticeTitle = card.title
+            session.noticeText = card.text
+        }
+    }
+    // "Sign in with Microsoft": after a pick the address is typed on the page.
+    function signInWithMicrosoft() {
+        error = ""
+        if (picked) {
+            asked = signIn.oauthEmail.trim()
+            attempting = true
+            accountName = asked.split("@")[0]
+        } else {
+            accountName = setup.name
+        }
+        session.start()
     }
     function close() {
         clearPasswords()
@@ -57,6 +116,7 @@ Item {
         clearPasswords()
         session.reset()
         oauthProvider = ""
+        oauthKind = ""
         serversConfirmed = false
         busy = false
         asked = ""
@@ -70,16 +130,20 @@ Item {
         if (session.state === "saving") return
         // The provider's page is open or the user is asked: Back is Cancel
         // and the page stays on the sign-in step.
-        if (step === "browser" || session.state === "confirm") {
+        if (step === "browser" || session.state === "confirm" || session.state === "mismatch") {
             session.cancel()
             return
         }
-        if (step === "email" || step === "options") {
+        if (step === "provider" || step === "options") {
             error = ""
             close()
         } else {
+            // From the second step on, Back is the pick again; on the Other
+            // path the later steps go back through the address.
+            const toProvider = step === "email" || step === "apppass" || (provider !== "" && provider !== "other")
             forget()
-            step = "email"
+            if (toProvider) provider = ""
+            step = toProvider ? "provider" : "email"
         }
     }
     // Is `email` the address of the attempt in flight?
@@ -95,13 +159,18 @@ Item {
     }
     // Only the sign-in and servers steps connect (a provider sign-in goes
     // through `session`, not `connect`).
-    readonly property bool connecting: (step === "signin" && oauthProvider === "") || step === "servers"
+    readonly property bool connecting: (step === "signin" && oauthProvider === "") || step === "servers" || step === "apppass"
     function submit() {
         if (!connecting) return
         error = ""
         busy = true
         attempting = true
-        if (step === "servers") {
+        if (step === "apppass") {
+            asked = appPass.email.trim()
+            const json = core.appPasswordSetup(provider, asked)
+            accountName = json === "" ? asked : JSON.parse(json).name
+            core.connect(json, appPass.password, false)
+        } else if (step === "servers") {
             // The user typed these hosts: their own choice, so confirmed.
             asked = emailStep.email.trim()
             accountName = asked
@@ -117,21 +186,52 @@ Item {
         id: bar
         theme: root.theme
         width: parent.width
-        showBack: root.canLeave || (root.step !== "email" && root.step !== "options")
-        title: root.step === "email" ? qsTr("Add account")
+        showBack: root.canLeave || (root.step !== "provider" && root.step !== "options")
+        title: root.step === "email" || root.step === "provider" ? qsTr("Add account")
              : (root.step === "signin" || root.step === "browser") && root.oauthProvider !== ""
-                 ? qsTr("Sign in · %1").arg(root.oauthProvider)
+                 ? qsTr("Sign in · %1").arg(root.picked ? Flow.providerName(root.provider) : root.oauthProvider)
+             : root.step === "apppass" ? qsTr("Sign in · %1").arg(root.provider === "icloud" ? "iCloud" : root.provider === "gmail" ? "Gmail" : "Yahoo")
              : root.step === "signin" ? qsTr("Sign in")
              : root.step === "servers" ? qsTr("Server settings")
              : qsTr("Account options")
         onBackClicked: root.back()
     }
 
+    StepCounter {
+        id: counter
+        objectName: "stepCounter"
+        theme: root.theme
+        anchors { top: bar.bottom; left: parent.left; right: parent.right }
+        step: Flow.stepNumber(root.step, root.provider)
+        total: Flow.stepTotal(root.step, root.provider)
+    }
+    ProviderStep {
+        objectName: "providerStep"
+        theme: root.theme
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        visible: root.step === "provider"
+        noticeKind: root.providerNoticeKind
+        noticeTitle: root.providerNoticeTitle
+        noticeText: root.providerNoticeText
+        onPicked: function(id) { root.pick(id) }
+        onCancelRequested: root.close()
+    }
+    AppPasswordStep {
+        id: appPass
+        objectName: "appPasswordStep"
+        theme: root.theme
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        visible: root.step === "apppass"
+        provider: root.provider
+        error: root.error
+        busy: root.busy
+        onContinued: root.submit()
+    }
     EmailStep {
         id: emailStep
         theme: root.theme
         core: root.core
-        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "email"
         error: root.error
         refusedTitle: root.refusedTitle
@@ -146,7 +246,7 @@ Item {
     SignInStep {
         id: signIn
         theme: root.theme
-        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "signin"
         foundText: root.foundText
         serversText: root.serversText
@@ -154,21 +254,22 @@ Item {
         error: root.error
         busy: root.busy
         oauthProvider: root.oauthProvider
-        oauthEmail: root.asked
+        oauthEditable: root.picked
+        mismatch: session.state === "mismatch"
         noticeKind: session.noticeKind
         noticeTitle: session.noticeTitle
         noticeText: session.noticeText
         confirming: session.state === "confirm"
         onContinued: root.submit()
         onEditServersRequested: { root.forget(); servers.prefill(root.setup); root.step = "servers" }
-        onOauthRequested: { root.error = ""; root.accountName = root.setup.name; session.start() }
+        onOauthRequested: root.signInWithMicrosoft()
         onOauthAnswered: function(accept) { session.answer(accept) }
     }
     BrowserStep {
         objectName: "browserStep"
         theme: root.theme
         session: session
-        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "browser"
         onCancelRequested: session.cancel()
     }
@@ -177,6 +278,8 @@ Item {
         objectName: "oauthSession"
         core: root.core
         email: root.asked
+        kind: root.oauthKind
+        onDeclined: function(outcome, text) { root.refuse(outcome, text) }
         // The wizard waits for the account while the browser or the core has
         // the attempt (`onAccountAdded` only takes an attempt that is busy).
         onStateChanged: {
@@ -189,7 +292,7 @@ Item {
         objectName: "serversStep"
         id: servers
         theme: root.theme
-        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "servers"
         email: emailStep.email.trim()
         error: root.error
@@ -199,7 +302,7 @@ Item {
     OptionsStep {
         id: options
         theme: root.theme
-        anchors { top: bar.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "options"
         accountName: root.accountName
         onDone: {
@@ -244,6 +347,7 @@ Item {
             root.foundText = text
             root.serversText = serversText
             root.setupJson = json
+            signIn.oauthEmail = root.asked
             root.serversConfirmed = false
             root.step = "signin"
             // A provider sign-in has no servers to confirm: they are the provider's.

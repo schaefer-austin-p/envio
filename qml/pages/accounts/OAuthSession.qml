@@ -8,7 +8,9 @@ import "../../bindle/Platform" as Platform
 //
 // state: "idle" (nothing running; a notice may say how the last one ended),
 //   "waiting" (the browser has the user), "confirm" (signed in as another
-//   address: the page asks), "saving" (the user said yes, the core stores it).
+//   address: the page asks), "mismatch" (the account is of the other kind
+//   than the pick: the page asks for one more sign-in), "saving" (the user
+//   said yes, the core stores it).
 // Only signals for `email` count; the core runs one attempt at a time.
 Item {
     id: root
@@ -17,6 +19,9 @@ Item {
     // The address the attempt is for, and for "Sign in again" the account key.
     property string email: ""
     property string account: ""
+    // The wizard's pick: "graph", "imap", or "" (the address's own provider,
+    // or the account's).
+    property string kind: ""
     property string state: "idle"
     // Cancel was sent and the core has not answered yet: the state stays as it
     // was, and the core's answer decides (it may have finished first).
@@ -33,6 +38,10 @@ Item {
     // account signed in again.
     signal added()
     signal resumed()
+    // The provider ended the attempt, or the core refused it, and nothing was
+    // saved: `outcome` is "cancelled" (the user declined on the provider's
+    // page, not by Cancel here), "admin" or "mismatch"; `text` is the core's.
+    signal declined(string outcome, string text)
 
     Platform.Uri {
         id: uri
@@ -62,7 +71,7 @@ Item {
         url = ""
         ending = false
         state = "waiting"
-        core.startOAuth(email, account)
+        core.startOAuth(email, account, kind)
     }
     // Cancel, or Back while waiting or being asked.
     // The "cancelled" card waits for the core's OAuthDone, so it never says
@@ -70,14 +79,19 @@ Item {
     function cancel() {
         if (state === "idle" || state === "saving" || ending) return
         ending = true
-        if (state === "confirm") core.confirmOAuth(false)
+        if (state === "confirm" || state === "mismatch") core.confirmOAuth(false)
         else core.cancelOAuth()
     }
     function answer(accept) {
-        if (state !== "confirm" || ending) return
+        if ((state !== "confirm" && state !== "mismatch") || ending) return
+        const again = state === "mismatch"
         core.confirmOAuth(accept)
         clearNotice()
-        if (accept) {
+        if (accept && again) {
+            // The core opens the browser a second time.
+            url = ""
+            state = "waiting"
+        } else if (accept) {
             state = "saving"
         } else {
             state = "idle"
@@ -112,8 +126,16 @@ Item {
                 root.noticeText = text
             }
         }
+        function onOauthMismatch(address, title, text) {
+            if (!root.mine(address)) return
+            root.state = "mismatch"
+            root.noticeKind = "warning"
+            root.noticeTitle = title
+            root.noticeText = text
+        }
         function onOauthDone(address, outcome, text) {
             if (!root.mine(address)) return
+            const byUser = root.ending
             root.ending = false
             root.state = "idle"
             root.url = ""
@@ -125,6 +147,10 @@ Item {
                 root.resumed()
             } else if (outcome === "cancelled") {
                 root.cancelledNotice()
+                if (!byUser) root.declined(outcome, text)
+            } else if (outcome === "admin" || outcome === "mismatch") {
+                root.clearNotice()
+                root.declined(outcome, text)
             } else {
                 root.noticeKind = "warning"
                 root.noticeTitle = ""

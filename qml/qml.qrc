@@ -37,6 +37,8 @@
         <file>pages/accounts/WizardPage.qml</file>
         <file>pages/accounts/EmailStep.qml</file>
         <file>pages/accounts/SignInStep.qml</file>
+        <file>pages/accounts/ProviderStep.qml</file>
+        <file>pages/accounts/AppPasswordStep.qml</file>
         <file>pages/accounts/ServersStep.qml</file>
         <file>pages/accounts/OptionsStep.qml</file>
         <file>pages/accounts/ConfirmHostsDialog.qml</file>
@@ -70,6 +72,7 @@
         <file>components/Avatar.qml</file>
         <file>components/Banner.qml</file>
         <file>components/NoticeCard.qml</file>
+        <file>components/StepCounter.qml</file>
         <file>components/AppButton.qml</file>
         <file>components/Chevron.qml</file>
         <file>components/Chip.qml</file>
@@ -86,6 +89,7 @@
         <file>components/PageFooter.qml</file>
         <file>components/Icon.qml</file>
         <file>components/fileSize.js</file>
+        <file>pages/accounts/wizardFlow.js</file>
         <file>components/iconShapes.js</file>
         <file>components/richText.js</file>
         <file>components/IconButton.qml</file>
