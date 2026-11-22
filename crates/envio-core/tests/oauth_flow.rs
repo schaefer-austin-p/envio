@@ -203,6 +203,7 @@ fn detect_without_a_provider_is_what_it_always_was() {
                 source: Source::Ispdb,
                 confirm: false,
             }),
+            ..Default::default()
         },
     );
     h.send(Command::Detect {

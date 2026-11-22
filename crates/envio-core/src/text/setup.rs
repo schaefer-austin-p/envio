@@ -10,7 +10,7 @@ use envio_net::{Security, Untrusted};
 /// Said before `Detect`: the domain of the address leaves the phone.
 pub fn ispdb_note() -> String {
     tr(
-        "To find your mail servers, Envio asks the Thunderbird configuration database and your mail provider. Only the part of your address after the @ is sent.",
+        "To find your mail servers, Envio asks the Thunderbird configuration database, your mail provider and the DNS records of your domain. Only the part of your address after the @ is sent.",
     )
 }
 
@@ -21,6 +21,31 @@ pub fn microsoft_refused() -> (String, String) {
         tr("Microsoft accounts aren\u{2019}t supported yet"),
         tr(
             "Envio can\u{2019}t connect to Outlook, Hotmail or Microsoft 365 mail for now. Try another address.",
+        ),
+    )
+}
+
+/// Title and text of the card for a custom domain whose mail is on
+/// Microsoft 365 (#384), with sign-in on.
+pub fn microsoft_hosted(domain: &str) -> (String, String) {
+    (
+        tr("This mail is on Microsoft"),
+        fill(
+            &tr("Mail for {domain} is handled by Microsoft. Sign in with Microsoft to add it."),
+            &[("domain", domain)],
+        ),
+    )
+}
+
+/// The same domain with sign-in off: the refusal of #381, naming the domain.
+pub fn microsoft_hosted_refused(domain: &str) -> (String, String) {
+    (
+        tr("Microsoft accounts aren\u{2019}t supported yet"),
+        fill(
+            &tr(
+                "Mail for {domain} is hosted by Microsoft 365, which Envio can\u{2019}t connect to for now. Try another address.",
+            ),
+            &[("domain", domain)],
         ),
     )
 }

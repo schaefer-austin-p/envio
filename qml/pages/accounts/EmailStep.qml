@@ -14,6 +14,8 @@ Item {
     // place of Continue, and no manual setup or ISPDB note (nothing is sent).
     property string refusedTitle: ""
     property string refusedText: ""
+    // The refusal still offers manual setup (a Microsoft 365 MX hit, #384).
+    property bool manualOk: false
     readonly property bool refused: refusedText !== ""
     property bool busy: false
     property alias email: emailField.text
@@ -98,7 +100,7 @@ Item {
                 width: parent.width
                 theme: root.theme
                 text: qsTr("Set up manually")
-                visible: !root.refused
+                visible: !root.refused || root.manualOk
                 enabled: root.hasAddress
                 onClicked: root.manualRequested()
             }

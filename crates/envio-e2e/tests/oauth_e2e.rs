@@ -239,6 +239,7 @@ fn without_a_provider_the_wizard_path_is_what_it_always_was() {
                 source: envio_net::autoconfig::Source::Ispdb,
                 confirm: false,
             }),
+            ..Default::default()
         },
     );
     h.send(Command::Detect {
