@@ -6,6 +6,7 @@
 use envio_net::Result;
 use envio_net::imap::{Caps, Flag, FlagUpdate, Folder, FolderState, ImapSession, Summary};
 use envio_net::smtp::{SendError, SmtpSession};
+use envio_store::{Db, FolderId};
 
 /// An IMAP session. Every call but `caps` may fail; after a failure the
 /// driver drops the session.
@@ -53,6 +54,20 @@ pub trait MailServer {
     /// last call (IMAP's unsolicited replies). Drains what was reported.
     fn take_changes(&mut self) -> bool {
         false
+    }
+    /// Brings the server's view of `path` up to date before `select` (Graph
+    /// drains the folder's delta feed). Only `sync_folder_as` calls it.
+    async fn refresh(&mut self, _path: &str) -> Result<()> {
+        Ok(())
+    }
+    /// Called inside the `sync_folders` step, after the folder rows are
+    /// written, to record what the server keeps per folder row.
+    fn commit_folders(&mut self, _db: &Db, _account: &str) -> envio_store::Result<()> {
+        Ok(())
+    }
+    /// Called inside the step that stores a finished folder sync.
+    fn commit_folder(&mut self, _db: &Db, _id: FolderId) -> envio_store::Result<()> {
+        Ok(())
     }
 }
 

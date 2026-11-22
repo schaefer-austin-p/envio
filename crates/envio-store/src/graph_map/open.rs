@@ -125,6 +125,18 @@ impl GraphMap {
         )
     }
 
+    /// How many messages are mapped, both ranges.
+    pub fn count(&self, folder: FolderId) -> Result<u32> {
+        self.tx(false, |conn| {
+            let n: i64 = conn.query_row(
+                "SELECT count(*) FROM graph_messages WHERE folder_row_id = ?1",
+                [folder.0],
+                |row| row.get(0),
+            )?;
+            to_u32(n, "count")
+        })
+    }
+
     pub fn row(&self, folder: FolderId, uid: u32) -> Result<Option<MapRow>> {
         Ok(self
             .query(

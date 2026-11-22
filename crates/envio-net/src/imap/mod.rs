@@ -44,6 +44,9 @@ pub struct Caps {
     /// LITERAL- (IMAP4rev2 has it): non-synchronizing literals up to
     /// [`query::SMALL_LITERAL`] bytes.
     pub literal_minus: bool,
+    /// The server cannot fetch part of a message (Graph): bodies always
+    /// download whole.
+    pub no_partial: bool,
 }
 
 impl Caps {
