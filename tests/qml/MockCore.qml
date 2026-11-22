@@ -31,7 +31,7 @@ Item {
 
     // What the page called, in order.
     property var calls: []
-    property string note: "Only the part of your address after the @ is sent."
+    property string note: "To find your mail servers, Envio asks the Thunderbird configuration database, your mail provider and the DNS records of your domain. Only the part of your address after the @ is sent."
     // The model roles are those of envio-ui's rows (crates/envio-ui/src/rows.rs).
     // Tests fill them; the page gets them as properties, as Main hands over
     // the RowsModels it attached.

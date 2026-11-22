@@ -34,6 +34,13 @@ Item {
     property string refusedTitle: ""
     property string refusedText: ""
     property bool manualOk: false
+    // The mail is on Microsoft 365 (#384): the email step offers the sign-in.
+    property string hostedTitle: ""
+    property string hostedText: ""
+    // Why the hosted sign-in ended with nothing saved (shown under the card).
+    property string hostedNoticeKind: ""
+    property string hostedNoticeTitle: ""
+    property string hostedNoticeText: ""
     property bool busy: false
     // The address `detect` was asked about; an answer for another is stale.
     property string asked: ""
@@ -80,6 +87,15 @@ Item {
     // The sign-in ended with nothing saved: tell it where the pick was made,
     // else on the sign-in step.
     function refuse(outcome, text) {
+        if (hostedText !== "") {
+            // Back on the email step: a cancel needs no card beyond the hosted one.
+            if (outcome === "cancelled") return
+            const note = Flow.refusal(outcome, text)
+            hostedNoticeKind = note.kind
+            hostedNoticeTitle = note.title
+            hostedNoticeText = note.text
+            return
+        }
         const card = Flow.refusal(outcome, text)
         if (picked) {
             forget()
@@ -101,10 +117,28 @@ Item {
             asked = signIn.oauthEmail.trim()
             attempting = true
             accountName = asked.split("@")[0]
+        } else if (hostedText !== "") {
+            // The address is already typed and asked about.
+            asked = emailStep.email.trim()
+            attempting = true
+            accountName = asked.split("@")[0]
         } else {
             accountName = setup.name
         }
         session.start()
+    }
+    // "Sign in with Microsoft" on the hosted card: a custom domain on Microsoft
+    // 365 is a work tenant, so the IMAP kind (the tenant check routes a
+    // personal account). `forget()` resets both, so they are set only here.
+    function signInHosted() {
+        hostedNoticeKind = ""
+        hostedNoticeTitle = ""
+        hostedNoticeText = ""
+        oauthProvider = "Microsoft"
+        oauthKind = "imap"
+        // The confirm and mismatch questions show this address read-only.
+        signIn.oauthEmail = emailStep.email.trim()
+        signInWithMicrosoft()
     }
     function close() {
         clearPasswords()
@@ -114,6 +148,11 @@ Item {
     // the confirmation of its hosts, and interest in any answer still on
     // its way (`attempting` is off, so late events are ignored).
     function forget() {
+        hostedTitle = ""
+        hostedText = ""
+        hostedNoticeKind = ""
+        hostedNoticeTitle = ""
+        hostedNoticeText = ""
         clearPasswords()
         session.reset()
         oauthProvider = ""
@@ -239,8 +278,15 @@ Item {
         refusedTitle: root.refusedTitle
         refusedText: root.refusedText
         manualOk: root.manualOk
+        hostedTitle: root.hostedTitle
+        hostedText: root.hostedText
+        hostedNoticeKind: root.hostedNoticeKind
+        hostedNoticeTitle: root.hostedNoticeTitle
+        hostedNoticeText: root.hostedNoticeText
         busy: root.busy
         onContinued: root.detect()
+        onSignInRequested: root.signInHosted()
+        onAddressChangeRequested: root.forget()
         // Editing the address ends the attempt for the old one.
         onEmailChanged: root.forget()
         // A detect still running is dropped: its answer must not move us.
@@ -288,7 +334,11 @@ Item {
         onStateChanged: {
             root.busy = state === "waiting" || state === "saving"
             if (state === "waiting") root.step = "browser"
-            else if (root.step === "browser") root.step = "signin"
+            else if (root.hostedText !== "" && state === "idle" && (root.step === "browser" || root.step === "signin")) {
+                // The hosted sign-in has no sign-in page of its own: the card
+                // on the email step is where it starts again.
+                root.step = "email"
+            } else if (root.step === "browser") root.step = "signin"
         }
     }
     ServersStep {
@@ -361,15 +411,21 @@ Item {
             root.busy = false
             root.error = text
         }
-        // The mail is on Microsoft 365 (#384): for now the card says so, with
-        // the way out of "Set up manually"; the sign-in button comes with the
-        // wizard banner.
+        // The mail is on Microsoft 365 (#384) and sign-in is set up.
         function onMailOnMicrosoft(email, title, text) {
             if (!root.current(email)) return
             root.busy = false
-            root.refusedTitle = title
-            root.refusedText = text
-            root.manualOk = true
+            root.hostedTitle = title
+            root.hostedText = text
+        }
+        // A sign-in that failed has no outcome the session turns into a
+        // decline; on the hosted path its sentence goes under the card.
+        function onOauthDone(email, outcome, text) {
+            if (root.hostedText === "" || !root.current(email)) return
+            if (["added", "resumed", "cancelled", "admin", "mismatch"].indexOf(outcome) >= 0) return
+            root.hostedNoticeKind = "warning"
+            root.hostedNoticeTitle = ""
+            root.hostedNoticeText = text
         }
         function onSetupRefused(email, title, text, manualOk) {
             if (!root.current(email)) return

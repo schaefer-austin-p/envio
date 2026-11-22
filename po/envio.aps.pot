@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 19:48+0100\n"
+"POT-Creation-Date: 2026-11-22 19:56+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -175,7 +175,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:38 qml/pages/accounts/WizardPage.qml:192
+#: qml/pages/accounts/AccountsPage.qml:38 qml/pages/accounts/WizardPage.qml:231
 msgid "Add account"
 msgstr ""
 
@@ -271,7 +271,7 @@ msgid "Open Yahoo account security"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:107
-#: qml/pages/accounts/EmailStep.qml:62 qml/pages/accounts/SignInStep.qml:131
+#: qml/pages/accounts/EmailStep.qml:76 qml/pages/accounts/SignInStep.qml:131
 msgid "Email address"
 msgstr ""
 
@@ -288,7 +288,7 @@ msgid "Signing in…"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:142
-#: qml/pages/accounts/EmailStep.qml:121 qml/pages/accounts/SignInStep.qml:218
+#: qml/pages/accounts/EmailStep.qml:166 qml/pages/accounts/SignInStep.qml:218
 msgid "Continue"
 msgstr ""
 
@@ -341,20 +341,27 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:51
+#: qml/pages/accounts/EmailStep.qml:65
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:102
+#: qml/pages/accounts/EmailStep.qml:138 qml/pages/accounts/EmailStep.qml:166
+msgid "Change address"
+msgstr ""
+
+#: qml/pages/accounts/EmailStep.qml:146
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:114
+#: qml/pages/accounts/EmailStep.qml:158
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:121
-msgid "Change address"
+#: qml/pages/accounts/EmailStep.qml:165
+#: qml/pages/accounts/SignInAgainPage.qml:160
+#: qml/pages/accounts/SignInStep.qml:230 qml/pages/accounts/SignInStep.qml:240
+#: qml/pages/accounts/UpdateSignInPage.qml:286
+msgid "Sign in with Microsoft"
 msgstr ""
 
 #: qml/pages/accounts/OAuthSession.qml:61 qml/pages/accounts/wizardFlow.js:35
@@ -524,12 +531,6 @@ msgstr ""
 msgid "Your password never passes through Envio."
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:160
-#: qml/pages/accounts/SignInStep.qml:230 qml/pages/accounts/SignInStep.qml:240
-#: qml/pages/accounts/UpdateSignInPage.qml:286
-msgid "Sign in with Microsoft"
-msgstr ""
-
 #: qml/pages/accounts/SignInAgainPage.qml:171
 #: qml/pages/accounts/SignInStep.qml:250
 #: qml/pages/accounts/UpdateSignInPage.qml:297
@@ -606,19 +607,19 @@ msgstr ""
 msgid "Switch anyway"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:194 qml/pages/accounts/WizardPage.qml:195
+#: qml/pages/accounts/WizardPage.qml:233 qml/pages/accounts/WizardPage.qml:234
 msgid "Sign in · %1"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:196
+#: qml/pages/accounts/WizardPage.qml:235
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:197
+#: qml/pages/accounts/WizardPage.qml:236
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:198
+#: qml/pages/accounts/WizardPage.qml:237
 msgid "Account options"
 msgstr ""
 
