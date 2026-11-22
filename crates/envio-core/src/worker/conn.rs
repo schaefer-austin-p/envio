@@ -72,6 +72,13 @@ pub(crate) struct Live {
 }
 
 impl Live {
+    /// Asks for a filing run and stamps the time, so the move's own
+    /// re-arming (`migrate_graph`) keeps a tick between tries (#439).
+    pub fn want_file(&mut self, now: i64) {
+        self.wants.file = true;
+        self.file_armed_ms = now;
+    }
+
     pub fn new() -> Self {
         Self {
             health: Health::default(),

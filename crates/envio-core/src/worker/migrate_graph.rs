@@ -84,9 +84,8 @@ impl Worker<'_> {
                     // Once per tick: a refused Sent copy is no error, so
                     // asking every turn would spin; `migration_wake` has the
                     // turn look again at the next tick.
-                    if accepted > 0 && now >= plan::file_due_ms(live.file_armed_ms) {
-                        live.wants.file = true;
-                        live.file_armed_ms = now;
+                    if accepted > 0 && plan::file_due(live.file_armed_ms, now) {
+                        live.want_file(now);
                     }
                 }
             }
@@ -137,8 +136,9 @@ impl Worker<'_> {
     /// When filing is next asked for, if an `Accepted` item waits and the
     /// tick has not come yet.
     fn file_wait(&self, account: &str, now: i64) -> Option<i64> {
-        let at = plan::file_due_ms(self.live.get(account)?.file_armed_ms);
-        (at > now && self.accepted_of(account) > 0).then_some(at)
+        let armed = self.live.get(account)?.file_armed_ms;
+        let at = plan::file_due_ms(armed);
+        (!plan::file_due(armed, now) && self.accepted_of(account) > 0).then_some(at)
     }
 
     /// The earliest time a moving account's pending actions fall due, for

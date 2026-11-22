@@ -72,7 +72,7 @@ fn sent_notices(worker: &mut Worker<'_>, account: &str, sent: driver::Sent) -> R
     if !(sent.accepted.is_empty() && sent.failed.is_empty() && sent.unconfirmed.is_empty()) {
         if let Some(live) = worker.live.get_mut(account) {
             // Accepted mail goes into Sent; unconfirmed is looked for there.
-            live.wants.file = true;
+            live.want_file(now_ms());
         }
         worker.emit(Event::OutboxChanged);
         worker.emit_outbox();

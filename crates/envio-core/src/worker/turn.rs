@@ -34,7 +34,7 @@ impl Worker<'_> {
             // An unconfirmed send is looked for in Sent again.
             self.handled_resolve_ms = at;
             for live in self.live.values_mut() {
-                live.wants.file = true;
+                live.want_file(now);
             }
         }
         if let Some(due) = due_retry(&self.store.schedule, self.handled_due_ms, now) {

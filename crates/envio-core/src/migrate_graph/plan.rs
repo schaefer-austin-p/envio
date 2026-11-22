@@ -23,6 +23,12 @@ pub fn file_due_ms(armed_ms: i64) -> i64 {
     armed_ms.saturating_add(FILE_TICK_MS)
 }
 
+/// Filing may be asked for now: the tick has come, or the clock went back
+/// past the last ask (a step back must not starve the item).
+pub fn file_due(armed_ms: i64, now: i64) -> bool {
+    now < armed_ms || now >= file_due_ms(armed_ms)
+}
+
 pub const REPLAY: u8 = 1;
 pub const CLEAR: u8 = 2;
 pub const SWITCH: u8 = 3;

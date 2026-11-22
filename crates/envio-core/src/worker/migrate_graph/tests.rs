@@ -313,6 +313,50 @@ fn filing_does_not_rerun_each_turn_while_an_action_is_held_in_undo() {
 }
 
 #[test]
+fn a_clock_that_steps_back_does_not_starve_filing() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    outbox_item(&w, &key, SendState::Accepted);
+    let at = 1_000_000;
+    assert!(turn_files(&mut w, &key, at));
+    let back = at - 60_000;
+    assert!(
+        w.migration_wake(back)
+            .is_none_or(|x| x <= back + plan::FILE_TICK_MS)
+    );
+    assert!(turn_files(&mut w, &key, back), "asked after the step back");
+    assert!(
+        w.migration_wake(back)
+            .is_none_or(|x| x <= back + plan::FILE_TICK_MS),
+        "the wake is not far in the future"
+    );
+}
+
+#[test]
+fn a_filing_armed_elsewhere_counts_toward_the_same_tick() {
+    let t = moving(1);
+    let sink = Sink::default();
+    let mut w = open(&t.config, &sink);
+    let key = t.seeded.account.clone();
+    outbox_item(&w, &key, SendState::Accepted);
+    let maybe = outbox_item(&w, &key, SendState::MayHaveBeenSent);
+    let at = 1_000_000;
+    // The resolve timer arms filing for every account.
+    w.store.outbox.set_resolve(&maybe, 1, at - 1).unwrap();
+    w.on_timers(at);
+    assert!(std::mem::take(
+        &mut w.live.get_mut(&key).unwrap().wants.file
+    ));
+    w.migrate_file_failed(&key);
+    for turn in 1..=5 {
+        assert!(!turn_files(&mut w, &key, at + turn), "spun on turn {turn}");
+    }
+    assert!(turn_files(&mut w, &key, at + plan::FILE_TICK_MS));
+}
+
+#[test]
 fn a_refused_replay_waits_and_counts() {
     let t = moving(1);
     let sink = Sink::default();
