@@ -1037,6 +1037,20 @@ Item {
             tryCompare(row, "pointerOver", true)
         }
 
+        // The row's padding is the same above and below its text: nothing
+        // invisible (the hover) adds to the row's height (#420 review).
+        function test_a_row_pads_its_text_evenly() {
+            core.messages.append(message(11))
+            waitForRendering(page)
+            find("messageList", page).positionViewAtBeginning()
+            const row = find("row-11", page)
+            tryVerify(function() { return row.y >= 0 && row.height > 0 })
+            const text = find("rowText", row)
+            const stamp = find("stamp", row)
+            const bottom = Math.max(text.y + text.height, stamp.visible ? stamp.y + stamp.height : 0)
+            compare(row.height, Math.max(thm.touch, bottom + thm.gu(1.75)))
+        }
+
         function test_menu_closes_on_escape_and_outside_click() {
             core.messages.append(message(11))
             waitForRendering(page)

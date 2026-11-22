@@ -33,9 +33,12 @@ ListRow {
     cued: kbdFocus || pointerOver
     // The row's context request (right-click), at a point in the row.
     signal contextRequested(int id, real x, real y)
+    // Parented to the row, not its content: a fill-parent Item in the
+    // content would count in the content's height and grow the row.
     Behaviours.TouchSafeHover {
         id: hover
         objectName: "rowHover"
+        parent: root
     }
     TapHandler {
         objectName: "rowRightClick"
@@ -105,6 +108,7 @@ ListRow {
     }
     Column {
         id: col
+        objectName: "rowText"
         x: root.theme.gu(2) + (root.theme.airmail ? root.theme.stampWidth : 22) + root.theme.gu(1.5)
         y: root.theme.gu(1.75)
         width: parent.width - x - root.theme.gu(2)
