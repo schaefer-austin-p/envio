@@ -110,13 +110,61 @@ Item {
             font.pixelSize: 16
             font.weight: Font.Medium
         }
-        // The move, in the core's words.
+        // Moving: a progress strip, a plain heading and the core's words
+        // (board `carbon-provider`, "Moving in progress").
+        Rectangle {
+            objectName: "moveStrip"
+            visible: root.stage === "moving"
+            width: parent.width
+            height: 3
+            radius: height / 2
+            color: root.theme.hairline
+            clip: true
+            Rectangle {
+                id: fill
+                width: parent.width * 0.38
+                height: parent.height
+                color: root.theme.accent
+                x: parent.width * 0.3
+                SequentialAnimation on x {
+                    running: root.stage === "moving"
+                    loops: Animation.Infinite
+                    NumberAnimation { from: -fill.width; to: fill.parent.width; duration: 1600; easing.type: Easing.InOutQuad }
+                }
+            }
+        }
+        Text {
+            textFormat: Text.PlainText
+            objectName: "moveHeading"
+            visible: root.stage === "moving"
+            width: parent.width
+            text: found.title
+            wrapMode: Text.WordWrap
+            color: root.theme.heading
+            font.family: root.theme.fontTitle
+            font.pixelSize: 18
+            font.weight: Font.DemiBold
+            lineHeight: 1.3
+        }
+        Text {
+            textFormat: Text.PlainText
+            objectName: "moveBody"
+            visible: root.stage === "moving"
+            width: parent.width
+            text: found.text
+            wrapMode: Text.WordWrap
+            color: root.theme.text
+            font.family: root.theme.fontUi
+            font.pixelSize: 15
+            lineHeight: 1.45
+        }
+        // Stuck, sign-in and done keep the board's banner.
         NoticeCard {
             objectName: "moveCard"
-            visible: root.stage !== ""
+            visible: root.stage !== "" && root.stage !== "moving"
             width: parent.width
             theme: root.theme
-            kind: root.stage === "done" ? "info" : (root.stage === "moving" ? "info" : "warning")
+            kind: root.stage === "done" ? "info" : "warning"
             title: found.title
             text: found.text
         }
@@ -152,12 +200,33 @@ Item {
             text: session.noticeText
         }
         // Before the move: why, and what changes.
+        NoticeCard {
+            objectName: "whyBanner"
+            visible: root.stage === "" && session.state !== "confirm"
+            width: parent.width
+            theme: root.theme
+            kind: "info"
+            title: qsTr("Outlook.com works better with a new connection.")
+            text: qsTr("Your mail, Outbox and drafts stay.")
+        }
+        Text {
+            textFormat: Text.PlainText
+            objectName: "explanationFirst"
+            visible: root.stage === "" && session.state !== "confirm"
+            width: parent.width
+            text: qsTr("Envio sends any waiting changes first. Then it loads your mail again. This can take a few minutes.")
+            wrapMode: Text.WordWrap
+            color: root.theme.text
+            font.family: root.theme.fontUi
+            font.pixelSize: 15
+            lineHeight: 1.3
+        }
         Text {
             textFormat: Text.PlainText
             objectName: "explanation"
             visible: root.stage === "" && session.state !== "confirm"
             width: parent.width
-            text: qsTr("Outlook.com is moving to a new kind of connection. Sign in once more with %1 to update it. Mail on this phone stays, and unsent messages are kept.").arg(root.accountEmail)
+            text: qsTr("Microsoft opens in the browser. Sign in with %1.").arg(root.accountEmail)
             wrapMode: Text.WordWrap
             color: root.theme.text
             font.family: root.theme.fontUi
@@ -203,6 +272,10 @@ Item {
         visible: session.state !== "waiting"
         busy: session.state === "saving"
         busyText: qsTr("Signing in…")
+        // Sign in again, Keep waiting and Switch anyway stack, 10 px apart.
+        readonly property int stacked: (signInAgainBtn.visible ? 1 : 0) + (keepWaitingBtn.visible ? 1 : 0)
+                                       + (switchAnywayBtn.visible ? 1 : 0)
+        contentHeight: Math.max(1, stacked) * root.theme.controlHeight + Math.max(0, stacked - 1) * 10
         AppButton {
             objectName: "updateSignInButton"
             visible: root.stage === "" && session.state === "idle"
@@ -225,16 +298,39 @@ Item {
             onClicked: session.answer(true)
         }
         AppButton {
+            id: signInAgainBtn
             objectName: "signInAgain"
             visible: root.stage === "signin"
             width: parent.width
             theme: root.theme
             primary: true
+            iconName: "log-in"
             text: qsTr("Sign in again")
             onClicked: root.signInAgainRequested(root.account)
         }
         AppButton {
+            id: keepWaitingBtn
+            objectName: "keepWaiting"
+            y: signInAgainBtn.visible ? signInAgainBtn.height + 10 : 0
+            visible: root.stage === "stuck" || root.stage === "signin"
+            width: parent.width
+            theme: root.theme
+            primary: root.stage === "stuck" && !found.canSwitch
+            text: qsTr("Keep waiting")
+            onClicked: root.close()
+        }
+        AppButton {
+            objectName: "moveClose"
+            visible: root.stage === "moving"
+            width: parent.width
+            theme: root.theme
+            text: qsTr("Close")
+            onClicked: root.close()
+        }
+        AppButton {
+            id: switchAnywayBtn
             objectName: "switchAnyway"
+            y: (signInAgainBtn.visible ? signInAgainBtn.height + 10 : 0) + (keepWaitingBtn.visible ? keepWaitingBtn.height + 10 : 0)
             visible: root.stage === "stuck" && found.canSwitch
             width: parent.width
             theme: root.theme

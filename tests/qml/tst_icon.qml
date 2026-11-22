@@ -52,7 +52,7 @@ Item {
         // Every Lucide name of the sheet and menu items, and the top-bar
         // names that now draw Lucide, paints something inside the 24 grid.
         function test_every_name_draws() {
-            const names = ["pencil", "key-round", "log-in", "trash-2", "mail-open", "mail",
+            const names = ["pencil", "key-round", "log-in", "refresh-cw", "trash-2", "mail-open", "mail",
                 "flag", "flag-off", "reply-all", "folder-input", "user-plus", "inbox", "send",
                 "file-pen", "archive", "shield-alert", "folder", "external-link", "download",
                 "share-2", "copy", "circle-user-round", "save", "scissors", "clipboard-paste",

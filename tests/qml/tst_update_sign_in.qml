@@ -62,7 +62,13 @@ Item {
 
         function test_explains_before_the_move() {
             compare(find("accountName").text, "Ann")
-            verify(find("explanation").visible)
+            // The board's words, exactly (carbon-provider, "Before the browser").
+            compare(find("whyBanner").title, "Outlook.com works better with a new connection.")
+            compare(find("whyBanner").text, "Your mail, Outbox and drafts stay.")
+            compare(find("explanationFirst").text,
+                    "Envio sends any waiting changes first. Then it loads your mail again. This can take a few minutes.")
+            compare(find("explanation").text, "Microsoft opens in the browser. Sign in with ann@example.org.")
+            verify(find("whyBanner").visible && find("explanation").visible)
             verify(find("updateSignInButton").visible)
             verify(!find("moveCard").visible)
             verify(!find("switchAnyway").visible)
@@ -85,10 +91,15 @@ Item {
         }
         function test_the_move_shows_the_cores_words() {
             move({ moveStage: "moving", moveTitle: "Moving", moveText: "Finishing 2 changes.", moveHint: "You can leave." })
-            tryVerify(function() { return find("moveCard").visible })
-            compare(find("moveCard").title, "Moving")
-            compare(find("moveCard").text, "Finishing 2 changes.")
+            tryVerify(function() { return find("moveHeading").visible })
+            compare(find("moveHeading").text, "Moving")
+            compare(find("moveBody").text, "Finishing 2 changes.")
             compare(find("moveHint").text, "You can leave.")
+            verify(find("moveStrip").visible, "the progress strip")
+            verify(!find("moveCard").visible, "no card on the moving frame")
+            verify(find("moveClose").visible)
+            mouseClick(find("moveClose"))
+            compare(closed.count, 1)
             verify(!find("updateSignInButton").visible)
             verify(!find("switchAnyway").visible)
         }
@@ -96,6 +107,8 @@ Item {
             move({ moveStage: "stuck", moveTitle: "Stuck", moveText: "x", canSwitch: false })
             tryVerify(function() { return find("moveCard").visible })
             verify(!find("switchAnyway").visible)
+            verify(find("keepWaiting").visible)
+            verify(!find("moveStrip").visible)
             move({ moveStage: "stuck", moveTitle: "Stuck", moveText: "x", canSwitch: true })
             tryVerify(function() { return find("switchAnyway").visible })
             mouseClick(find("switchAnyway"))
@@ -105,6 +118,7 @@ Item {
         function test_a_refused_sign_in_offers_sign_in_again() {
             move({ moveStage: "signin", moveTitle: "Sign in again", moveText: "x", canSwitch: true })
             tryVerify(function() { return find("signInAgain").visible })
+            verify(find("keepWaiting").visible, "Keep waiting beside Sign in again")
             verify(!find("updateSignInButton").visible)
             again.clear()
             mouseClick(find("signInAgain"))

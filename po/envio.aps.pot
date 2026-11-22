@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 18:23+0100\n"
+"POT-Creation-Date: 2026-11-22 19:48+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -64,7 +64,9 @@ msgstr ""
 msgid "Keyboard shortcuts"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:10 qml/pages/reader/ReaderPage.qml:271
+#: qml/components/ShortcutsDialog.qml:10
+#: qml/pages/accounts/UpdateSignInPage.qml:327
+#: qml/pages/reader/ReaderPage.qml:271
 msgid "Close"
 msgstr ""
 
@@ -182,20 +184,20 @@ msgstr ""
 msgid "Check certificate"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:147
-msgid "Rename"
+#: qml/pages/accounts/AccountsPage.qml:149
+#: qml/pages/accounts/UpdateSignInPage.qml:92
+msgid "Update sign-in"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:170
+#: qml/pages/accounts/AccountsPage.qml:173
 #: qml/pages/accounts/SignInAgainPage.qml:72
-#: qml/pages/accounts/UpdateSignInPage.qml:233 qml/pages/inbox/OutboxRow.qml:94
+#: qml/pages/accounts/UpdateSignInPage.qml:308 qml/pages/inbox/OutboxRow.qml:94
 #: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:194
-#: qml/pages/accounts/UpdateSignInPage.qml:92
-msgid "Update sign-in"
+#: qml/pages/accounts/AccountsPage.qml:195
+msgid "Rename"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:215
@@ -281,7 +283,7 @@ msgstr ""
 #: qml/pages/accounts/AppPasswordStep.qml:136
 #: qml/pages/accounts/SignInAgainPage.qml:152
 #: qml/pages/accounts/SignInStep.qml:210
-#: qml/pages/accounts/UpdateSignInPage.qml:205
+#: qml/pages/accounts/UpdateSignInPage.qml:274
 msgid "Signing in…"
 msgstr ""
 
@@ -405,7 +407,7 @@ msgid "Last 30 days"
 msgstr ""
 
 #: qml/pages/accounts/OptionsStep.qml:110
-#: qml/pages/accounts/UpdateSignInPage.qml:250
+#: qml/pages/accounts/UpdateSignInPage.qml:346
 msgid "Done"
 msgstr ""
 
@@ -513,23 +515,24 @@ msgid ""
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:107
+#: qml/pages/accounts/UpdateSignInPage.qml:229
 msgid "Microsoft opens in the browser. Sign in with %1."
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:138
-#: qml/pages/accounts/UpdateSignInPage.qml:191
+#: qml/pages/accounts/UpdateSignInPage.qml:260
 msgid "Your password never passes through Envio."
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:160
 #: qml/pages/accounts/SignInStep.qml:230 qml/pages/accounts/SignInStep.qml:240
-#: qml/pages/accounts/UpdateSignInPage.qml:213
+#: qml/pages/accounts/UpdateSignInPage.qml:286
 msgid "Sign in with Microsoft"
 msgstr ""
 
 #: qml/pages/accounts/SignInAgainPage.qml:171
 #: qml/pages/accounts/SignInStep.qml:250
-#: qml/pages/accounts/UpdateSignInPage.qml:224
+#: qml/pages/accounts/UpdateSignInPage.qml:297
 msgid "Use this account"
 msgstr ""
 
@@ -581,13 +584,25 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/UpdateSignInPage.qml:160
-msgid ""
-"Outlook.com is moving to a new kind of connection. Sign in once more with %1 "
-"to update it. Mail on this phone stays, and unsent messages are kept."
+#: qml/pages/accounts/UpdateSignInPage.qml:209
+msgid "Outlook.com works better with a new connection."
 msgstr ""
 
-#: qml/pages/accounts/UpdateSignInPage.qml:241
+#: qml/pages/accounts/UpdateSignInPage.qml:210
+msgid "Your mail, Outbox and drafts stay."
+msgstr ""
+
+#: qml/pages/accounts/UpdateSignInPage.qml:217
+msgid ""
+"Envio sends any waiting changes first. Then it loads your mail again. This "
+"can take a few minutes."
+msgstr ""
+
+#: qml/pages/accounts/UpdateSignInPage.qml:319
+msgid "Keep waiting"
+msgstr ""
+
+#: qml/pages/accounts/UpdateSignInPage.qml:337
 msgid "Switch anyway"
 msgstr ""
 

@@ -180,6 +180,26 @@ Item {
             compare(wantsPassword.signalArguments[0][0], "ann")
         }
 
+        // The sheet's rows from top to bottom (board: Update sign-in, Sign in
+        // again, Rename, Remove).
+        function visibleRows() {
+            const order = ["updateSignInRow", "signInAgainRow", "renameRow", "updatePasswordRow", "removeRow"]
+            const sheet = find("actionSheet", page)
+            return order.map(function(n) { return find(n, page) })
+                        .filter(function(r) { return r.visible })
+                        .sort(function(a, b) { return a.mapToItem(sheet.contentItem, 0, 0).y - b.mapToItem(sheet.contentItem, 0, 0).y })
+                        .map(function(r) { return r.objectName })
+        }
+        function test_the_sheet_rows_follow_the_board_order_and_update_has_its_own_icon() {
+            core.accounts.setProperty(0, "oauth", true)
+            core.accounts.setProperty(0, "state", "auth")
+            core.accounts.setProperty(0, "updateSignIn", true)
+            openActions()
+            compare(visibleRows(), ["updateSignInRow", "signInAgainRow", "renameRow", "removeRow"])
+            verify(find("updateSignInRow", page).iconName !== find("signInAgainRow", page).iconName)
+            find("actionSheet", page).close()
+            tryVerify(function() { return !find("actionSheet", page).visible })
+        }
         function test_update_sign_in_is_offered_while_moving_not_once_done() {
             for (const c of [["", true, true], ["moving", false, true], ["stuck", false, true], ["done", false, false]]) {
                 core.accounts.setProperty(0, "updateSignIn", c[1])

@@ -129,25 +129,28 @@ Item {
         objectName: "actionSheet"
         theme: root.theme
         title: root.currentName
+        // An Outlook.com account on IMAP, or one that is moving (the page
+        // shows where it is). Not one that has moved: it is Graph now.
         ListRow {
-            objectName: "renameRow"
-            iconName: "pencil"
-            // A broken entry is kept as read; it cannot take a label.
-            visible: root.currentState !== "broken"
+            objectName: "updateSignInRow"
+            iconName: "refresh-cw"
+            iconColor: root.theme.accent
+            visible: root.currentUpdate
             theme: root.theme
             width: parent.width
             onClicked: {
                 actions.close()
-                rename.show(root.current, root.currentEmail, root.currentLabel)
+                root.updateSignInRequested(root.current)
             }
             Text {
                 textFormat: Text.PlainText
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
-                text: qsTr("Rename")
-                color: root.theme.text
+                text: qsTr("Update sign-in")
+                color: root.theme.accent
                 font.family: root.theme.fontUi
                 font.pixelSize: 16
+                font.weight: Font.Medium
             }
         }
         // A Microsoft account whose sign-in was withdrawn: the sheet's first
@@ -174,28 +177,25 @@ Item {
                 font.weight: Font.Medium
             }
         }
-        // An Outlook.com account on IMAP, or one that is moving (the page
-        // shows where it is). Not one that has moved: it is Graph now.
         ListRow {
-            objectName: "updateSignInRow"
-            iconName: "log-in"
-            iconColor: root.theme.accent
-            visible: root.currentUpdate
+            objectName: "renameRow"
+            iconName: "pencil"
+            // A broken entry is kept as read; it cannot take a label.
+            visible: root.currentState !== "broken"
             theme: root.theme
             width: parent.width
             onClicked: {
                 actions.close()
-                root.updateSignInRequested(root.current)
+                rename.show(root.current, root.currentEmail, root.currentLabel)
             }
             Text {
                 textFormat: Text.PlainText
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
-                text: qsTr("Update sign-in")
-                color: root.theme.accent
+                text: qsTr("Rename")
+                color: root.theme.text
                 font.family: root.theme.fontUi
                 font.pixelSize: 16
-                font.weight: Font.Medium
             }
         }
         ListRow {
