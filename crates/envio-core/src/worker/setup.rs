@@ -133,6 +133,7 @@ fn new_info(key: String, name: String, email: String, oauth: bool) -> AccountInf
         unread: 0,
         broken: false,
         oauth,
+        update_sign_in: false,
     }
 }
 
@@ -272,6 +273,7 @@ impl Worker<'_> {
             auth: None,
             smtp: Some(store_server(&setup.smtp, pin_for(&accepted, Service::Smtp))),
             migration: None,
+            dropped_note: None,
         };
         match self.save_account(settings, request.password) {
             Ok(account) => {
@@ -401,6 +403,7 @@ mod tests {
                 smtp: Some(server()),
                 auth: None,
                 migration: None,
+                dropped_note: None,
             },
             label: None,
             broken: None,

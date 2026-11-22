@@ -14,6 +14,7 @@ Item {
     Theme { id: thm }
     Avatar { id: stamp; theme: thm; initials: "LU" }
 
+    Component { id: btnComp; AppButton { theme: thm; text: "Go" } }
     ListRow {
         id: row
         theme: thm
@@ -82,6 +83,22 @@ Item {
             toast.hide()
         }
 
+        function labelOf(item) {
+            if (item.objectName === "buttonLabel") return item
+            for (let i = 0; i < item.children.length; i++) {
+                const hit = labelOf(item.children[i])
+                if (hit) return hit
+            }
+            return null
+        }
+        function test_a_danger_button_is_outlined_in_the_accent_colour() {
+            const plain = createTemporaryObject(btnComp, root, { danger: false })
+            const red = createTemporaryObject(btnComp, root, { danger: true })
+            compare(labelOf(plain.contentItem).color, thm.primary)
+            compare(labelOf(red.contentItem).color, thm.accent)
+            compare(red.background.border.color, thm.accent)
+            compare(plain.background.border.color, thm.primary)
+        }
         function test_row_press_and_hold_signals() {
             mouseClick(row, 10, 10)
             compare(rowClicked.count, 1)

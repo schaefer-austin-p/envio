@@ -32,6 +32,10 @@ pub struct AccountRow {
     /// Signs in with a provider (OAuth): "Sign in again" instead of a new
     /// password.
     pub oauth: bool,
+    /// An Outlook.com account on IMAP: the sheet offers "Update sign-in".
+    pub update_sign_in: bool,
+    /// The move to Graph, once it has started (boxed to keep rows small).
+    pub moving: Box<MoveRow>,
     /// The certificate to look at, while the status is a certificate
     /// problem with details (boxed to keep rows small).
     pub pin: Box<PinRow>,
@@ -45,6 +49,20 @@ pub struct NameRow {
     /// What tabs, rows and the unified-inbox tag show: the label, else the
     /// name, else the address.
     pub display: String,
+}
+
+/// The move to Graph as its page shows it; `stage` is empty when there is
+/// none.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MoveRow {
+    /// "moving", "stuck", "signin" or "done".
+    pub stage: String,
+    pub title: String,
+    pub text: String,
+    pub hint: String,
+    pub note_title: String,
+    pub note_text: String,
+    pub can_switch: bool,
 }
 
 /// What the trust dialog shows; all empty when there is nothing to trust.
@@ -174,6 +192,14 @@ const ACCOUNT: &[&str] = &[
     "attention",
     "notify",
     "oauth",
+    "updateSignIn",
+    "moveStage",
+    "moveTitle",
+    "moveText",
+    "moveHint",
+    "moveNoteTitle",
+    "moveNoteText",
+    "canSwitch",
     "pinService",
     "pinHost",
     "pinTitle",
@@ -251,6 +277,14 @@ impl Row {
             (Self::Account(r), "attention") => Bool(r.attention),
             (Self::Account(r), "notify") => Bool(r.notify),
             (Self::Account(r), "oauth") => Bool(r.oauth),
+            (Self::Account(r), "updateSignIn") => Bool(r.update_sign_in),
+            (Self::Account(r), "moveStage") => s(&r.moving.stage),
+            (Self::Account(r), "moveTitle") => s(&r.moving.title),
+            (Self::Account(r), "moveText") => s(&r.moving.text),
+            (Self::Account(r), "moveHint") => s(&r.moving.hint),
+            (Self::Account(r), "moveNoteTitle") => s(&r.moving.note_title),
+            (Self::Account(r), "moveNoteText") => s(&r.moving.note_text),
+            (Self::Account(r), "canSwitch") => Bool(r.moving.can_switch),
             (Self::Account(r), "pinService") => s(&r.pin.service),
             (Self::Account(r), "pinHost") => s(&r.pin.host),
             (Self::Account(r), "pinTitle") => s(&r.pin.title),

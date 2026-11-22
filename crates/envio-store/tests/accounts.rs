@@ -26,6 +26,7 @@ fn settings(email: &str) -> AccountSettings {
         }),
         auth: None,
         migration: None,
+        dropped_note: None,
     }
 }
 

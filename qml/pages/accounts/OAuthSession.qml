@@ -38,9 +38,11 @@ Item {
     // account signed in again.
     signal added()
     signal resumed()
+    // "Update sign-in" worked: the core moves the account to Graph.
+    signal updated()
     // The provider ended the attempt, or the core refused it, and nothing was
     // saved: `outcome` is "cancelled" (the user declined on the provider's
-    // page, not by Cancel here), "admin" or "mismatch"; `text` is the core's.
+    // page, not by Cancel here), "admin", "mismatch" or "work" (not a personal account); `text` is the core's.
     signal declined(string outcome, string text)
 
     Platform.Uri {
@@ -145,10 +147,13 @@ Item {
             } else if (outcome === "resumed") {
                 root.clearNotice()
                 root.resumed()
+            } else if (outcome === "updated") {
+                root.clearNotice()
+                root.updated()
             } else if (outcome === "cancelled") {
                 root.cancelledNotice()
                 if (!byUser) root.declined(outcome, text)
-            } else if (outcome === "admin" || outcome === "mismatch") {
+            } else if (outcome === "admin" || outcome === "mismatch" || outcome === "work") {
                 root.clearNotice()
                 root.declined(outcome, text)
             } else {

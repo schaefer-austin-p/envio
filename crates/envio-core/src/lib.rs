@@ -23,6 +23,7 @@ mod drafts;
 mod fsutil;
 mod invite_card;
 mod known;
+mod migrate_graph;
 mod outbox;
 mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
@@ -44,7 +45,8 @@ pub use api::command::{
 pub use api::event::{Event, NewMail, OAuthFailure, OAuthOffer, OAuthOutcome, UndoScope};
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
-    MessageHeader, MessageRow, MessageView, OutboxRow, OutboxStatus, Suggestion, UnsentCounts,
+    MessageHeader, MessageRow, MessageView, MigrationStage, MigrationState, OutboxRow,
+    OutboxStatus, Suggestion, UnsentCounts,
 };
 pub use core::{Config, Core, EventSink, default_oauth_providers, microsoft_sign_in_offered};
 pub use envio_net::oauth::ProviderKind;

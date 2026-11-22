@@ -96,8 +96,10 @@ fn a_microsoft_address_gets_no_sign_in_offer() {
     h.send(Command::Detect {
         email: email.into(),
     });
+    // The refusal is waited for, not hoped for inside the drain's window:
+    // a slow start (coverage builds) would miss it.
+    h.wait(|e| matches!(e, Event::SetupRefused { .. }).then_some(()));
     let rest = drain(&h);
-    assert!(rest.iter().any(|e| matches!(e, Event::SetupRefused { .. })));
     assert!(
         !rest
             .iter()

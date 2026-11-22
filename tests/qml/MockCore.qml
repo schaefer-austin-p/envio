@@ -108,6 +108,7 @@ Item {
     function acceptSetupCertificate(service, hex) { record("acceptSetupCertificate", [service, hex]) }
     function acceptCertificate(account, service, hex) { record("acceptCertificate", [account, service, hex]) }
     function updatePassword(account, password) { record("updatePassword", [account, password]) }
+    function switchAnyway(account) { record("switchAnyway", [account]) }
     function removeAccount(account, confirmed) { record("removeAccount", [account, confirmed]) }
     function setAccountLabel(account, label) { record("setAccountLabel", [account, label]) }
     function listFolders(account) { record("listFolders", [account]) }

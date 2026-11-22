@@ -183,8 +183,10 @@ impl qobject::EnvioCore {
                 let (name, text) = match outcome {
                     OAuthOutcome::Added => ("added", String::new()),
                     OAuthOutcome::Resumed => ("resumed", String::new()),
+                    OAuthOutcome::Updated => ("updated", String::new()),
                     OAuthOutcome::Cancelled => ("cancelled", String::new()),
                     OAuthOutcome::Failed(why @ OAuthFailure::Admin) => ("admin", why.text()),
+                    OAuthOutcome::Failed(why @ OAuthFailure::NotPersonal) => ("work", why.text()),
                     OAuthOutcome::Failed(
                         why @ (OAuthFailure::Mismatch | OAuthFailure::NoTenant),
                     ) => ("mismatch", why.text()),

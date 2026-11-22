@@ -31,7 +31,10 @@ Item {
     x: 0
     width: parent ? parent.width : 0
     y: (parent ? parent.height : 0) - height - lift
-    height: theme.footerPadTop + theme.controlHeight + theme.footerPadBottom
+    // One control high; a page that stacks several buttons (placing them
+    // itself, 10 px apart) sets this to the stack's height.
+    property real contentHeight: theme.controlHeight
+    height: theme.footerPadTop + contentHeight + theme.footerPadBottom
 
     Rectangle { anchors.fill: parent; color: root.theme.ground }
     Rectangle {
@@ -46,7 +49,7 @@ Item {
         x: root.theme.gu(2)
         y: root.theme.footerPadTop
         width: parent.width - 2 * x
-        height: root.theme.controlHeight
+        height: root.contentHeight
         visible: !root.busy
     }
     BusyLine {

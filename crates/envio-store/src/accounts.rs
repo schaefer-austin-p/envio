@@ -94,6 +94,10 @@ pub struct AccountSettings {
     /// Set while the account moves from IMAP to Graph.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub migration: Option<Migration>,
+    /// How many changes "Switch anyway" dropped, kept after the move until
+    /// the Done page's notice has been told again after a restart (#342).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dropped_note: Option<u32>,
 }
 
 impl AccountSettings {
@@ -372,6 +376,7 @@ fn stand_in(value: &serde_json::Value, key: String, reason: String) -> Account {
             smtp: Some(server()),
             auth: None,
             migration: None,
+            dropped_note: None,
         },
         label: value
             .get("label")

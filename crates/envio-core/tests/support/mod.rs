@@ -157,6 +157,7 @@ impl Harness {
             smtp: Some(server()),
             auth: None,
             migration: None,
+            dropped_note: None,
         };
         let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
         let key = accounts.add(settings, 1_000).unwrap();
@@ -188,6 +189,7 @@ impl Harness {
             smtp: Some(server(smtp)),
             auth: Some("microsoft".into()),
             migration: None,
+            dropped_note: None,
         };
         let mut accounts = Accounts::open(&self.paths().accounts()).unwrap();
         let key = accounts.add(settings, 1_000).unwrap();

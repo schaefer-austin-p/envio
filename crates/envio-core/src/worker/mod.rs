@@ -23,6 +23,7 @@ mod label;
 mod local_folder;
 mod local_list;
 mod local_rows;
+mod migrate_graph;
 mod oauth;
 mod older;
 mod open;
@@ -92,6 +93,9 @@ pub(crate) struct Worker<'s> {
     asked: BTreeSet<String>,
     /// Outbox items sent but not yet in Sent.
     unfiled: BTreeSet<String>,
+    /// The move state each account's page was last told (#342), so an
+    /// unchanged one is not sent again.
+    migration_shown: BTreeMap<String, crate::api::view::MigrationState>,
     /// The schedule entry already acted on.
     handled_due_ms: i64,
     /// The held Outbox release time already acted on (its own watermark).
@@ -272,6 +276,7 @@ impl<'s> Worker<'s> {
             disk_full_until: None,
             asked: BTreeSet::new(),
             unfiled: BTreeSet::new(),
+            migration_shown: BTreeMap::new(),
             handled_due_ms: i64::MIN,
             handled_release_ms: i64::MIN,
             handled_resolve_ms: i64::MIN,
@@ -342,6 +347,7 @@ impl<'s> Worker<'s> {
                     .map_or(AccountStatus::Ready, AccountStatus::Broken),
                 broken: a.broken.is_some(),
                 oauth: a.settings.is_oauth(),
+                update_sign_in: crate::migrate_graph::eligible(&a.settings, None),
             })
             .collect();
         self.sink.emit(Event::Started { accounts, cache });
@@ -361,6 +367,7 @@ impl<'s> Worker<'s> {
         }
         let now = now_ms();
         self.on_timers(now);
+        self.migrate_all(now);
         if let Some((account, step)) = self.pick(now).await {
             self.run_polling(&account, step).await;
             self.last_ran = Some(account);

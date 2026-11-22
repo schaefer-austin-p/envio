@@ -663,6 +663,18 @@ Item {
             onAddRequested: stack.push(wizardPage)
             onUpdatePasswordRequested: stack.push(updatePasswordPage, { account: account, accountName: name })
             onSignInAgainRequested: stack.push(signInAgainPage, { account: account })
+            onUpdateSignInRequested: stack.push(updateSignInPage, { account: account })
+        }
+    }
+    Component {
+        id: updateSignInPage
+        UpdateSignInPage {
+            objectName: "updateSignInPage"
+            theme: root.theme
+            core: root.core
+            accounts: root.accounts
+            onClosed: stack.pop()
+            onSignInAgainRequested: function(account) { stack.push(signInAgainPage, { account: account }) }
         }
     }
     Component {

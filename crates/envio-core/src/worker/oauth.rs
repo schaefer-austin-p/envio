@@ -55,6 +55,9 @@ pub(crate) struct Attempt {
     picked: bool,
     /// Who the first token named, once the second sign-in was asked for.
     first: Option<Seen>,
+    /// "Update sign-in" (#342): an IMAP account signs in for Graph. Only a
+    /// personal tenant passes; nothing is kept otherwise.
+    update: bool,
 }
 
 /// What the id token says about the typed address (decision 9).
@@ -189,6 +192,16 @@ impl Worker<'_> {
     ) {
         // A new account is routed by its token's tenant, picked or not.
         let (routed, picked) = (account.is_none(), kind.is_some());
+        let update = kind == Some(ProviderKind::MicrosoftGraph)
+            && account
+                .as_ref()
+                .and_then(|key| self.store.accounts.get(key))
+                .is_some_and(|a| {
+                    crate::migrate_graph::eligible(
+                        &a.settings,
+                        Some(envio_net::oauth::CONSUMER_TENANT),
+                    )
+                });
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => (
@@ -226,6 +239,7 @@ impl Worker<'_> {
             routed,
             picked,
             first: None,
+            update,
         });
         self.emit(Event::OAuthBrowser {
             email,
@@ -319,6 +333,17 @@ impl Worker<'_> {
             log::warn!("the sign-in gave no refresh token");
             return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Other));
         };
+        if attempt.update {
+            match route(attempt.provider.kind, None, tokens.identity.as_ref()) {
+                Route::Fits => {}
+                Route::Refuse => {
+                    return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::NoTenant));
+                }
+                Route::Other { .. } => {
+                    return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::NotPersonal));
+                }
+            }
+        }
         if attempt.routed {
             match route(
                 attempt.provider.kind,
@@ -441,8 +466,10 @@ impl Worker<'_> {
             return;
         };
         let (email, account) = (attempt.email.clone(), attempt.account.clone());
+        let update = attempt.update;
         let outcome = match account {
             None => self.add_oauth_account(&email, refresh),
+            Some(key) if update => self.update_sign_in(&key, refresh),
             Some(key) => self.sign_in_again(&key, refresh),
         };
         self.finish_oauth(outcome);
@@ -524,6 +551,7 @@ impl Worker<'_> {
             smtp: (!graph).then(|| addr(&provider.smtp)),
             auth: Some("microsoft".to_owned()),
             migration: None,
+            dropped_note: None,
         };
         match self.save_oauth_account(settings, refresh) {
             Ok(account) => {
@@ -559,6 +587,29 @@ impl Worker<'_> {
         OAuthOutcome::Resumed
     }
 
+    /// "Update sign-in" worked: the Graph token is kept beside the IMAP one
+    /// and the move starts. The account stays on IMAP until it is over.
+    fn update_sign_in(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
+        let eligible = self.store.accounts.get(key).is_some_and(|a| {
+            crate::migrate_graph::eligible(&a.settings, Some(envio_net::oauth::CONSUMER_TENANT))
+        });
+        if !eligible || !self.live.contains_key(key) {
+            return OAuthOutcome::Failed(OAuthFailure::Other);
+        }
+        let kind = ProviderKind::MicrosoftGraph;
+        if let Err(error) = self.store.tokens.borrow_mut().set(key, kind, refresh) {
+            log::error!("saving the Graph sign-in: {error}");
+            return OAuthOutcome::Failed(OAuthFailure::NotSaved);
+        }
+        if !self.migrate_begin(key) {
+            if let Err(error) = self.store.tokens.borrow_mut().remove(key, kind) {
+                log::error!("dropping the Graph sign-in again: {error}");
+            }
+            return OAuthOutcome::Failed(OAuthFailure::NotSaved);
+        }
+        OAuthOutcome::Updated
+    }
+
     /// When the attempt, if any, must end.
     pub(super) fn oauth_deadline(&self) -> Option<i64> {
         self.oauth.as_ref().map(|a| a.deadline_ms)
@@ -576,3 +627,5 @@ impl Worker<'_> {
 mod provider_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod update_tests;

@@ -246,6 +246,7 @@ impl Worker<'_> {
             self.next_resolve(),
             self.undo.next_expiry(),
             self.oauth_deadline(),
+            self.migration_wake(now),
         ]
         .into_iter()
         .flatten()

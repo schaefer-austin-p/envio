@@ -16,7 +16,7 @@ find qml -path qml/bindle -prune -o \( -name '*.qml' -o -name '*.js' \) -print |
 # The core's strings: tr()/tr_n() calls live only in src/text/.
 # The push helper's generic card is in its src/text.rs.
 ls crates/envio-core/src/text/*.rs crates/envio-push-helper/src/text.rs | LC_ALL=C sort | xgettext --files-from=- --output="$new" \
-  --join-existing --language=C --keyword= --keyword=tr:1 --keyword=tr_n:1,2 \
+  --join-existing --language=C --keyword= --keyword=tr:1 --keyword=tr_n:1,2 --keyword=count:2,3 \
   --from-code=UTF-8 --add-comments=TRANSLATORS --package-name=envio.aps
 
 # Older xgettext (the CI image) leaves charset=CHARSET after a join; newer

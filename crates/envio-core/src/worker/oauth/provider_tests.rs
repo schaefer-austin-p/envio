@@ -10,10 +10,10 @@ use super::*;
 use crate::worker::Worker;
 use crate::worker::testing::{Sink, open, seed};
 
-const WORK: &str = "11111111-2222-3333-4444-555555555555";
-const ANNA: &str = "anna@example.org";
+pub(super) const WORK: &str = "11111111-2222-3333-4444-555555555555";
+pub(super) const ANNA: &str = "anna@example.org";
 
-fn config(dir: &std::path::Path) -> crate::core::Config {
+pub(super) fn config(dir: &std::path::Path) -> crate::core::Config {
     let (mut config, _) = seed(dir);
     config.oauth = [
         Provider::microsoft_template(),
@@ -27,7 +27,7 @@ fn config(dir: &std::path::Path) -> crate::core::Config {
     config
 }
 
-fn tokens(who: &str, tid: Option<&str>) -> Tokens {
+pub(super) fn tokens(who: &str, tid: Option<&str>) -> Tokens {
     Tokens {
         access: SecretString::from("at-1"),
         refresh: Some(SecretString::from("rt-new")),
@@ -43,7 +43,7 @@ fn tokens(who: &str, tid: Option<&str>) -> Tokens {
 /// The token endpoint's answer to the code of the attempt in flight: the
 /// real redirect carries the code in (the exchange job goes to a token URL
 /// nobody listens on), then the answer is handed back with the ticket.
-fn answer(worker: &mut Worker<'_>, sink: &Sink, tokens: Tokens) {
+pub(super) fn answer(worker: &mut Worker<'_>, sink: &Sink, tokens: Tokens) {
     answer_with(worker, sink, Ok(tokens));
 }
 
@@ -55,7 +55,7 @@ fn answer_with(worker: &mut Worker<'_>, sink: &Sink, result: Result<Tokens, Toke
     worker.oauth_exchanged(ExchangeResult { ticket, result });
 }
 
-fn urls(sink: &Sink) -> Vec<String> {
+pub(super) fn urls(sink: &Sink) -> Vec<String> {
     sink.events()
         .into_iter()
         .filter_map(|e| match e {
@@ -75,7 +75,7 @@ fn mismatches(sink: &Sink) -> Vec<(String, String)> {
         .collect()
 }
 
-fn outcomes(sink: &Sink) -> Vec<OAuthOutcome> {
+pub(super) fn outcomes(sink: &Sink) -> Vec<OAuthOutcome> {
     sink.events()
         .into_iter()
         .filter_map(|e| match e {
@@ -97,7 +97,7 @@ fn added(worker: &Worker<'_>) -> Vec<envio_store::Account> {
         .collect()
 }
 
-fn token_of(worker: &Worker<'_>, key: &str, kind: ProviderKind) -> Option<String> {
+pub(super) fn token_of(worker: &Worker<'_>, key: &str, kind: ProviderKind) -> Option<String> {
     let tokens = worker.store.tokens.borrow();
     tokens.get(key, kind).map(|t| t.expose_secret().to_owned())
 }
@@ -279,7 +279,7 @@ fn a_graph_pick_with_no_tenant_in_the_token_saves_nothing() {
     assert!(worker.oauth.is_none());
 }
 
-fn redirect_with(worker: &mut Worker<'_>, sink: &Sink, query: &str) {
+pub(super) fn redirect_with(worker: &mut Worker<'_>, sink: &Sink, query: &str) {
     let url = urls(sink).pop().unwrap();
     let state = url
         .split(['?', '&'])

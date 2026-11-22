@@ -189,6 +189,9 @@ pub enum Command {
         service: Service,
         fingerprint: String,
     },
+    /// "Switch anyway" on a stuck move to Graph: the pending actions are
+    /// dropped and the move goes on (#342).
+    SwitchAnyway { account: String },
     /// Remove an account and everything kept for it. Asks first when
     /// work is unsent, unless `confirmed`.
     RemoveAccount { account: String, confirmed: bool },
@@ -340,6 +343,7 @@ impl Command {
             Self::CancelOAuth => "CancelOAuth",
             Self::UpdatePassword { .. } => "UpdatePassword",
             Self::AcceptCertificate { .. } => "AcceptCertificate",
+            Self::SwitchAnyway { .. } => "SwitchAnyway",
             Self::RemoveAccount { .. } => "RemoveAccount",
             Self::SetAccountLabel { .. } => "SetAccountLabel",
             Self::ListFolders { .. } => "ListFolders",
