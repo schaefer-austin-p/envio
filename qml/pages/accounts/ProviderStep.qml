@@ -69,7 +69,10 @@ Item {
                         Column {
                             objectName: "providerText"
                             x: root.theme.gu(2.5)
-                            anchors.verticalCenter: parent.verticalCenter
+                            // Centred as the row sizes itself (ListRow: the content
+                            // plus 3.5 gu, at least a touch target). Anchoring to the
+                            // row's height would loop through its implicitHeight.
+                            y: (Math.max(root.theme.touch, height + root.theme.gu(3.5)) - height) / 2
                             width: row.width - root.theme.gu(2.5) - row.chevronSpace
                             Text {
                                 textFormat: Text.PlainText

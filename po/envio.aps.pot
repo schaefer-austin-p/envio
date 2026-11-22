@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 16:09+0100\n"
+"POT-Creation-Date: 2026-11-22 16:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -221,7 +221,7 @@ msgstr ""
 msgid ""
 "1. Open your Apple Account settings.\n"
 "2. Under Sign-In and Security, choose App-Specific Passwords.\n"
-"3. Create one named \"Envio\" and copy it."
+"3. Create one named “Envio” and copy it."
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:28
@@ -238,7 +238,7 @@ msgstr ""
 msgid ""
 "1. Open your Google account settings.\n"
 "2. Under Security, choose App passwords.\n"
-"3. Create one named \"Envio\" and copy it."
+"3. Create one named “Envio” and copy it."
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:34
@@ -255,7 +255,7 @@ msgstr ""
 msgid ""
 "1. Open your Yahoo account security page.\n"
 "2. Choose Generate app password.\n"
-"3. Create one named \"Envio\" and copy it."
+"3. Create one named “Envio” and copy it."
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:40
@@ -303,7 +303,7 @@ msgstr ""
 
 #: qml/pages/accounts/BrowserStep.qml:115
 #: qml/pages/accounts/ConfirmHostsDialog.qml:19
-#: qml/pages/accounts/ProviderStep.qml:104
+#: qml/pages/accounts/ProviderStep.qml:109
 #: qml/pages/accounts/RenameSheet.qml:68 qml/pages/accounts/TrustDialog.qml:21
 #: qml/pages/inbox/OutboxPage.qml:88 qml/pages/reader/AttachmentsSheet.qml:80
 #: qml/pages/reader/LinkSheet.qml:134 qml/pages/search/SearchPage.qml:193
