@@ -103,6 +103,14 @@ impl Ids {
         }
     }
 
+    /// The notification server changed owner (restarted, replaced): every
+    /// id is the old server's, and the new one may hand them to other apps'
+    /// cards. Forget all; a reply still in flight is dropped.
+    pub(crate) fn reset(&mut self) {
+        self.slots.clear();
+        self.cards.clear();
+    }
+
     /// The account a card with this id belongs to, if Envio posted it.
     pub(crate) fn account_of(&self, id: u32) -> Option<&str> {
         self.cards.get(&id).map(|(_, account)| account.as_str())
@@ -219,6 +227,23 @@ mod tests {
         ids.closed(7);
         ids.finished("t", 0);
         let (_, replaces) = ids.begin(alert("t", "3")).unwrap();
+        assert_eq!(replaces, 0);
+    }
+
+    #[test]
+    fn a_new_server_owner_forgets_every_id_and_drops_replies_in_flight() {
+        let mut ids = Ids::default();
+        ids.begin(alert("a", "1")).unwrap();
+        ids.finished("a", 7);
+        ids.begin(alert("b", "1")).unwrap();
+        ids.reset();
+        assert_eq!(ids.account_of(7), None);
+        // The call in flight for "b" answers late: nothing is stored.
+        assert!(ids.finished("b", 9).is_none());
+        assert_eq!(ids.account_of(9), None);
+        let (_, replaces) = ids.begin(alert("a", "2")).unwrap();
+        assert_eq!(replaces, 0);
+        let (_, replaces) = ids.begin(alert("b", "2")).unwrap();
         assert_eq!(replaces, 0);
     }
 }

@@ -42,8 +42,11 @@ Read from the code, not yet checked by hand.
   is a second instance on the same data; Envio is not the system mail handler.
 - Microsoft addresses are refused until the Graph backend lands (#381); its
   desktop sign-in later needs #318 (`enviooauth://` is not handled here).
-- Notifications and the launcher badge need Lomiri's Postal; without it
-  there are none (one log line).
+- New-mail notifications: Lomiri's Postal on Ubuntu Touch, a card through
+  `org.freedesktop.Notifications` elsewhere (one card per account, replaced
+  by the next one). Clicking it raises the window; it does not yet open the
+  account's Inbox. There is no launcher badge on a desktop; without a
+  notification server there are no cards.
 - Passwords are a `0600` file in the data folder, as on the phone; no
   system keyring.
 - On-screen keyboard: none reported, so layouts are unchanged.

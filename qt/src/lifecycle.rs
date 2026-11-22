@@ -57,9 +57,7 @@ impl qobject::EnvioCore {
         match Core::start(config, sink) {
             Ok(core) => {
                 // Postal on Ubuntu Touch, the freedesktop service on a desktop.
-                if let Some(poster) = crate::notify::poster() {
-                    core.set_poster(poster);
-                }
+                core.set_poster(crate::notify::poster());
                 // After the start: the file logger is up only now (#37).
                 log_roots(&roots);
                 self.as_mut().rust_mut().core = Some(core);

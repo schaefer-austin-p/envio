@@ -1,12 +1,14 @@
 // org.freedesktop.Notifications over QtDBus for desktops: calls and signal
 // hookup, no logic. The Rust side (qt/src/notify/) decides what to send and
-// keeps the card id per tag; this puts the arguments into Notify, hands the
-// reply (the id, 0 on any failure) back through a function pointer, and
-// reports NotificationClosed and ActionInvoked. Rust registers the pointers
-// (envio_notify_init), so this file needs no Rust symbols at link time.
-// The core calls from its worker thread, which has no event loop: the call
-// is queued to the main thread and made there, asynchronously.
+// keeps the card id per tag; this puts the typed values it is given into
+// Notify, hands the reply (the id, 0 on any failure) back through a
+// function pointer, and reports NotificationClosed, ActionInvoked, the
+// server's capabilities and a change of the server's owner. Rust registers
+// the pointers (envio_notify_init), so this file needs no Rust symbols at
+// link time. The core calls from its worker thread, which has no event
+// loop: calls are queued to the main thread and made there, asynchronously.
 
+#include <QtCore/QByteArray>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
 #include <QtCore/QMetaObject>
@@ -28,13 +30,27 @@ namespace {
 const char kService[] = "org.freedesktop.Notifications";
 const char kPath[] = "/org/freedesktop/Notifications";
 const char kInterface[] = "org.freedesktop.Notifications";
-// A probe never waits longer than this for the bus.
+// The one blocking probe (Postal) never waits longer than this.
 const int kProbeTimeoutMs = 1000;
 
 // A UTF-8 slice, as in qt/src/notify/mod.rs.
 struct Str {
     const char* ptr;
     int len;
+};
+
+// Mirrors `Card` in qt/src/notify/mod.rs.
+struct Card {
+    Str tag;
+    Str appName;
+    Str icon;
+    Str summary;
+    Str body;
+    Str category;
+    Str desktopEntry;
+    Str imagePath;
+    unsigned int replacesId;
+    unsigned char urgency;
 };
 
 QString text(Str s)
@@ -44,10 +60,14 @@ QString text(Str s)
 
 using ReplyFn = void (*)(const char* tag, int tag_len, unsigned int id);
 using CardFn = void (*)(unsigned int id);
+using CapsFn = void (*)(int answer);
+using OwnerFn = void (*)();
 
 ReplyFn g_onReply = nullptr;
 CardFn g_onClosed = nullptr;
 CardFn g_onClicked = nullptr;
+CapsFn g_onCaps = nullptr;
+OwnerFn g_onOwner = nullptr;
 
 // Always answers Rust, so a tag never waits for a reply that won't come.
 void reply(const QString& tag, unsigned int id)
@@ -74,57 +94,75 @@ public Q_SLOTS:
             g_onClosed(id);
         }
     }
+    void onNameOwnerChanged(const QString& name, const QString&, const QString&)
+    {
+        if (name == QString::fromLatin1(kService) && g_onOwner != nullptr) {
+            g_onOwner();
+        }
+    }
 };
 
-QDBusMessage callBus(const QString& method, const QVariantList& args)
+QDBusMessage notificationsCall(const QString& method)
 {
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
-        QStringLiteral("org.freedesktop.DBus"), method);
-    message.setArguments(args);
-    return QDBusConnection::sessionBus().call(message, QDBus::Block, kProbeTimeoutMs);
+    return QDBusMessage::createMethodCall(QString::fromLatin1(kService),
+                                          QString::fromLatin1(kPath),
+                                          QString::fromLatin1(kInterface), method);
+}
+
+// The main window: the first visible top-level that is a plain window (not
+// a popup, tooltip or splash).
+QWindow* mainWindow()
+{
+    const QWindowList windows = QGuiApplication::topLevelWindows();
+    for (QWindow* window : windows) {
+        if (window->isVisible() && (window->flags() & Qt::WindowType_Mask) == Qt::Window) {
+            return window;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace
 
 extern "C" {
 
-// Registered or activatable on the session bus. Any failure: false.
+// Registered or activatable on the session bus. Any failure: false. One
+// short blocking probe, only for Postal and only when APP_ID does not
+// already say Ubuntu Touch.
 bool envio_bus_has_service(const char* name, int len)
 {
     const QString service = QString::fromUtf8(name, len);
     if (!QDBusConnection::sessionBus().isConnected()) {
         return false;
     }
-    const QDBusMessage owner = callBus(QStringLiteral("NameHasOwner"), {service});
+    auto ask = [](const QString& method, const QVariantList& args) {
+        QDBusMessage message = QDBusMessage::createMethodCall(
+            QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
+            QStringLiteral("org.freedesktop.DBus"), method);
+        message.setArguments(args);
+        return QDBusConnection::sessionBus().call(message, QDBus::Block, kProbeTimeoutMs);
+    };
+    const QDBusMessage owner = ask(QStringLiteral("NameHasOwner"), {service});
     if (owner.type() == QDBusMessage::ReplyMessage && !owner.arguments().isEmpty()
         && owner.arguments().first().toBool()) {
         return true;
     }
-    const QDBusMessage activatable = callBus(QStringLiteral("ListActivatableNames"), {});
+    const QDBusMessage activatable = ask(QStringLiteral("ListActivatableNames"), {});
     return activatable.type() == QDBusMessage::ReplyMessage && !activatable.arguments().isEmpty()
         && activatable.arguments().first().toStringList().contains(service);
 }
 
-// Whether the server renders body markup. Any failure: false.
-bool envio_notify_has_markup()
-{
-    QDBusMessage message = QDBusMessage::createMethodCall(
-        QString::fromLatin1(kService), QString::fromLatin1(kPath),
-        QString::fromLatin1(kInterface), QStringLiteral("GetCapabilities"));
-    const QDBusMessage answer =
-        QDBusConnection::sessionBus().call(message, QDBus::Block, kProbeTimeoutMs);
-    return answer.type() == QDBusMessage::ReplyMessage && !answer.arguments().isEmpty()
-        && answer.arguments().first().toStringList().contains(QStringLiteral("body-markup"));
-}
-
-// Once, on the main thread: the callbacks, and the two signals. The service
-// name is given, so Qt follows the server across a restart.
-void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked)
+// Once, on the main thread: the callbacks, and the signals. The service
+// name is given for the notification signals, so Qt follows the server
+// across a restart; NameOwnerChanged tells Rust when that happens.
+void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked, CapsFn onCaps,
+                       OwnerFn onOwner)
 {
     g_onReply = onReply;
     g_onClosed = onClosed;
     g_onClicked = onClicked;
+    g_onCaps = onCaps;
+    g_onOwner = onOwner;
     static Signals signalsObject;
     QDBusConnection bus = QDBusConnection::sessionBus();
     const QString service = QString::fromLatin1(kService);
@@ -134,28 +172,70 @@ void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked)
                 SLOT(onActionInvoked(uint, QString)));
     bus.connect(service, path, interface, QStringLiteral("NotificationClosed"), &signalsObject,
                 SLOT(onClosed(uint, uint)));
+    bus.connect(QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
+                QStringLiteral("org.freedesktop.DBus"), QStringLiteral("NameOwnerChanged"),
+                &signalsObject, SLOT(onNameOwnerChanged(QString, QString, QString)));
+}
+
+// GetCapabilities, asynchronous. The answer goes to Rust: 0 failed, 1 no
+// `body-markup`, 2 `body-markup`.
+void envio_notify_query_caps()
+{
+    QCoreApplication* app = QCoreApplication::instance();
+    if (app == nullptr) {
+        if (g_onCaps != nullptr) {
+            g_onCaps(0);
+        }
+        return;
+    }
+    QMetaObject::invokeMethod(
+        app,
+        []() {
+            const QDBusPendingCall call =
+                QDBusConnection::sessionBus().asyncCall(notificationsCall(QStringLiteral("GetCapabilities")));
+            auto* watcher = new QDBusPendingCallWatcher(call);
+            QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher, [watcher]() {
+                const QDBusPendingReply<QStringList> answer = *watcher;
+                if (g_onCaps != nullptr) {
+                    if (answer.isError()) {
+                        g_onCaps(0);
+                    } else {
+                        g_onCaps(answer.value().contains(QStringLiteral("body-markup")) ? 2 : 1);
+                    }
+                }
+                watcher->deleteLater();
+            });
+        },
+        Qt::QueuedConnection);
 }
 
 // Notify(app_name, replaces_id, icon, summary, body, actions, hints,
 // timeout) = susssasa{sv}i; the reply is the card's id (u).
-void envio_notify_send(Str tag, Str appName, Str icon, Str summary, Str body, Str category,
-                       unsigned int replacesId)
+void envio_notify_send(const Card* card)
 {
-    const QString tagText = text(tag);
+    const QString tagText = text(card->tag);
     QCoreApplication* app = QCoreApplication::instance();
     if (app == nullptr) {
         // No loop to queue to: answer directly, so the tag is not stuck.
         reply(tagText, 0);
         return;
     }
+    QVariantMap hints{
+        {QStringLiteral("category"), text(card->category)},
+        {QStringLiteral("desktop-entry"), text(card->desktopEntry)},
+        {QStringLiteral("urgency"), QVariant::fromValue<uchar>(card->urgency)},
+    };
+    if (card->imagePath.len > 0) {
+        hints.insert(QStringLiteral("image-path"), text(card->imagePath));
+    }
     const QVariantList args{
-        text(appName),
-        QVariant::fromValue<quint32>(replacesId),
-        text(icon),
-        text(summary),
-        text(body),
+        text(card->appName),
+        QVariant::fromValue<quint32>(card->replacesId),
+        text(card->icon),
+        text(card->summary),
+        text(card->body),
         QStringList{QStringLiteral("default"), QString()},
-        QVariantMap{{QStringLiteral("category"), text(category)}},
+        hints,
         QVariant::fromValue<qint32>(-1),
     };
     QMetaObject::invokeMethod(
@@ -166,9 +246,7 @@ void envio_notify_send(Str tag, Str appName, Str icon, Str summary, Str body, St
                 reply(tagText, 0);
                 return;
             }
-            QDBusMessage message = QDBusMessage::createMethodCall(
-                QString::fromLatin1(kService), QString::fromLatin1(kPath),
-                QString::fromLatin1(kInterface), QStringLiteral("Notify"));
+            QDBusMessage message = notificationsCall(QStringLiteral("Notify"));
             message.setArguments(args);
             const QDBusPendingCall call = bus.asyncCall(message);
             if (call.isError()) {
@@ -192,15 +270,18 @@ void envio_notify_send(Str tag, Str appName, Str icon, Str summary, Str body, St
         Qt::QueuedConnection);
 }
 
-// Best effort: Wayland may refuse to raise a window without a token.
+// Best effort: Wayland may refuse to raise a window without a token. Only a
+// minimised window is restored; a maximised or fullscreen one stays as it is.
 void envio_activate_window()
 {
-    const QWindowList windows = QGuiApplication::allWindows();
-    if (windows.isEmpty()) {
+    QWindow* window = mainWindow();
+    if (window == nullptr) {
         return;
     }
-    QWindow* window = windows.first();
-    window->showNormal();
+    if (window->windowStates().testFlag(Qt::WindowMinimized)) {
+        window->setWindowStates(window->windowStates() & ~Qt::WindowMinimized);
+        window->show();
+    }
     window->raise();
     window->requestActivate();
 }

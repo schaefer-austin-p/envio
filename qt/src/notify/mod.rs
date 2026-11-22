@@ -7,15 +7,21 @@ mod args;
 mod choose;
 mod ids;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{LazyLock, Mutex, MutexGuard, Once, PoisonError};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{LazyLock, Mutex, MutexGuard, Once, OnceLock, PoisonError};
 
-use envio_core::{Alert, Poster};
+use envio_core::{Alert, Poster, paths};
 
-use self::args::NotifyArgs;
+use self::args::{Markup, NotifyArgs};
 use self::choose::{Backend, choose};
 use self::ids::{Ids, ToSend};
 use crate::postal::PostalPoster;
+
+/// The app icon, in the binary: an external notification server can't read
+/// the qrc, and `cargo make run-desktop` installs nothing. It is written
+/// once to the cache folder, whose path goes to the server.
+const ICON_SVG: &[u8] = include_bytes!("../../../assets/logo.svg");
 
 /// A UTF-8 slice for the C++ side; it copies it before the call returns.
 #[repr(C)]
@@ -33,24 +39,40 @@ impl Str {
     }
 }
 
+/// Everything C++ puts into a Notify call, typed; it decides nothing.
+#[repr(C)]
+struct Card {
+    tag: Str,
+    app_name: Str,
+    icon: Str,
+    summary: Str,
+    body: Str,
+    category: Str,
+    desktop_entry: Str,
+    /// Empty: no `image-path` hint.
+    image_path: Str,
+    replaces_id: u32,
+    urgency: u8,
+}
+
 type ReplyFn = extern "C" fn(tag: *const u8, tag_len: i32, id: u32);
 type CardFn = extern "C" fn(id: u32);
+/// 0: the question failed; 1: no `body-markup`; 2: `body-markup`.
+type CapsFn = extern "C" fn(answer: i32);
+type OwnerFn = extern "C" fn();
 
 #[cfg(not(test))]
 unsafe extern "C" {
     fn envio_bus_has_service(name: *const u8, len: i32) -> bool;
-    fn envio_notify_has_markup() -> bool;
-    fn envio_notify_init(on_reply: ReplyFn, on_closed: CardFn, on_clicked: CardFn);
-    #[allow(clippy::too_many_arguments)]
-    fn envio_notify_send(
-        tag: Str,
-        app_name: Str,
-        icon: Str,
-        summary: Str,
-        body: Str,
-        category: Str,
-        replaces_id: u32,
+    fn envio_notify_init(
+        on_reply: ReplyFn,
+        on_closed: CardFn,
+        on_clicked: CardFn,
+        on_caps: CapsFn,
+        on_owner: OwnerFn,
     );
+    fn envio_notify_query_caps();
+    fn envio_notify_send(card: *const Card);
     fn envio_activate_window();
 }
 
@@ -60,29 +82,28 @@ unsafe fn envio_bus_has_service(_name: *const u8, _len: i32) -> bool {
     false
 }
 #[cfg(test)]
-unsafe fn envio_notify_has_markup() -> bool {
-    false
-}
-#[cfg(test)]
-unsafe fn envio_notify_init(_on_reply: ReplyFn, _on_closed: CardFn, _on_clicked: CardFn) {}
-#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-unsafe fn envio_notify_send(
-    _tag: Str,
-    _app_name: Str,
-    _icon: Str,
-    _summary: Str,
-    _body: Str,
-    _category: Str,
-    _replaces_id: u32,
+unsafe fn envio_notify_init(
+    _on_reply: ReplyFn,
+    _on_closed: CardFn,
+    _on_clicked: CardFn,
+    _on_caps: CapsFn,
+    _on_owner: OwnerFn,
 ) {
 }
+#[cfg(test)]
+unsafe fn envio_notify_query_caps() {}
+#[cfg(test)]
+unsafe fn envio_notify_send(_card: *const Card) {}
 #[cfg(test)]
 unsafe fn envio_activate_window() {}
 
 static IDS: LazyLock<Mutex<Ids>> = LazyLock::new(|| Mutex::new(Ids::default()));
-static MARKUP: AtomicBool = AtomicBool::new(false);
 static INIT: Once = Once::new();
+static ICON: OnceLock<Option<String>> = OnceLock::new();
+/// 0 unknown, 1 no body markup, 2 body markup.
+static CAPS: AtomicU8 = AtomicU8::new(0);
+static CAPS_ASKED: AtomicBool = AtomicBool::new(false);
 
 fn ids() -> MutexGuard<'static, Ids> {
     IDS.lock().unwrap_or_else(PoisonError::into_inner)
@@ -98,28 +119,68 @@ fn ut_env() -> bool {
     std::env::var("APP_ID").is_ok_and(|id| id.starts_with("envio.aps_envio"))
 }
 
-/// The poster for this system, or `None` when it has nowhere to show alerts.
-/// Main thread, once at start (the bus probes block briefly).
-pub(crate) fn poster() -> Option<Box<dyn Poster>> {
-    // Lazy: the probes only run while the earlier answer is still open.
-    let ut = ut_env();
-    let postal = !ut && has_service("com.lomiri.Postal");
-    let fdo = !ut && !postal && has_service("org.freedesktop.Notifications");
-    match choose(ut, postal, fdo) {
-        Backend::Postal => Some(Box::new(PostalPoster)),
+/// The poster for this system: Postal on Ubuntu Touch (one short bus probe
+/// unless `APP_ID` already says so), else the freedesktop one, whether or
+/// not a server is up yet. Main thread, once at start.
+pub(crate) fn poster() -> Box<dyn Poster> {
+    match choose(ut_env(), || has_service("com.lomiri.Postal")) {
+        Backend::Postal => Box::new(PostalPoster),
         Backend::Freedesktop => {
             INIT.call_once(|| {
-                // SAFETY: `envio_notify_has_markup` takes no pointers;
-                // the callbacks are `extern "C"` fns that live for ever.
+                // SAFETY: the callbacks are `extern "C"` fns that live for
+                // ever; the call takes no pointers otherwise.
                 unsafe {
-                    MARKUP.store(envio_notify_has_markup(), Ordering::Relaxed);
-                    envio_notify_init(on_reply, on_closed, on_clicked);
+                    envio_notify_init(on_reply, on_closed, on_clicked, on_caps, on_owner);
                 }
+                ask_caps();
             });
-            Some(Box::new(FreedesktopPoster))
+            Box::new(FreedesktopPoster)
         }
-        Backend::None => None,
     }
+}
+
+/// Asks the server for its capabilities (async), once at a time.
+fn ask_caps() {
+    if !CAPS_ASKED.swap(true, Ordering::AcqRel) {
+        // SAFETY: takes no pointers.
+        unsafe { envio_notify_query_caps() };
+    }
+}
+
+fn markup() -> Markup {
+    match CAPS.load(Ordering::Relaxed) {
+        1 => Markup::No,
+        2 => Markup::Yes,
+        _ => {
+            // Unknown: the first question failed or has not come back.
+            ask_caps();
+            Markup::Unknown
+        }
+    }
+}
+
+/// The icon file in the cache folder, written once; `None` when it can't
+/// be (the card then names the theme icon).
+fn icon_file() -> Option<&'static str> {
+    ICON.get_or_init(|| {
+        let env = |name: &str| std::env::var(name).ok();
+        let (cache, _) = paths::app_dirs(&env);
+        write_icon(&cache.join("notify"), ICON_SVG)
+    })
+    .as_deref()
+}
+
+fn write_icon(dir: &std::path::Path, bytes: &[u8]) -> Option<String> {
+    let file: PathBuf = dir.join("logo.svg");
+    if std::fs::read(&file).is_ok_and(|have| have == bytes) {
+        return file.to_str().map(str::to_owned);
+    }
+    std::fs::create_dir_all(dir).ok()?;
+    // Beside the file, then renamed: a server never reads half an icon.
+    let tmp = dir.join(format!("logo.svg.{}", std::process::id()));
+    std::fs::write(&tmp, bytes).ok()?;
+    std::fs::rename(&tmp, &file).ok()?;
+    file.to_str().map(str::to_owned)
 }
 
 struct FreedesktopPoster;
@@ -138,20 +199,22 @@ impl Poster for FreedesktopPoster {
 }
 
 fn send_now((alert, replaces_id): ToSend) {
-    let args = NotifyArgs::from_alert(&alert, replaces_id, MARKUP.load(Ordering::Relaxed));
-    // SAFETY: every `Str` describes a string that outlives the call; the
-    // C++ side copies the bytes before it returns.
-    unsafe {
-        envio_notify_send(
-            Str::of(&alert.tag),
-            Str::of(args.app_name),
-            Str::of(args.icon),
-            Str::of(&args.summary),
-            Str::of(&args.body),
-            Str::of(args.category),
-            args.replaces_id,
-        );
-    }
+    let args = NotifyArgs::from_alert(&alert, replaces_id, markup(), icon_file());
+    let card = Card {
+        tag: Str::of(&alert.tag),
+        app_name: Str::of(args.app_name),
+        icon: Str::of(&args.icon),
+        summary: Str::of(&args.summary),
+        body: Str::of(&args.body),
+        category: Str::of(args.category),
+        desktop_entry: Str::of(args.desktop_entry),
+        image_path: Str::of(&args.image_path),
+        replaces_id: args.replaces_id,
+        urgency: args.urgency,
+    };
+    // SAFETY: `card` and every string it points to outlive the call; the C++
+    // side copies them before it returns.
+    unsafe { envio_notify_send(&raw const card) };
 }
 
 /// Notify's reply, on the main thread: `id` is 0 when the call failed.
@@ -186,9 +249,32 @@ extern "C" fn on_clicked(id: u32) {
     }
 }
 
+/// The answer to `GetCapabilities`, main thread.
+extern "C" fn on_caps(answer: i32) {
+    CAPS.store(u8::try_from(answer).unwrap_or(0).min(2), Ordering::Relaxed);
+    // A failed question may be asked again by the next card.
+    CAPS_ASKED.store(false, Ordering::Release);
+}
+
+/// The notification server changed owner, main thread: its ids and its
+/// capabilities are not the old one's.
+extern "C" fn on_owner() {
+    ids().reset();
+    CAPS.store(0, Ordering::Relaxed);
+    CAPS_ASKED.store(false, Ordering::Release);
+    ask_caps();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The statics (capabilities, ids) are shared by the tests.
+    static SERIAL: Mutex<()> = Mutex::new(());
+
+    fn serial() -> MutexGuard<'static, ()> {
+        SERIAL.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
     fn alert(tag: &str) -> Alert {
         Alert {
@@ -201,6 +287,7 @@ mod tests {
 
     #[test]
     fn the_poster_posts_and_takes_replies_without_panicking_off_the_bus() {
+        let _s = serial();
         // The tests link no C++: this walks the glue (lock, begin, reply).
         let poster = FreedesktopPoster;
         poster.post(&alert("glue-tag"));
@@ -210,6 +297,40 @@ mod tests {
         on_reply(b"glue-tag".as_ptr(), 8, 0);
         on_closed(5);
         on_clicked(5);
+        on_owner();
         assert_eq!(ids().account_of(5), None);
+    }
+
+    #[test]
+    fn the_capabilities_answer_sets_the_markup_and_a_failure_means_unknown() {
+        let _s = serial();
+        on_caps(2);
+        assert_eq!(markup(), Markup::Yes);
+        on_caps(1);
+        assert_eq!(markup(), Markup::No);
+        on_caps(0);
+        assert_eq!(markup(), Markup::Unknown);
+    }
+
+    #[test]
+    fn the_icon_is_written_once_and_rewritten_when_it_differs() {
+        let dir = std::env::temp_dir().join(format!("envio-notify-icon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = write_icon(&dir, b"one").unwrap();
+        assert!(path.ends_with("/logo.svg"));
+        assert_eq!(std::fs::read(&path).unwrap(), b"one");
+        write_icon(&dir, b"two").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"two");
+        let _ = std::fs::remove_dir_all(&dir);
+        // A folder that can't be made: no icon, no panic.
+        assert_eq!(
+            write_icon(std::path::Path::new("/proc/envio/x"), b"x"),
+            None
+        );
+    }
+
+    #[test]
+    fn the_shipped_icon_is_an_svg() {
+        assert!(ICON_SVG.starts_with(b"<svg"));
     }
 }
