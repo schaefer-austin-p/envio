@@ -166,9 +166,7 @@ impl qobject::EnvioCore {
                 title,
                 text,
                 manual_ok,
-            } => {
-                self.setup_refused(&q(&email), &q(&title), &q(&text), manual_ok)
-            }
+            } => self.setup_refused(&q(&email), &q(&title), &q(&text), manual_ok),
             Signal::MailOnMicrosoft { email, title, text } => {
                 self.mail_on_microsoft(&q(&email), &q(&title), &q(&text))
             }
