@@ -179,6 +179,7 @@ mod tests {
         let settings = AccountSettings {
             backend: envio_store::BackendKind::Imap,
             migration: None,
+            dropped_note: None,
             imap: Some(server("imap.example.org")),
             smtp: Some(server("smtp.example.org")),
             name: "Ann".into(),

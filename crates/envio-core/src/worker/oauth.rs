@@ -551,6 +551,7 @@ impl Worker<'_> {
             smtp: (!graph).then(|| addr(&provider.smtp)),
             auth: Some("microsoft".to_owned()),
             migration: None,
+            dropped_note: None,
         };
         match self.save_oauth_account(settings, refresh) {
             Ok(account) => {

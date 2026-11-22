@@ -387,6 +387,91 @@ fn a_graph_miss_in_sent_is_looked_for_again_before_the_user_is_asked() {
     assert!(after > 0, "the next look has a time");
 }
 
+/// An IMAP Outlook account at step 1 of the move, with one accepted item
+/// whose Sent copy is refused (quota) every time.
+fn refused_filing_while_moving(w: &mut Worker<'_>, account: &str, runs: usize) {
+    w.store
+        .db
+        .upsert_folder(account, "Sent", FolderRole::Sent)
+        .unwrap();
+    let mut settings = w.store.accounts.get(account).unwrap().settings.clone();
+    settings.auth = Some("microsoft".into());
+    settings.migration = Some(envio_store::Migration {
+        step: 1,
+        failures: 0,
+    });
+    w.store.accounts.update(account, settings).unwrap();
+    let new = envio_store::NewOutboxItem {
+        send_after_ms: 0,
+        account: account.into(),
+        message_id: "<a@example.org>".into(),
+        queued_at_ms: 1,
+        from: "me@example.org".into(),
+        recipients: vec!["ada@example.org".into()],
+    };
+    let id = w
+        .store
+        .outbox
+        .enqueue(new, b"Subject: x\r\n\r\nhi")
+        .unwrap()
+        .id;
+    let seed_state = envio_store::Outbox::set_state;
+    seed_state(&w.store.outbox, &id, SendState::Accepted).unwrap();
+    for _ in 0..runs {
+        let mut server = Scripted {
+            miss: true,
+            appends: VecDeque::from([quota()]),
+            ..Scripted::default()
+        };
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap()
+            .block_on(file(w, account, &mut server))
+            .unwrap();
+    }
+}
+
+#[test]
+fn a_refused_sent_copy_counts_as_a_failed_run_of_the_move() {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    refused_filing_while_moving(&mut w, &account, 2);
+    let m = w.store.accounts.get(&account).unwrap().settings.migration;
+    assert_eq!(m.unwrap().failures, 2);
+}
+
+#[test]
+fn an_item_that_cannot_be_filed_ends_stuck_and_switch_anyway_moves_on() {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    refused_filing_while_moving(&mut w, &account, 3);
+    w.migrate_all(crate::clock::now_ms());
+    let stuck = r
+        .sink
+        .events()
+        .into_iter()
+        .rev()
+        .find_map(|e| match e {
+            Event::Migration { state: Some(s), .. } => Some(s),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(stuck.stage, crate::api::view::MigrationStage::Stuck);
+    assert!(stuck.can_switch, "Switch anyway is offered");
+    assert!(
+        !stuck.hint.contains("drops"),
+        "nothing is dropped: the mail was sent, only its Sent copy is missing: {}",
+        stuck.hint
+    );
+    w.switch_anyway(&account);
+    let settings = &w.store.accounts.get(&account).unwrap().settings;
+    assert_eq!(settings.backend, BackendKind::Graph);
+    assert!(settings.migration.is_none());
+    assert_eq!(settings.dropped_note, None, "no change was dropped");
+}
+
 #[test]
 fn an_imap_miss_in_sent_asks_the_user_at_once() {
     let (asked, meta) = file_unconfirmed(false);

@@ -64,6 +64,7 @@ pub(super) fn seed(dir: &Path) -> (Config, Seeded) {
         smtp: Some(server()),
         auth: None,
         migration: None,
+        dropped_note: None,
     };
     let account = Accounts::open(&paths.accounts())
         .unwrap()
@@ -118,6 +119,7 @@ pub(super) fn add_account(worker: &mut Worker<'_>, name: &str, unread: u32) -> S
         smtp: Some(server()),
         auth: None,
         migration: None,
+        dropped_note: None,
     };
     let account = worker.store.accounts.add(settings, 2_000).unwrap();
     let db = &worker.store.db;

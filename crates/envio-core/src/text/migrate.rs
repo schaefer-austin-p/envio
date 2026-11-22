@@ -51,6 +51,25 @@ pub fn stuck_text() -> String {
     tr("Envio tried 3 times and could not send them. Check the connection, then try again.")
 }
 
+/// Stuck with nothing to replay: sent mail whose copy in Sent is refused.
+pub fn stuck_filing_title(filing: usize) -> String {
+    count(
+        filing,
+        "Still filing {n} sent message",
+        "Still filing {n} sent messages",
+    )
+}
+
+pub fn stuck_filing_text() -> String {
+    tr("Envio tried 3 times and could not file them in Sent. The mail itself was sent.")
+}
+
+pub fn switch_filing_hint() -> String {
+    tr(
+        "“Switch anyway” moves on without filing them. Nothing is lost, and your Outbox and drafts stay.",
+    )
+}
+
 pub fn sign_in_title() -> String {
     tr("Outlook.com refused the old sign-in")
 }

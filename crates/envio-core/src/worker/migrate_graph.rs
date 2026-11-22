@@ -54,6 +54,7 @@ impl Worker<'_> {
         for account in moving {
             self.migrate(&account, now);
         }
+        self.retell_dropped();
     }
 
     fn migrate(&mut self, account: &str, now: i64) {
@@ -263,6 +264,7 @@ impl Worker<'_> {
         settings.imap = None;
         settings.smtp = None;
         settings.migration = None;
+        settings.dropped_note = u32::try_from(dropped).ok().filter(|n| *n > 0);
         if !self.store_account(account, settings) {
             return;
         }
@@ -277,6 +279,11 @@ impl Worker<'_> {
             *live = fresh;
             live.wants.full = true;
         }
+        self.tell_done(account, dropped);
+    }
+
+    /// The Done page's state, with the dropped-actions notice when any were.
+    fn tell_done(&mut self, account: &str, dropped: usize) {
         let (note_title, note_text) = if dropped > 0 {
             (
                 text::migrate::dropped_title(dropped),
@@ -299,6 +306,31 @@ impl Worker<'_> {
         );
     }
 
+    /// After a restart: the Done page's notice for a move that dropped
+    /// changes is told once more, then cleared. In the session that made the
+    /// move it was told already and is kept for a restart.
+    fn retell_dropped(&mut self) {
+        let due: Vec<(String, u32)> = self
+            .store
+            .accounts
+            .list()
+            .iter()
+            .filter(|a| {
+                a.settings.migration.is_none() && !self.migration_shown.contains_key(&a.key)
+            })
+            .filter_map(|a| a.settings.dropped_note.map(|n| (a.key.clone(), n)))
+            .collect();
+        for (account, dropped) in due {
+            self.tell_done(&account, dropped as usize);
+            let Some(entry) = self.store.accounts.get(&account) else {
+                continue;
+            };
+            let mut settings = entry.settings.clone();
+            settings.dropped_note = None;
+            self.store_account(&account, settings);
+        }
+    }
+
     fn show_migration(
         &mut self,
         (account, m): (&str, &Migration),
@@ -313,6 +345,14 @@ impl Worker<'_> {
                 text::migrate::sign_in_title(),
                 text::migrate::sign_in_text(pending),
                 text::migrate::switch_hint(pending),
+            )
+        } else if step == MigrationStep::Stuck && pending == 0 {
+            // Only sent mail whose copy in Sent is refused: nothing to drop.
+            (
+                MigrationStage::Stuck,
+                text::migrate::stuck_filing_title(accepted),
+                text::migrate::stuck_filing_text(),
+                text::migrate::switch_filing_hint(),
             )
         } else if step == MigrationStep::Stuck {
             (

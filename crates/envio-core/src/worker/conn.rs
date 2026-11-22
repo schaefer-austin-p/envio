@@ -579,6 +579,7 @@ mod tests {
                 smtp: Some(server(None)),
                 auth: None,
                 migration: None,
+                dropped_note: None,
             },
             label: None,
             broken: None,

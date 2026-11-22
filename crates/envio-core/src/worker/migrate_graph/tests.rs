@@ -312,6 +312,41 @@ fn switch_anyway_drops_the_actions_with_a_notice_and_keeps_unsent_work() {
 }
 
 #[test]
+fn the_dropped_notice_survives_a_restart_and_is_told_once_more() {
+    let t = moving(1);
+    let key = t.seeded.account.clone();
+    {
+        let sink = Sink::default();
+        let mut w = open(&t.config, &sink);
+        pending(&mut w, &key);
+        for _ in 0..3 {
+            w.migrate_failed(&key);
+        }
+        w.switch_anyway(&key);
+        assert_eq!(settings(&w, &key).dropped_note, Some(1));
+        tick(&mut w);
+        assert_eq!(
+            settings(&w, &key).dropped_note,
+            Some(1),
+            "told in this session already: kept"
+        );
+    }
+    let sink = Sink::default();
+    {
+        let mut w = open(&t.config, &sink);
+        tick(&mut w);
+        let done = done(&sink);
+        assert_eq!(done.len(), 1, "told again after the restart");
+        assert_eq!(done[0].note_title, crate::text::migrate::dropped_title(1));
+        assert_eq!(settings(&w, &key).dropped_note, None, "and then cleared");
+    }
+    let again = Sink::default();
+    let mut w = open(&t.config, &again);
+    tick(&mut w);
+    assert!(done(&again).is_empty());
+}
+
+#[test]
 fn switch_anyway_needs_three_failures() {
     let t = moving(1);
     let sink = Sink::default();

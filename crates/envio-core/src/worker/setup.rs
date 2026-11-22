@@ -273,6 +273,7 @@ impl Worker<'_> {
             auth: None,
             smtp: Some(store_server(&setup.smtp, pin_for(&accepted, Service::Smtp))),
             migration: None,
+            dropped_note: None,
         };
         match self.save_account(settings, request.password) {
             Ok(account) => {
@@ -402,6 +403,7 @@ mod tests {
                 smtp: Some(server()),
                 auth: None,
                 migration: None,
+                dropped_note: None,
             },
             label: None,
             broken: None,

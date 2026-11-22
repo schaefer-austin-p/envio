@@ -9,7 +9,8 @@
 
 use envio_store::Migration;
 
-/// Failed replay runs after which "Switch anyway" is offered.
+/// Failed runs (replay, folder list, filing) after which "Switch anyway" is
+/// offered.
 pub const TRIES: u32 = 3;
 
 pub const REPLAY: u8 = 1;
@@ -23,7 +24,7 @@ pub enum MigrationStep {
     /// Nothing to do now: a run is failing and backs off, or an `Accepted`
     /// item is still to be filed.
     Wait,
-    /// Replay failed `TRIES` times: the user chooses Keep waiting or
+    /// Replay or filing failed `TRIES` times: the user chooses Keep waiting or
     /// Switch anyway. Nothing is asked for meanwhile.
     Stuck,
     /// Run step 2.
@@ -44,6 +45,10 @@ pub fn next(
     match m.step {
         REPLAY => match (journal_empty, accepted_left) {
             (true, false) => MigrationStep::Clear,
+            // The Sent copy of an accepted item is refused again and again
+            // (quota, Sent not selectable): the mail was sent, so Switch
+            // anyway drops nothing.
+            (true, true) if m.failures >= TRIES => MigrationStep::Stuck,
             (true, true) => MigrationStep::Wait,
             (false, _) if m.failures >= TRIES => MigrationStep::Stuck,
             (false, _) if replay_failed => MigrationStep::Wait,
@@ -76,6 +81,15 @@ mod tests {
     #[test]
     fn an_accepted_item_still_to_file_holds_step_one() {
         assert_eq!(next(&at(1, 0), true, true, false), MigrationStep::Wait);
+    }
+
+    #[test]
+    fn an_item_that_stays_unfiled_for_three_tries_is_stuck_not_waiting_forever() {
+        assert_eq!(next(&at(1, 2), true, true, false), MigrationStep::Wait);
+        for failed in [true, false] {
+            assert_eq!(next(&at(1, 3), true, true, failed), MigrationStep::Stuck);
+        }
+        assert!(can_switch_anyway(&at(1, 3)));
     }
 
     #[test]

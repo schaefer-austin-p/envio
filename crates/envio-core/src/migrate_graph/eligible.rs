@@ -44,6 +44,7 @@ mod tests {
             smtp: Some(server()),
             auth: Some("microsoft".into()),
             migration: None,
+            dropped_note: None,
         }
     }
 

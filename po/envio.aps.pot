@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 20:10+0100\n"
+"POT-Creation-Date: 2026-11-22 20:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1387,30 +1387,42 @@ msgid ""
 "again."
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:55
+#: crates/envio-core/src/text/migrate.rs:64
+msgid ""
+"Envio tried 3 times and could not file them in Sent. The mail itself was "
+"sent."
+msgstr ""
+
+#: crates/envio-core/src/text/migrate.rs:69
+msgid ""
+"“Switch anyway” moves on without filing them. Nothing is lost, and your "
+"Outbox and drafts stay."
+msgstr ""
+
+#: crates/envio-core/src/text/migrate.rs:74
 msgid "Outlook.com refused the old sign-in"
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:75
+#: crates/envio-core/src/text/migrate.rs:94
 msgid "Outlook.com is up to date"
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:79
+#: crates/envio-core/src/text/migrate.rs:98
 msgid ""
 "Your mail is loading again. Your Outbox and drafts are as you left them."
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:83
+#: crates/envio-core/src/text/migrate.rs:102
 msgid "Mail can take a few minutes to show up on this phone."
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:96
+#: crates/envio-core/src/text/migrate.rs:115
 msgid ""
 "They were dropped when you chose Switch anyway. Check your folders on "
 "Outlook.com."
 msgstr ""
 
-#: crates/envio-core/src/text/migrate.rs:101
+#: crates/envio-core/src/text/migrate.rs:120
 msgid ""
 "Envio can't move it to the new connection. Your account keeps working as "
 "before"
