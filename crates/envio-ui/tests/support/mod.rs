@@ -92,6 +92,7 @@ pub fn info(key: &str) -> AccountInfo {
         unread: 0,
         broken: false,
         oauth: false,
+        update_sign_in: false,
     }
 }
 

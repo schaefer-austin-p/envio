@@ -118,7 +118,10 @@ impl Ui {
         let mut outs = Vec::new();
         if let Some(at) = self.accounts.iter().position(|a| a.key == key) {
             let row = &mut self.accounts[at];
-            row.status.clone_from(&text);
+            // The move's line stays until it is over.
+            if !matches!(row.moving.stage.as_str(), "moving" | "stuck" | "signin") {
+                row.status.clone_from(&text);
+            }
             if row.state != "broken" {
                 convert::state_of(status, row.oauth).clone_into(&mut row.state);
                 convert::set_pin(row, status, &text);
@@ -130,6 +133,38 @@ impl Ui {
         outs.push(Output::Signal(Signal::Status { account: key, text }));
         outs.extend(self.outbox_reasons());
         outs
+    }
+
+    /// Where the account's move to Graph is (#342).
+    pub(super) fn account_migration(
+        &mut self,
+        key: &str,
+        state: Option<&envio_core::MigrationState>,
+    ) -> Vec<Output> {
+        let Some(at) = self.accounts.iter().position(|a| a.key == key) else {
+            return Vec::new();
+        };
+        let row = &mut self.accounts[at];
+        match state {
+            Some(s) => {
+                *row.moving = crate::rows::MoveRow {
+                    stage: s.stage.as_str().to_owned(),
+                    title: s.title.clone(),
+                    text: s.text.clone(),
+                    hint: s.hint.clone(),
+                    note_title: s.note_title.clone(),
+                    note_text: s.note_text.clone(),
+                    can_switch: s.can_switch,
+                };
+                row.update_sign_in = false;
+                if s.stage != envio_core::MigrationStage::Done {
+                    row.status.clone_from(&s.title);
+                }
+            }
+            None => *row.moving = crate::rows::MoveRow::default(),
+        }
+        let row = Row::Account(row.clone());
+        vec![change(Model::Accounts, Op::Update { at, row })]
     }
 
     /// The Outbox rows again when a reason changed with an account's status.

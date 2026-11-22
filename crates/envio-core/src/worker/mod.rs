@@ -92,6 +92,9 @@ pub(crate) struct Worker<'s> {
     asked: BTreeSet<String>,
     /// Outbox items sent but not yet in Sent.
     unfiled: BTreeSet<String>,
+    /// The move state each account's page was last told (#342), so an
+    /// unchanged one is not sent again.
+    migration_shown: BTreeMap<String, crate::api::view::MigrationState>,
     /// The schedule entry already acted on.
     handled_due_ms: i64,
     /// The held Outbox release time already acted on (its own watermark).
@@ -272,6 +275,7 @@ impl<'s> Worker<'s> {
             disk_full_until: None,
             asked: BTreeSet::new(),
             unfiled: BTreeSet::new(),
+            migration_shown: BTreeMap::new(),
             handled_due_ms: i64::MIN,
             handled_release_ms: i64::MIN,
             handled_resolve_ms: i64::MIN,

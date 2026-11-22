@@ -73,6 +73,8 @@ pub fn account_row(info: &AccountInfo, status_text: &str) -> AccountRow {
         attention: needs_attention(state),
         notify: true,
         oauth: info.oauth,
+        update_sign_in: info.update_sign_in,
+        moving: Box::default(),
         pin: Box::default(),
     }
 }
@@ -354,6 +356,7 @@ mod tests {
             unread: 0,
             broken: false,
             oauth: true,
+            update_sign_in: false,
         };
         let mut row = account_row(&info, "Sign in again");
         row.state = "auth".into();
@@ -386,6 +389,7 @@ mod tests {
             unread: 0,
             broken: false,
             oauth,
+            update_sign_in: false,
         };
         let account = |oauth: bool, state: &str| {
             let mut a = account_row(&info(oauth), "x");

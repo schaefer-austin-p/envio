@@ -210,9 +210,9 @@ impl Worker<'_> {
         } else {
             (String::new(), String::new())
         };
-        self.emit(Event::Migration {
-            account: account.to_owned(),
-            state: Some(MigrationState {
+        self.tell_migration(
+            account,
+            MigrationState {
                 stage: MigrationStage::Done,
                 title: text::migrate::done_title(),
                 text: text::migrate::done_text(),
@@ -220,12 +220,12 @@ impl Worker<'_> {
                 note_title,
                 note_text,
                 can_switch: false,
-            }),
-        });
+            },
+        );
     }
 
     fn show_migration(
-        &self,
+        &mut self,
         account: &str,
         m: &Migration,
         step: MigrationStep,
@@ -262,9 +262,9 @@ impl Worker<'_> {
                 text::migrate::moving_hint(),
             )
         };
-        self.emit(Event::Migration {
-            account: account.to_owned(),
-            state: Some(MigrationState {
+        self.tell_migration(
+            account,
+            MigrationState {
                 stage,
                 title,
                 text: body,
@@ -272,7 +272,20 @@ impl Worker<'_> {
                 note_title: String::new(),
                 note_text: String::new(),
                 can_switch,
-            }),
+            },
+        );
+    }
+
+    /// Sends the state unless the page already has it.
+    fn tell_migration(&mut self, account: &str, state: MigrationState) {
+        if self.migration_shown.get(account) == Some(&state) {
+            return;
+        }
+        self.migration_shown
+            .insert(account.to_owned(), state.clone());
+        self.emit(Event::Migration {
+            account: account.to_owned(),
+            state: Some(state),
         });
     }
 

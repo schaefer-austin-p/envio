@@ -154,6 +154,7 @@ impl Ui {
                 status,
                 text,
             } => self.account_status(account, &status, text),
+            Event::Migration { account, state } => self.account_migration(&account, state.as_ref()),
             Event::AccountLabel { account, label } => self.account_label(&account, &label),
             Event::AccountRemoved { account } => self.account_removed(&account),
             Event::AccountUnread { account, unread } => {
