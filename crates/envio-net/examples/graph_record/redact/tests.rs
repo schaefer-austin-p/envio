@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::*;
 
-const REAL: &str = "jane.doe@outlook.com";
+const REAL: &str = "user@outlook.com";
 const GUID: &str = "12345678-90ab-cdef-1234-567890abcdef";
 
 fn dump(v: &Value) -> String {
@@ -14,7 +14,7 @@ fn addresses_are_stable_per_address_and_case_insensitive() {
     let mut r = Redactor::default();
     assert_eq!(r.address(REAL), "alice@example.org");
     assert_eq!(r.address("Other@Hotmail.com"), "bob@example.org");
-    assert_eq!(r.address("JANE.DOE@outlook.com"), "alice@example.org");
+    assert_eq!(r.address("USER@outlook.com"), "alice@example.org");
     assert_eq!(r.address("third@live.com"), "user3@example.org");
     assert_eq!(r.name_for(REAL), "Alice");
 }
@@ -71,6 +71,7 @@ fn only_allow_listed_headers_survive_and_their_values_are_redacted() {
     ] {
         assert!(!text.contains(leak), "{leak} in {text}");
     }
+    assert_eq!(out[6]["value"], "Sat, 21 Nov 2026 00:00:00 +0000");
     assert_eq!(out[0]["value"], "Alice <alice@example.org>");
     assert_eq!(
         out[1]["value"],
@@ -79,7 +80,7 @@ fn only_allow_listed_headers_survive_and_their_values_are_redacted() {
     assert_eq!(out[2]["value"], "Subject 1");
     assert_eq!(out[3]["value"], "<fake-1@example.org>");
     assert_eq!(out[4]["value"], "<fake-2@example.org> <fake-3@example.org>");
-    assert!(text.contains("10:20:30"));
+    assert!(!text.contains("10:20:30"), "the send time is replaced");
 }
 
 #[test]

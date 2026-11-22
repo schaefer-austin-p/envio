@@ -45,7 +45,7 @@
           },
           {
             "name": "Date",
-            "value": "Sat, 21 Nov 2026 20:12:43 +0000"
+            "value": "Sat, 21 Nov 2026 00:00:00 +0000"
           },
           {
             "name": "Message-ID",
@@ -84,7 +84,7 @@
           },
           {
             "name": "Date",
-            "value": "Sat, 21 Nov 2026 14:39:39 -0800"
+            "value": "Sat, 21 Nov 2026 00:00:00 +0000"
           },
           {
             "name": "Subject",

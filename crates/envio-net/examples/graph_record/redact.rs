@@ -23,6 +23,9 @@ const KEEP_HEADERS: [&str; 10] = [
     "Content-Type",
 ];
 
+/// What every kept `Date` header becomes.
+const FIXED_DATE: &str = "Sat, 21 Nov 2026 00:00:00 +0000";
+
 /// Folder names that stay as they are; any other name becomes "Folder N".
 const WELL_KNOWN_FOLDERS: [&str; 10] = [
     "Inbox",
@@ -175,6 +178,8 @@ impl Redactor {
                 "subject" => self.subject(value),
                 "message-id" | "in-reply-to" | "references" => self.id_header(value),
                 "content-type" => self.content_type(value),
+                // A send time can identify a message: one fixed instant.
+                "date" => FIXED_DATE.to_owned(),
                 _ => self.text(value),
             };
             out.push(serde_json::json!({ "name": name, "value": value }));

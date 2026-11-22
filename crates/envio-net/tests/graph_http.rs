@@ -215,3 +215,26 @@ async fn a_closed_connection_with_no_reply_is_after() {
     let err = http.send(&post(b"m"), true, false).await.unwrap_err();
     assert!(matches!(err, Sent::After(_)), "{err:?}");
 }
+
+#[tokio::test]
+async fn a_dropped_send_leaves_no_half_read_connection_behind() {
+    let server = Server::start(vec![
+        Action::json(200, "a"),
+        // The head and 2 of 5 body bytes, then the server waits.
+        Action::raw(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nab".to_vec()),
+        Action::json(200, "fresh"),
+    ])
+    .await;
+    let mut http = client(&server).await;
+    http.send(&get("/x"), false, true).await.unwrap();
+    let stalled = tokio::time::timeout(
+        std::time::Duration::from_millis(300),
+        http.send(&get("/y"), false, true),
+    )
+    .await;
+    assert!(stalled.is_err(), "the reply was cut, so the send hangs");
+    assert!(!http.is_connected(), "a dropped send keeps no connection");
+    let r = http.send(&get("/z"), false, true).await.unwrap();
+    assert_eq!(r.body, b"fresh");
+    assert_eq!(server.accepts(), 2);
+}

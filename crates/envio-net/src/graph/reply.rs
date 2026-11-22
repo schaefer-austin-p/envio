@@ -4,7 +4,7 @@
 //! body read to EOF; a keep-alive connection cannot do that.
 
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -15,6 +15,8 @@ use super::http::Response;
 
 /// The longest chunk-size line (size and extensions) read.
 const MAX_CHUNK_LINE: usize = 1024;
+/// Interim (1xx) replies skipped before the reply is called broken.
+const MAX_INTERIM: usize = 8;
 
 /// Why a reply could not be read, and whether any byte of it had arrived
 /// (a reused connection that fails with none was probably closed idle).
@@ -43,6 +45,8 @@ struct Buffered<'a, S> {
     pos: usize,
     got: bool,
     timeout: Duration,
+    /// When the whole reply is due, however steadily it trickles in.
+    due: Instant,
 }
 
 impl<S: AsyncRead + Unpin> Buffered<'_, S> {
@@ -68,7 +72,9 @@ impl<S: AsyncRead + Unpin> Buffered<'_, S> {
 
     async fn fill_or_eof(&mut self) -> Result<usize, Fail> {
         let mut chunk = [0u8; 16 * 1024];
-        let n = match tokio::time::timeout(self.timeout, self.stream.read(&mut chunk)).await {
+        let left = self.due.saturating_duration_since(Instant::now());
+        let limit = self.timeout.min(left);
+        let n = match tokio::time::timeout(limit, self.stream.read(&mut chunk)).await {
             Err(_) => return Err(self.fail(NetError::Timeout)),
             Ok(Err(e)) => return Err(self.fail(NetError::Io(e))),
             Ok(Ok(n)) => n,
@@ -94,6 +100,19 @@ impl<S: AsyncRead + Unpin> Buffered<'_, S> {
             }
             self.fill().await?;
         }
+    }
+
+    /// Exactly `n` bytes, moved out of the buffer (no second copy of a big
+    /// body); what follows them stays buffered.
+    async fn take_body(&mut self, n: usize) -> Result<Vec<u8>, Fail> {
+        while self.buf.len() - self.pos < n {
+            self.fill().await?;
+        }
+        let rest = self.buf.split_off(self.pos + n);
+        let mut body = std::mem::replace(&mut self.buf, rest);
+        body.drain(..self.pos);
+        self.pos = 0;
+        Ok(body)
     }
 
     /// Exactly `n` bytes.
@@ -169,11 +188,13 @@ fn framing(status: u16, headers: &[(String, String)]) -> Result<Framing, &'stati
 }
 
 /// Reads one reply from `stream`. `cap` bounds the body; each read waits at
-/// most `timeout`. Interim 1xx replies are skipped.
+/// most `timeout` and the whole reply at most `total`. Up to `MAX_INTERIM`
+/// interim 1xx replies are skipped.
 pub(super) async fn read_reply<S: AsyncRead + Unpin>(
     stream: &mut S,
     cap: usize,
     timeout: Duration,
+    total: Duration,
 ) -> Result<Read, Fail> {
     let mut r = Buffered {
         stream,
@@ -181,7 +202,9 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
         pos: 0,
         got: false,
         timeout,
+        due: Instant::now() + total,
     };
+    let mut interim = 0;
     let (status, http10, headers) = loop {
         let start = r.pos;
         let head_end = loop {
@@ -200,6 +223,14 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
         if !(100..200).contains(&parsed.0) || parsed.0 == 101 {
             break parsed;
         }
+        interim += 1;
+        if interim > MAX_INTERIM {
+            return Err(r.protocol("too many interim replies"));
+        }
+        // Drop what was read for it, so endless interim replies cannot grow
+        // the buffer.
+        r.buf.drain(..r.pos);
+        r.pos = 0;
     };
     let mut close = http10
         || header(&headers, "connection")
@@ -207,7 +238,7 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
     let body = match framing(status, &headers).map_err(|e| r.protocol(e))? {
         Framing::None => Vec::new(),
         Framing::Length(n) if n > cap => return Err(too_big(&r)),
-        Framing::Length(n) => r.take(n).await?,
+        Framing::Length(n) => r.take_body(n).await?,
         Framing::Chunked => chunked(&mut r, cap).await?,
         Framing::ToEof => {
             close = true;
@@ -219,7 +250,9 @@ pub(super) async fn read_reply<S: AsyncRead + Unpin>(
                     break;
                 }
             }
-            r.buf[r.pos..].to_vec()
+            r.buf.drain(..r.pos);
+            r.pos = 0;
+            std::mem::take(&mut r.buf)
         }
     };
     // Bytes beyond the reply are not ours to guess at.
@@ -291,7 +324,47 @@ mod tests {
 
     async fn read(bytes: &[u8], cap: usize) -> Result<Read, Fail> {
         let mut cursor = bytes;
-        read_reply(&mut cursor, cap, T).await
+        read_reply(&mut cursor, cap, T, T).await
+    }
+
+    #[tokio::test]
+    async fn endless_interim_replies_are_an_error() {
+        let mut raw = Vec::new();
+        for _ in 0..50 {
+            raw.extend_from_slice(b"HTTP/1.1 100 Continue\r\n\r\n");
+        }
+        raw.extend_from_slice(b"HTTP/1.1 204 No Content\r\n\r\n");
+        let e = read(&raw, 9).await.err().unwrap();
+        assert!(
+            matches!(&e.kind, FailKind::Net(NetError::Protocol(m)) if m.contains("interim")),
+            "{e:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_reply_that_trickles_in_past_the_deadline_times_out() {
+        use tokio::io::AsyncWriteExt;
+        let (mut client, mut server) = tokio::io::duplex(64);
+        let feeder = tokio::spawn(async move {
+            for b in b"HTTP/1.1 200 OK\r\nContent-Length: 400\r\n\r\n"
+                .iter()
+                .chain(&[b'x'; 400])
+            {
+                if server.write_all(&[*b]).await.is_err() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        });
+        let started = Instant::now();
+        // Each read is well inside its 5 s limit; the whole is due in 300 ms.
+        let e = read_reply(&mut client, 1000, T, Duration::from_millis(300))
+            .await
+            .err()
+            .unwrap();
+        assert!(matches!(e.kind, FailKind::Net(NetError::Timeout)), "{e:?}");
+        assert!(started.elapsed() < Duration::from_secs(2));
+        feeder.abort();
     }
 
     #[tokio::test]

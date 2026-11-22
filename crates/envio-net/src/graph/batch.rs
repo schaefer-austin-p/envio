@@ -96,12 +96,14 @@ impl GraphClient {
             .enumerate()
             .map(|(n, id)| sub_request(n + 1, id))
             .collect();
-        let spec = Spec::json(
+        let mut spec = Spec::json(
             Op::Read,
             "POST",
             "/v1.0/$batch".into(),
             &json!({"requests": requests}),
         );
+        // A POST, but only reads: safe to repeat on a dead reused connection.
+        spec.idempotent = true;
         let Outcome::Ok(resp) = self.exec(&spec).await? else {
             return Err(NetError::Refused("HTTP 404, batch".into()));
         };

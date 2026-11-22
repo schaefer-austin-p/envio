@@ -18,6 +18,9 @@ use crate::tls::{self, Roots, TlsStream};
 pub const MAX_JSON_BODY: usize = 4 * 1024 * 1024;
 /// The cap for a message's MIME (`.../$value`).
 pub const MAX_VALUE_BODY: usize = 64 * 1024 * 1024;
+/// Overall time for a JSON reply and for a message's MIME (`$value`).
+const JSON_DEADLINE: Duration = Duration::from_secs(120);
+const VALUE_DEADLINE: Duration = Duration::from_secs(600);
 const PREFER_IDS: &str = "IdType=\"ImmutableId\"";
 
 pub struct Request<'a> {
@@ -71,6 +74,9 @@ pub struct Http {
     roots: Roots,
     conn: Option<TlsStream<TcpStream>>,
     read_timeout: Duration,
+    /// The most one whole reply may take, however steadily it trickles in.
+    json_deadline: Duration,
+    value_deadline: Duration,
 }
 
 /// How an attempt on one connection failed.
@@ -88,6 +94,8 @@ impl Http {
             roots,
             conn: None,
             read_timeout: COMMAND_TIMEOUT,
+            json_deadline: JSON_DEADLINE,
+            value_deadline: VALUE_DEADLINE,
         }
     }
 
@@ -117,19 +125,33 @@ impl Http {
             MAX_JSON_BODY
         };
         let write_limit = connect::transfer_timeout(req.body.as_ref().map_or(0, |(_, b)| b.len()));
-        let mut reused = !fresh && self.conn.is_some();
+        // The connection is out of `self.conn` while a request is on it, and
+        // goes back only after a complete reply: a dropped future leaves no
+        // half-used connection for the next request to read from.
+        let mut slot = if fresh { None } else { self.conn.take() };
+        self.conn = None;
+        let mut reused = slot.is_some();
         loop {
-            if !reused {
-                self.conn = None;
-                let conn = tls::connect(&self.endpoint, &self.roots)
+            let mut conn = match slot.take() {
+                Some(c) => c,
+                None => tls::connect(&self.endpoint, &self.roots)
                     .await
-                    .map_err(|e| Sent::Before(tls_error(e)))?;
-                self.conn = Some(conn);
-            }
-            match self.attempt(&bytes, cap, write_limit).await {
-                Ok(response) => return Ok(response),
+                    .map_err(|e| Sent::Before(tls_error(e)))?,
+            };
+            let deadline = if cap == MAX_VALUE_BODY {
+                self.value_deadline
+            } else {
+                self.json_deadline
+            };
+            let limits = (write_limit, self.read_timeout, deadline);
+            match attempt(&mut conn, &bytes, cap, limits).await {
+                Ok(read) => {
+                    if !read.close {
+                        self.conn = Some(conn);
+                    }
+                    return Ok(read.response);
+                }
                 Err(f) => {
-                    self.conn = None;
                     if reused && !f.got_byte {
                         // Probably closed while idle.
                         if idempotent {
@@ -148,47 +170,11 @@ impl Http {
         }
     }
 
-    async fn attempt(
-        &mut self,
-        bytes: &[u8],
-        cap: usize,
-        write_limit: Duration,
-    ) -> Result<Response, Failed> {
-        let conn = self.conn.as_mut().expect("connected");
-        let wrote = tokio::time::timeout(write_limit, async {
-            conn.write_all(bytes).await?;
-            conn.flush().await
-        })
-        .await;
-        let early = |error| Failed {
-            error,
-            written: false,
-            got_byte: false,
-        };
-        match wrote {
-            Err(_) => return Err(early(NetError::Timeout)),
-            Ok(Err(e)) => return Err(early(NetError::Io(e))),
-            Ok(Ok(())) => {}
-        }
-        match reply::read_reply(conn, cap, self.read_timeout).await {
-            Ok(read) => {
-                if read.close {
-                    self.conn = None;
-                }
-                Ok(read.response)
-            }
-            Err(fail) => Err(Failed {
-                error: match fail.kind {
-                    FailKind::Net(e) => e,
-                    FailKind::TooBig if cap == MAX_VALUE_BODY => {
-                        NetError::Refused("message too large".into())
-                    }
-                    FailKind::TooBig => NetError::Protocol("reply too large".into()),
-                },
-                written: true,
-                got_byte: fail.got_byte,
-            }),
-        }
+    /// Test hook: a shorter overall wait for one reply.
+    #[doc(hidden)]
+    pub fn set_reply_deadline(&mut self, limit: Duration) {
+        self.json_deadline = limit;
+        self.value_deadline = limit;
     }
 
     /// Test hook: a shorter wait for each reply read.
@@ -262,6 +248,45 @@ fn encode(endpoint: &Endpoint, req: &Request<'_>) -> Result<Vec<u8>, NetError> {
         }
     }
     Ok(out)
+}
+
+/// Write limit, per-read timeout and overall reply deadline.
+type Limits = (Duration, Duration, Duration);
+
+async fn attempt(
+    conn: &mut TlsStream<TcpStream>,
+    bytes: &[u8],
+    cap: usize,
+    (write_limit, read_timeout, deadline): Limits,
+) -> Result<reply::Read, Failed> {
+    let wrote = tokio::time::timeout(write_limit, async {
+        conn.write_all(bytes).await?;
+        conn.flush().await
+    })
+    .await;
+    let early = |error| Failed {
+        error,
+        written: false,
+        got_byte: false,
+    };
+    match wrote {
+        Err(_) => return Err(early(NetError::Timeout)),
+        Ok(Err(e)) => return Err(early(NetError::Io(e))),
+        Ok(Ok(())) => {}
+    }
+    reply::read_reply(conn, cap, read_timeout, deadline)
+        .await
+        .map_err(|fail| Failed {
+            error: match fail.kind {
+                FailKind::Net(e) => e,
+                FailKind::TooBig if cap == MAX_VALUE_BODY => {
+                    NetError::Refused("message too large".into())
+                }
+                FailKind::TooBig => NetError::Protocol("reply too large".into()),
+            },
+            written: true,
+            got_byte: fail.got_byte,
+        })
 }
 
 #[cfg(test)]

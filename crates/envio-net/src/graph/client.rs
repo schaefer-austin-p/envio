@@ -9,22 +9,15 @@ use serde_json::{Value, json};
 use super::bearer::Bearer;
 use super::error::{Mapped, Op, to_net};
 use super::http::{Http, Request, Response, Sent};
-use super::model::{DeltaPage, GFolder, GMeta, GraphError};
+use super::model::GraphError;
 use super::parse;
-use super::path::{enc, link_path};
+use super::path::enc;
 use crate::tls::Roots;
 use crate::{NetError, Result};
 
 pub(super) const HOST: &str = "graph.microsoft.com";
-const SELECT: &str = "$select=receivedDateTime,isRead,flag,categories,isDraft";
 /// A `Retry-After` longer than this is not waited for: the caller backs off.
 const MAX_WAIT_S: u64 = 10;
-/// Pages followed at most in one list call (a runaway link guard).
-const MAX_PAGES: usize = 1000;
-
-/// A parsed list page and its next link.
-type PageOf<T> = Result<(Vec<T>, Option<String>)>;
-
 /// A change to a message's flags; `None` leaves it alone.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Patch {
@@ -101,10 +94,15 @@ impl GraphClient {
     }
 
     /// Whether `status` is worth one in-call retry for this request.
-    fn may_retry(op: Op, status: u16) -> bool {
-        match op {
+    ///
+    /// A write that is not idempotent (a move) is repeated only on 429 and
+    /// 503, which say it was not acted on: after a 5xx it may have landed,
+    /// and the repeat would then see a 404 and call the message gone.
+    fn may_retry(spec: &Spec, status: u16) -> bool {
+        match spec.op {
             Op::Create => false,
             Op::Send => matches!(status, 429 | 503),
+            _ if !spec.idempotent => matches!(status, 429 | 503),
             _ => matches!(status, 429 | 500 | 502 | 503 | 504),
         }
     }
@@ -141,7 +139,7 @@ impl GraphClient {
                 Mapped::Gone => return Ok(Outcome::Gone),
                 Mapped::Expired => return Ok(Outcome::Expired),
                 Mapped::Err(e) => {
-                    if retried || !Self::may_retry(spec.op, resp.status) || !short_wait(&err) {
+                    if retried || !Self::may_retry(spec, resp.status) || !short_wait(&err) {
                         return Err(e);
                     }
                     retried = true;
@@ -153,90 +151,12 @@ impl GraphClient {
     }
 
     /// The reply body, or `None` if the thing is gone.
-    async fn body(&mut self, spec: &Spec) -> Result<Option<Vec<u8>>> {
+    pub(super) async fn body(&mut self, spec: &Spec) -> Result<Option<Vec<u8>>> {
         Ok(match self.exec(spec).await? {
             Outcome::Ok(r) => Some(r.body),
             Outcome::Gone => None,
             Outcome::Expired => return Err(NetError::Protocol("unexpected 410".into())),
         })
-    }
-
-    /// Follows `nextLink`s from `first`, collecting each page.
-    async fn pages<T>(&mut self, first: String, page: fn(&[u8]) -> PageOf<T>) -> Result<Vec<T>> {
-        let (mut out, mut path) = (Vec::new(), first);
-        for _ in 0..MAX_PAGES {
-            let body = self
-                .body(&Spec::get(Op::Read, path))
-                .await?
-                .ok_or_else(|| NetError::Refused("HTTP 404".into()))?;
-            let (items, next) = page(&body)?;
-            out.extend(items);
-            match next {
-                Some(link) => path = link_path(&link)?,
-                None => return Ok(out),
-            }
-        }
-        Err(NetError::Protocol("too many Graph pages".into()))
-    }
-
-    /// Every folder, hidden and nested ones included.
-    pub async fn folders(&mut self) -> Result<Vec<GFolder>> {
-        let q = "includeHiddenFolders=true&$top=100";
-        let mut all = self
-            .pages(format!("/v1.0/me/mailFolders?{q}"), parse::folders)
-            .await?;
-        let mut at = 0;
-        while at < all.len() {
-            if all[at].child_count > 0 {
-                let path = format!("/v1.0/me/mailFolders/{}/childFolders?{q}", enc(&all[at].id));
-                let kids = self.pages(path, parse::folders).await?;
-                all.extend(kids);
-            }
-            at += 1;
-        }
-        Ok(all)
-    }
-
-    /// One delta page: the first for `folder_id` (`link` is `None`), or the
-    /// one `link` names.
-    pub async fn delta(&mut self, folder_id: &str, link: Option<&str>) -> Result<DeltaPage> {
-        let path = match link {
-            Some(l) => link_path(l)?,
-            None => format!(
-                "/v1.0/me/mailFolders/{}/messages/delta?{SELECT}",
-                enc(folder_id)
-            ),
-        };
-        let mut spec = Spec::get(Op::Delta, path);
-        spec.headers
-            .push(("Prefer", "odata.maxpagesize=200".into()));
-        match self.exec(&spec).await? {
-            Outcome::Ok(r) => parse::delta(r.status, &r.body),
-            Outcome::Expired => Ok(DeltaPage::Expired),
-            Outcome::Gone => Err(NetError::Refused("HTTP 404, folder not found".into())),
-        }
-    }
-
-    /// The message's MIME; `None` if it is gone.
-    pub async fn message_mime(&mut self, id: &str) -> Result<Option<Vec<u8>>> {
-        let path = format!("/v1.0/me/messages/{}/$value", enc(id));
-        self.body(&Spec::get(Op::Read, path)).await
-    }
-
-    /// The message's categories; `None` if it is gone.
-    pub async fn get_categories(&mut self, id: &str) -> Result<Option<Vec<String>>> {
-        let path = format!("/v1.0/me/messages/{}?$select=categories", enc(id));
-        let Some(body) = self.body(&Spec::get(Op::Read, path)).await? else {
-            return Ok(None);
-        };
-        let v: Value = serde_json::from_slice(&body)
-            .map_err(|_| NetError::Protocol("Graph reply is not JSON".into()))?;
-        let list = v["categories"].as_array().map(|l| {
-            l.iter()
-                .filter_map(|c| c.as_str().map(str::to_owned))
-                .collect()
-        });
-        Ok(Some(list.unwrap_or_default()))
     }
 
     /// Flags, read state and categories. A message that is gone is `Ok`.
@@ -277,7 +197,9 @@ impl GraphClient {
     /// Deletes for good. A message that is gone is `Ok`.
     pub async fn permanent_delete(&mut self, id: &str) -> Result<()> {
         let path = format!("/v1.0/me/messages/{}/permanentDelete", enc(id));
-        let spec = Spec::json(Op::Write, "POST", path, &json!({}));
+        let mut spec = Spec::json(Op::Write, "POST", path, &json!({}));
+        // A repeat is safe: a message already gone is `Ok`.
+        spec.idempotent = true;
         self.exec(&spec).await.map(|_| ())
     }
 
@@ -295,29 +217,6 @@ impl GraphClient {
     pub async fn send_mime(&mut self, mime: &[u8]) -> Result<()> {
         let spec = mime_post(Op::Send, "/v1.0/me/sendMail".into(), mime);
         self.exec(&spec).await.map(|_| ())
-    }
-
-    /// `$search` over one folder, all pages.
-    pub async fn search(&mut self, folder_id: &str, query: &str) -> Result<Vec<GMeta>> {
-        let quoted = format!("\"{}\"", query.replace('\\', "\\\\").replace('"', "\\\""));
-        let path = format!(
-            "/v1.0/me/mailFolders/{}/messages?$search={}&$top=50&{SELECT}",
-            enc(folder_id),
-            enc(&quoted)
-        );
-        self.pages(path, parse::search).await
-    }
-
-    /// Messages in a folder with this `Message-ID` (with its angle
-    /// brackets), to find a draft or a sent message after a lost reply.
-    pub async fn find_message_id(&mut self, folder_id: &str, mid: &str) -> Result<Vec<GMeta>> {
-        let filter = format!("internetMessageId eq '{}'", mid.replace('\'', "''"));
-        let path = format!(
-            "/v1.0/me/mailFolders/{}/messages?$filter={}&{SELECT}",
-            enc(folder_id),
-            enc(&filter)
-        );
-        self.pages(path, parse::search).await
     }
 }
 

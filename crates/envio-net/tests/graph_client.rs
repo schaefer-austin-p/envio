@@ -454,3 +454,63 @@ async fn a_get_retries_a_short_retry_after_once_and_a_long_one_not_at_all() {
     assert!(matches!(e, NetError::Busy(_)), "{e:?}");
     assert_eq!(server.requests().len(), 3);
 }
+
+#[tokio::test]
+async fn summaries_repeat_on_a_dead_reused_connection() {
+    let server = Server::start(vec![
+        Action::json(200, r#"{"categories":["a"]}"#).then_close(),
+        Action::json(200, &batch_of(&[sub("1", 200, "", &msg("m1"))])),
+    ])
+    .await;
+    let (mut c, _) = client(&server);
+    c.get_categories("m0").await.unwrap();
+    let got = c.summaries(&["m1".to_owned()]).await.unwrap();
+    assert_eq!(got.len(), 1);
+    assert_eq!(server.requests().len(), 2);
+    assert_eq!(server.requests()[1].path, "/v1.0/$batch");
+    assert_eq!(server.accepts(), 2);
+}
+
+#[tokio::test]
+async fn permanent_delete_repeats_on_a_dead_reused_connection() {
+    let server = Server::start(vec![
+        Action::json(200, r#"{"categories":["a"]}"#).then_close(),
+        Action::json(204, ""),
+    ])
+    .await;
+    let (mut c, _) = client(&server);
+    c.get_categories("m0").await.unwrap();
+    c.permanent_delete("m1").await.unwrap();
+    assert_eq!(server.accepts(), 2);
+}
+
+#[tokio::test]
+async fn move_to_is_not_repeated_after_a_5xx() {
+    for status in [500, 502, 504] {
+        let server = Server::start(vec![
+            Action::reply(status, &[("Retry-After", "1")], "{}"),
+            Action::json(404, "{}"),
+        ])
+        .await;
+        let (mut c, _) = client(&server);
+        let e = c.move_to("m1", "archive").await.unwrap_err();
+        assert!(e.is_temporary(), "{status}: {e:?}");
+        assert_eq!(server.requests().len(), 1, "{status}: no repeat");
+    }
+}
+
+#[tokio::test]
+async fn a_self_referencing_folder_is_listed_once() {
+    let folder = r#"{"id":"loop","displayName":"Loop","childFolderCount":1,"parentFolderId":"p","totalItemCount":0,"unreadItemCount":0}"#;
+    let page = format!(r#"{{"value":[{folder}]}}"#);
+    let server = Server::start(vec![
+        Action::json(200, &page),
+        Action::json(200, &page),
+        Action::json(200, &page),
+    ])
+    .await;
+    let (mut c, _) = client(&server);
+    let all = c.folders().await.unwrap();
+    assert_eq!(all.len(), 1);
+    assert_eq!(server.requests().len(), 2, "its children were read once");
+}

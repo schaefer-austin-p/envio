@@ -28,6 +28,7 @@ pub fn rfc3339_ms(s: &str) -> Option<i64> {
     let (h, min, sec) = (num(t.next()?)?, num(t.next()?)?, num(t.next()?)?);
     let valid = d.next().is_none()
         && t.next().is_none()
+        && (1..=9999).contains(&y)
         && (1..=12).contains(&m)
         && (1..=31).contains(&day)
         && h < 24
@@ -36,9 +37,13 @@ pub fn rfc3339_ms(s: &str) -> Option<i64> {
     if !valid {
         return None;
     }
-    let ms: i64 = match frac {
-        "" => 0,
-        f => format!("{:0<3}", &f[..f.len().min(3)]).parse().ok()?,
+    // Digits only (so byte slicing is safe); beyond milliseconds is dropped.
+    let ms: i64 = if frac.is_empty() && !time.contains('.') {
+        0
+    } else if frac.bytes().all(|b| b.is_ascii_digit()) && !frac.is_empty() {
+        format!("{:0<3}", &frac[..frac.len().min(3)]).parse().ok()?
+    } else {
+        return None;
     };
     Some(((days(y, m, day) * 24 + h) * 60 + min) * 60_000 + sec * 1000 + ms)
 }
@@ -64,6 +69,12 @@ mod tests {
             "2026-11-21T22:39:44+01:00",
             "2026-13-01T00:00:00Z",
             "x-y-zT00:00:00Z",
+            "2026-11-21T22:39:44.\u{e9}\u{e9}Z",
+            "2026-11-21T22:39:44.Z",
+            "2026-11-21T22:39:44.5xZ",
+            "99999999999999999-01-01T00:00:00Z",
+            "0000-01-01T00:00:00Z",
+            "10000-01-01T00:00:00Z",
         ] {
             assert_eq!(rfc3339_ms(s), None, "{s}");
         }

@@ -91,7 +91,7 @@ mod tests {
 
     fn own() -> Own {
         Own {
-            address: vec!["Jane.Doe@outlook.com".into()],
+            address: vec!["User@outlook.com".into()],
             display_name: Some("Jane Doe".into()),
         }
     }
@@ -106,8 +106,8 @@ mod tests {
     #[test]
     fn each_leak_is_refused() {
         let cases = [
-            ("jane.doe@outlook.com", Refusal::OwnAddress),
-            ("hello jane.doe", Refusal::OwnLocalPart),
+            ("user@outlook.com", Refusal::OwnAddress),
+            ("hello user", Refusal::OwnLocalPart),
             ("by JANE DOE", Refusal::OwnName),
             ("x@hotmail.fr", Refusal::ConsumerDomain),
             ("x@live.com", Refusal::ConsumerDomain),
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn a_short_name_does_not_match_inside_words() {
         let own = Own {
-            address: vec!["al@outlook.com".into()],
+            address: vec!["me@outlook.com".into()],
             display_name: Some("Al".into()),
         };
         assert_eq!(refuse("a talent and a ballad", &own, TID), Ok(()));
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn refusals_never_quote_the_leak() {
-        let r = refuse("jane.doe@outlook.com", &own(), TID).unwrap_err();
-        assert!(!r.describe().contains("jane"));
+        let r = refuse("user@outlook.com", &own(), TID).unwrap_err();
+        assert!(!r.describe().contains("user"));
     }
 }
