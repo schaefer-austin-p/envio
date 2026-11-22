@@ -86,13 +86,8 @@ pub async fn sync_drafts_into(
     let all = drafts.list()?;
     let before = reasons(&all, run.account);
     let result = run_drafts(server, (db, drafts), (run, &all), done).await;
-    // Judged even when the run failed; a store error here adds nothing to
-    // the one already in hand.
-    match reasons_after(drafts, before.clone(), done) {
-        Ok(after) => done.reasons_changed = after != before,
-        Err(error) if result.is_ok() => return Err(error),
-        Err(_) => {}
-    }
+    // Judged even when the run failed.
+    done.reasons_changed = reasons_after(drafts, before.clone(), done) != before;
     result
 }
 
@@ -200,26 +195,26 @@ fn reasons(all: &[(String, Draft)], account: &str) -> Reasons {
 
 /// `before` brought up to date without scanning the directory again: only
 /// the drafts this run uploaded or refused can have a new reason, so just
-/// those files are read again. A file that is gone or unreadable drops out,
-/// as it would from a listing.
-fn reasons_after(drafts: &Drafts, mut reasons: Reasons, done: &DraftsSynced) -> Result<Reasons> {
+/// those files are read again. A draft that `Drafts::listed` does not show
+/// (deleted, delete-marked, or unreadable for any reason) drops out, as it
+/// would from a listing.
+fn reasons_after(drafts: &Drafts, mut reasons: Reasons, done: &DraftsSynced) -> Reasons {
     for id in done
         .uploaded
         .iter()
         .chain(&done.refused)
         .chain(&done.failed)
     {
-        match drafts.load(id) {
-            Ok(d) => {
+        match drafts.listed(id) {
+            Some(d) => {
                 reasons.insert(id.clone(), (d.server.refusal, d.server.failed_at_ms));
             }
-            Err(StoreError::NotFound | StoreError::BadRecord { .. }) => {
+            None => {
                 reasons.remove(id);
             }
-            Err(error) => return Err(error.into()),
         }
     }
-    Ok(reasons)
+    reasons
 }
 
 /// Appends the draft's text, then deletes what it replaces. The draft file
@@ -318,4 +313,48 @@ pub fn forget_deleted_drafts(
     }
     journal.settle(&settled)?;
     Ok(removed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn refused(id: &str) -> DraftsSynced {
+        DraftsSynced {
+            refused: vec![id.to_owned()],
+            ..DraftsSynced::default()
+        }
+    }
+
+    fn after_a_refusal(hide: impl FnOnce(&std::path::Path, &Drafts, &str)) -> Reasons {
+        let dir = tempfile::tempdir().unwrap();
+        let drafts = Drafts::open(dir.path()).unwrap();
+        let id = drafts.create(&Draft::default()).unwrap();
+        let before = reasons(&drafts.list().unwrap(), "");
+        assert!(before.contains_key(&id));
+        drafts
+            .mark_failed(&id, 0, 1, RefusalKind::Other, 5)
+            .unwrap();
+        hide(dir.path(), &drafts, &id);
+        reasons_after(&drafts, before, &refused(&id))
+    }
+
+    #[test]
+    fn a_delete_marked_draft_drops_out_while_its_file_stays() {
+        let after = after_a_refusal(|dir, _, id| {
+            std::fs::write(dir.join("gone").join(id), b"").unwrap();
+            assert!(dir.join(format!("{id}.json")).exists());
+        });
+        assert!(after.is_empty());
+    }
+
+    #[test]
+    fn an_unreadable_draft_file_drops_out_instead_of_failing() {
+        use std::os::unix::fs::PermissionsExt;
+        let after = after_a_refusal(|dir, _, id| {
+            let file = dir.join(format!("{id}.json"));
+            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+        });
+        assert!(after.is_empty());
+    }
 }

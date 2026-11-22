@@ -177,8 +177,9 @@ impl Drafts {
         self.fail_next_remove.store(true, Ordering::Relaxed);
     }
 
-    /// Test seam: how many full scans of the drafts directory (`list`,
-    /// `damaged`) have run so far.
+    /// Test seam: how many full scans of the drafts directory have run so
+    /// far, whichever method asked for one (`list`, `damaged` and what
+    /// builds on them).
     #[doc(hidden)]
     pub fn scan_count(&self) -> usize {
         self.scans.load(Ordering::Relaxed)
@@ -252,6 +253,16 @@ impl Drafts {
     /// be read is skipped (see `damaged`), never deleted.
     pub fn list(&self) -> Result<Vec<(String, Draft)>> {
         Ok(self.scan()?.0)
+    }
+
+    /// One draft as `list` would show it: `None` when it has a delete
+    /// marker, is missing, or cannot be read or parsed (any per-file error,
+    /// as `list` skips it). For re-reading a few drafts without a scan.
+    pub fn listed(&self, id: &str) -> Option<Draft> {
+        if !is_key(id) || self.is_gone(id) {
+            return None;
+        }
+        self.load(id).ok()
     }
 
     /// Ids of drafts that could not be read or parsed, sorted. Their files are
