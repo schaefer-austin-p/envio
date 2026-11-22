@@ -1,0 +1,16 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('AAMk-1')/mailFolders('AAMk-7')/messages(receivedDateTime,isRead,flag,categories,isDraft)",
+  "value": [
+    {
+      "@odata.etag": "AAMk-11",
+      "categories": [],
+      "flag": {
+        "flagStatus": "notFlagged"
+      },
+      "id": "AAMk-12",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T22:39:44Z"
+    }
+  ]
+}

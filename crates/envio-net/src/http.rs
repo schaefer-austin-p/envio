@@ -12,6 +12,7 @@ use zeroize::Zeroizing;
 
 mod chunked;
 use chunked::{Chunked, ResponseScan, dechunk};
+pub(crate) use chunked::{SizeError, chunk_size};
 
 /// Autoconfig files are a few KiB; a body over this is not one.
 pub const MAX_BODY: usize = 256 * 1024;

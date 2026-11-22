@@ -1,0 +1,42 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(message)",
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders('AAMk-7')/messages/delta?$skiptoken=fake-1",
+  "value": [
+    {
+      "@odata.etag": "AAMk-11",
+      "@odata.type": "#microsoft.graph.message",
+      "categories": [],
+      "flag": {
+        "flagStatus": "notFlagged"
+      },
+      "id": "AAMk-12",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T22:39:44Z"
+    },
+    {
+      "@odata.etag": "AAMk-13",
+      "@odata.type": "#microsoft.graph.message",
+      "categories": [],
+      "flag": {
+        "flagStatus": "notFlagged"
+      },
+      "id": "AAMk-14",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T20:15:13Z"
+    },
+    {
+      "@odata.etag": "AAMk-15",
+      "@odata.type": "#microsoft.graph.message",
+      "categories": [],
+      "flag": {
+        "flagStatus": "notFlagged"
+      },
+      "id": "AAMk-16",
+      "isDraft": false,
+      "isRead": false,
+      "receivedDateTime": "2026-11-21T20:14:12Z"
+    }
+  ]
+}

@@ -27,9 +27,26 @@ thiserror = "2"
 tokio = { version = "1.54", features = ["net", "time", "io-util", "rt"] }
 webpki-roots = "1"
 zeroize = "1"
+rcgen = { version = "0.14", optional = true }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
 
 [dev-dependencies]
 log = "0.4"
 rcgen = "0.14"
+# Turns on `test-mock` for this crate's own tests, so plain `cargo test` runs
+# the graph tests that need it (no per-command --features).
+envio-net = { path = ".", features = ["test-mock"] }
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "sync"] }
+
+[features]
+# `graph::mock`: a scripted TLS server for Graph tests, here and in
+# envio-sync and envio-core (dev-dependency with this feature).
+test-mock = ["dep:rcgen", "tokio/rt-multi-thread", "tokio/sync"]
+
+[[test]]
+name = "graph_http"
+required-features = ["test-mock"]
+
+[[test]]
+name = "graph_client"
+required-features = ["test-mock"]
