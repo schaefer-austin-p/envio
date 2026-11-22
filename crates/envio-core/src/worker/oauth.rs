@@ -48,9 +48,11 @@ pub(crate) struct Attempt {
     /// Told to the setup thread; only its answer is used.
     ticket: u64,
     phase: Phase,
-    /// The wizard's pick decides the scopes and the tenant is checked
-    /// (a new account with an explicit kind).
+    /// The tenant of the token decides Graph or IMAP (a new account).
     routed: bool,
+    /// The wizard's pick chose the scopes; without one ("Other") a wrong
+    /// guess is corrected with no question.
+    picked: bool,
     /// Who the first token named, once the second sign-in was asked for.
     first: Option<Seen>,
 }
@@ -78,14 +80,19 @@ pub(crate) fn failure_of(error: &TokenError) -> OAuthFailure {
         TokenError::Temporary => OAuthFailure::Offline,
         TokenError::Refused(code) if is_admin_code(code) => OAuthFailure::Admin,
         TokenError::Refused(_) => OAuthFailure::Blocked,
+        // The net layer reads a 400 `consent_required` as `Revoked` (right
+        // for a refresh); at the code exchange it is the admin's block.
+        TokenError::Revoked(code) if is_admin_code(code) => OAuthFailure::Admin,
         TokenError::Revoked(_) => OAuthFailure::Other,
     }
 }
 
-/// The provider's `error` codes for a tenant whose admin has not allowed
-/// the app: trying again will not help.
+/// The provider's `error` code for a tenant whose admin has not allowed
+/// the app: trying again will not help. `interaction_required` is not one
+/// (it asks for a step such as MFA). `access_denied` stays a user cancel;
+/// T20 must check it against a real admin block on a work tenant.
 fn is_admin_code(code: &str) -> bool {
-    matches!(code, "consent_required" | "interaction_required")
+    code == "consent_required"
 }
 
 fn provider_name(kind: ProviderKind) -> &'static str {
@@ -179,7 +186,8 @@ impl Worker<'_> {
         account: Option<String>,
         kind: Option<ProviderKind>,
     ) {
-        let routed = account.is_none() && kind.is_some();
+        // A new account is routed by its token's tenant, picked or not.
+        let (routed, picked) = (account.is_none(), kind.is_some());
         let (email, kind) = match &account {
             Some(key) => match self.store.accounts.get(key) {
                 Some(a) if a.settings.is_oauth() && a.broken.is_none() => (
@@ -215,6 +223,7 @@ impl Worker<'_> {
             ticket: next_ticket(),
             phase: Phase::Waiting,
             routed,
+            picked,
             first: None,
         });
         self.emit(Event::OAuthBrowser {
@@ -317,7 +326,18 @@ impl Worker<'_> {
             ) {
                 Route::Fits => {}
                 Route::Refuse => {
-                    return self.finish_oauth(OAuthOutcome::Failed(OAuthFailure::Mismatch));
+                    let why = if attempt.first.is_none() {
+                        OAuthFailure::NoTenant
+                    } else {
+                        OAuthFailure::Mismatch
+                    };
+                    return self.finish_oauth(OAuthOutcome::Failed(why));
+                }
+                Route::Other { .. } if !attempt.picked => {
+                    // No pick to be wrong about: the tenant decides, with
+                    // the other scopes and no question.
+                    attempt.first = Some(Seen::of(tokens.identity.as_ref()));
+                    return self.second_sign_in();
                 }
                 Route::Other { personal } => {
                     let seen = Seen::of(tokens.identity.as_ref());

@@ -56,6 +56,9 @@ pub enum OAuthFailure {
     Admin,
     /// The second sign-in named another account or tenant, or no tenant.
     Mismatch,
+    /// The first token of a new account named no tenant, so Envio cannot
+    /// tell which kind of account it is.
+    NoTenant,
 }
 
 impl OAuthFailure {
@@ -72,6 +75,7 @@ impl OAuthFailure {
             Self::NotSaved => crate::text::setup::not_saved(),
             Self::Admin => crate::text::oauth::admin(),
             Self::Mismatch => crate::text::oauth::wrong_account(),
+            Self::NoTenant => crate::text::oauth::no_tenant(),
         }
     }
 }

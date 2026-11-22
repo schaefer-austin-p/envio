@@ -179,7 +179,9 @@ impl qobject::EnvioCore {
                     OAuthOutcome::Resumed => ("resumed", String::new()),
                     OAuthOutcome::Cancelled => ("cancelled", String::new()),
                     OAuthOutcome::Failed(why @ OAuthFailure::Admin) => ("admin", why.text()),
-                    OAuthOutcome::Failed(why @ OAuthFailure::Mismatch) => ("mismatch", why.text()),
+                    OAuthOutcome::Failed(why @ (OAuthFailure::Mismatch | OAuthFailure::NoTenant)) => {
+                        ("mismatch", why.text())
+                    }
                     OAuthOutcome::Failed(why) => ("failed", why.text()),
                 };
                 self.oauth_done(&q(&email), &q(name), &q(&text));

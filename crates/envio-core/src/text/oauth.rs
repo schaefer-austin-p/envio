@@ -58,6 +58,10 @@ pub fn wrong_account() -> String {
     tr("The second sign-in was for another account. Nothing was saved. Start again")
 }
 
+pub fn no_tenant() -> String {
+    tr("Microsoft did not say which kind of account this is. Nothing was saved")
+}
+
 pub fn timeout() -> String {
     tr("The sign-in took too long and was stopped. Start again")
 }
