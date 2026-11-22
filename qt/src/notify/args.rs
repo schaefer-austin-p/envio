@@ -42,9 +42,10 @@ pub(crate) struct NotifyArgs {
 }
 
 impl NotifyArgs {
-    /// `markup`: with `Yes` the body is the sender in bold above the
-    /// subject, both escaped; `No` is plain text; `Unknown` is escaped
-    /// plain text. `icon_file`: the app icon's absolute path, when there is
+    /// `markup`: with `Yes` or `Unknown` the body is escaped (a server that
+    /// reads markup must not see mail's `<b>` as its own); `No` is plain
+    /// text. The summary (the sender) is never echoed in the body: servers
+    /// draw it bold already. `icon_file`: the app icon's absolute path, when there is
     /// one.
     /// The actions (`["default", ""]`: a click on the card) and the timeout
     /// (-1: the server's default) never vary, so C++ holds them.
@@ -57,12 +58,7 @@ impl NotifyArgs {
         let summary = limit(&alert.summary);
         let body = limit(&alert.body);
         let body = match markup {
-            Markup::Yes => format!(
-                "<b>{}</b>\n{}",
-                escape_markup(&summary),
-                escape_markup(&body)
-            ),
-            Markup::Unknown => escape_markup(&body),
+            Markup::Yes | Markup::Unknown => escape_markup(&body),
             Markup::No => body,
         };
         let uri = icon_file.map(file_uri);
@@ -170,24 +166,24 @@ mod tests {
     }
 
     #[test]
-    fn with_markup_the_body_is_the_bold_sender_above_the_subject() {
-        let a = marked("Ana", "Lunch?");
-        assert_eq!(a.body, "<b>Ana</b>\nLunch?");
-        assert_eq!(a.summary, "Ana");
+    fn the_body_never_repeats_the_summary() {
+        // Servers draw the summary bold already; the sender is not echoed.
+        for m in [Markup::Yes, Markup::No, Markup::Unknown] {
+            let a = NotifyArgs::from_alert(&alert("Ana", "Lunch?"), 0, m, None);
+            assert_eq!(a.body, "Lunch?");
+            assert_eq!(a.summary, "Ana");
+        }
     }
 
     #[test]
     fn with_markup_everything_from_mail_is_escaped() {
         let a = marked("<a&b>", "<b>x</b> & y");
-        assert_eq!(
-            a.body,
-            "<b>&lt;a&amp;b&gt;</b>\n&lt;b&gt;x&lt;/b&gt; &amp; y"
-        );
+        assert_eq!(a.body, "&lt;b&gt;x&lt;/b&gt; &amp; y");
         // The summary is plain text for every server.
         assert_eq!(a.summary, "<a&b>");
         // The cut is on the text, so an entity is never split.
         let a = marked("s", &"<".repeat(300));
-        assert_eq!(a.body, format!("<b>s</b>\n{}", "&lt;".repeat(200)));
+        assert_eq!(a.body, "&lt;".repeat(200));
     }
 
     #[test]
@@ -197,7 +193,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_capabilities_escape_but_do_not_bold() {
+    fn unknown_capabilities_escape() {
         let a = NotifyArgs::from_alert(&alert("<a&b>", "<i>x</i>"), 0, Markup::Unknown, None);
         assert_eq!(a.body, "&lt;i&gt;x&lt;/i&gt;");
     }
