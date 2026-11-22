@@ -33,6 +33,7 @@ pub async fn sync_folders(
         for id in &changes.remove {
             db.remove_folder(*id)?;
         }
+        server.commit_folders(db, account)?;
         Ok(())
     })?;
     for id in &changes.remove {
@@ -136,6 +137,7 @@ pub async fn sync_folder_as(
     }: Options<'_>,
 ) -> Result<Synced> {
     let folder = local.db.folder(id)?;
+    server.refresh(&folder.path).await?;
     let state = server.select(&folder.path).await?;
     let mut reused = memo
         .filter(|m| {
@@ -225,7 +227,11 @@ pub async fn sync_folder_as(
             let stored = new_rows(local, id, prev, plan.finish.uidnext)?;
             synced.new_mail = newmail::count(prev, plan.reset, &stored, own);
         }
-        local.db.step(|db| db.set_sync_state(id, &plan.finish))?;
+        local.db.step(|db| {
+            db.set_sync_state(id, &plan.finish)?;
+            server.commit_folder(db, id)?;
+            Ok(())
+        })?;
     }
     Ok(synced)
 }

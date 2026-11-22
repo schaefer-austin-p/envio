@@ -641,10 +641,14 @@ dependencies = [
 name = "envio-sync"
 version = "0.3.0"
 dependencies = [
+ "base64",
  "envio-mime",
  "envio-net",
  "envio-store",
+ "futures",
  "log",
+ "secrecy",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",

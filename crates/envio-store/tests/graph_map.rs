@@ -423,3 +423,14 @@ fn an_id_repeated_in_one_allocate_call_is_mapped_once() {
     assert_eq!(a.len(), 1);
     assert_eq!(s.map.folder(s.folder).unwrap().unwrap().uid_next, HIGH + 2);
 }
+
+#[test]
+fn count_is_the_rows_of_both_ranges() {
+    let s = setup();
+    assert_eq!(s.map.count(s.folder).unwrap(), 0);
+    s.map
+        .allocate(s.folder, &ids(&[("a", 1), ("b", 2)]))
+        .unwrap();
+    s.map.allocate_low(s.folder, "c", 3).unwrap();
+    assert_eq!(s.map.count(s.folder).unwrap(), 3);
+}

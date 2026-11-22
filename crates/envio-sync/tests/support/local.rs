@@ -1,5 +1,7 @@
 //! A whole store in a temporary folder, as core's worker would hold it.
 
+use std::path::PathBuf;
+
 use envio_store::{Bodies, Db, Drafts, Folder, Journal, ListRef, Outbox};
 use envio_sync::Schedule;
 use envio_sync::driver::Local;
@@ -9,6 +11,8 @@ pub const ACCOUNT: &str = "1700";
 
 pub struct Store {
     pub dir: TempDir,
+    /// The cache file, for `on_file` stores; empty for in-memory ones.
+    pub db_path: PathBuf,
     pub db: Db,
     pub bodies: Bodies,
     pub journal: Journal,
@@ -27,8 +31,18 @@ impl Store {
             outbox: Outbox::open(&dir.path().join("outbox")).unwrap(),
             drafts: Drafts::open(&dir.path().join("drafts")).unwrap(),
             schedule: Schedule::default(),
+            db_path: PathBuf::new(),
             dir,
         }
+    }
+
+    /// A store whose cache is a file, for code that opens it a second time
+    /// (`GraphMap`).
+    pub fn on_file() -> Self {
+        let mut store = Self::new();
+        store.db_path = store.dir.path().join("envio.db");
+        store.db = Db::open(&store.db_path).unwrap();
+        store
     }
 
     pub fn local(&mut self) -> Local<'_> {
