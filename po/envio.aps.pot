@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 15:46+0100\n"
+"POT-Creation-Date: 2026-11-22 16:09+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -187,7 +187,7 @@ msgid "Rename"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:165
-#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:94
+#: qml/pages/accounts/SignInAgainPage.qml:72 qml/pages/inbox/OutboxRow.qml:94
 #: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
@@ -272,17 +272,13 @@ msgstr ""
 msgid "App password"
 msgstr ""
 
-#: qml/pages/accounts/AppPasswordStep.qml:116
-msgid "16 letters, dashes and spaces don't matter"
-msgstr ""
-
-#: qml/pages/accounts/AppPasswordStep.qml:137
-#: qml/pages/accounts/SignInAgainPage.qml:145
+#: qml/pages/accounts/AppPasswordStep.qml:136
+#: qml/pages/accounts/SignInAgainPage.qml:152
 #: qml/pages/accounts/SignInStep.qml:210
 msgid "Signing in…"
 msgstr ""
 
-#: qml/pages/accounts/AppPasswordStep.qml:143
+#: qml/pages/accounts/AppPasswordStep.qml:142
 #: qml/pages/accounts/EmailStep.qml:119 qml/pages/accounts/SignInStep.qml:218
 msgid "Continue"
 msgstr ""
@@ -498,30 +494,30 @@ msgstr ""
 msgid "Connect"
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:92
+#: qml/pages/accounts/SignInAgainPage.qml:99
 msgid "Microsoft needs you to sign in again"
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:94
+#: qml/pages/accounts/SignInAgainPage.qml:101
 msgid ""
 "The saved sign-in for %1 expired or was withdrawn. Mail on this phone stays, "
 "and messages waiting in the Outbox go out after you sign in."
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:100
+#: qml/pages/accounts/SignInAgainPage.qml:107
 msgid "Microsoft opens in the browser. Sign in with %1."
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:131
+#: qml/pages/accounts/SignInAgainPage.qml:138
 msgid "Your password never passes through Envio."
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:153
+#: qml/pages/accounts/SignInAgainPage.qml:160
 #: qml/pages/accounts/SignInStep.qml:230 qml/pages/accounts/SignInStep.qml:240
 msgid "Sign in with Microsoft"
 msgstr ""
 
-#: qml/pages/accounts/SignInAgainPage.qml:164
+#: qml/pages/accounts/SignInAgainPage.qml:171
 #: qml/pages/accounts/SignInStep.qml:250
 msgid "Use this account"
 msgstr ""
@@ -1463,38 +1459,42 @@ msgid ""
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:62
-msgid "The sign-in took too long and was stopped. Start again"
+msgid "Microsoft did not say which kind of account this is. Nothing was saved"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:66
-msgid "Could not reach Microsoft. Check the connection and start again"
+msgid "The sign-in took too long and was stopped. Start again"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:70
-msgid "Microsoft or your organisation did not allow this sign-in"
+msgid "Could not reach Microsoft. Check the connection and start again"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:74
-msgid "The sign-in did not work. Start again"
+msgid "Microsoft or your organisation did not allow this sign-in"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:78
-msgid "That sign-in link is no longer valid. Start again"
+msgid "The sign-in did not work. Start again"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:82
-msgid "Signing in with Microsoft is not available in this version"
+msgid "That sign-in link is no longer valid. Start again"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:86
-msgid "This account does not sign in with Microsoft"
+msgid "Signing in with Microsoft is not available in this version"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:90
-msgid "There is no sign-in waiting for an answer"
+msgid "This account does not sign in with Microsoft"
 msgstr ""
 
 #: crates/envio-core/src/text/oauth.rs:94
+msgid "There is no sign-in waiting for an answer"
+msgstr ""
+
+#: crates/envio-core/src/text/oauth.rs:98
 msgid ""
 "This account signs in with Microsoft and has no password. Sign in again "
 "instead"
