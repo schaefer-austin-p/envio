@@ -159,6 +159,32 @@ impl Worker<'_> {
         }
     }
 
+    /// A filing run left sent mail unfiled. It counts only with an empty
+    /// Journal: with pending actions, Replay owns the counter and a refused
+    /// Sent copy must not make them Stuck.
+    pub(crate) fn migrate_file_failed(&mut self, account: &str) {
+        if self.pending_of(account) == 0 {
+            self.migrate_failed(account);
+        }
+    }
+
+    /// A Replay run, or a filing run with an empty Journal, went through: the
+    /// counter is of consecutive failures.
+    pub(crate) fn migrate_succeeded(&mut self, account: &str, filing: bool) {
+        if filing && self.pending_of(account) > 0 {
+            return;
+        }
+        let moving = self
+            .store
+            .accounts
+            .get(account)
+            .and_then(|a| a.settings.migration)
+            .filter(|m| m.step == REPLAY && m.failures > 0);
+        if let Some(m) = moving {
+            self.set_migration(account, Some(Migration { failures: 0, ..m }));
+        }
+    }
+
     /// "Switch anyway": the pending actions are dropped at the next step.
     pub(crate) fn switch_anyway(&mut self, account: &str) {
         let stuck = self

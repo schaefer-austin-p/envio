@@ -126,8 +126,10 @@ pub(super) async fn file(
     worker.unfiled.extend(filed.unfiled.iter().cloned());
     // A refused Sent copy is no error, but while the account moves it counts
     // like a failed run: after 3, the move is stuck and can be switched.
-    if !filed.unfiled.is_empty() {
-        worker.migrate_failed(account);
+    if filed.unfiled.is_empty() {
+        worker.migrate_succeeded(account, true);
+    } else {
+        worker.migrate_file_failed(account);
     }
     // A look that missed is made again at `resolve_after_ms`: the timer
     // (`on_timers`) asks for the next file run.

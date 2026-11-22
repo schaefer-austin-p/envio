@@ -442,6 +442,46 @@ fn a_refused_sent_copy_counts_as_a_failed_run_of_the_move() {
 }
 
 #[test]
+fn a_refused_sent_copy_does_not_count_while_actions_are_pending() {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    let target = envio_store::MessageRef {
+        account: account.clone(),
+        folder: "INBOX".into(),
+        uidvalidity: 1,
+        uid: 1,
+        message_id: None,
+    };
+    w.store
+        .journal
+        .push(1, target, envio_store::ActionKind::Delete)
+        .unwrap();
+    refused_filing_while_moving(&mut w, &account, 3);
+    let m = w.store.accounts.get(&account).unwrap().settings.migration;
+    assert_eq!(m.unwrap().failures, 0, "Replay owns the counter");
+}
+
+#[test]
+fn a_clean_filing_run_resets_the_failures() {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    refused_filing_while_moving(&mut w, &account, 2);
+    let mut server = Scripted {
+        miss: true,
+        ..Scripted::default()
+    };
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap()
+        .block_on(file(&mut w, &account, &mut server))
+        .unwrap();
+    let m = w.store.accounts.get(&account).unwrap().settings.migration;
+    assert_eq!(m.unwrap().failures, 0);
+}
+
+#[test]
 fn an_item_that_cannot_be_filed_ends_stuck_and_switch_anyway_moves_on() {
     let r = rig();
     let account = r.seeded.account.clone();
