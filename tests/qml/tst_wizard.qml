@@ -56,6 +56,8 @@ Item {
             wizard.clearPasswords()
             wizard.oauthSession.reset()
             wizard.oauthProvider = ""
+            wizard.oauthKind = ""
+            wizard.provider = ""
             wizard.accountName = ""
             opened = []
             wizard.oauthSession.uri.opener = function(u) { opened.push(String(u)); return true }
@@ -390,14 +392,19 @@ Item {
             compare(wizard.serversConfirmed, false)
         }
 
-        function test_first_run_has_no_back_on_the_email_step() {
+        function test_first_run_has_no_back_on_the_provider_step() {
             wizard.canLeave = false
+            wizard.step = "provider"
             verify(!find("backButton").visible)
-            // Between steps Back still works.
+            // Between steps Back still works: the email step goes back to the pick.
+            wizard.step = "email"
+            verify(find("backButton").visible)
             toSignIn(plainJson, false)
             verify(find("backButton").visible)
             back()
             compare(wizard.step, "email")
+            back()
+            compare(wizard.step, "provider")
             verify(!find("backButton").visible)
             wizard.canLeave = true
             verify(find("backButton").visible)

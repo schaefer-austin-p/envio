@@ -81,6 +81,7 @@ fn resume(r: &Rig) {
     r.h.send(Command::StartOAuth {
         email: String::new(),
         account: Some(r.key.clone()),
+        kind: None,
     });
     let url = r.h.wait(|e| match e {
         Event::OAuthBrowser { url, .. } => Some(url.clone()),

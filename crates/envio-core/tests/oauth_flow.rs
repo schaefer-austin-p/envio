@@ -86,6 +86,7 @@ impl Flow {
         self.h.send(Command::StartOAuth {
             email: email.into(),
             account: None,
+            kind: None,
         });
         let url = self.browser();
         state_of(&url)
@@ -228,6 +229,7 @@ fn starting_without_a_provider_is_refused_and_opens_no_browser() {
     h.send(Command::StartOAuth {
         email: ME.into(),
         account: None,
+        kind: None,
     });
     let mut refused = 0;
     let deadline = Instant::now() + Duration::from_millis(800);
@@ -272,6 +274,7 @@ fn starting_is_refused_for_other_domains_duplicates_and_password_accounts() {
         f.h.send(Command::StartOAuth {
             email: email.into(),
             account,
+            kind: None,
         });
         // Every refused start is answered, so the screen does not wait.
         assert_eq!(f.outcome(), OAuthOutcome::Failed(why), "{email}");
@@ -281,6 +284,7 @@ fn starting_is_refused_for_other_domains_duplicates_and_password_accounts() {
     f.h.send(Command::StartOAuth {
         email: String::new(),
         account: Some(oauth_key),
+        kind: None,
     });
     let url = f.browser();
     assert!(url.contains("login_hint=me%40outlook.com"), "{url}");
@@ -633,6 +637,7 @@ fn signing_in_again_resumes_the_account_and_the_outbox_drains() {
     r.h.send(Command::StartOAuth {
         email: String::new(),
         account: Some(r.key.clone()),
+        kind: None,
     });
     let url = r.h.wait(|e| match e {
         Event::OAuthBrowser { url, .. } => Some(url.clone()),
@@ -800,6 +805,7 @@ fn sign_in_again(r: &Rig) -> (OAuthOutcome, Vec<Event>) {
     r.h.send(Command::StartOAuth {
         email: String::new(),
         account: Some(r.key.clone()),
+        kind: None,
     });
     let url = r.h.wait(|e| match e {
         Event::OAuthBrowser { url, .. } => Some(url.clone()),
@@ -845,6 +851,7 @@ fn a_new_sign_in_for_a_graph_account_asks_for_the_graph_scopes() {
     h.send(Command::StartOAuth {
         email: String::new(),
         account: Some(key),
+        kind: None,
     });
     let url = h.wait(|e| match e {
         Event::OAuthBrowser { url, .. } => Some(url.clone()),

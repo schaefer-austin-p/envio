@@ -32,8 +32,12 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.connect(*request);
             Flow::Continue
         }
-        Command::StartOAuth { email, account } => {
-            worker.start_oauth(&email, account);
+        Command::StartOAuth {
+            email,
+            account,
+            kind,
+        } => {
+            worker.start_oauth(&email, account, kind);
             Flow::Continue
         }
         Command::OAuthRedirect { url } => {

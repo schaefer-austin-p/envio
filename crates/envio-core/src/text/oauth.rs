@@ -24,6 +24,44 @@ pub fn confirm(signed_in_as: Option<&str>, typed: &str) -> String {
     }
 }
 
+/// The heading and the text of the second sign-in's question. `personal`:
+/// the account is a personal one (picked as work or school).
+pub fn mismatch(who: &str, personal: bool) -> (String, String) {
+    if personal {
+        (
+            tr("This is a personal account"),
+            fill(
+                &tr(
+                    "{who} signed in as a personal account, not a work or school one. One more sign-in sets it up the right way.",
+                ),
+                &[("who", who)],
+            ),
+        )
+    } else {
+        (
+            tr("This is a work or school account"),
+            fill(
+                &tr(
+                    "{who} signed in as a work or school account, not Outlook.com. One more sign-in sets it up the right way.",
+                ),
+                &[("who", who)],
+            ),
+        )
+    }
+}
+
+pub fn admin() -> String {
+    tr("Your organization has not allowed Envio. Ask your administrator to allow it")
+}
+
+pub fn wrong_account() -> String {
+    tr("The second sign-in was for another account. Nothing was saved. Start again")
+}
+
+pub fn no_tenant() -> String {
+    tr("Microsoft did not say which kind of account this is. Nothing was saved")
+}
+
 pub fn timeout() -> String {
     tr("The sign-in took too long and was stopped. Start again")
 }

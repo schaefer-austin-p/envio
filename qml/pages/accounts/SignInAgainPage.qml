@@ -55,6 +55,13 @@ Item {
         email: found.email
         account: root.account
         onResumed: root.close()
+        // The admin block and a wrong account end here, not on a provider
+        // step: the page says why.
+        onDeclined: function(outcome, text) {
+            session.noticeKind = "warning"
+            session.noticeTitle = ""
+            session.noticeText = text
+        }
     }
 
     TopBar {

@@ -163,15 +163,18 @@ pub enum Command {
     Detect { email: String },
     /// Check the servers and password, then add the account.
     Connect(Box<ConnectRequest>),
-    /// Sign in with the provider of `email`'s domain in the browser. With
-    /// `account` (the key of an OAuth account) it is "Sign in again".
+    /// Sign in with a provider in the browser. `kind` is the provider (the
+    /// wizard's pick, which takes any address); `None` is the provider of
+    /// `email`'s domain. With `account` (the key of an OAuth account) it is
+    /// "Sign in again".
     StartOAuth {
         email: String,
         account: Option<String>,
+        kind: Option<envio_net::oauth::ProviderKind>,
     },
     /// The `enviooauth://` link the browser sent back.
     OAuthRedirect { url: SecretString },
-    /// The answer to `Event::OAuthConfirm`.
+    /// The answer to `Event::OAuthConfirm` or `Event::OAuthMismatch`.
     ConfirmOAuth { accept: bool },
     /// Give up the sign-in that waits.
     CancelOAuth,
