@@ -350,10 +350,12 @@ mod tests {
 
     #[test]
     fn an_unreadable_draft_file_drops_out_instead_of_failing() {
-        use std::os::unix::fs::PermissionsExt;
+        // A directory in the file's place: reading it is an I/O error for
+        // root too (a mode-000 file would not be).
         let after = after_a_refusal(|dir, _, id| {
             let file = dir.join(format!("{id}.json"));
-            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+            std::fs::remove_file(&file).unwrap();
+            std::fs::create_dir(&file).unwrap();
         });
         assert!(after.is_empty());
     }
