@@ -8,7 +8,7 @@ use envio_store::{FolderId, MessageRowId};
 use super::Local;
 use super::folders::store_summaries;
 use crate::error::{Result, SyncError};
-use crate::plan::older::plan_older;
+use crate::plan::older::OlderQueue;
 use crate::plan::pending::Pending;
 use crate::plan::sync::{Kept, window_start};
 use crate::server::MailServer;
@@ -93,16 +93,15 @@ pub async fn load_older(
         Some(tail) => local.db.count_dated_before(folder, tail)?,
         None => 0,
     };
-    let mut planned = kept.unwrap_or_default();
+    let planned = kept.unwrap_or_default();
+    // Read and sorted once per press: what the batches plan from.
+    let cached: BTreeSet<u32> = local.db.uids(row.id)?.into_iter().collect();
+    let mut queue = OlderQueue::new(&all, &cached, Some(&planned));
+    let mut done: Vec<u32> = Vec::new();
     let mut fetched = Vec::new();
     let mut exhausted = false;
     for _ in 0..(if tail.is_some() { MAX_BATCHES } else { 1 }) {
-        let step = batch(
-            server,
-            local,
-            &Ctx::new(&row, state.uid_validity, &all, &planned),
-        )
-        .await;
+        let step = batch(server, local, &row, state.uid_validity, &mut queue).await;
         let step = match step {
             Ok(step) => step,
             // Earlier batches are committed: report them, and let the next
@@ -115,7 +114,7 @@ pub async fn load_older(
             Err(error) => return Err(error),
         };
         exhausted = step.exhausted;
-        planned = planned.with(&step.fetch);
+        done.extend_from_slice(&step.fetch);
         let empty = step.stored.is_empty();
         fetched.extend(step.stored);
         // A batch that stored nothing (all \Deleted or hidden) shows
@@ -131,7 +130,7 @@ pub async fn load_older(
     }
     Ok(Older {
         fetched,
-        planned,
+        planned: planned.with(&done),
         exhausted,
     })
 }
@@ -148,30 +147,6 @@ fn below(local: &Local<'_>, folder: FolderId, tail: i64, base: u32) -> u32 {
     }
 }
 
-/// What `batch` plans from.
-struct Ctx<'a> {
-    row: &'a envio_store::Folder,
-    uid_validity: u32,
-    all: &'a [u32],
-    planned: &'a Kept,
-}
-
-impl<'a> Ctx<'a> {
-    fn new(
-        row: &'a envio_store::Folder,
-        uid_validity: u32,
-        all: &'a [u32],
-        planned: &'a Kept,
-    ) -> Self {
-        Self {
-            row,
-            uid_validity,
-            all,
-            planned,
-        }
-    }
-}
-
 /// One planned and stored batch.
 struct Step {
     /// The UIDs planned, stored or not.
@@ -180,16 +155,17 @@ struct Step {
     exhausted: bool,
 }
 
-/// Plans the next batch from the cache, fetches and stores it.
-async fn batch(server: &mut impl MailServer, local: &mut Local<'_>, ctx: &Ctx<'_>) -> Result<Step> {
-    let Ctx {
-        row,
-        uid_validity,
-        all,
-        planned,
-    } = *ctx;
-    let cached: BTreeSet<u32> = local.db.uids(row.id)?.into_iter().collect();
-    let plan = plan_older(all, &cached, Some(planned));
+/// Takes the next batch from the queue, fetches and stores it. A failure
+/// ends the call, so the queue is not rolled back: the next press plans the
+/// batch again.
+async fn batch(
+    server: &mut impl MailServer,
+    local: &mut Local<'_>,
+    row: &envio_store::Folder,
+    uid_validity: u32,
+    queue: &mut OlderQueue,
+) -> Result<Step> {
+    let plan = queue.next_batch();
     let mut stored = Vec::new();
     if !plan.fetch.is_empty() {
         let pending = Pending::of(
