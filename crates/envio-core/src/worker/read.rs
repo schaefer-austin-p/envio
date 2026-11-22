@@ -513,6 +513,9 @@ impl Worker<'_> {
 }
 
 #[cfg(test)]
+mod big_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::worker::dkim_keys::KeyCache;

@@ -22,6 +22,8 @@ thread_local! {
 }
 
 #[cfg(test)]
+mod forward_tests;
+#[cfg(test)]
 mod tests;
 
 impl Worker<'_> {
