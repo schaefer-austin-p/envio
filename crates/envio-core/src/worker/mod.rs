@@ -12,6 +12,10 @@ mod dkim_keys;
 mod edit;
 mod edit_keywords;
 mod folder_order;
+mod graph_bearer;
+mod graph_conn;
+#[cfg(test)]
+mod graph_kind_tests;
 mod inline;
 mod invite;
 mod label;
@@ -91,6 +95,8 @@ pub(crate) struct Worker<'s> {
     handled_due_ms: i64,
     /// The held Outbox release time already acted on (its own watermark).
     handled_release_ms: i64,
+    /// The same for the next look for an unconfirmed send in Sent.
+    handled_resolve_ms: i64,
     /// The account that ran last, for round robin.
     last_ran: Option<String>,
     /// Servers `Detect` found outside the address's domain: connecting to them
@@ -267,6 +273,7 @@ impl<'s> Worker<'s> {
             unfiled: BTreeSet::new(),
             handled_due_ms: i64::MIN,
             handled_release_ms: i64::MIN,
+            handled_resolve_ms: i64::MIN,
             last_ran: None,
             srv_hosts: BTreeSet::new(),
             opening: BTreeMap::new(),

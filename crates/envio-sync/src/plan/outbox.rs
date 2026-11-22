@@ -8,6 +8,14 @@ use envio_store::{OutboxMeta, SendState};
 
 use crate::error::{ErrorKind, net_kind};
 
+/// Looks for an unconfirmed Graph send in Sent this many times before the
+/// user is asked, `RESOLVE_GAP_MS` apart.
+pub const RESOLVE_TRIES: u32 = 3;
+pub const RESOLVE_GAP_MS: i64 = 10_000;
+/// Consecutive refused looks (Sent cannot be selected) that count as one
+/// miss, so a Sent that never opens ends in the ask.
+pub const RESOLVE_REFUSALS: u32 = 6;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemStep {
     /// Queued: send over SMTP.
@@ -52,6 +60,21 @@ pub fn next_release<'a>(
         .min()
 }
 
+/// The earliest look-up time past `after_ms` among May have been sent items:
+/// when the loop must wake to look in Sent again.
+pub fn next_resolve<'a>(
+    metas: impl IntoIterator<Item = &'a OutboxMeta>,
+    after_ms: i64,
+) -> Option<i64> {
+    metas
+        .into_iter()
+        .filter(|meta| {
+            meta.state == SendState::MayHaveBeenSent && meta.resolve_after_ms > after_ms.max(0)
+        })
+        .map(|meta| meta.resolve_after_ms)
+        .min()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AfterSend {
     pub state: SendState,
@@ -76,7 +99,7 @@ pub fn after_send(result: &Result<(), SendError>) -> AfterSend {
             retry: true,
             stop: None,
         },
-        kind @ (ErrorKind::SignIn | ErrorKind::Certificate) => AfterSend {
+        kind @ (ErrorKind::SignIn | ErrorKind::Certificate | ErrorKind::Damaged) => AfterSend {
             state: SendState::Queued,
             retry: false,
             stop: Some(kind),
@@ -130,6 +153,9 @@ mod tests {
 
     fn meta(send_after_ms: i64) -> OutboxMeta {
         OutboxMeta {
+            resolve_tries: 0,
+            resolve_after_ms: 0,
+            resolve_refusals: 0,
             account: "1".into(),
             message_id: "<a@example.org>".into(),
             queued_at_ms: 0,
@@ -156,6 +182,21 @@ mod tests {
         assert_eq!(next_release(&all, i64::MIN), Some(4_000));
         assert_eq!(next_release(&all, 4_000), Some(9_000));
         assert_eq!(next_release(&all, 9_000), None);
+    }
+
+    #[test]
+    fn the_next_resolve_is_the_earliest_unconfirmed_one_past_the_mark() {
+        let mut a = meta(0);
+        a.state = SendState::MayHaveBeenSent;
+        a.resolve_after_ms = 7_000;
+        let mut b = a.clone();
+        b.resolve_after_ms = 3_000;
+        let mut queued = meta(0);
+        queued.resolve_after_ms = 1_000;
+        let all = [a, b, queued];
+        assert_eq!(next_resolve(&all, 0), Some(3_000));
+        assert_eq!(next_resolve(&all, 3_000), Some(7_000));
+        assert_eq!(next_resolve(&all, 7_000), None);
     }
 
     fn fp(byte: u8) -> Fingerprint {
@@ -230,6 +271,21 @@ mod tests {
         assert_eq!(
             (sign_in.state, sign_in.retry, sign_in.stop),
             (SendState::Queued, false, Some(ErrorKind::SignIn))
+        );
+    }
+
+    #[test]
+    fn a_damaged_store_keeps_the_item_queued_and_stops_without_retry() {
+        let damaged = after_send(&failed(
+            NetError::Storage {
+                kind: envio_net::StorageKind::Damaged,
+                msg: "bad page".into(),
+            },
+            false,
+        ));
+        assert_eq!(
+            (damaged.state, damaged.retry, damaged.stop),
+            (SendState::Queued, false, Some(ErrorKind::Damaged))
         );
     }
 

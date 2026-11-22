@@ -40,7 +40,7 @@ fn settle(
     let batch = match outcome {
         Ok(batch) => batch,
         Err(e) => {
-            let problem = imap_error(&e);
+            let problem = imap_error(worker.kind_of(account), &e);
             // The folder itself was refused, not a message in it: leave the
             // folder alone while the worker lives, so there is no loop and
             // no message is blamed.
@@ -73,7 +73,7 @@ fn settle(
     let Some(error) = batch.error else {
         return Ok(());
     };
-    let problem = imap_error(&error);
+    let problem = imap_error(worker.kind_of(account), &error);
     // The error is on the message after the done ones. Whatever it was, that
     // one is not asked for again (opening it still fetches it): a message
     // that times out would otherwise be retried at every backoff, and each

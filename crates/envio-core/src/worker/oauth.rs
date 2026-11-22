@@ -332,7 +332,7 @@ impl Worker<'_> {
     /// was not written and taking it back out failed too. It is not live, so
     /// it is not a real account yet; after a restart it shows as "Sign in
     /// again".
-    fn stranded(&self, account: &envio_store::Account) -> bool {
+    pub(super) fn stranded(&self, account: &envio_store::Account) -> bool {
         account.settings.is_oauth()
             && !self.live.contains_key(&account.key)
             && self
@@ -411,7 +411,7 @@ impl Worker<'_> {
         }
     }
 
-    fn sign_in_again(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
+    pub(super) fn sign_in_again(&mut self, key: &str, refresh: SecretString) -> OAuthOutcome {
         let Some(kind) = self
             .store
             .accounts

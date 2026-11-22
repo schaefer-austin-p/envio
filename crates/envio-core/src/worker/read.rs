@@ -464,12 +464,13 @@ impl Worker<'_> {
         }
         // The whole message of a big one is the forward's. The reader gets
         // the partial body in a step of its own, made when this one ends.
+        let caps = super::backend::static_caps(self.kind_of_message(id));
         if whole
             && self
                 .store
                 .db
                 .message(id)
-                .is_ok_and(|m| envio_sync::driver::is_big(m.size))
+                .is_ok_and(|m| envio_sync::driver::big(caps, m.size))
         {
             self.open_again.insert(id);
             return;
@@ -510,6 +511,9 @@ impl Worker<'_> {
         self.parts_failed(account);
     }
 }
+
+#[cfg(test)]
+mod big_tests;
 
 #[cfg(test)]
 mod tests {

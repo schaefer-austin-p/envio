@@ -47,6 +47,17 @@ pub struct OutboxMeta {
     /// answer be undone. Files from before this field read as 0.
     #[serde(default)]
     pub send_after_ms: i64,
+    /// Misses so far looking for the sent copy of a `MayHaveBeenSent` item
+    /// (Graph), and when the next look may be (Unix ms). Zeroed when the
+    /// item is queued again or accepted.
+    #[serde(default)]
+    pub resolve_tries: u32,
+    #[serde(default)]
+    pub resolve_after_ms: i64,
+    /// Consecutive looks that were refused (Sent could not be selected);
+    /// they use no try until the sync driver's limit, then count as a miss.
+    #[serde(default)]
+    pub resolve_refusals: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,6 +120,9 @@ impl Outbox {
             from: new.from,
             recipients: new.recipients,
             send_after_ms: new.send_after_ms,
+            resolve_tries: 0,
+            resolve_after_ms: 0,
+            resolve_refusals: 0,
         };
         self.write_meta(&id, &meta)?;
         Ok(OutboxItem { id, meta })
@@ -168,13 +182,44 @@ impl Outbox {
 
     pub fn set_state(&self, id: &str, state: SendState) -> Result<()> {
         check(id)?;
-        let meta = OutboxMeta {
+        let mut meta = OutboxMeta {
             state,
             ..self.meta(id)?
         };
+        // A new try of the send, or its end, starts the look-up afresh.
+        if matches!(meta.state, SendState::Queued | SendState::Accepted) {
+            meta.resolve_tries = 0;
+            meta.resolve_after_ms = 0;
+            meta.resolve_refusals = 0;
+        }
         self.write_meta(id, &meta)?;
         self.unwritten().remove(id);
         Ok(())
+    }
+
+    /// Records a miss of the sent-copy look-up and when to look again. The
+    /// state is not touched, nor is the set of items found half-sent.
+    pub fn set_resolve(&self, id: &str, tries: u32, after_ms: i64) -> Result<()> {
+        check(id)?;
+        let meta = OutboxMeta {
+            resolve_tries: tries,
+            resolve_after_ms: after_ms,
+            resolve_refusals: 0,
+            ..self.meta(id)?
+        };
+        self.write_meta(id, &meta)
+    }
+
+    /// Records a refused look (Sent could not be selected): `refusals` in a
+    /// row so far, no try used, and when to look again.
+    pub fn set_resolve_refused(&self, id: &str, refusals: u32, after_ms: i64) -> Result<()> {
+        check(id)?;
+        let meta = OutboxMeta {
+            resolve_refusals: refusals,
+            resolve_after_ms: after_ms,
+            ..self.meta(id)?
+        };
+        self.write_meta(id, &meta)
     }
 
     fn unwritten(&self) -> MutexGuard<'_, HashSet<String>> {

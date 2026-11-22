@@ -364,6 +364,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_big_announced_body_trickling_past_the_base_deadline_completes_within_the_scaled_one()
+    {
+        use tokio::io::AsyncWriteExt;
+        // 48 KiB announced: allowed 3 s against a base of 1 s. It arrives in
+        // about 1.9 s: too slow for the base, inside the scaled deadline.
+        const LEN: usize = 48 * 1024;
+        let (mut client, mut server) = tokio::io::duplex(LEN + 1024);
+        let feeder = tokio::spawn(async move {
+            let head = format!("HTTP/1.1 200 OK\r\nContent-Length: {LEN}\r\n\r\n");
+            if server.write_all(head.as_bytes()).await.is_err() {
+                return;
+            }
+            for _ in 0..48 {
+                if server.write_all(&[b'x'; 1024]).await.is_err() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(40)).await;
+            }
+        });
+        let started = Instant::now();
+        let base = Duration::from_secs(1);
+        let reply = read_reply(&mut client, LEN * 2, T, base).await.unwrap();
+        assert!(started.elapsed() > base, "the test must outlast the base");
+        assert_eq!(reply.response.body.len(), LEN);
+        feeder.abort();
+    }
+
+    #[tokio::test]
     async fn a_reply_that_trickles_in_past_the_deadline_times_out() {
         use tokio::io::AsyncWriteExt;
         let (mut client, mut server) = tokio::io::duplex(64);

@@ -131,7 +131,11 @@ impl Worker<'_> {
                 self.floors.remove(&folder);
                 Err(Problem::Refused(String::new()))
             }
-            Err(e) => Err(problem::from_sync(&e, Service::Imap)),
+            Err(e) => Err(problem::from_sync(
+                &e,
+                Service::Imap,
+                self.kind_of_folder(folder),
+            )),
         }
     }
 

@@ -127,6 +127,9 @@ pub struct OutboxRowUi {
     pub signin_again: bool,
     /// Edit is offered (see `convert::outbox_editable`).
     pub editable: bool,
+    /// "Move to Sent" is offered on a message that may have been sent (not
+    /// on Graph, which keeps the sent copy itself).
+    pub can_file: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -211,6 +214,7 @@ const OUTBOX: &[&str] = &[
     "reasonAction",
     "signInAgain",
     "editable",
+    "canFile",
 ];
 const SUGGESTION: &[&str] = &["name", "address", "fromContacts", "lastSeen", "query"];
 
@@ -288,6 +292,7 @@ impl Row {
             (Self::Outbox(r), "reasonAction") => s(&r.reason_action),
             (Self::Outbox(r), "signInAgain") => Bool(r.signin_again),
             (Self::Outbox(r), "editable") => Bool(r.editable),
+            (Self::Outbox(r), "canFile") => Bool(r.can_file),
             (Self::Suggestion(r), "name") => s(&r.name),
             (Self::Suggestion(r), "address") => s(&r.address),
             (Self::Suggestion(r), "fromContacts") => Bool(r.from_contacts),

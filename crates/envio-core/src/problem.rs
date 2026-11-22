@@ -2,8 +2,8 @@
 //! what to do from one small enum.
 
 use crate::servers::Service;
-use envio_net::{Fingerprint, NetError, Untrusted};
-use envio_store::StoreError;
+use envio_net::{Fingerprint, NetError, StorageKind, Untrusted};
+use envio_store::{BackendKind, StoreError};
 use envio_sync::{ErrorKind, SyncError};
 
 /// What the user may need to look at for a certificate problem.
@@ -59,8 +59,12 @@ pub fn from_net(error: &NetError, service: Service) -> Problem {
         })),
         NetError::Tls(_) | NetError::NoStartTls => Problem::Certificate(None),
         NetError::Refused(text) => Problem::Refused(text.clone()),
-        // Stubs until T10 replaces them.
-        NetError::Storage { .. } => Problem::Local,
+        NetError::Storage { kind, .. } => match kind {
+            StorageKind::Damaged => Problem::Damaged,
+            StorageKind::DiskFull => Problem::DiskFull,
+            StorageKind::Other => Problem::Local,
+        },
+        // The Outbox handles an unconfirmed send before it gets here.
         NetError::Unconfirmed(_) => Problem::Temporary,
     }
 }
@@ -81,13 +85,15 @@ pub fn from_store(error: &StoreError) -> Problem {
     }
 }
 
-pub fn from_sync(error: &SyncError, service: Service) -> Problem {
+pub fn from_sync(error: &SyncError, service: Service, backend: BackendKind) -> Problem {
     match error {
         SyncError::Net(error) => {
             crate::cause::log_net(
-                match service {
-                    Service::Imap => "IMAP command during sync",
-                    Service::Smtp => "SMTP command during send",
+                match (backend, service) {
+                    (BackendKind::Imap, Service::Imap) => "IMAP command during sync",
+                    (BackendKind::Imap, Service::Smtp) => "SMTP command during send",
+                    (BackendKind::Graph, Service::Imap) => "Outlook.com command during sync",
+                    (BackendKind::Graph, Service::Smtp) => "Outlook.com send",
                 },
                 error,
             );
@@ -106,6 +112,7 @@ pub fn from_kind(kind: ErrorKind) -> Problem {
         ErrorKind::Refused => Problem::Refused(String::new()),
         // A replayed action whose retry failed locally (disk or database).
         ErrorKind::Local => Problem::Local,
+        ErrorKind::Damaged => Problem::Damaged,
     }
 }
 
@@ -147,7 +154,10 @@ mod tests {
         assert_eq!(at(crate::cause::IDLE), Problem::SignIn);
         assert_eq!(at(crate::cause::OPEN_INBOX), Problem::SignIn);
         let sync = SyncError::from(NetError::SignIn("no".into()));
-        assert_eq!(super::from_sync(&sync, Service::Imap), Problem::SignIn);
+        assert_eq!(
+            super::from_sync(&sync, Service::Imap, BackendKind::Imap),
+            Problem::SignIn
+        );
         let seen = crate::cause::take_seen();
         assert_eq!(seen.len(), 3, "{seen:?}");
         assert!(seen[0].starts_with("pause cause: IMAP IDLE: sign-in refused"));
@@ -235,7 +245,10 @@ mod tests {
     fn protocol_is_temporary_for_the_user() {
         assert_eq!(from_kind(ErrorKind::Protocol), Problem::Temporary);
         let sync = SyncError::Net(NetError::Protocol("odd".into()));
-        assert_eq!(from_sync(&sync, Service::Imap), Problem::Temporary);
+        assert_eq!(
+            from_sync(&sync, Service::Imap, BackendKind::Imap),
+            Problem::Temporary
+        );
     }
 
     #[test]
@@ -251,5 +264,52 @@ mod tests {
             Problem::Refused(String::new())
         );
         assert_eq!(from_kind(ErrorKind::Local), Problem::Local);
+    }
+
+    #[test]
+    fn damage_leads_to_a_rebuild_on_every_path() {
+        use envio_net::StorageKind;
+        assert_eq!(from_kind(ErrorKind::Damaged), Problem::Damaged);
+        let storage = |kind| NetError::Storage {
+            kind,
+            msg: "x".into(),
+        };
+        let cases = [
+            (StorageKind::Damaged, Problem::Damaged),
+            (StorageKind::DiskFull, Problem::DiskFull),
+            (StorageKind::Other, Problem::Local),
+        ];
+        for (kind, want) in cases {
+            assert_eq!(from_net(&storage(kind), Service::Imap), want);
+        }
+        assert_eq!(
+            from_net(&NetError::Unconfirmed("cut".into()), Service::Smtp),
+            Problem::Temporary
+        );
+        crate::cause::take_seen();
+        assert_eq!(
+            from_stopped("replay", Some(ErrorKind::Damaged)),
+            Err(Problem::Damaged)
+        );
+        let sync = SyncError::from(StoreError::Damaged("bad page".into()));
+        assert_eq!(
+            from_sync(&sync, Service::Imap, BackendKind::Graph),
+            Problem::Damaged
+        );
+    }
+
+    #[test]
+    fn a_graph_account_is_named_outlook_in_the_cause_line() {
+        crate::cause::take_seen();
+        let sync = SyncError::from(NetError::SignIn("no".into()));
+        for service in [Service::Imap, Service::Smtp] {
+            from_sync(&sync, service, BackendKind::Graph);
+        }
+        from_sync(&sync, Service::Imap, BackendKind::Imap);
+        let seen = crate::cause::take_seen();
+        assert_eq!(seen.len(), 3, "{seen:?}");
+        assert!(seen[0].starts_with("pause cause: Outlook.com command during sync"));
+        assert!(seen[1].starts_with("pause cause: Outlook.com send"));
+        assert!(seen[2].starts_with("pause cause: IMAP command during sync"));
     }
 }

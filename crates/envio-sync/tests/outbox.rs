@@ -7,7 +7,7 @@ use envio_net::imap::Role;
 use envio_net::smtp::SendError;
 use envio_store::{NewOutboxItem, SendState};
 use envio_sync::ErrorKind;
-use envio_sync::driver::{file_sent, refuse_outbox, send_outbox, sync_folders};
+use envio_sync::driver::{FileOpts, file_sent, refuse_outbox, send_outbox, sync_folders};
 use envio_sync::schedule::Key;
 use support::fake::{FakeSender, FakeServer, NOW_MS, eml};
 use support::local::{ACCOUNT, Store};
@@ -73,9 +73,18 @@ async fn a_queued_message_is_sent_then_filed_in_sent_once() {
     assert_eq!(to, &["dave@example.org", "erin@example.org"]);
     assert_eq!(body, &eml("out"));
     assert_eq!(state(&store, &id), Some(SendState::Accepted));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.removed, [id.as_str()]);
     assert_eq!(server.ids("Sent"), ["out@example.org"]);
     assert!(server.message("Sent", 1).unwrap().flags.seen);
@@ -107,9 +116,18 @@ async fn an_accepted_message_already_in_sent_is_not_filed_twice() {
     let id = queue(&store, "out");
     store.outbox.set_state(&id, SendState::Accepted).unwrap();
     server.deliver_id("Sent", "out");
-    file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(server.ids("Sent").len(), 1);
     assert_eq!(state(&store, &id), None);
 }
@@ -120,9 +138,18 @@ async fn gmail_files_sent_mail_itself() {
     let mut store = store_with_sent(&mut server).await;
     let id = queue(&store, "out");
     store.outbox.set_state(&id, SendState::Accepted).unwrap();
-    file_sent(&mut server, &mut store.local(), ACCOUNT, true)
-        .await
-        .unwrap();
+    file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: true,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert!(server.ids("Sent").is_empty());
     assert_eq!(state(&store, &id), None);
 }
@@ -142,15 +169,33 @@ async fn a_message_that_may_have_been_sent_is_never_resent() {
         .await
         .unwrap();
     assert_eq!(sender.attempts.len(), 1);
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.ask, [id.as_str()], "not in Sent: the user decides");
     assert_eq!(state(&store, &id), Some(SendState::MayHaveBeenSent));
     server.deliver_id("Sent", "out");
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.removed, [id]);
     assert_eq!(server.ids("Sent").len(), 1, "found, not appended");
 }
@@ -228,9 +273,18 @@ async fn an_unusable_message_id_never_matches_anything_in_sent() {
         .set_state(&id, SendState::MayHaveBeenSent)
         .unwrap();
     server.deliver_id("Sent", "unrelated");
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.ask, [id.as_str()]);
     assert!(filed.removed.is_empty());
     let searched = server
@@ -251,9 +305,18 @@ async fn a_refused_item_does_not_block_filing_the_others() {
         store.outbox.set_state(id, SendState::Accepted).unwrap();
     }
     server.fail_on("append", NetError::Refused("over quota".into()));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(server.ids("Sent").len(), 1);
     assert_eq!(filed.removed.len(), 1);
     assert!(filed.ask.is_empty());
@@ -280,9 +343,18 @@ async fn a_refused_sent_select_leaves_items_in_place_and_reports_them() {
         .set_state(&unsure, SendState::MayHaveBeenSent)
         .unwrap();
     server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert!(filed.removed.is_empty());
     assert!(filed.ask.is_empty(), "Sent was not searched: not asked");
     assert_eq!(filed.unfiled, std::slice::from_ref(&accepted));
@@ -311,9 +383,18 @@ async fn a_refused_sent_select_keeps_what_was_already_filed() {
         .set_state(&unsure, SendState::MayHaveBeenSent)
         .unwrap();
     server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, true)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: true,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.removed, std::slice::from_ref(&accepted));
     assert!(filed.unfiled.is_empty(), "it needed no Sent folder");
     assert!(filed.ask.is_empty(), "Sent was not searched: not asked");
@@ -327,9 +408,18 @@ async fn with_no_folders_cached_an_accepted_item_is_left_in_the_outbox() {
     let mut store = Store::new();
     let id = queue(&store, "one");
     store.outbox.set_state(&id, SendState::Accepted).unwrap();
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert!(filed.removed.is_empty());
     assert!(filed.ask.is_empty());
     assert_eq!(state(&store, &id), Some(SendState::Accepted));
@@ -345,9 +435,18 @@ async fn a_maybe_sent_item_whose_sent_search_is_refused_is_left_for_the_next_try
         .set_state(&unsure, SendState::MayHaveBeenSent)
         .unwrap();
     server.fail_on("search_message_id", NetError::Refused("no search".into()));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert!(filed.ask.is_empty(), "the search failed: not asked");
     assert!(filed.removed.is_empty());
     assert!(filed.unfiled.is_empty());
@@ -364,9 +463,18 @@ async fn a_refused_sent_select_leaves_maybe_sent_items_unasked() {
         .set_state(&unsure, SendState::MayHaveBeenSent)
         .unwrap();
     server.fail_on_detail("select", "Sent", NetError::Refused("no such folder".into()));
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert!(filed.ask.is_empty(), "the select failed: not asked");
     assert!(filed.relist);
     assert!(filed.unfiled.is_empty());
@@ -382,9 +490,18 @@ async fn a_maybe_sent_item_is_asked_only_when_sent_was_searched_and_lacks_it() {
         .outbox
         .set_state(&unsure, SendState::MayHaveBeenSent)
         .unwrap();
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.ask, std::slice::from_ref(&unsure));
     assert!(!filed.relist, "Sent was usable");
 }
@@ -407,9 +524,18 @@ async fn a_padded_message_id_is_searched_trimmed() {
         .set_state(&id, SendState::MayHaveBeenSent)
         .unwrap();
     server.deliver_id("Sent", "out");
-    let filed = file_sent(&mut server, &mut store.local(), ACCOUNT, false)
-        .await
-        .unwrap();
+    let filed = file_sent(
+        &mut server,
+        &mut store.local(),
+        ACCOUNT,
+        FileOpts {
+            files_itself: false,
+            now_ms: NOW_MS,
+            retries: false,
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(filed.removed, [id.as_str()]);
     let trimmed = "search_message_id <out@example.org>".to_owned();
     assert!(server.calls.contains(&trimmed));

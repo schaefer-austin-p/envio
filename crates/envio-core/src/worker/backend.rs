@@ -4,66 +4,80 @@
 
 use envio_net::Result;
 use envio_net::imap::{Caps, Flag, FlagUpdate, Folder, FolderState, ImapSession, Summary};
+use envio_store::{BackendKind, Db, FolderId, MessageRowId};
+use envio_sync::graph::GraphServer;
 use envio_sync::server::MailServer;
+
+use super::Worker;
 
 // One connection per account, moved in and out: its size does not matter.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum Backend {
     Imap(ImapSession),
+    Graph(GraphServer),
 }
 
 impl MailServer for Backend {
     fn caps(&self) -> Caps {
         match self {
             Self::Imap(s) => s.caps(),
+            Self::Graph(s) => MailServer::caps(s),
         }
     }
 
     async fn list_folders(&mut self) -> Result<Vec<Folder>> {
         match self {
             Self::Imap(s) => s.list_folders().await,
+            Self::Graph(s) => MailServer::list_folders(s).await,
         }
     }
 
     async fn select(&mut self, path: &str) -> Result<FolderState> {
         match self {
             Self::Imap(s) => MailServer::select(s, path).await,
+            Self::Graph(s) => MailServer::select(s, path).await,
         }
     }
 
     async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>> {
         match self {
             Self::Imap(s) => s.search_since(unix_secs).await,
+            Self::Graph(s) => MailServer::search_since(s, unix_secs).await,
         }
     }
 
     async fn search_all(&mut self) -> Result<Vec<u32>> {
         match self {
             Self::Imap(s) => s.search_all().await,
+            Self::Graph(s) => MailServer::search_all(s).await,
         }
     }
 
     async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
         match self {
             Self::Imap(s) => s.search_message_id(message_id).await,
+            Self::Graph(s) => MailServer::search_message_id(s, message_id).await,
         }
     }
 
     async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
         match self {
             Self::Imap(s) => s.search_message_id_deep(message_id).await,
+            Self::Graph(s) => MailServer::search_message_id_deep(s, message_id).await,
         }
     }
 
     async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
         match self {
             Self::Imap(s) => s.search_text(text).await,
+            Self::Graph(s) => MailServer::search_text(s, text).await,
         }
     }
 
     async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>> {
         match self {
             Self::Imap(s) => s.fetch_summaries(uids).await,
+            Self::Graph(s) => MailServer::fetch_summaries(s, uids).await,
         }
     }
 
@@ -74,18 +88,21 @@ impl MailServer for Backend {
     ) -> Result<Vec<FlagUpdate>> {
         match self {
             Self::Imap(s) => s.fetch_flags(uids, changed_since).await,
+            Self::Graph(s) => MailServer::fetch_flags(s, uids, changed_since).await,
         }
     }
 
     async fn fetch_body(&mut self, uid: u32, size: usize) -> Result<Option<Vec<u8>>> {
         match self {
             Self::Imap(s) => s.fetch_body(uid, size).await,
+            Self::Graph(s) => MailServer::fetch_body(s, uid, size).await,
         }
     }
 
     async fn fetch_partial(&mut self, uid: u32) -> Result<Option<Vec<u8>>> {
         match self {
             Self::Imap(s) => s.fetch_partial(uid).await,
+            Self::Graph(s) => MailServer::fetch_partial(s, uid).await,
         }
     }
 
@@ -97,37 +114,95 @@ impl MailServer for Backend {
     ) -> Result<Option<Vec<u8>>> {
         match self {
             Self::Imap(s) => s.fetch_section(uid, section, size).await,
+            Self::Graph(s) => MailServer::fetch_section(s, uid, section, size).await,
         }
     }
 
     async fn store_flags(&mut self, uids: &[u32], add: bool, flags: &[Flag]) -> Result<()> {
         match self {
             Self::Imap(s) => s.store_flags(uids, add, flags).await,
+            Self::Graph(s) => MailServer::store_flags(s, uids, add, flags).await,
         }
     }
 
     async fn move_to(&mut self, uids: &[u32], target: &str) -> Result<()> {
         match self {
             Self::Imap(s) => s.move_to(uids, target).await,
+            Self::Graph(s) => MailServer::move_to(s, uids, target).await,
         }
     }
 
     async fn delete(&mut self, uids: &[u32]) -> Result<()> {
         match self {
             Self::Imap(s) => s.delete(uids).await,
+            Self::Graph(s) => MailServer::delete(s, uids).await,
         }
     }
 
     async fn append(&mut self, folder: &str, flags: &[Flag], eml: &[u8]) -> Result<()> {
         match self {
             Self::Imap(s) => s.append(folder, flags, eml).await,
+            Self::Graph(s) => MailServer::append(s, folder, flags, eml).await,
         }
     }
 
     fn take_changes(&mut self) -> bool {
         match self {
             Self::Imap(s) => MailServer::take_changes(s),
+            Self::Graph(s) => MailServer::take_changes(s),
         }
+    }
+
+    async fn refresh(&mut self, path: &str) -> Result<()> {
+        match self {
+            Self::Imap(s) => MailServer::refresh(s, path).await,
+            Self::Graph(s) => MailServer::refresh(s, path).await,
+        }
+    }
+
+    fn commit_folders(&mut self, db: &Db, account: &str) -> envio_store::Result<()> {
+        match self {
+            Self::Imap(s) => MailServer::commit_folders(s, db, account),
+            Self::Graph(s) => MailServer::commit_folders(s, db, account),
+        }
+    }
+
+    fn commit_folder(&mut self, db: &Db, id: FolderId) -> envio_store::Result<()> {
+        match self {
+            Self::Imap(s) => MailServer::commit_folder(s, db, id),
+            Self::Graph(s) => MailServer::commit_folder(s, db, id),
+        }
+    }
+}
+
+/// What `kind` of backend can do, known without a connection: all the
+/// caller needs is whether bodies come in parts (`driver::big`).
+pub(crate) fn static_caps(kind: BackendKind) -> Caps {
+    match kind {
+        BackendKind::Imap => Caps::default(),
+        BackendKind::Graph => envio_sync::graph::GRAPH_CAPS,
+    }
+}
+
+impl Worker<'_> {
+    /// The account's backend; an unknown account counts as IMAP.
+    pub(crate) fn kind_of(&self, account: &str) -> BackendKind {
+        self.store
+            .accounts
+            .get(account)
+            .map_or(BackendKind::Imap, |a| a.settings.backend)
+    }
+
+    pub(crate) fn kind_of_folder(&self, folder: FolderId) -> BackendKind {
+        self.store
+            .db
+            .folder(folder)
+            .map_or(BackendKind::Imap, |f| self.kind_of(&f.account))
+    }
+
+    pub(crate) fn kind_of_message(&self, id: MessageRowId) -> BackendKind {
+        self.account_of(id)
+            .map_or(BackendKind::Imap, |a| self.kind_of(&a))
     }
 }
 
@@ -161,9 +236,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn static_caps_follow_the_kind() {
+        assert!(!static_caps(BackendKind::Imap).no_partial);
+        assert!(static_caps(BackendKind::Graph).no_partial);
+    }
+
+    #[test]
     fn imap_forwards_caps_and_take_changes() {
         let (mut backend, _runtime) = fake_backend(Kind::Imap);
-        let Backend::Imap(session) = &backend;
+        let Backend::Imap(session) = &backend else {
+            panic!("an IMAP backend");
+        };
         let caps = session.caps();
         assert_eq!(MailServer::caps(&backend), caps);
         assert!(!MailServer::take_changes(&mut backend));

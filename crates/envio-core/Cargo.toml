@@ -37,3 +37,4 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 rcgen = "0.14"
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
 envio-core = { path = ".", features = ["test-hooks"] }
+envio-net = { path = "../envio-net", features = ["test-mock"] }

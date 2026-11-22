@@ -59,3 +59,40 @@ impl Worker<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use envio_store::{Envelope, Flags, NewMessage};
+
+    use crate::worker::testing::{Sink, into_graph, open, seed};
+
+    const MIB: u32 = 1024 * 1024;
+
+    #[test]
+    fn a_graph_inbox_prefetches_small_bodies_and_skips_ones_over_10_mib() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        into_graph(&mut worker, &seeded.account);
+        let now_ms = crate::clock::now_ms();
+        let add = |uid: u32, size: u32| {
+            let new = NewMessage {
+                uid,
+                size,
+                envelope: Envelope {
+                    date: now_ms / 1000,
+                    ..Envelope::default()
+                },
+                flags: Flags::default(),
+                preview: String::new(),
+            };
+            worker.store.db.upsert_message(seeded.folder, &new).unwrap()
+        };
+        let small = add(2, 100 * 1024);
+        let big = add(3, 11 * MIB);
+        let batch = worker.prefetch_batch(&seeded.account, seeded.folder, now_ms);
+        assert!(batch.contains(&small), "{batch:?}");
+        assert!(!batch.contains(&big), "{batch:?}");
+    }
+}

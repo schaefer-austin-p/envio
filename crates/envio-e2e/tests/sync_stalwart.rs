@@ -9,7 +9,9 @@ use envio_net::smtp::SmtpSession;
 use envio_net::{Roots, Security};
 use envio_store::{ActionKind, Flags, FolderRole, NewOutboxItem};
 use envio_sync::UNDO_MS;
-use envio_sync::driver::{AccountSynced, file_sent, record, send_outbox, sync_account, undo};
+use envio_sync::driver::{
+    AccountSynced, FileOpts, file_sent, record, send_outbox, sync_account, undo,
+};
 use support::stalwart::{Stalwart, message, message_id};
 use support::{Store, User, now_ms};
 
@@ -212,9 +214,18 @@ async fn sent_mail_is_filed_in_sent_once_and_leaves_the_outbox() {
     assert!(sent.failed.is_empty() && sent.unconfirmed.is_empty() && sent.stopped.is_none());
     smtp.quit().await.unwrap();
     for round in 0..2 {
-        let filed = file_sent(&mut session, &mut store.local(), frank.name, false)
-            .await
-            .unwrap();
+        let filed = file_sent(
+            &mut session,
+            &mut store.local(),
+            frank.name,
+            FileOpts {
+                files_itself: false,
+                now_ms: 0,
+                retries: false,
+            },
+        )
+        .await
+        .unwrap();
         assert!(filed.ask.is_empty() && filed.unfiled.is_empty());
         // The first run files it; the second finds nothing left to do.
         assert_eq!(filed.removed.len(), usize::from(round == 0));

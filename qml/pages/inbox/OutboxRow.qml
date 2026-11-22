@@ -12,7 +12,9 @@ import "../../components"
 //   sending, sentnotfiled: none (core refuses Delete; it is on its way or done)
 //   failed:           Retry, Edit, Delete (Edit shows by `editable`)
 //   maybesent:        Send again, Move to Sent, Delete (the server may
-//                     already have it, so the user decides)
+//                     already have it, so the user decides). Move to Sent
+//                     shows by `canFile`: not on Graph, which keeps the
+//                     sent copy itself.
 ListRow {
     id: root
     required property var model
@@ -101,7 +103,7 @@ ListRow {
             }
             AppButton {
                 objectName: "moveToSent-" + root.model.id
-                visible: root.model.status === "maybesent"
+                visible: root.model.status === "maybesent" && !!root.model.canFile
                 theme: root.theme
                 text: qsTr("Move to Sent")
                 onClicked: root.decided(root.model.id, "movetosent")

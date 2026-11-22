@@ -140,7 +140,10 @@ fn send_again_on_an_unasked_item_is_refused() {
     }
     assert_eq!(
         rows(&h)[0].status,
-        OutboxStatus::MayHaveBeenSent { asked: false }
+        OutboxStatus::MayHaveBeenSent {
+            asked: false,
+            can_file: true
+        }
     );
 }
 
@@ -188,14 +191,20 @@ fn a_restart_never_requeues_a_maybe_sent_item() {
     h.start_core();
     assert_eq!(
         rows(&h)[0].status,
-        OutboxStatus::MayHaveBeenSent { asked: false }
+        OutboxStatus::MayHaveBeenSent {
+            asked: false,
+            can_file: true
+        }
     );
     h.restart();
     let list = rows(&h);
     assert_eq!(list[0].id, item);
     assert_eq!(
         list[0].status,
-        OutboxStatus::MayHaveBeenSent { asked: false }
+        OutboxStatus::MayHaveBeenSent {
+            asked: false,
+            can_file: true
+        }
     );
     let stored = Outbox::open(&h.paths().outbox()).unwrap().items().unwrap();
     assert_eq!(stored[0].meta.state, SendState::MayHaveBeenSent);

@@ -16,6 +16,9 @@ pub use prefetch::{PREFETCH_BATCH, PREFETCH_DAYS, PREFETCH_MAX_SIZE};
 
 pub const POLL_MS: i64 = envio_sync::POLL_MS;
 
+/// The background poll of a notifying account that has no IDLE.
+pub const BACKGROUND_POLL_MS: i64 = 5 * 60_000;
+
 // The renewal is `min(IDLE_MAX, POLL_MS)`: the poll interval must stay the
 // shorter, or the 29 minute bound would be the one that applies.
 const _: () = assert!(POLL_MS <= IDLE_MAX.as_millis() as i64);
@@ -217,6 +220,10 @@ pub struct Timing {
     pub idle_capable: bool,
     /// The account raises alerts: in the background it keeps Inbox IDLE.
     pub notifies: bool,
+    /// How often a notifying account without IDLE is polled in the
+    /// background (Graph, or an IMAP server with no IDLE); `None` for the
+    /// rest.
+    pub poll_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,7 +248,10 @@ pub fn next(timing: &Timing, now_ms: i64) -> Next {
             until_ms: timing.retry_at_ms,
         };
     }
-    if timing.has_wants || (timing.foreground && now_ms >= timing.next_full_ms) {
+    // A foreground account polls on its own clock; a background one only
+    // when it has no IDLE to wait in.
+    let polls = timing.foreground || timing.poll_ms.is_some();
+    if timing.has_wants || (polls && now_ms >= timing.next_full_ms) {
         return Next::Run;
     }
     if timing.idle_capable {
@@ -260,7 +270,7 @@ pub fn next(timing: &Timing, now_ms: i64) -> Next {
         };
     }
     Next::Sleep {
-        until_ms: timing.foreground.then_some(timing.next_full_ms),
+        until_ms: polls.then_some(timing.next_full_ms),
     }
 }
 
@@ -545,6 +555,7 @@ mod tests {
             has_wants: false,
             idle_capable: false,
             notifies: false,
+            poll_ms: None,
         }
     }
 
@@ -694,6 +705,59 @@ mod tests {
                 until_ms: Some(10_000)
             }
         );
+    }
+
+    #[test]
+    fn a_background_poll_runs_when_due_and_sleeps_until_then() {
+        let t = Timing {
+            foreground: false,
+            notifies: true,
+            poll_ms: Some(BACKGROUND_POLL_MS),
+            next_full_ms: 10_000,
+            ..timing()
+        };
+        assert_eq!(next(&t, 10_000), Next::Run);
+        assert_eq!(next(&t, 20_000), Next::Run);
+        assert_eq!(
+            next(&t, 9_999),
+            Next::Sleep {
+                until_ms: Some(10_000)
+            }
+        );
+    }
+
+    #[test]
+    fn without_a_poll_the_background_still_sleeps_with_no_timer() {
+        let t = Timing {
+            foreground: false,
+            notifies: true,
+            poll_ms: None,
+            next_full_ms: 10_000,
+            ..timing()
+        };
+        assert_eq!(next(&t, 20_000), Next::Sleep { until_ms: None });
+    }
+
+    #[test]
+    fn a_poll_does_not_touch_the_foreground_or_a_silent_account() {
+        let t = Timing {
+            poll_ms: Some(BACKGROUND_POLL_MS),
+            ..timing()
+        };
+        assert_eq!(
+            next(&t, 9_999),
+            Next::Sleep {
+                until_ms: Some(10_000)
+            }
+        );
+        assert_eq!(next(&t, 10_000), Next::Run);
+        let silent = Timing {
+            foreground: false,
+            notifies: false,
+            poll_ms: Some(BACKGROUND_POLL_MS),
+            ..timing()
+        };
+        assert_eq!(next(&silent, 20_000), Next::Sleep { until_ms: None });
     }
 
     #[test]

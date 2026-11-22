@@ -3,6 +3,7 @@
 //! attachments stay on the server and are fetched one by one when the user
 //! asks), so opening a 40 MB mail never holds it whole in memory.
 
+use envio_net::imap::Caps;
 use envio_store::{BodyState, Message, MessageRowId};
 
 use super::Local;
@@ -14,9 +15,11 @@ use crate::server::MailServer;
 pub const PARTIAL_ABOVE: u32 = 10 * 1024 * 1024;
 
 /// Whether a message of `size` is fetched in parts. A size of 0 (cached
-/// before migration 0002) is not known to be big.
-pub fn is_big(size: u32) -> bool {
-    size > PARTIAL_ABOVE
+/// before migration 0002) is not known to be big. A server that cannot give
+/// parts (`caps.no_partial`, Graph) always downloads a body whole, so
+/// nothing is big there.
+pub fn big(caps: Caps, size: u32) -> bool {
+    !caps.no_partial && size > PARTIAL_ABOVE
 }
 
 /// Downloads a message's body when it's opened: written to disk, then the
@@ -56,7 +59,8 @@ async fn fetch(
         return Ok(None);
     }
     let size = usize::try_from(message.size).unwrap_or(usize::MAX);
-    let partial = !whole && is_big(message.size);
+    let caps = server.caps();
+    let partial = !whole && big(caps, message.size);
     let fetched = if partial {
         server.fetch_partial(message.uid).await?
     } else {
@@ -68,7 +72,7 @@ async fn fetch(
             .step(|db| db.delete_messages(folder.id, &[message.uid]))?;
         return Ok(None);
     };
-    if whole && is_big(message.size) {
+    if whole && big(caps, message.size) {
         return Ok(Some(eml));
     }
     let kept = if partial {
@@ -123,8 +127,19 @@ mod tests {
 
     #[test]
     fn only_a_size_above_the_threshold_is_big() {
-        assert!(!is_big(0));
-        assert!(!is_big(PARTIAL_ABOVE));
-        assert!(is_big(PARTIAL_ABOVE + 1));
+        let imap = Caps::default();
+        assert!(!big(imap, 0));
+        assert!(!big(imap, PARTIAL_ABOVE));
+        assert!(big(imap, PARTIAL_ABOVE + 1));
+    }
+
+    #[test]
+    fn without_partial_fetches_nothing_is_big() {
+        let graph = Caps {
+            no_partial: true,
+            ..Caps::default()
+        };
+        assert!(!big(graph, PARTIAL_ABOVE + 1));
+        assert!(!big(graph, u32::MAX));
     }
 }

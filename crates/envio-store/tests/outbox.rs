@@ -214,3 +214,72 @@ fn a_held_item_keeps_its_send_after() {
     assert_eq!(item.meta.send_after_ms, 9_000);
     assert_eq!(outbox.items().unwrap()[0].meta.send_after_ms, 9_000);
 }
+
+#[test]
+fn a_resolve_miss_is_kept_across_a_restart_and_leaves_the_state_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    outbox
+        .set_state(&item.id, SendState::MayHaveBeenSent)
+        .unwrap();
+    outbox.set_resolve(&item.id, 2, 77_000).unwrap();
+    let meta = |o: &Outbox| o.items().unwrap().remove(0).meta;
+    assert_eq!(meta(&outbox).state, SendState::MayHaveBeenSent);
+    assert_eq!(meta(&outbox).resolve_tries, 2);
+    assert_eq!(meta(&outbox).resolve_after_ms, 77_000);
+    let reopened = Outbox::open(dir.path()).unwrap();
+    assert_eq!(meta(&reopened).resolve_tries, 2);
+    assert_eq!(meta(&reopened).resolve_after_ms, 77_000);
+}
+
+#[test]
+fn queueing_again_or_accepting_zeroes_the_resolve_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    let meta = |o: &Outbox| o.items().unwrap().remove(0).meta;
+    for state in [SendState::Queued, SendState::Accepted] {
+        outbox.set_resolve(&item.id, 2, 77_000).unwrap();
+        outbox.set_resolve_refused(&item.id, 4, 77_000).unwrap();
+        outbox.set_state(&item.id, state.clone()).unwrap();
+        assert_eq!(meta(&outbox).resolve_refusals, 0, "{state:?}");
+        assert_eq!(meta(&outbox).resolve_tries, 0, "{state:?}");
+        assert_eq!(meta(&outbox).resolve_after_ms, 0, "{state:?}");
+    }
+    // Other states keep the count.
+    outbox.set_resolve(&item.id, 2, 77_000).unwrap();
+    outbox
+        .set_state(&item.id, SendState::MayHaveBeenSent)
+        .unwrap();
+    assert_eq!(meta(&outbox).resolve_tries, 2);
+}
+
+#[test]
+fn a_resolve_miss_does_not_clear_an_item_found_half_sent() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    outbox.set_state(&item.id, SendState::Sending).unwrap();
+    // After a power loss the item is found `Sending`: it may have been sent.
+    let reopened = Outbox::open(dir.path()).unwrap();
+    reopened.set_resolve(&item.id, 1, 5).unwrap();
+    let after = reopened.items().unwrap().remove(0).meta;
+    assert_eq!(after.state, SendState::MayHaveBeenSent);
+    assert_eq!(after.resolve_tries, 1);
+}
+
+#[test]
+fn old_meta_without_resolve_fields_reads_as_zero() {
+    let dir = tempfile::tempdir().unwrap();
+    let outbox = Outbox::open(dir.path()).unwrap();
+    let item = outbox.enqueue(new(5), b"x").unwrap();
+    let path = dir.path().join(format!("{}.json", item.id));
+    let mut value: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    let object = value.as_object_mut().unwrap();
+    object.remove("resolve_tries").unwrap();
+    object.remove("resolve_after_ms").unwrap();
+    fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    let meta = outbox.items().unwrap().remove(0).meta;
+    assert_eq!((meta.resolve_tries, meta.resolve_after_ms), (0, 0));
+}

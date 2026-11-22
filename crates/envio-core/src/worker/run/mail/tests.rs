@@ -4,10 +4,10 @@ use std::collections::VecDeque;
 
 use envio_net::imap::{Caps, Flag, FlagUpdate, Folder, FolderState, Summary};
 use envio_net::{NetError, Result};
-use envio_store::{Draft, FolderRole, RefusalKind};
+use envio_store::{Draft, FolderRole, RefusalKind, SendState};
 
 use super::*;
-use crate::worker::testing::{Seeded, Sink, open, seed};
+use crate::worker::testing::{Seeded, Sink, into_graph, open, seed};
 
 /// Answers SELECT and LIST; APPEND and DELETE follow a script (OK when it
 /// runs out); everything else is never asked.
@@ -17,6 +17,8 @@ struct Scripted {
     delete_error: Option<String>,
     appended: usize,
     deletes: usize,
+    /// Sent has no copy of anything.
+    miss: bool,
 }
 
 impl MailServer for Scripted {
@@ -41,7 +43,7 @@ impl MailServer for Scripted {
         unreachable!()
     }
     async fn search_message_id(&mut self, _: &str) -> Result<Vec<u32>> {
-        Ok(vec![1])
+        Ok(if self.miss { vec![] } else { vec![1] })
     }
     async fn search_message_id_deep(&mut self, _: &str) -> Result<Vec<u32>> {
         Ok(vec![1])
@@ -216,4 +218,178 @@ fn a_refused_server_copy_delete_changes_nothing_a_row_shows() {
     run(&mut w, &r, &mut server).unwrap();
     assert_eq!(server.deletes, 1, "the delete was tried and refused");
     assert_eq!(told(&r), 0);
+}
+
+/// A Graph account with one queued message, and a mock Graph server that
+/// answers the send with `reply`.
+fn graph_send(
+    reply: envio_net::graph::mock::Action,
+) -> (
+    Rig,
+    tokio::runtime::Runtime,
+    envio_net::graph::mock::Server,
+    String,
+) {
+    use envio_net::graph::mock::Server;
+
+    let r = rig();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let server = runtime.block_on(Server::start(vec![reply]));
+    crate::worker::graph_conn::TEST_HOST
+        .with(|h| *h.borrow_mut() = Some((server.port(), server.roots())));
+    let new = envio_store::NewOutboxItem {
+        send_after_ms: 0,
+        account: r.seeded.account.clone(),
+        message_id: "<a@example.org>".into(),
+        queued_at_ms: 1,
+        from: "me@example.org".into(),
+        recipients: vec!["ada@example.org".into()],
+    };
+    let w = open(&r.config, &r.sink);
+    let id = w
+        .store
+        .outbox
+        .enqueue(new, b"Subject: x\r\n\r\nhi")
+        .unwrap()
+        .id;
+    drop(w);
+    (r, runtime, server, id)
+}
+
+fn send_graph(
+    r: &Rig,
+    runtime: &tokio::runtime::Runtime,
+    id: &str,
+) -> (Worker<'static>, std::result::Result<(), Problem>, SendState) {
+    let sink: &'static Sink = Box::leak(Box::default());
+    let mut w = open(&r.config, sink);
+    crate::worker::testing::into_graph(&mut w, &r.seeded.account);
+    let result = runtime.block_on(send(&mut w, &r.seeded.account));
+    let state = w
+        .store
+        .outbox
+        .items()
+        .unwrap()
+        .into_iter()
+        .find(|i| i.id == id)
+        .unwrap()
+        .meta
+        .state;
+    (w, result, state)
+}
+
+#[test]
+fn a_graph_send_goes_through_the_graph_connection_and_leaves_it_in_place() {
+    use envio_net::graph::mock::Action;
+    let (r, runtime, server, id) = graph_send(Action::json(202, ""));
+    let (w, result, state) = send_graph(&r, &runtime, &id);
+    assert_eq!(result, Ok(()));
+    assert_eq!(state, SendState::Accepted);
+    assert_eq!(server.requests().len(), 1);
+    assert!(matches!(
+        w.live[&r.seeded.account].conn,
+        Conn::Ready(Backend::Graph(_))
+    ));
+    assert!(w.live[&r.seeded.account].wants.file);
+}
+
+#[test]
+fn an_unconfirmed_graph_send_is_never_requeued_and_the_connection_is_kept() {
+    use envio_net::graph::mock::Action;
+    let (r, runtime, server, id) = graph_send(Action::json(504, ""));
+    let (w, result, state) = send_graph(&r, &runtime, &id);
+    assert_eq!(result, Ok(()));
+    assert_eq!(state, SendState::MayHaveBeenSent);
+    assert_eq!(server.requests().len(), 1, "sent once, not retried");
+    assert!(matches!(
+        w.live[&r.seeded.account].conn,
+        Conn::Ready(Backend::Graph(_))
+    ));
+}
+
+#[test]
+fn a_refused_graph_send_fails_the_item_and_keeps_the_connection() {
+    use envio_net::graph::mock::Action;
+    let body = r#"{"error":{"code":"ErrorInvalidRecipients","message":"no"}}"#;
+    let (r, runtime, _server, id) = graph_send(Action::json(400, body));
+    let (w, result, state) = send_graph(&r, &runtime, &id);
+    assert_eq!(result, Ok(()));
+    assert!(matches!(state, SendState::Failed { .. }), "{state:?}");
+    assert!(matches!(
+        w.live[&r.seeded.account].conn,
+        Conn::Ready(Backend::Graph(_))
+    ));
+}
+
+#[test]
+fn graph_files_its_sent_mail_itself() {
+    assert!(files_itself_for(BackendKind::Graph, ""));
+    assert!(!files_itself_for(BackendKind::Imap, "smtp.example.org"));
+    assert!(files_itself_for(BackendKind::Imap, "smtp.gmail.com"));
+}
+
+/// An unconfirmed send is filed on a server with no copy in Sent: whether
+/// the user is asked at once, and what the Outbox says of the next look
+/// (tries, not-before).
+fn file_unconfirmed(graph: bool) -> (bool, (u32, i64)) {
+    let r = rig();
+    let account = r.seeded.account.clone();
+    let mut w = opened(&r);
+    w.store
+        .db
+        .upsert_folder(&account, "Sent", FolderRole::Sent)
+        .unwrap();
+    if graph {
+        into_graph(&mut w, &account);
+    }
+    let new = envio_store::NewOutboxItem {
+        send_after_ms: 0,
+        account: account.clone(),
+        message_id: "<a@example.org>".into(),
+        queued_at_ms: 1,
+        from: "me@example.org".into(),
+        recipients: vec!["ada@example.org".into()],
+    };
+    let id = w
+        .store
+        .outbox
+        .enqueue(new, b"Subject: x\r\n\r\nhi")
+        .unwrap()
+        .id;
+    // Seeding only (the grep test allows one `set_state` call).
+    let seed_state = envio_store::Outbox::set_state;
+    seed_state(&w.store.outbox, &id, SendState::MayHaveBeenSent).unwrap();
+    let mut server = Scripted {
+        miss: true,
+        ..Scripted::default()
+    };
+    tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap()
+        .block_on(file(&mut w, &account, &mut server))
+        .unwrap();
+    let items = w.store.outbox.items().unwrap();
+    let meta = &items[0].meta;
+    (
+        w.asked.contains(&id),
+        (meta.resolve_tries, meta.resolve_after_ms),
+    )
+}
+
+#[test]
+fn a_graph_miss_in_sent_is_looked_for_again_before_the_user_is_asked() {
+    let (asked, (tries, after)) = file_unconfirmed(true);
+    assert!(!asked);
+    assert_eq!(tries, 1);
+    assert!(after > 0, "the next look has a time");
+}
+
+#[test]
+fn an_imap_miss_in_sent_asks_the_user_at_once() {
+    let (asked, meta) = file_unconfirmed(false);
+    assert!(asked);
+    assert_eq!(meta, (0, 0));
 }

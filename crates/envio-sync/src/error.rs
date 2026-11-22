@@ -3,7 +3,7 @@
 //! account, stop, mark the item). The text is for logs only and never
 //! holds a password: sync formats no credentials anywhere.
 
-use envio_net::NetError;
+use envio_net::{NetError, StorageKind};
 use envio_store::StoreError;
 
 #[derive(Debug, thiserror::Error)]
@@ -30,12 +30,15 @@ pub enum ErrorKind {
     Protocol,
     /// Disk or database trouble.
     Local,
+    /// The local database is damaged: stop and rebuild it from replay.
+    Damaged,
 }
 
 impl SyncError {
     pub fn kind(&self) -> ErrorKind {
         match self {
             Self::Net(error) => net_kind(error),
+            Self::Store(e) if e.is_damage() => ErrorKind::Damaged,
             Self::Store(_) => ErrorKind::Local,
         }
     }
@@ -51,8 +54,13 @@ pub(crate) fn net_kind(error: &NetError) -> ErrorKind {
         | NetError::NoStartTls => ErrorKind::Certificate,
         NetError::Refused(_) => ErrorKind::Refused,
         NetError::Protocol(_) => ErrorKind::Protocol,
-        // Stubs until T10 (Damaged) and T9 (Unconfirmed) give them their own paths.
+        NetError::Storage {
+            kind: StorageKind::Damaged,
+            ..
+        } => ErrorKind::Damaged,
         NetError::Storage { .. } => ErrorKind::Local,
+        // The send driver reads `unconfirmed` before this; any other path
+        // treats it like a dropped connection.
         NetError::Unconfirmed(_) => ErrorKind::Temporary,
     }
 }
@@ -78,5 +86,22 @@ mod tests {
         }
         let store = SyncError::from(StoreError::NotFound);
         assert_eq!(store.kind(), ErrorKind::Local);
+    }
+
+    #[test]
+    fn damage_is_its_own_kind_for_store_and_graph_storage_errors() {
+        let damaged = SyncError::from(StoreError::Damaged("bad page".into()));
+        assert_eq!(damaged.kind(), ErrorKind::Damaged);
+        let storage = |kind| NetError::Storage {
+            kind,
+            msg: "x".into(),
+        };
+        assert_eq!(net_kind(&storage(StorageKind::Damaged)), ErrorKind::Damaged);
+        assert_eq!(net_kind(&storage(StorageKind::DiskFull)), ErrorKind::Local);
+        assert_eq!(net_kind(&storage(StorageKind::Other)), ErrorKind::Local);
+        assert_eq!(
+            net_kind(&NetError::Unconfirmed("cut".into())),
+            ErrorKind::Temporary
+        );
     }
 }

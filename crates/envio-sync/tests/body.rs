@@ -146,3 +146,32 @@ async fn a_part_of_a_changed_folder_is_none() {
         .unwrap();
     assert_eq!(part, None);
 }
+
+/// Graph has no partial fetch (`no_partial`): a big message is downloaded
+/// whole, cached as usual, with no attachment stub and no section fetch.
+#[tokio::test]
+async fn a_big_message_on_a_server_without_partial_is_fetched_whole() {
+    let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
+    server.caps.no_partial = true;
+    let got = fetch_body(&mut server, &mut store.local(), id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(called(&server, "fetch_body") && !called(&server, "fetch_partial"));
+    assert!(got.len() > PARTIAL_ABOVE as usize);
+    assert_eq!(store.db.message(id).unwrap().body, BodyState::Downloaded);
+    assert!(cached(&store, id).len() > PARTIAL_ABOVE as usize, "a stub");
+    assert!(!called(&server, "fetch_section"));
+}
+
+/// The whole message of a big one is cached when the server cannot give
+/// parts: nothing is big there.
+#[tokio::test]
+async fn the_whole_message_on_a_server_without_partial_is_cached() {
+    let (mut server, mut store, id) = synced(PARTIAL_ABOVE as usize).await;
+    server.caps.no_partial = true;
+    fetch_whole_body(&mut server, &mut store.local(), id)
+        .await
+        .unwrap();
+    assert_eq!(store.db.message(id).unwrap().body, BodyState::Downloaded);
+}

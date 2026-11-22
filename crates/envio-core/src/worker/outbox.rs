@@ -34,6 +34,10 @@ impl Worker<'_> {
         rows
     }
 
+    fn is_graph(&self, account: &str) -> bool {
+        self.kind_of(account) == envio_store::BackendKind::Graph
+    }
+
     fn row(&self, item: &OutboxItem) -> OutboxRow {
         let asked = self.asked.contains(&item.id);
         let read = self
@@ -45,7 +49,8 @@ impl Worker<'_> {
         let Some(envelope) = read else {
             return damaged_row(item.id.clone());
         };
-        let status = outbox::status(&item.meta.state, asked);
+        let can_file = !self.is_graph(&item.meta.account);
+        let status = outbox::status(&item.meta.state, asked, can_file);
         OutboxRow {
             id: item.id.clone(),
             account: item.meta.account.clone(),
@@ -102,7 +107,8 @@ impl Worker<'_> {
             return self.decide_unreadable(id, decision);
         };
         let asked = self.asked.contains(id);
-        match outbox::decide(&item.meta.state, decision, asked) {
+        let graph = self.is_graph(&item.meta.account);
+        match outbox::decide(&item.meta.state, decision, asked, graph) {
             Err(outbox::NotNow) => return self.notice(text::outbox::not_now()),
             Ok(Decided::Remove) => self.remove_item(id),
             Ok(Decided::SetState(state)) => {
@@ -390,6 +396,47 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         assert!(w.live[&t.account].wants.send);
         assert!(!w.live[&t.account].wants.file);
         assert!(!w.asked.contains(&id));
+    }
+
+    #[test]
+    fn a_graph_item_is_not_offered_move_to_sent_and_it_is_refused() {
+        let t = setup();
+        let mut w = open(&t.config, t.sink);
+        crate::worker::testing::into_graph(&mut w, &t.account);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        w.asked.insert(id.clone());
+        let row = w.row(&w.find_item(&id).unwrap());
+        assert_eq!(
+            row.status,
+            OutboxStatus::MayHaveBeenSent {
+                asked: true,
+                can_file: false
+            }
+        );
+        assert!(
+            row.text.contains("Send again, or delete it?"),
+            "{}",
+            row.text
+        );
+        let before = notices(&t);
+        w.decide_outbox(&id, OutboxDecision::MoveToSent);
+        assert_eq!(state(&w, &id), Some(SendState::MayHaveBeenSent));
+        assert_eq!(notices(&t), before + 1);
+        // Send again is still there.
+        w.decide_outbox(&id, OutboxDecision::SendAgain);
+        assert_eq!(state(&w, &id), Some(SendState::Queued));
+    }
+
+    #[test]
+    fn an_imap_item_is_offered_move_to_sent() {
+        let t = setup();
+        let w = open(&t.config, t.sink);
+        let id = item(&w, &t, EML, SendState::MayHaveBeenSent);
+        let row = w.row(&w.find_item(&id).unwrap());
+        assert!(matches!(
+            row.status,
+            OutboxStatus::MayHaveBeenSent { can_file: true, .. }
+        ));
     }
 
     #[test]
