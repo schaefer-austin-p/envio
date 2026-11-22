@@ -314,6 +314,17 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_refused_unfilled_compose_closes_and_toasts_the_reason() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.shell.composeOpened(1)
+            compare(b.shell.depth, 2)
+            b.core.composeRefused(1, "That message is no longer available")
+            tryVerify(function() { return b.shell.depth === 1 })
+            compare(findByName(b.shell, "sentToast").text, "That message is no longer available")
+            b.shell.destroy()
+        }
+
         function test_back_before_composeReady_attaches_nothing_and_finalizes() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

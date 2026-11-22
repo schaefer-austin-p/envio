@@ -41,6 +41,9 @@ Item {
     // The message was queued: the Outbox has it. The text is core's, for a
     // toast.
     signal sent(string text)
+    // The core refused before the page was filled: it closes, and the shell
+    // shows the text (a toast) since the page's banner goes with it.
+    signal refused(string text)
     // Back or Discard: the page is done.
     signal closed()
 
@@ -452,9 +455,10 @@ Item {
         }
         function onComposeRefused(compose, text) {
             if (compose !== root.compose) return
-            // Refused before the page was ever filled (an Outbox edit the
-            // core no longer allows): there is nothing to show, so go.
-            if (!root.filled) { root.closed(); return }
+            // Refused before the page was ever filled (a reply to a gone
+            // message, an Outbox edit the core no longer allows): nothing to
+            // show here, so the text goes to the shell's toast and the page goes.
+            if (!root.filled) { root.refused(text); root.closed(); return }
             root.sending = false
             root.error = text
         }

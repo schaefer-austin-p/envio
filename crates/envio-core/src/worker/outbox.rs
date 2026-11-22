@@ -192,11 +192,11 @@ impl Worker<'_> {
         }
     }
 
-    /// An edit that cannot happen: the notice, and the compose the page
-    /// already opened learns it will never be ready.
+    /// An edit that cannot happen: the compose the page already opened
+    /// learns it will never be ready. Its text reaches the user once, from
+    /// the page (no `Notice` as well).
     fn refuse_edit(&mut self, compose: ComposeId, text: String) {
-        self.compose_refused(compose, text.clone());
-        self.notice(text);
+        self.compose_refused(compose, text);
     }
 
     /// Edit: a refused message, or one held for a sign-in, becomes a draft
@@ -361,6 +361,16 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         SendState::Failed { reason: "r".into() }
     }
 
+    /// Refused composes: an Outbox edit's refusal reaches the user once,
+    /// through the page, never as a `Notice` as well.
+    fn refusals(t: &T) -> usize {
+        let events = t.sink.events();
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::ComposeRefused { .. }))
+            .count()
+    }
+
     fn notices(t: &T) -> usize {
         let events = t.sink.events();
         events
@@ -455,7 +465,7 @@ Content-Transfer-Encoding: base64\r\n\r\nAAAA\r\n--b--\r\n";
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(failed()));
         assert!(w.book.id_of(C).is_none());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]
@@ -508,7 +518,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         w.edit_outbox(&id, C);
         // The item stays (it holds the answer), and no draft is made.
         assert!(state(&w, &id).is_some());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
@@ -523,7 +533,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
             w.edit_outbox(id, C);
             assert!(state(&w, id).is_some());
         }
-        assert_eq!(notices(&t), 2);
+        assert_eq!((refusals(&t), notices(&t)), (2, 0));
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
@@ -540,7 +550,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         assert!(state(&w, &id).is_some());
         assert!(w.book.id_of(C).is_none());
         assert!(w.store.drafts.list().unwrap().is_empty());
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]
@@ -580,7 +590,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         let id = item(&w, &t, EML, SendState::Queued);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Queued));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
@@ -592,7 +602,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
         pause_for_sign_in(&mut w, &t);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Sending));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
         assert!(w.store.drafts.list().unwrap().is_empty());
     }
 
@@ -605,7 +615,7 @@ BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nEND:VCALENDAR\r\n--b--\r\n";
             crate::health::AccountStatus::Certificate(None);
         w.edit_outbox(&id, C);
         assert_eq!(state(&w, &id), Some(SendState::Queued));
-        assert_eq!(notices(&t), 1);
+        assert_eq!((refusals(&t), notices(&t)), (1, 0));
     }
 
     #[test]

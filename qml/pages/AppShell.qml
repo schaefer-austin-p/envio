@@ -713,6 +713,7 @@ Item {
             accounts: root.accounts
             suggestions: root.suggestions
             onClosed: { root.dropShare(compose); root.composeDone(page) }
+            onRefused: function(text) { sentToast.show(text) }
             onAttachStarted: function(count, transfer) { shareIn.expectPick(compose, count, transfer) }
             // Queued arrives late: close this page, not whatever is on top
             // by now. A page below the top closes when it is shown again.
