@@ -17,10 +17,12 @@ Item {
     property string currentLabel: ""
     property string currentState: ""
     property bool currentOAuth: false
+    property bool currentUpdate: false
     signal backRequested()
     signal addRequested()
     signal updatePasswordRequested(string account, string name)
     signal signInAgainRequested(string account)
+    signal updateSignInRequested(string account)
 
     TopBar {
         id: bar
@@ -57,6 +59,8 @@ Item {
                 root.currentLabel = row.model.label
                 root.currentState = row.model.state
                 root.currentOAuth = !!row.model.oauth
+                root.currentUpdate = !!row.model.updateSignIn
+                    || (row.model.moveStage !== undefined && row.model.moveStage !== "")
                 actions.open()
             }
             Column {
@@ -163,6 +167,30 @@ Item {
                 x: root.theme.gu(2.5)
                 y: root.theme.gu(1.75)
                 text: qsTr("Sign in again")
+                color: root.theme.accent
+                font.family: root.theme.fontUi
+                font.pixelSize: 16
+                font.weight: Font.Medium
+            }
+        }
+        // An Outlook.com account on IMAP, or one already moving or just moved
+        // (the page shows where it is).
+        ListRow {
+            objectName: "updateSignInRow"
+            iconName: "log-in"
+            iconColor: root.theme.accent
+            visible: root.currentUpdate
+            theme: root.theme
+            width: parent.width
+            onClicked: {
+                actions.close()
+                root.updateSignInRequested(root.current)
+            }
+            Text {
+                textFormat: Text.PlainText
+                x: root.theme.gu(2.5)
+                y: root.theme.gu(1.75)
+                text: qsTr("Update sign-in")
                 color: root.theme.accent
                 font.family: root.theme.fontUi
                 font.pixelSize: 16

@@ -47,6 +47,7 @@
         <file>pages/accounts/RenameSheet.qml</file>
         <file>pages/accounts/UpdatePasswordPage.qml</file>
         <file>pages/accounts/SignInAgainPage.qml</file>
+        <file>pages/accounts/UpdateSignInPage.qml</file>
         <file>pages/accounts/BrowserStep.qml</file>
         <file>pages/accounts/OAuthSession.qml</file>
         <file>pages/search/SearchPage.qml</file>
