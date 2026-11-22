@@ -2,7 +2,7 @@
 //! is filled by a folder walk and completed from the cache file, so a new
 //! `GraphServer` after a reconnect works at once.
 
-use envio_net::imap::FolderState;
+use envio_net::imap::{FolderState, Role};
 use envio_net::{NetError, Result};
 use envio_store::FolderId;
 
@@ -13,6 +13,7 @@ pub(super) struct Entry {
     pub graph_id: String,
     /// `None` until `commit_folders` or the cache file gives it.
     pub row: Option<FolderId>,
+    pub role: Option<Role>,
 }
 
 /// The folder `select` chose; the message calls work in it.
@@ -26,7 +27,7 @@ impl GraphServer {
     /// The entry for `path`. An empty table or an unknown path does one
     /// folder walk first; still unknown is `Refused`. The row id is read from
     /// the cache file if it is missing.
-    async fn entry(&mut self, path: &str) -> Result<Entry> {
+    pub(super) async fn entry(&mut self, path: &str) -> Result<Entry> {
         if !self.paths.contains_key(path) {
             self.walk().await?;
         }
@@ -49,6 +50,13 @@ impl GraphServer {
             Some(id) => Ok((entry.graph_id, id)),
             None => Err(NetError::Busy("folder not listed yet".into())),
         }
+    }
+
+    /// The folder `select` chose; none yet is a driver bug.
+    pub(super) fn selected(&self) -> Result<Selected> {
+        self.selected
+            .clone()
+            .ok_or_else(|| NetError::Refused("no folder selected".into()))
     }
 
     pub(super) async fn select_path(&mut self, path: &str) -> Result<FolderState> {

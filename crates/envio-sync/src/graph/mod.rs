@@ -5,10 +5,14 @@
 //! module: folders and paths, the delta refresh, the lookups, and (later)
 //! messages, flags, search and send.
 
+mod flags;
 mod folders;
 mod map;
+mod messages;
 mod meta;
+mod moves;
 mod refresh;
+mod search;
 
 use std::collections::BTreeMap;
 
@@ -77,10 +81,6 @@ pub(crate) fn storage(e: StoreError) -> NetError {
     }
 }
 
-fn todo<T>() -> Result<T> {
-    Err(NetError::Refused("not on Graph yet".into()))
-}
-
 impl MailServer for GraphServer {
     fn caps(&self) -> Caps {
         GRAPH_CAPS
@@ -106,68 +106,71 @@ impl MailServer for GraphServer {
         self.commit_one(db, id)
     }
 
-    async fn search_since(&mut self, _unix_secs: i64) -> Result<Vec<u32>> {
-        todo()
+    async fn search_since(&mut self, unix_secs: i64) -> Result<Vec<u32>> {
+        self.uids_since(unix_secs.saturating_mul(1000))
     }
 
     async fn search_all(&mut self) -> Result<Vec<u32>> {
-        todo()
+        self.uids_since(i64::MIN)
     }
 
-    async fn search_message_id(&mut self, _message_id: &str) -> Result<Vec<u32>> {
-        todo()
+    async fn search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        self.find_id(message_id).await
     }
 
-    async fn search_message_id_deep(&mut self, _message_id: &str) -> Result<Vec<u32>> {
-        todo()
+    async fn search_message_id_deep(&mut self, message_id: &str) -> Result<Vec<u32>> {
+        // The server filter is exact, so there is no scan to fall back to.
+        self.find_id(message_id).await
     }
 
-    async fn search_text(&mut self, _text: &str) -> Result<Vec<u32>> {
-        todo()
+    async fn search_text(&mut self, text: &str) -> Result<Vec<u32>> {
+        self.find_text(text).await
     }
 
-    async fn fetch_summaries(&mut self, _uids: &[u32]) -> Result<Vec<Summary>> {
-        todo()
+    async fn fetch_summaries(&mut self, uids: &[u32]) -> Result<Vec<Summary>> {
+        self.summaries(uids).await
     }
 
     async fn fetch_flags(
         &mut self,
-        _uids: &[u32],
-        _changed_since: Option<u64>,
+        uids: &[u32],
+        changed_since: Option<u64>,
     ) -> Result<Vec<FlagUpdate>> {
-        todo()
+        self.flag_updates(uids, changed_since)
     }
 
-    async fn fetch_body(&mut self, _uid: u32, _size: usize) -> Result<Option<Vec<u8>>> {
-        todo()
+    async fn fetch_body(&mut self, uid: u32, _size: usize) -> Result<Option<Vec<u8>>> {
+        self.body(uid).await
     }
 
+    /// Never reached: `no_partial` makes bodies download whole.
     async fn fetch_partial(&mut self, _uid: u32) -> Result<Option<Vec<u8>>> {
-        todo()
+        Err(NetError::Protocol("not on Graph".into()))
     }
 
+    /// Never reached, like `fetch_partial`.
     async fn fetch_section(
         &mut self,
         _uid: u32,
         _section: &str,
         _size: usize,
     ) -> Result<Option<Vec<u8>>> {
-        todo()
+        Err(NetError::Protocol("not on Graph".into()))
     }
 
-    async fn store_flags(&mut self, _uids: &[u32], _add: bool, _flags: &[Flag]) -> Result<()> {
-        todo()
+    async fn store_flags(&mut self, uids: &[u32], add: bool, flags: &[Flag]) -> Result<()> {
+        self.set_flags(uids, add, flags).await
     }
 
-    async fn move_to(&mut self, _uids: &[u32], _target: &str) -> Result<()> {
-        todo()
+    async fn move_to(&mut self, uids: &[u32], target: &str) -> Result<()> {
+        self.move_uids(uids, target).await
     }
 
-    async fn delete(&mut self, _uids: &[u32]) -> Result<()> {
-        todo()
+    async fn delete(&mut self, uids: &[u32]) -> Result<()> {
+        self.delete_uids(uids).await
     }
 
-    async fn append(&mut self, _folder: &str, _flags: &[Flag], _eml: &[u8]) -> Result<()> {
-        todo()
+    async fn append(&mut self, folder: &str, _flags: &[Flag], eml: &[u8]) -> Result<()> {
+        self.file(folder, eml).await
     }
 }

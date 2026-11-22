@@ -93,6 +93,7 @@ impl GraphServer {
                 Entry {
                     graph_id: l.graph_id.clone(),
                     row,
+                    role: l.role,
                 },
             );
         }
