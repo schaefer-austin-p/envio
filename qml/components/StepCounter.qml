@@ -49,7 +49,7 @@ Item {
                 width: (segments.width - (segments.count - 1) * segments.spacing) / segments.count
                 height: root.theme.gu(0.5)
                 radius: height / 2
-                color: index < segments.filled ? root.theme.accent : root.theme.hairline
+                color: index < segments.filled ? root.theme.primary : root.theme.hairline
             }
         }
     }

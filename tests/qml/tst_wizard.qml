@@ -313,8 +313,8 @@ Item {
             compare(seg.filled, 2)
             const cells = everything(seg, []).filter(function(o) { return o.objectName === "stepSegment" })
             compare(cells.length, 4)
-            compare(cells[0].color, wizard.theme.accent)
-            compare(cells[1].color, wizard.theme.accent)
+            compare(cells[0].color, wizard.theme.primary)
+            compare(cells[1].color, wizard.theme.primary)
             compare(cells[2].color, wizard.theme.hairline)
             compare(cells[3].color, wizard.theme.hairline)
         }
