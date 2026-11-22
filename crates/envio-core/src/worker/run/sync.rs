@@ -1,6 +1,6 @@
 //! The steps that bring the cache in line with the server.
 
-use envio_store::{Action, FolderId, MessageRowId};
+use envio_store::{Action, BackendKind, FolderId, MessageRowId};
 use envio_sync::driver::{self, Options, Replayed};
 use envio_sync::server::MailServer;
 
@@ -12,8 +12,8 @@ use crate::text;
 use crate::worker::Worker;
 use crate::worker::alerts::own_addresses;
 
-pub(super) fn imap_error(error: &envio_sync::SyncError) -> Problem {
-    problem::from_sync(error, Service::Imap)
+pub(super) fn imap_error(kind: BackendKind, error: &envio_sync::SyncError) -> Problem {
+    problem::from_sync(error, Service::Imap, kind)
 }
 
 fn store_error(error: &envio_store::StoreError) -> Problem {
@@ -32,7 +32,7 @@ pub(super) async fn folders(
         .map_err(|e| store_error(&e))?;
     let after = driver::sync_folders(server, &mut worker.store.local(), account)
         .await
-        .map_err(|e| imap_error(&e))?;
+        .map_err(|e| imap_error(worker.kind_of(account), &e))?;
     if before != after {
         worker.emit(Event::FoldersChanged {
             account: account.to_owned(),
@@ -74,7 +74,7 @@ pub(super) async fn folder(
     };
     let synced = driver::sync_folder_as(server, &mut worker.store.local(), id, options)
         .await
-        .map_err(|e| imap_error(&e))?;
+        .map_err(|e| imap_error(worker.kind_of(account), &e))?;
     // A new UIDVALIDITY reset the folder: the floor named UIDs that are gone.
     let reset = before.is_some() && validity(worker) != before;
     if reset {
@@ -120,7 +120,7 @@ pub(super) async fn search_server(
 ) -> Result<(), Problem> {
     let ids = driver::search_server(server, &mut worker.store.local(), folder, query)
         .await
-        .map_err(|e| imap_error(&e))?;
+        .map_err(|e| imap_error(worker.kind_of(account), &e))?;
     // Mail found there may be new to the cache.
     worker.emit(Event::MessagesChanged {
         folders: vec![folder],
@@ -169,7 +169,7 @@ pub(super) async fn body(
     } else {
         driver::fetch_body(server, &mut worker.store.local(), id).await
     }
-    .map_err(|e| imap_error(&e))?;
+    .map_err(|e| imap_error(worker.kind_of_folder(folder), &e))?;
     if let (true, Some(eml)) = (kept, &eml) {
         index_body(worker, id, eml);
     }
@@ -190,7 +190,7 @@ pub(super) async fn keywords(
     let message = worker.store.db.message(id).map_err(|e| store_error(&e))?;
     let fresh = driver::refresh_flags(server, &worker.store.local(), &message)
         .await
-        .map_err(|e| imap_error(&e))?;
+        .map_err(|e| imap_error(worker.kind_of_folder(message.folder), &e))?;
     worker.emit(Event::MessagesChanged {
         folders: vec![message.folder],
     });
@@ -226,7 +226,7 @@ pub(super) async fn part(
         (&want.section, want.size),
     )
     .await
-    .map_err(|e| imap_error(&e))?;
+    .map_err(|e| imap_error(worker.kind_of_message(id), &e))?;
     worker.part_fetched(&want, raw.as_deref());
     Ok(())
 }
@@ -240,7 +240,7 @@ pub(super) async fn replay(
     // Also after an error: actions committed before it, or before a crash,
     // have their forget intents in the journal.
     worker.forget_deleted_drafts(account);
-    let replayed = replayed.map_err(|e| imap_error(&e))?;
+    let replayed = replayed.map_err(|e| imap_error(worker.kind_of(account), &e))?;
     worker.report_replayed(account, &replayed);
     // A replay that stopped, Local included, is the account's problem.
     problem::from_stopped("replay", replayed.stopped)

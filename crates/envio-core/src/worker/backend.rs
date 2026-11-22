@@ -4,7 +4,10 @@
 
 use envio_net::Result;
 use envio_net::imap::{Caps, Flag, FlagUpdate, Folder, FolderState, ImapSession, Summary};
+use envio_store::{BackendKind, FolderId, MessageRowId};
 use envio_sync::server::MailServer;
+
+use super::Worker;
 
 // One connection per account, moved in and out: its size does not matter.
 #[allow(clippy::large_enum_variant)]
@@ -128,6 +131,28 @@ impl MailServer for Backend {
         match self {
             Self::Imap(s) => MailServer::take_changes(s),
         }
+    }
+}
+
+impl Worker<'_> {
+    /// The account's backend; an unknown account counts as IMAP.
+    pub(crate) fn kind_of(&self, account: &str) -> BackendKind {
+        self.store
+            .accounts
+            .get(account)
+            .map_or(BackendKind::Imap, |a| a.settings.backend)
+    }
+
+    pub(crate) fn kind_of_folder(&self, folder: FolderId) -> BackendKind {
+        self.store
+            .db
+            .folder(folder)
+            .map_or(BackendKind::Imap, |f| self.kind_of(&f.account))
+    }
+
+    pub(crate) fn kind_of_message(&self, id: MessageRowId) -> BackendKind {
+        self.account_of(id)
+            .map_or(BackendKind::Imap, |a| self.kind_of(&a))
     }
 }
 

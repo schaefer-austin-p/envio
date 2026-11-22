@@ -60,7 +60,7 @@ pub async fn sync_account(
             Ok(one) => synced.folders.push((id, one)),
             Err(error) => match error.kind() {
                 ErrorKind::Refused => synced.refused.push(id),
-                ErrorKind::Local => return Err(error),
+                ErrorKind::Local | ErrorKind::Damaged => return Err(error),
                 kind => {
                     synced.stopped = Some(kind);
                     return Ok(synced);

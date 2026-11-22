@@ -122,7 +122,9 @@ pub fn outcome(result: Result<(), &NetError>) -> Outcome {
         kind @ (ErrorKind::Temporary | ErrorKind::Protocol | ErrorKind::Local) => {
             Outcome::Retry(kind)
         }
-        kind @ (ErrorKind::SignIn | ErrorKind::Certificate) => Outcome::Stop(kind),
+        kind @ (ErrorKind::SignIn | ErrorKind::Certificate | ErrorKind::Damaged) => {
+            Outcome::Stop(kind)
+        }
     }
 }
 
@@ -236,6 +238,19 @@ mod tests {
         assert_eq!(
             outcome(Err(&NetError::NoStartTls)),
             Outcome::Stop(ErrorKind::Certificate)
+        );
+    }
+
+    #[test]
+    fn a_damaged_store_stops_the_replay_and_never_retries() {
+        let error = NetError::Storage {
+            kind: envio_net::StorageKind::Damaged,
+            msg: "bad page".into(),
+        };
+        assert_eq!(
+            outcome(Err(&error)),
+            Outcome::Stop(ErrorKind::Damaged),
+            "{error:?}"
         );
     }
 

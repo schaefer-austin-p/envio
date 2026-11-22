@@ -1,6 +1,7 @@
 //! The steps that send mail and file it in Sent.
 
 use envio_mime::Address;
+use envio_store::BackendKind;
 use envio_sync::driver;
 use envio_sync::plan::outbox::files_itself;
 use envio_sync::server::MailServer;
@@ -15,7 +16,7 @@ use crate::worker::conn::{SmtpConnectError, connect_smtp};
 pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), Problem> {
     let now = now_ms();
     let due = driver::has_due_mail(&worker.store.local(), account, now)
-        .map_err(|e| problem::from_sync(&e, Service::Imap))?;
+        .map_err(|e| problem::from_sync(&e, Service::Imap, worker.kind_of(account)))?;
     if !due {
         return Ok(());
     }
@@ -27,7 +28,7 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
             // The server will not send for this mailbox: the due items fail
             // with its words, the account stays up and IMAP carries on.
             let sent = driver::refuse_outbox(&mut worker.store.local(), account, now, &reason)
-                .map_err(|e| problem::from_sync(&e, Service::Smtp))?;
+                .map_err(|e| problem::from_sync(&e, Service::Smtp, BackendKind::Imap))?;
             if !sent.failed.is_empty() {
                 worker.emit(Event::OutboxChanged);
                 worker.emit_outbox();
@@ -40,7 +41,7 @@ pub(super) async fn send(worker: &mut Worker<'_>, account: &str) -> Result<(), P
     if let Err(error) = smtp.quit().await {
         log::debug!("closing SMTP: {error}");
     }
-    let sent = sent.map_err(|e| problem::from_sync(&e, Service::Smtp))?;
+    let sent = sent.map_err(|e| problem::from_sync(&e, Service::Smtp, BackendKind::Imap))?;
     if !(sent.accepted.is_empty() && sent.failed.is_empty() && sent.unconfirmed.is_empty()) {
         if let Some(live) = worker.live.get_mut(account) {
             // Accepted mail goes into Sent; unconfirmed is looked for there.
@@ -61,6 +62,7 @@ pub(super) async fn file(
     let Some(settings) = worker.store.accounts.get(account) else {
         return Err(Problem::Local);
     };
+    let kind = settings.settings.backend;
     let itself = files_itself(
         settings
             .settings
@@ -70,7 +72,7 @@ pub(super) async fn file(
     );
     let filed = driver::file_sent(server, &mut worker.store.local(), account, itself)
         .await
-        .map_err(|e| problem::from_sync(&e, Service::Imap))?;
+        .map_err(|e| problem::from_sync(&e, Service::Imap, kind))?;
     for id in &filed.removed {
         worker.asked.remove(id);
         worker.unfiled.remove(id);
@@ -146,7 +148,7 @@ async fn sync_drafts_on(
             account: account.to_owned(),
         });
     }
-    result.map_err(|e| problem::from_sync(&e, Service::Imap))
+    result.map_err(|e| problem::from_sync(&e, Service::Imap, worker.kind_of(account)))
 }
 
 #[cfg(test)]

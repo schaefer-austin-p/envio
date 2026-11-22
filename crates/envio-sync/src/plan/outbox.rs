@@ -76,7 +76,7 @@ pub fn after_send(result: &Result<(), SendError>) -> AfterSend {
             retry: true,
             stop: None,
         },
-        kind @ (ErrorKind::SignIn | ErrorKind::Certificate) => AfterSend {
+        kind @ (ErrorKind::SignIn | ErrorKind::Certificate | ErrorKind::Damaged) => AfterSend {
             state: SendState::Queued,
             retry: false,
             stop: Some(kind),
@@ -230,6 +230,21 @@ mod tests {
         assert_eq!(
             (sign_in.state, sign_in.retry, sign_in.stop),
             (SendState::Queued, false, Some(ErrorKind::SignIn))
+        );
+    }
+
+    #[test]
+    fn a_damaged_store_keeps_the_item_queued_and_stops_without_retry() {
+        let damaged = after_send(&failed(
+            NetError::Storage {
+                kind: envio_net::StorageKind::Damaged,
+                msg: "bad page".into(),
+            },
+            false,
+        ));
+        assert_eq!(
+            (damaged.state, damaged.retry, damaged.stop),
+            (SendState::Queued, false, Some(ErrorKind::Damaged))
         );
     }
 
