@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 17:33+0100\n"
+"POT-Creation-Date: 2026-11-22 18:03+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -173,7 +173,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:190
+#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:192
 msgid "Add account"
 msgstr ""
 
@@ -263,7 +263,7 @@ msgid "Open Yahoo account security"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:107
-#: qml/pages/accounts/EmailStep.qml:60 qml/pages/accounts/SignInStep.qml:131
+#: qml/pages/accounts/EmailStep.qml:62 qml/pages/accounts/SignInStep.qml:131
 msgid "Email address"
 msgstr ""
 
@@ -279,7 +279,7 @@ msgid "Signing in…"
 msgstr ""
 
 #: qml/pages/accounts/AppPasswordStep.qml:142
-#: qml/pages/accounts/EmailStep.qml:119 qml/pages/accounts/SignInStep.qml:218
+#: qml/pages/accounts/EmailStep.qml:121 qml/pages/accounts/SignInStep.qml:218
 msgid "Continue"
 msgstr ""
 
@@ -332,19 +332,19 @@ msgstr ""
 msgid "SMTP: %1, port %2"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:49
+#: qml/pages/accounts/EmailStep.qml:51
 msgid "Enter your email address. Envio finds the mail servers for it."
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:100
+#: qml/pages/accounts/EmailStep.qml:102
 msgid "Set up manually"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:112
+#: qml/pages/accounts/EmailStep.qml:114
 msgid "Looking up settings…"
 msgstr ""
 
-#: qml/pages/accounts/EmailStep.qml:119
+#: qml/pages/accounts/EmailStep.qml:121
 msgid "Change address"
 msgstr ""
 
@@ -570,19 +570,19 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:192 qml/pages/accounts/WizardPage.qml:193
+#: qml/pages/accounts/WizardPage.qml:194 qml/pages/accounts/WizardPage.qml:195
 msgid "Sign in · %1"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:194
+#: qml/pages/accounts/WizardPage.qml:196
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:195
+#: qml/pages/accounts/WizardPage.qml:197
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:196
+#: qml/pages/accounts/WizardPage.qml:198
 msgid "Account options"
 msgstr ""
 
