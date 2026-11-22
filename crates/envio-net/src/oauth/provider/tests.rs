@@ -154,6 +154,30 @@ fn every_redirect_scheme_is_letters_and_digits_only() {
 }
 
 #[test]
+fn consumer_domains_are_the_narrow_list_never_work_domains() {
+    for yes in [
+        "a@outlook.com",
+        "a@Hotmail.co.uk",
+        "a@live.fr",
+        "a@msn.com",
+        "a@windowslive.com",
+        "a@outlook.de.",
+    ] {
+        assert!(is_consumer_domain(yes), "{yes}");
+    }
+    for no in [
+        "a@office365.com",
+        "a@contoso.onmicrosoft.com",
+        "a@example.org",
+        "a@live.org",
+        "a@hotmail.biz",
+        "not an address",
+    ] {
+        assert!(!is_consumer_domain(no), "{no}");
+    }
+}
+
+#[test]
 fn the_dispatcher_and_the_app_shell_declare_every_redirect_scheme() {
     // The scheme lives in three places: the provider's redirect_uri, the
     // click's url-dispatcher file and AppShell.qml's UriHandler. If one

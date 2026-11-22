@@ -87,13 +87,27 @@ pub fn provider_kind_for(email: &str) -> Option<ProviderKind> {
     microsoft_domain(&domain).then_some(ProviderKind::Microsoft)
 }
 
+/// Whether the address is on one of Microsoft's consumer domains
+/// (Outlook.com, Hotmail, Live, MSN): narrower than `provider_kind_for`,
+/// which also takes the work domains `office365.com` and `*.onmicrosoft.com`.
+pub fn is_consumer_domain(email: &str) -> bool {
+    email
+        .trim()
+        .rsplit_once('@')
+        .is_some_and(|(_, d)| consumer_domain(&d.trim_end_matches('.').to_ascii_lowercase()))
+}
+
 fn microsoft_domain(d: &str) -> bool {
-    if matches!(d, "msn.com" | "windowslive.com" | "office365.com") {
+    if d == "office365.com" {
         return true;
     }
-    if d.strip_suffix(".onmicrosoft.com")
+    d.strip_suffix(".onmicrosoft.com")
         .is_some_and(|t| !t.is_empty() && !t.contains('.'))
-    {
+        || consumer_domain(d)
+}
+
+fn consumer_domain(d: &str) -> bool {
+    if matches!(d, "msn.com" | "windowslive.com") {
         return true;
     }
     let Some((first, rest)) = d.split_once('.') else {

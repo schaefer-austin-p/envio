@@ -23,6 +23,7 @@ mod drafts;
 mod fsutil;
 mod invite_card;
 mod known;
+mod migrate_graph;
 mod outbox;
 mod setup_thread;
 // The helpers below are still partly consumed (tr_n, mask, more text).
