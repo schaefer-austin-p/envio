@@ -265,6 +265,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             signed_in_as,
             text,
         },
+        Event::OAuthMismatch { email, title, text } => Signal::OAuthMismatch { email, title, text },
         Event::OAuthDone { email, outcome } => Signal::OAuthDone { email, outcome },
         Event::TrustPrompt {
             email,

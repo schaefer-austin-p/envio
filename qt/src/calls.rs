@@ -7,7 +7,8 @@ use std::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QList, QMap, QMapPair_QString_QVariant, QString, QVariant};
 use envio_core::{
-    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, count_text, ispdb_note,
+    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, ProviderKind, UndoId,
+    app_password_setup, count_text, ispdb_note,
 };
 use secrecy::SecretString;
 use zeroize::Zeroize;
@@ -61,12 +62,29 @@ impl qobject::EnvioCore {
     }
 
     /// `account` is empty for a new account, else the key to sign in again.
-    pub fn start_oauth(self: Pin<&mut Self>, email: &QString, account: &QString) {
+    /// `kind` is "graph" or "imap" (the wizard's pick), or empty: the
+    /// address's own provider, or the account's.
+    pub fn start_oauth(self: Pin<&mut Self>, email: &QString, account: &QString, kind: &QString) {
         let account = s(account);
+        let kind = match s(kind).as_str() {
+            "graph" => Some(ProviderKind::MicrosoftGraph),
+            "imap" => Some(ProviderKind::Microsoft),
+            _ => None,
+        };
         self.send_command(Command::StartOAuth {
             email: s(email),
             account: (!account.is_empty()).then_some(account),
+            kind,
         });
+    }
+
+    /// The setup of an app-password provider ("icloud", "gmail", "yahoo")
+    /// for `email`, as `connect` takes it; empty for any other id.
+    pub fn app_password_setup(&self, provider: &QString, email: &QString) -> QString {
+        let json = app_password_setup(&s(provider), &s(email))
+            .map(|setup| crate::json::setup_to_json(&setup))
+            .unwrap_or_default();
+        QString::from(json)
     }
 
     /// The link the browser handed back; it is not logged.

@@ -333,6 +333,21 @@ fn the_sign_in_events_become_signals_with_every_field() {
 
     let outs = feed(
         &mut ui,
+        Event::OAuthMismatch {
+            email: "ada@outlook.com".into(),
+            title: "This is a work or school account".into(),
+            text: "One more sign-in".into(),
+        },
+    );
+    let Signal::OAuthMismatch { email, title, text } = &signals(&outs)[0] else {
+        panic!("{:?}", signals(&outs));
+    };
+    assert_eq!(email, "ada@outlook.com");
+    assert_eq!(title, "This is a work or school account");
+    assert_eq!(text, "One more sign-in");
+
+    let outs = feed(
+        &mut ui,
         Event::OAuthDone {
             email: "ada@outlook.com".into(),
             outcome: OAuthOutcome::Failed(OAuthFailure::Offline),

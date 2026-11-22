@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
-use envio_core::{Command, ComposeId, Event, OAuthOutcome, Settings};
+use envio_core::{Command, ComposeId, Event, OAuthFailure, OAuthOutcome, Settings};
 use envio_ui::{ModelChange, Output, Signal};
 
 use crate::convert;
@@ -170,11 +170,16 @@ impl qobject::EnvioCore {
                 signed_in_as,
                 text,
             } => self.oauth_confirm(&q(&email), &q(&signed_in_as.unwrap_or_default()), &q(&text)),
+            Signal::OAuthMismatch { email, title, text } => {
+                self.oauth_mismatch(&q(&email), &q(&title), &q(&text));
+            }
             Signal::OAuthDone { email, outcome } => {
                 let (name, text) = match outcome {
                     OAuthOutcome::Added => ("added", String::new()),
                     OAuthOutcome::Resumed => ("resumed", String::new()),
                     OAuthOutcome::Cancelled => ("cancelled", String::new()),
+                    OAuthOutcome::Failed(why @ OAuthFailure::Admin) => ("admin", why.text()),
+                    OAuthOutcome::Failed(why @ OAuthFailure::Mismatch) => ("mismatch", why.text()),
                     OAuthOutcome::Failed(why) => ("failed", why.text()),
                 };
                 self.oauth_done(&q(&email), &q(name), &q(&text));

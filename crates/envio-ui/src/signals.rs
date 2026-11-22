@@ -62,6 +62,12 @@ pub enum Signal {
         signed_in_as: Option<String>,
         text: String,
     },
+    /// The sign-in was for the other kind of account than the pick.
+    OAuthMismatch {
+        email: String,
+        title: String,
+        text: String,
+    },
     OAuthDone {
         email: String,
         outcome: OAuthOutcome,

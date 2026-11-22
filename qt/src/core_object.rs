@@ -103,7 +103,18 @@ pub mod qobject {
             signed_in_as: &QString,
             text: &QString,
         );
-        /// `outcome` is added, resumed, cancelled or failed; `text` says why when failed.
+        /// The sign-in was for the other kind of account than the pick: the
+        /// page asks for the one second sign-in (`confirmOAuth`).
+        #[qsignal]
+        #[cxx_name = "oauthMismatch"]
+        fn oauth_mismatch(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            title: &QString,
+            text: &QString,
+        );
+        /// `outcome` is added, resumed, cancelled, admin, mismatch or failed;
+        /// `text` says why when it is none of the first three.
         #[qsignal]
         #[cxx_name = "oauthDone"]
         fn oauth_done(
@@ -218,7 +229,15 @@ pub mod qobject {
         fn detect(self: Pin<&mut EnvioCore>, email: &QString);
         #[qinvokable]
         #[cxx_name = "startOAuth"]
-        fn start_oauth(self: Pin<&mut EnvioCore>, email: &QString, account: &QString);
+        fn start_oauth(
+            self: Pin<&mut EnvioCore>,
+            email: &QString,
+            account: &QString,
+            kind: &QString,
+        );
+        #[qinvokable]
+        #[cxx_name = "appPasswordSetup"]
+        fn app_password_setup(self: &EnvioCore, provider: &QString, email: &QString) -> QString;
         #[qinvokable]
         #[cxx_name = "oauthRedirect"]
         fn oauth_redirect(self: Pin<&mut EnvioCore>, url: &QString);
