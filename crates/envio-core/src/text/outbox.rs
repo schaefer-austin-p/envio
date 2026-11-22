@@ -7,10 +7,14 @@ pub fn status(status: &OutboxStatus) -> String {
     match status {
         OutboxStatus::Queued => tr("Waiting to be sent"),
         OutboxStatus::Sending => tr("Sending"),
-        OutboxStatus::MayHaveBeenSent { asked: false } => {
+        OutboxStatus::MayHaveBeenSent { asked: false, .. } => {
             tr("May have been sent: looking for it in Sent")
         }
-        OutboxStatus::MayHaveBeenSent { asked: true } => {
+        OutboxStatus::MayHaveBeenSent {
+            asked: true,
+            can_file: false,
+        } => tr("May have been sent: not found in Sent. Send again, or delete it?"),
+        OutboxStatus::MayHaveBeenSent { asked: true, .. } => {
             tr("May have been sent: not found in Sent. Send again, or move to Sent?")
         }
         OutboxStatus::SentNotFiled => tr("Sent, not yet in Sent"),

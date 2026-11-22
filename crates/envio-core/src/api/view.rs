@@ -253,6 +253,9 @@ pub enum OutboxStatus {
     /// user may decide.
     MayHaveBeenSent {
         asked: bool,
+        /// Move to Sent is offered; not on Graph, which keeps the sent
+        /// copy itself.
+        can_file: bool,
     },
     /// The server took it; it is not in Sent yet.
     SentNotFiled,

@@ -204,6 +204,13 @@ pub fn outbox_row(r: &OutboxRow, accounts: &[AccountRow]) -> Row {
         reason_action,
         signin_again,
         editable,
+        can_file: !matches!(
+            r.status,
+            OutboxStatus::MayHaveBeenSent {
+                can_file: false,
+                ..
+            }
+        ),
     })
 }
 
@@ -418,9 +425,44 @@ mod tests {
         assert_eq!(outbox_state(&OutboxStatus::Sending), "sending");
         assert_eq!(outbox_state(&OutboxStatus::SentNotFiled), "sentnotfiled");
         assert_eq!(
-            outbox_state(&OutboxStatus::MayHaveBeenSent { asked: true }),
+            outbox_state(&OutboxStatus::MayHaveBeenSent {
+                asked: true,
+                can_file: true
+            }),
             "maybesent"
         );
         assert_eq!(outbox_state(&OutboxStatus::Damaged), "failed");
+    }
+
+    #[test]
+    fn the_row_offers_move_to_sent_unless_the_core_says_it_cannot_file() {
+        let row = |status| OutboxRow {
+            id: "1".into(),
+            account: "g".into(),
+            subject: String::new(),
+            recipients: vec![],
+            status,
+            text: String::new(),
+            queued_at_ms: 0,
+        };
+        let can_file = |status| {
+            let Row::Outbox(ui) = outbox_row(&row(status), &[]) else {
+                panic!("an Outbox row");
+            };
+            ui.can_file
+        };
+        let maybe = |can_file| OutboxStatus::MayHaveBeenSent {
+            asked: true,
+            can_file,
+        };
+        assert!(can_file(maybe(true)));
+        assert!(!can_file(maybe(false)));
+        // Other states keep the default: only QML's `maybesent` branch reads it.
+        assert!(can_file(OutboxStatus::Queued));
+        let ui = outbox_row(&row(maybe(false)), &[]);
+        assert_eq!(
+            ui.value("canFile"),
+            Some(crate::rows::RowValue::Bool(false))
+        );
     }
 }

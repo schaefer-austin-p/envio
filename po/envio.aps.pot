@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-21 18:30+0100\n"
+"POT-Creation-Date: 2026-11-22 13:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -81,7 +81,7 @@ msgid "Enter"
 msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:20 qml/pages/inbox/OutboxPage.qml:89
-#: qml/pages/inbox/OutboxRow.qml:127 qml/pages/inbox/RowMenu.qml:155
+#: qml/pages/inbox/OutboxRow.qml:129 qml/pages/inbox/RowMenu.qml:155
 #: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
 msgid "Delete"
 msgstr ""
@@ -170,7 +170,7 @@ msgid "Add account"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:105
-#: crates/envio-core/src/text/outbox.rs:26
+#: crates/envio-core/src/text/outbox.rs:30
 msgid "Check certificate"
 msgstr ""
 
@@ -179,7 +179,7 @@ msgid "Rename"
 msgstr ""
 
 #: qml/pages/accounts/AccountsPage.qml:165
-#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:92
+#: qml/pages/accounts/SignInAgainPage.qml:65 qml/pages/inbox/OutboxRow.qml:94
 #: crates/envio-core/src/text/status.rs:38
 msgid "Sign in again"
 msgstr ""
@@ -624,7 +624,7 @@ msgid "waiting to send"
 msgstr ""
 
 #: qml/pages/inbox/FoldersDrawer.qml:230
-#: crates/envio-core/src/text/outbox.rs:31
+#: crates/envio-core/src/text/outbox.rs:35
 msgid "Open accounts"
 msgstr ""
 
@@ -673,27 +673,27 @@ msgstr ""
 msgid "It has not been sent, and it cannot be brought back."
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:48
+#: qml/pages/inbox/OutboxRow.qml:50
 msgid "To %1 · %2"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:71
+#: qml/pages/inbox/OutboxRow.qml:73
 msgid "Waiting for sign-in. It goes out after you sign in again."
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:99
+#: qml/pages/inbox/OutboxRow.qml:101
 msgid "Send again"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:106
+#: qml/pages/inbox/OutboxRow.qml:108
 msgid "Move to Sent"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:113
+#: qml/pages/inbox/OutboxRow.qml:115
 msgid "Retry"
 msgstr ""
 
-#: qml/pages/inbox/OutboxRow.qml:120 qml/pages/reader/ReplyBar.qml:47
+#: qml/pages/inbox/OutboxRow.qml:122 qml/pages/reader/ReplyBar.qml:47
 msgid "Edit"
 msgstr ""
 
@@ -1362,35 +1362,39 @@ msgstr ""
 msgid "May have been sent: looking for it in Sent"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:14
-msgid "May have been sent: not found in Sent. Send again, or move to Sent?"
-msgstr ""
-
 #: crates/envio-core/src/text/outbox.rs:16
-msgid "Sent, not yet in Sent"
+msgid "May have been sent: not found in Sent. Send again, or delete it?"
 msgstr ""
 
 #: crates/envio-core/src/text/outbox.rs:18
-msgid "Couldn't be sent: {reason}"
+msgid "May have been sent: not found in Sent. Send again, or move to Sent?"
 msgstr ""
 
 #: crates/envio-core/src/text/outbox.rs:20
+msgid "Sent, not yet in Sent"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:22
+msgid "Couldn't be sent: {reason}"
+msgstr ""
+
+#: crates/envio-core/src/text/outbox.rs:24
 msgid "This message can't be read"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:36
+#: crates/envio-core/src/text/outbox.rs:40
 msgid "Not possible right now"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:40
+#: crates/envio-core/src/text/outbox.rs:44
 msgid "Could not change the message in the Outbox"
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:44
+#: crates/envio-core/src/text/outbox.rs:48
 msgid "This reply to an invitation can't be edited. Retry it, or delete it."
 msgstr ""
 
-#: crates/envio-core/src/text/outbox.rs:50
+#: crates/envio-core/src/text/outbox.rs:54
 msgid ""
 "Ask your administrator to allow Authenticated SMTP for this mailbox, then "
 "send again."

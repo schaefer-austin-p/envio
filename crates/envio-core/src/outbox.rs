@@ -21,12 +21,22 @@ pub struct NotNow;
 /// searched this session and the message was not there. Nothing is resent
 /// without the user: `Sending` and `Accepted` never change, and a
 /// `MayHaveBeenSent` item waits for that search.
-pub fn decide(state: &SendState, decision: OutboxDecision, asked: bool) -> Result<Decided, NotNow> {
+///
+/// `graph`: there is no Move to Sent: Graph keeps the sent copy itself, so
+/// a message not found there was not sent (or the user sends it again).
+pub fn decide(
+    state: &SendState,
+    decision: OutboxDecision,
+    asked: bool,
+    graph: bool,
+) -> Result<Decided, NotNow> {
     use OutboxDecision as D;
     use SendState as S;
     match (state, decision) {
         (S::MayHaveBeenSent, D::SendAgain) if asked => Ok(Decided::SetState(S::Queued)),
-        (S::MayHaveBeenSent, D::MoveToSent) if asked => Ok(Decided::SetState(S::Accepted)),
+        (S::MayHaveBeenSent, D::MoveToSent) if asked && !graph => {
+            Ok(Decided::SetState(S::Accepted))
+        }
         (S::Failed { .. }, D::Retry) => Ok(Decided::SetState(S::Queued)),
         (S::Queued | S::Failed { .. }, D::Delete) => Ok(Decided::Remove),
         (S::MayHaveBeenSent, D::Delete) if asked => Ok(Decided::Remove),
@@ -34,11 +44,12 @@ pub fn decide(state: &SendState, decision: OutboxDecision, asked: bool) -> Resul
     }
 }
 
-pub fn status(state: &SendState, asked: bool) -> OutboxStatus {
+/// `can_file`: Move to Sent is offered (not on Graph).
+pub fn status(state: &SendState, asked: bool, can_file: bool) -> OutboxStatus {
     match state {
         SendState::Queued => OutboxStatus::Queued,
         SendState::Sending => OutboxStatus::Sending,
-        SendState::MayHaveBeenSent => OutboxStatus::MayHaveBeenSent { asked },
+        SendState::MayHaveBeenSent => OutboxStatus::MayHaveBeenSent { asked, can_file },
         SendState::Accepted => OutboxStatus::SentNotFiled,
         SendState::Failed { reason } => OutboxStatus::Failed {
             reason: reason.clone(),
@@ -109,28 +120,28 @@ mod tests {
     #[test]
     fn send_again_only_after_asking() {
         assert_eq!(
-            decide(&S::MayHaveBeenSent, D::SendAgain, true),
+            decide(&S::MayHaveBeenSent, D::SendAgain, true, false),
             Ok(Decided::SetState(S::Queued))
         );
         assert_eq!(
-            decide(&S::MayHaveBeenSent, D::SendAgain, false),
+            decide(&S::MayHaveBeenSent, D::SendAgain, false, false),
             Err(NotNow)
         );
-        assert_eq!(decide(&S::Queued, D::SendAgain, true), Err(NotNow));
-        assert_eq!(decide(&failed(), D::SendAgain, true), Err(NotNow));
+        assert_eq!(decide(&S::Queued, D::SendAgain, true, false), Err(NotNow));
+        assert_eq!(decide(&failed(), D::SendAgain, true, false), Err(NotNow));
     }
 
     #[test]
     fn move_to_sent_never_sends() {
         assert_eq!(
-            decide(&S::MayHaveBeenSent, D::MoveToSent, true),
+            decide(&S::MayHaveBeenSent, D::MoveToSent, true, false),
             Ok(Decided::SetState(S::Accepted))
         );
         assert_eq!(
-            decide(&S::MayHaveBeenSent, D::MoveToSent, false),
+            decide(&S::MayHaveBeenSent, D::MoveToSent, false, false),
             Err(NotNow)
         );
-        assert_eq!(decide(&failed(), D::MoveToSent, true), Err(NotNow));
+        assert_eq!(decide(&failed(), D::MoveToSent, true, false), Err(NotNow));
     }
 
     #[test]
@@ -138,7 +149,7 @@ mod tests {
         for state in [S::Accepted, S::Sending] {
             for decision in [D::SendAgain, D::MoveToSent, D::Retry, D::Delete] {
                 for asked in [false, true] {
-                    assert_eq!(decide(&state, decision, asked), Err(NotNow));
+                    assert_eq!(decide(&state, decision, asked, false), Err(NotNow));
                 }
             }
         }
@@ -147,31 +158,77 @@ mod tests {
     #[test]
     fn retry_only_from_failed() {
         assert_eq!(
-            decide(&failed(), D::Retry, false),
+            decide(&failed(), D::Retry, false, false),
             Ok(Decided::SetState(S::Queued))
         );
         for state in [S::Queued, S::MayHaveBeenSent, S::Accepted, S::Sending] {
-            assert_eq!(decide(&state, D::Retry, true), Err(NotNow));
+            assert_eq!(decide(&state, D::Retry, true, false), Err(NotNow));
         }
     }
 
     #[test]
     fn delete_of_an_unasked_maybe_sent_is_refused() {
-        assert_eq!(decide(&S::MayHaveBeenSent, D::Delete, false), Err(NotNow));
         assert_eq!(
-            decide(&S::MayHaveBeenSent, D::Delete, true),
+            decide(&S::MayHaveBeenSent, D::Delete, false, false),
+            Err(NotNow)
+        );
+        assert_eq!(
+            decide(&S::MayHaveBeenSent, D::Delete, true, false),
             Ok(Decided::Remove)
         );
-        assert_eq!(decide(&S::Queued, D::Delete, false), Ok(Decided::Remove));
-        assert_eq!(decide(&failed(), D::Delete, false), Ok(Decided::Remove));
+        assert_eq!(
+            decide(&S::Queued, D::Delete, false, false),
+            Ok(Decided::Remove)
+        );
+        assert_eq!(
+            decide(&failed(), D::Delete, false, false),
+            Ok(Decided::Remove)
+        );
     }
 
     #[test]
     fn accepted_reads_as_sent_not_filed() {
-        assert_eq!(status(&S::Accepted, false), OutboxStatus::SentNotFiled);
         assert_eq!(
-            status(&S::MayHaveBeenSent, true),
-            OutboxStatus::MayHaveBeenSent { asked: true }
+            status(&S::Accepted, false, true),
+            OutboxStatus::SentNotFiled
+        );
+        assert_eq!(
+            status(&S::MayHaveBeenSent, true, true),
+            OutboxStatus::MayHaveBeenSent {
+                asked: true,
+                can_file: true
+            }
+        );
+    }
+
+    #[test]
+    fn on_graph_there_is_no_move_to_sent_but_the_rest_is_unchanged() {
+        assert_eq!(
+            decide(&S::MayHaveBeenSent, D::MoveToSent, true, true),
+            Err(NotNow)
+        );
+        assert_eq!(
+            decide(&S::MayHaveBeenSent, D::SendAgain, true, true),
+            Ok(Decided::SetState(S::Queued))
+        );
+        assert_eq!(
+            decide(&S::MayHaveBeenSent, D::Delete, true, true),
+            Ok(Decided::Remove)
+        );
+        assert_eq!(
+            decide(&S::MayHaveBeenSent, D::SendAgain, false, true),
+            Err(NotNow)
+        );
+    }
+
+    #[test]
+    fn a_status_carries_whether_the_item_can_be_filed() {
+        assert_eq!(
+            status(&S::MayHaveBeenSent, true, false),
+            OutboxStatus::MayHaveBeenSent {
+                asked: true,
+                can_file: false
+            }
         );
     }
 

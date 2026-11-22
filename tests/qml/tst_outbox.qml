@@ -51,7 +51,7 @@ Item {
             return { id: id, account: "ann", subject: "Invoice " + id, to: "ana@example.org",
                      status: status, text: text === undefined ? "" : text, reason: reason === undefined ? "" : reason,
                      reasonAction: reason === undefined ? "" : (action === undefined ? "Check certificate" : action),
-                     signInAgain: false, editable: status === "failed" }
+                     signInAgain: false, editable: status === "failed", canFile: true }
         }
         function init() {
             core.reset()
@@ -140,6 +140,18 @@ Item {
             mouseClick(find("edit-f", page))
             compare(core.called("editOutbox").pop().args, ["f"])
             compare(composing.count, 1)
+        }
+
+        function test_move_to_sent_is_hidden_when_the_row_cannot_be_filed() {
+            // A Graph account keeps the sent copy itself: no Move to Sent.
+            const graph = item("g", "maybesent", "May have been sent: not found in Sent. Send again, or delete it?")
+            graph.canFile = false
+            core.outbox.append(graph)
+            core.outbox.append(item("m", "maybesent", "It may have been sent"))
+            waitForRendering(page)
+            verify(shown("sendAgain-g") && shown("delete-g"))
+            verify(!shown("moveToSent-g"))
+            verify(shown("moveToSent-m"))
         }
 
         function test_delete_asks_and_cancel_is_the_default() {
