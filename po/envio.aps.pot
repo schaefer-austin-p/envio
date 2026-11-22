@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-22 18:35+0100\n"
+"POT-Creation-Date: 2026-11-22 19:03+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -173,7 +173,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:229
+#: qml/pages/accounts/AccountsPage.qml:36 qml/pages/accounts/WizardPage.qml:231
 msgid "Add account"
 msgstr ""
 
@@ -571,19 +571,19 @@ msgstr ""
 msgid "Save password"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:231 qml/pages/accounts/WizardPage.qml:232
+#: qml/pages/accounts/WizardPage.qml:233 qml/pages/accounts/WizardPage.qml:234
 msgid "Sign in · %1"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:233
+#: qml/pages/accounts/WizardPage.qml:235
 msgid "Sign in"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:234
+#: qml/pages/accounts/WizardPage.qml:236
 msgid "Server settings"
 msgstr ""
 
-#: qml/pages/accounts/WizardPage.qml:235
+#: qml/pages/accounts/WizardPage.qml:237
 msgid "Account options"
 msgstr ""
 
