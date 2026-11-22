@@ -46,3 +46,7 @@ test-mock = ["dep:rcgen", "tokio/rt-multi-thread", "tokio/sync"]
 [[test]]
 name = "graph_http"
 required-features = ["test-mock"]
+
+[[test]]
+name = "graph_client"
+required-features = ["test-mock"]

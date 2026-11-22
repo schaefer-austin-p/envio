@@ -3,11 +3,18 @@
 //! types), the status table (`error`) and, behind `test-mock`, a scripted
 //! TLS server for tests here and in envio-sync and envio-core.
 
+mod batch;
+pub mod bearer;
+pub mod client;
 pub mod error;
 pub mod http;
 #[cfg(feature = "test-mock")]
 pub mod mock;
 pub mod model;
 pub mod parse;
+mod path;
 mod reply;
 mod time;
+
+pub use bearer::Bearer;
+pub use client::{GraphClient, Patch};

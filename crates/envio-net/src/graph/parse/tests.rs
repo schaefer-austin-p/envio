@@ -199,13 +199,8 @@ fn batch_replies_are_read_by_id_with_status_and_retry_after() {
     assert_eq!(by("1").status, 200);
     assert_eq!(by("3").retry_after_s, Some(7));
     assert_eq!(by("4").retry_after_s, None);
-    assert_eq!(
-        summary(&by("1").body)
-            .unwrap_err()
-            .to_string()
-            .contains("receivedDateTime"),
-        true
-    );
+    let err = summary(&by("1").body).unwrap_err().to_string();
+    assert!(err.contains("receivedDateTime"), "{err}");
 }
 
 #[test]
