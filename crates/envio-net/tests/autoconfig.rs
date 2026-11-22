@@ -4,13 +4,15 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use envio_net::autoconfig::{self, Lookups, Source, SrvRecord};
+use envio_net::autoconfig::{self, Hosting, Lookups, MxRecord, Source, SrvRecord};
 use envio_net::{Endpoint, NetError, Security};
 
 #[derive(Default)]
 struct Scripted {
     files: HashMap<String, String>,
     srv: HashMap<String, Vec<SrvRecord>>,
+    mx: Vec<MxRecord>,
+    mx_asked: std::sync::Mutex<Vec<String>>,
 }
 
 impl Lookups for Scripted {
@@ -20,6 +22,11 @@ impl Lookups for Scripted {
 
     async fn srv(&self, name: &str) -> Vec<SrvRecord> {
         self.srv.get(name).cloned().unwrap_or_default()
+    }
+
+    async fn mx(&self, name: &str) -> Vec<MxRecord> {
+        self.mx_asked.lock().unwrap().push(name.to_owned());
+        self.mx.clone()
     }
 }
 
@@ -171,6 +178,10 @@ impl Lookups for Hangs {
     async fn srv(&self, _name: &str) -> Vec<SrvRecord> {
         std::future::pending().await
     }
+
+    async fn mx(&self, _name: &str) -> Vec<MxRecord> {
+        std::future::pending().await
+    }
 }
 
 #[tokio::test]
@@ -207,6 +218,11 @@ impl Lookups for Slow {
     async fn srv(&self, name: &str) -> Vec<SrvRecord> {
         tokio::time::sleep(self.delay).await;
         self.script.srv(name).await
+    }
+
+    async fn mx(&self, name: &str) -> Vec<MxRecord> {
+        tokio::time::sleep(self.delay).await;
+        self.script.mx(name).await
     }
 }
 
@@ -252,4 +268,148 @@ async fn slow_lookups_wait_side_by_side_not_one_after_another() {
         "took {:?}",
         started.elapsed()
     );
+}
+
+fn m365() -> Vec<MxRecord> {
+    vec![MxRecord {
+        preference: 0,
+        host: "example-org.mail.protection.outlook.com.".into(),
+    }]
+}
+
+fn ispdb_script() -> Scripted {
+    let mut script = Scripted::default();
+    script.files.insert(
+        "https://autoconfig.thunderbird.net/v1.1/example.org".into(),
+        config("ispdb.example.org"),
+    );
+    script
+}
+
+const SHORT: Duration = Duration::from_millis(100);
+const BUDGET: Duration = Duration::from_secs(2);
+
+#[tokio::test]
+async fn the_verdict_and_the_settings_come_back_together() {
+    let script = Scripted {
+        mx: m365(),
+        ..ispdb_script()
+    };
+    let d = autoconfig::detect_with_limits("me@example.org", &script, BUDGET, SHORT)
+        .await
+        .unwrap();
+    assert_eq!(d.hosting, Hosting::Microsoft365);
+    assert_eq!(d.found.source, Source::Ispdb);
+    assert_eq!(*script.mx_asked.lock().unwrap(), ["example.org"]);
+}
+
+#[tokio::test]
+async fn no_mx_records_is_unknown() {
+    let d = autoconfig::detect_with_hosting("me@example.org", &ispdb_script(), BUDGET)
+        .await
+        .unwrap();
+    assert_eq!(d.hosting, Hosting::Unknown);
+    assert_eq!(d.found.source, Source::Ispdb);
+}
+
+/// Hangs on `mx` only, the rest as scripted.
+struct MxHangs(Scripted);
+
+impl Lookups for MxHangs {
+    async fn fetch(&self, url: &str) -> Option<String> {
+        self.0.fetch(url).await
+    }
+
+    async fn srv(&self, name: &str) -> Vec<SrvRecord> {
+        self.0.srv(name).await
+    }
+
+    async fn mx(&self, _name: &str) -> Vec<MxRecord> {
+        std::future::pending().await
+    }
+}
+
+#[tokio::test]
+async fn a_hanging_mx_lookup_ends_at_its_own_limit_and_keeps_the_found_settings() {
+    let started = std::time::Instant::now();
+    let d =
+        autoconfig::detect_with_limits("me@example.org", &MxHangs(ispdb_script()), BUDGET, SHORT)
+            .await
+            .unwrap();
+    assert_eq!(d.hosting, Hosting::Unknown);
+    assert_eq!(d.found.source, Source::Ispdb);
+    assert!(
+        started.elapsed() < Duration::from_millis(1000),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+/// Hangs on everything but `mx`.
+struct FindHangs(Scripted);
+
+impl Lookups for FindHangs {
+    async fn fetch(&self, _url: &str) -> Option<String> {
+        std::future::pending().await
+    }
+
+    async fn srv(&self, _name: &str) -> Vec<SrvRecord> {
+        std::future::pending().await
+    }
+
+    async fn mx(&self, name: &str) -> Vec<MxRecord> {
+        self.0.mx(name).await
+    }
+}
+
+#[tokio::test]
+async fn a_hanging_find_does_not_cost_the_verdict() {
+    let script = Scripted {
+        mx: m365(),
+        ..Default::default()
+    };
+    let d = autoconfig::detect_with_limits(
+        "me@example.org",
+        &FindHangs(script),
+        Duration::from_millis(300),
+        Duration::from_secs(5),
+    )
+    .await
+    .unwrap();
+    assert_eq!(d.hosting, Hosting::Microsoft365);
+    assert_eq!(d.found.source, Source::Guess);
+}
+
+#[tokio::test]
+async fn when_everything_hangs_the_budget_gives_the_guess_and_unknown() {
+    let started = std::time::Instant::now();
+    let d = autoconfig::detect_with_limits(
+        "me@example.org",
+        &Hangs,
+        Duration::from_millis(200),
+        Duration::from_secs(5),
+    )
+    .await
+    .unwrap();
+    assert_eq!(d.hosting, Hosting::Unknown);
+    assert_eq!(d.found.source, Source::Guess);
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[tokio::test]
+async fn detect_and_detect_within_never_ask_for_mx() {
+    let script = Scripted {
+        mx: m365(),
+        ..ispdb_script()
+    };
+    let found = autoconfig::detect("me@example.org", &script).await.unwrap();
+    assert_eq!(found.source, Source::Ispdb);
+    autoconfig::detect_within("me@example.org", &script, BUDGET)
+        .await
+        .unwrap();
+    assert!(script.mx_asked.lock().unwrap().is_empty());
 }

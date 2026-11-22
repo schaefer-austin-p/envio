@@ -4,6 +4,8 @@
 //! lookups sit behind [`Lookups`] so tests run without a network.
 
 mod fetch;
+pub mod hosting;
+mod mx;
 pub mod plan;
 mod srv;
 pub mod xml;
@@ -20,19 +22,22 @@ use crate::error::{NetError, Result};
 use crate::tls::Roots;
 use plan::{Candidates, Service};
 
+pub use hosting::{Hosting, MxRecord, hosting_of};
 pub use plan::{Found, Setting, Source, SrvRecord};
 
 /// All of one `detect`, every lookup included. When it runs out, the
 /// answer is the guess.
 pub const DETECT_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// The two kinds of lookup autoconfig makes. Failures are "nothing
+/// The kinds of lookup autoconfig makes. Failures are "nothing
 /// here": autoconfig moves on to the next source.
 pub trait Lookups: Sync {
     /// The body at an https URL, or None.
     fn fetch(&self, url: &str) -> impl Future<Output = Option<String>> + Send;
     /// The SRV records for a name; empty if none.
     fn srv(&self, name: &str) -> impl Future<Output = Vec<SrvRecord>> + Send;
+    /// The MX records for a name; empty if none.
+    fn mx(&self, name: &str) -> impl Future<Output = Vec<MxRecord>> + Send;
 }
 
 /// The real thing: HTTPS checked against `roots`, DNS from the system.
@@ -79,6 +84,13 @@ impl Lookups for Internet {
             None => Vec::new(),
         }
     }
+
+    async fn mx(&self, name: &str) -> Vec<MxRecord> {
+        match self.resolver() {
+            Some(resolver) => mx::lookup(resolver, name).await,
+            None => Vec::new(),
+        }
+    }
 }
 
 /// The settings for `email`, within [`DETECT_TIMEOUT`]. Only an address
@@ -97,6 +109,50 @@ pub async fn detect_within(email: &str, lookups: &impl Lookups, budget: Duration
         .ok()
         .flatten();
     Ok(found.unwrap_or_else(|| plan::guess(&domain, email)))
+}
+
+/// What `detect_with_hosting` found: the settings, and who hosts the
+/// domain's mail by its MX records.
+#[derive(Debug, Clone)]
+pub struct Detection {
+    pub found: Found,
+    pub hosting: Hosting,
+}
+
+/// As [`detect_within`] (which asks no MX), also asking for the domain's MX records at the
+/// same time (limited to `MX_TIMEOUT`).
+pub async fn detect_with_hosting(
+    email: &str,
+    lookups: &impl Lookups,
+    budget: Duration,
+) -> Result<Detection> {
+    detect_with_limits(email, lookups, budget, mx::MX_TIMEOUT).await
+}
+
+/// As [`detect_with_hosting`], with `mx_limit` in place of the MX
+/// timeout. Each side has its own limit, so a settled `find` survives an
+/// MX timeout and the reverse; the whole stays within `budget`. Public
+/// for the tests, which use short limits.
+#[doc(hidden)]
+pub async fn detect_with_limits(
+    email: &str,
+    lookups: &impl Lookups,
+    budget: Duration,
+    mx_limit: Duration,
+) -> Result<Detection> {
+    let domain =
+        plan::domain_of(email).ok_or_else(|| NetError::Refused("not an email address".into()))?;
+    let (found, records) = futures::join!(
+        tokio::time::timeout(budget, find(&domain, email, lookups)),
+        tokio::time::timeout(mx_limit.min(budget), lookups.mx(&domain)),
+    );
+    Ok(Detection {
+        found: found
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| plan::guess(&domain, email)),
+        hosting: hosting::hosting_of(&records.unwrap_or_default()),
+    })
 }
 
 /// The config files, then SRV; None when neither settles on a pair.
