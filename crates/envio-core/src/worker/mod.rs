@@ -19,6 +19,7 @@ mod graph_kind_tests;
 mod hosted;
 mod inline;
 mod invite;
+mod kind;
 mod label;
 mod local_folder;
 mod local_list;

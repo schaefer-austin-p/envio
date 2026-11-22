@@ -534,9 +534,10 @@ fn a_denied_redirect_in_the_second_sign_in_saves_nothing() {
     assert_eq!(outcomes(&sink), vec![OAuthOutcome::Cancelled]);
 }
 
-/// The "Other" path with a Microsoft address: no pick, so the first sign-in
-/// uses the address's own provider (IMAP scopes).
-const MSN: &str = "anna@msn.com";
+/// The "Other" path with an address whose default is still IMAP (a known
+/// consumer domain goes to Graph first, #384): no pick, so the first sign-in
+/// uses the address's own provider (IMAP scopes) and the tenant routes it.
+const MSN: &str = "anna@office365.com";
 
 #[test]
 fn on_the_other_path_a_work_tenant_saves_an_imap_account_without_a_question() {

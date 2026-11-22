@@ -4,7 +4,7 @@
 
 use envio_net::oauth::{
     Identity, Pkce, Provider, ProviderKind, RedirectError, TokenError, Tokens, authorize_url,
-    identity_matches, parse_redirect, provider_kind_for,
+    identity_matches, parse_redirect,
 };
 use envio_store::{AccountSettings, BackendKind};
 use secrecy::SecretString;
@@ -121,7 +121,7 @@ impl Worker<'_> {
     /// provider's, nothing is looked up. `false`: no provider, so the caller
     /// does what it always did.
     pub(crate) fn detect_with_provider(&mut self, email: &str) -> bool {
-        let Some(kind) = provider_kind_for(email) else {
+        let Some(kind) = self.default_kind(email) else {
             return false;
         };
         let Some(provider) = self.provider_of(kind) else {
@@ -146,7 +146,11 @@ impl Worker<'_> {
             needs_confirm: false,
         };
         let provider_name = provider_name(kind);
-        let servers = text::setup::servers(&setup.imap, &setup.smtp);
+        let servers = if kind == ProviderKind::MicrosoftGraph {
+            String::new()
+        } else {
+            text::setup::servers(&setup.imap, &setup.smtp)
+        };
         self.emit(Event::Detected {
             email,
             setup,
@@ -165,7 +169,7 @@ impl Worker<'_> {
     /// lookup, since autoconfig would only lead to a password that Microsoft
     /// does not take. `false`: not a Microsoft address, or sign-in is on.
     pub(crate) fn refuse_microsoft(&mut self, email: &str) -> bool {
-        let Some(kind) = provider_kind_for(email) else {
+        let Some(kind) = self.default_kind(email) else {
             return false;
         };
         if self.provider_of(kind).is_some() {
@@ -212,7 +216,7 @@ impl Worker<'_> {
             },
             None => {
                 let email = email.trim().to_owned();
-                let Some(kind) = kind.or_else(|| provider_kind_for(&email)) else {
+                let Some(kind) = kind.or_else(|| self.default_kind(&email)) else {
                     return self.refuse(email, OAuthFailure::Unavailable);
                 };
                 if self.email_taken(&email) {
