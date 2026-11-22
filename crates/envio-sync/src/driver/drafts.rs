@@ -82,22 +82,19 @@ pub async fn sync_drafts_into(
     run: &DraftRun<'_>,
     done: &mut DraftsSynced,
 ) -> Result<()> {
-    let before = account_reasons(drafts, run.account)?;
-    let result = run_drafts(server, (db, drafts), run, done).await;
-    // Judged even when the run failed; a store error here adds nothing to
-    // the one already in hand.
-    match account_reasons(drafts, run.account) {
-        Ok(after) => done.reasons_changed = after != before,
-        Err(error) if result.is_ok() => return Err(error),
-        Err(_) => {}
-    }
+    // The one scan of the drafts directory in this step.
+    let all = drafts.list()?;
+    let before = reasons(&all, run.account);
+    let result = run_drafts(server, (db, drafts), (run, &all), done).await;
+    // Judged even when the run failed.
+    done.reasons_changed = reasons_after(drafts, before.clone(), done) != before;
     result
 }
 
 async fn run_drafts(
     server: &mut impl MailServer,
     (db, drafts): (&Db, &Drafts),
-    run: &DraftRun<'_>,
+    (run, all): (&DraftRun<'_>, &[(String, Draft)]),
     done: &mut DraftsSynced,
 ) -> Result<()> {
     let folders = db.folders(run.account)?;
@@ -117,14 +114,14 @@ async fn run_drafts(
         done.no_folder = true;
         return Ok(());
     };
-    let mut due: Vec<(String, Draft)> = drafts
-        .list()?
-        .into_iter()
+    let mut due: Vec<(String, Draft)> = all
+        .iter()
         .filter(|(id, draft)| {
             draft.account == run.account
                 && !run.open.contains(id)
                 && needs_upload(draft, run.now_ms)
         })
+        .cloned()
         .collect();
     // The least recently tried first: a draft whose upload drops the
     // connection goes to the back, and cannot starve the others.
@@ -185,18 +182,39 @@ async fn run_drafts(
     Ok(())
 }
 
+type Reasons = BTreeMap<String, (Option<RefusalKind>, i64)>;
+
 /// What the account's draft rows show of a refusal: the kind and when it
 /// happened, by draft id.
-fn account_reasons(
-    drafts: &Drafts,
-    account: &str,
-) -> Result<BTreeMap<String, (Option<RefusalKind>, i64)>> {
-    Ok(drafts
-        .list()?
-        .into_iter()
+fn reasons(all: &[(String, Draft)], account: &str) -> Reasons {
+    all.iter()
         .filter(|(_, d)| d.account == account)
-        .map(|(id, d)| (id, (d.server.refusal, d.server.failed_at_ms)))
-        .collect())
+        .map(|(id, d)| (id.clone(), (d.server.refusal, d.server.failed_at_ms)))
+        .collect()
+}
+
+/// `before` brought up to date without scanning the directory again: only
+/// the drafts this run uploaded or refused can have a new reason, so just
+/// those files are read again. A draft that `Drafts::listed` does not show
+/// (deleted, delete-marked, or unreadable for any reason) drops out, as it
+/// would from a listing.
+fn reasons_after(drafts: &Drafts, mut reasons: Reasons, done: &DraftsSynced) -> Reasons {
+    for id in done
+        .uploaded
+        .iter()
+        .chain(&done.refused)
+        .chain(&done.failed)
+    {
+        match drafts.listed(id) {
+            Some(d) => {
+                reasons.insert(id.clone(), (d.server.refusal, d.server.failed_at_ms));
+            }
+            None => {
+                reasons.remove(id);
+            }
+        }
+    }
+    reasons
 }
 
 /// Appends the draft's text, then deletes what it replaces. The draft file
@@ -295,4 +313,50 @@ pub fn forget_deleted_drafts(
     }
     journal.settle(&settled)?;
     Ok(removed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn refused(id: &str) -> DraftsSynced {
+        DraftsSynced {
+            refused: vec![id.to_owned()],
+            ..DraftsSynced::default()
+        }
+    }
+
+    fn after_a_refusal(hide: impl FnOnce(&std::path::Path, &Drafts, &str)) -> Reasons {
+        let dir = tempfile::tempdir().unwrap();
+        let drafts = Drafts::open(dir.path()).unwrap();
+        let id = drafts.create(&Draft::default()).unwrap();
+        let before = reasons(&drafts.list().unwrap(), "");
+        assert!(before.contains_key(&id));
+        drafts
+            .mark_failed(&id, 0, 1, RefusalKind::Other, 5)
+            .unwrap();
+        hide(dir.path(), &drafts, &id);
+        reasons_after(&drafts, before, &refused(&id))
+    }
+
+    #[test]
+    fn a_delete_marked_draft_drops_out_while_its_file_stays() {
+        let after = after_a_refusal(|dir, _, id| {
+            std::fs::write(dir.join("gone").join(id), b"").unwrap();
+            assert!(dir.join(format!("{id}.json")).exists());
+        });
+        assert!(after.is_empty());
+    }
+
+    #[test]
+    fn an_unreadable_draft_file_drops_out_instead_of_failing() {
+        // A directory in the file's place: reading it is an I/O error for
+        // root too (a mode-000 file would not be).
+        let after = after_a_refusal(|dir, _, id| {
+            let file = dir.join(format!("{id}.json"));
+            std::fs::remove_file(&file).unwrap();
+            std::fs::create_dir(&file).unwrap();
+        });
+        assert!(after.is_empty());
+    }
 }

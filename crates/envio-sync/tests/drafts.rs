@@ -98,6 +98,21 @@ async fn a_saved_draft_is_appended_as_a_seen_draft_and_named_in_its_file() {
 }
 
 #[tokio::test]
+async fn a_drafts_step_reads_the_drafts_directory_once() {
+    let (mut server, store) = setup(true).await;
+    store.drafts.create(&draft("one", 1)).unwrap();
+    store.drafts.create(&draft("two", 2)).unwrap();
+    let scans = store.drafts.scan_count();
+    let done = run(&mut server, &store).await;
+    assert_eq!(done.uploaded.len(), 2);
+    assert_eq!(store.drafts.scan_count() - scans, 1);
+    // A step with nothing to do reads it once as well.
+    let scans = store.drafts.scan_count();
+    run(&mut server, &store).await;
+    assert_eq!(store.drafts.scan_count() - scans, 1);
+}
+
+#[tokio::test]
 async fn an_unchanged_draft_is_not_uploaded_again() {
     let (mut server, store) = setup(true).await;
     store.drafts.create(&draft("text", 1)).unwrap();
