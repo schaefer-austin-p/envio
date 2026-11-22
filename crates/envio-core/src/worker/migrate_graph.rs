@@ -94,7 +94,7 @@ impl Worker<'_> {
                 return;
             }
         }
-        self.show_migration(account, &m, step, (pending, accepted));
+        self.show_migration((account, &m), step, (pending, accepted));
     }
 
     /// A step 1 run failed: counted, and saved so a restart keeps it.
@@ -229,8 +229,7 @@ impl Worker<'_> {
 
     fn show_migration(
         &mut self,
-        account: &str,
-        m: &Migration,
+        (account, m): (&str, &Migration),
         step: MigrationStep,
         (pending, accepted): (usize, usize),
     ) {
