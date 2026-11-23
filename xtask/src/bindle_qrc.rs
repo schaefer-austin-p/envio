@@ -27,9 +27,9 @@ fn is_tier_file(rel: &str) -> bool {
 const QRC_PREFIX: &str = "/qml/bindle";
 
 /// What a qrc lists, and what is wrong with how it lists it.
-struct Listing {
-    files: BTreeSet<String>,
-    problems: Vec<String>,
+pub(crate) struct Listing {
+    pub(crate) files: BTreeSet<String>,
+    pub(crate) problems: Vec<String>,
 }
 
 /// Reads the `<file>` elements inside `<qresource prefix="/qml/bindle">`.
@@ -38,6 +38,11 @@ struct Listing {
 /// so does a `<file alias=...>` whose alias is not its path, since the app
 /// would load it under another name.
 fn parse(qrc: &str) -> Listing {
+    parse_with(qrc, QRC_PREFIX, "bindle.qrc")
+}
+
+/// `parse` for the qrc `name` whose files sit under `want_prefix` (app_qrc.rs).
+pub(crate) fn parse_with(qrc: &str, want_prefix: &str, name: &str) -> Listing {
     let mut out = Listing {
         files: BTreeSet::new(),
         problems: Vec::new(),
@@ -49,16 +54,16 @@ fn parse(qrc: &str) -> Listing {
     loop {
         match reader.read_event() {
             Err(e) => {
-                out.problems.push(format!("bindle.qrc: {e}"));
+                out.problems.push(format!("{name}: {e}"));
                 break;
             }
             Ok(Event::Eof) => break,
             Ok(Event::Start(e)) if e.local_name().as_ref() == "qresource" => {
                 let prefix = attr(&e, "prefix");
-                prefix_ok = prefix.as_deref() == Some(QRC_PREFIX);
+                prefix_ok = prefix.as_deref() == Some(want_prefix);
                 if !prefix_ok {
                     out.problems.push(format!(
-                        "bindle.qrc: qresource prefix {prefix:?}, want {QRC_PREFIX:?}"
+                        "{name}: qresource prefix {prefix:?}, want {want_prefix:?}"
                     ));
                 }
             }
@@ -85,7 +90,7 @@ fn parse(qrc: &str) -> Listing {
                             Some(t) => buf.push_str(t),
                             None => out
                                 .problems
-                                .push(format!("bindle.qrc: unknown entity &{};", &*r)),
+                                .push(format!("{name}: unknown entity &{};", &*r)),
                         },
                     }
                 }
@@ -93,8 +98,8 @@ fn parse(qrc: &str) -> Listing {
             Ok(Event::End(e)) if e.local_name().as_ref() == "file" => {
                 let path = text.take().unwrap_or_default().trim().to_owned();
                 match alias.take() {
-                    Some(a) if a != path => out.problems.push(format!(
-                        "bindle.qrc: {path} has alias {a:?}; the app loads it under that name"
+                    Some(a) if prefix_ok && a != path => out.problems.push(format!(
+                        "{name}: {path} has alias {a:?}; the app loads it under that name"
                     )),
                     _ if prefix_ok => {
                         out.files.insert(path);
@@ -142,7 +147,7 @@ pub fn problems(files: &[String], qrc: &str) -> Vec<String> {
 }
 
 /// Every file under `dir`, relative and `/` separated.
-fn walk(dir: &Path, rel: &Path, out: &mut Vec<String>) -> std::io::Result<()> {
+pub(crate) fn walk(dir: &Path, rel: &Path, out: &mut Vec<String>) -> std::io::Result<()> {
     for entry in std::fs::read_dir(dir.join(rel))? {
         let entry = entry?;
         let name = entry.file_name();

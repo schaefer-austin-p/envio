@@ -30,6 +30,9 @@ find "$root/qml" -path "$root/qml/bindle" -prune -o -name '*.qml' -print0 | xarg
 section "lint: bindle.qrc lists every bindle QML file (#229)"
 (cd "$root" && cargo xtask bindle-qrc)
 
+section "lint: qml.qrc lists every app QML file (#125)"
+(cd "$root" && cargo xtask app-qrc)
+
 section "lint: QML formats no counts (#3)"
 "$root/tools/ci/no-qml-plurals.sh" --self-test
 

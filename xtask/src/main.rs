@@ -2,8 +2,11 @@
 //! arguments for the crates changed since `<ref>` (see affected.rs).
 //! `cargo xtask bindle-qrc [dir]`: fails when bindle.qrc misses a bindle QML
 //! file (see bindle_qrc.rs).
+//! `cargo xtask app-qrc [dir]`: fails when qml/qml.qrc misses an app QML file
+//! (see app_qrc.rs).
 
 mod affected;
+mod app_qrc;
 mod bindle_qrc;
 mod metadata;
 
@@ -19,8 +22,10 @@ fn main() -> ExitCode {
         [cmd, flag, base] if cmd == "affected" && flag == "--base" => run_affected(base),
         [cmd] if cmd == "bindle-qrc" => run_bindle_qrc(None),
         [cmd, dir] if cmd == "bindle-qrc" => run_bindle_qrc(Some(dir)),
+        [cmd] if cmd == "app-qrc" => run_app_qrc(None),
+        [cmd, dir] if cmd == "app-qrc" => run_app_qrc(Some(dir)),
         _ => Err(
-            "usage: cargo xtask affected --base <git ref> | cargo xtask bindle-qrc [dir]"
+            "usage: cargo xtask affected --base <git ref> | cargo xtask bindle-qrc [dir] | cargo xtask app-qrc [dir]"
                 .to_owned(),
         ),
     };
@@ -43,6 +48,15 @@ fn run_bindle_qrc(dir: Option<&String>) -> Result<String, String> {
     );
     bindle_qrc::check(&dir)?;
     Ok("bindle.qrc lists every bindle QML file".to_owned())
+}
+
+fn run_app_qrc(dir: Option<&String>) -> Result<String, String> {
+    let dir = dir.map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../qml"),
+        PathBuf::from,
+    );
+    app_qrc::check(&dir)?;
+    Ok("qml.qrc lists every app QML file".to_owned())
 }
 
 fn run_affected(base: &str) -> Result<String, String> {

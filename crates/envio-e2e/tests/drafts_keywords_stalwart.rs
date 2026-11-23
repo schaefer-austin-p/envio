@@ -52,6 +52,7 @@ async fn a_draft_with_a_keyword_is_copied_and_one_without_is_replaced() {
     let refresh = || {
         run.core().send(Command::Refresh {
             account: Some(account.clone()),
+            ticket: 0,
         })
     };
 

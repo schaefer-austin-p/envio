@@ -311,6 +311,13 @@ pub enum Event {
     /// The settings as they are now: sent after `Started` and after each
     /// save.
     Settings(Settings),
+    /// A `Refresh` is over: every account it asked for has synced, failed,
+    /// is paused, or is gone. Exactly one per refresh, at once when nothing
+    /// in its scope could run. `ticket` is the one the `Refresh` command
+    /// carried; a foreground resume refreshes too, with ticket 0.
+    Refreshed {
+        ticket: u64,
+    },
     MessageOpened {
         id: MessageRowId,
         view: MessageView,

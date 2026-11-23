@@ -46,6 +46,10 @@ Item {
     readonly property int waitingCount: waitingProbe.toSend
     readonly property bool selecting: list.selectedCount > 0
 
+    // F5 and the like: refresh what the list shows (a no-op while one runs).
+    function refresh() { list.refresh() }
+    readonly property bool refreshing: list.refreshing
+
     function showUnified() {
         tab = ""
         title = qsTr("Inbox")

@@ -472,6 +472,7 @@ async fn mail_that_arrives_before_the_idle_select_is_not_missed() {
     });
     run.core().send(Command::Refresh {
         account: Some(account),
+        ticket: 0,
     });
     run.row_with(inbox, &late);
 }
