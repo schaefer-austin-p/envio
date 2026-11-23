@@ -171,9 +171,33 @@ fn consumer_domains_are_the_narrow_list_never_work_domains() {
         "a@example.org",
         "a@live.org",
         "a@hotmail.biz",
+        "a@ outlook.com",
         "not an address",
     ] {
         assert!(!is_consumer_domain(no), "{no}");
+    }
+}
+
+#[test]
+fn consumer_microsoft_domain_is_the_narrow_list_on_a_bare_domain() {
+    for yes in [
+        "outlook.com",
+        "Hotmail.CO.UK.",
+        "live.fr",
+        "msn.com",
+        "windowslive.com",
+    ] {
+        assert!(consumer_microsoft_domain(yes), "{yes}");
+    }
+    for no in [
+        "office365.com",
+        "foo.onmicrosoft.com",
+        "live.org",
+        "hotmail.biz",
+        "example.org",
+        "",
+    ] {
+        assert!(!consumer_microsoft_domain(no), "{no}");
     }
 }
 

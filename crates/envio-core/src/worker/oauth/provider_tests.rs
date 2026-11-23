@@ -534,17 +534,18 @@ fn a_denied_redirect_in_the_second_sign_in_saves_nothing() {
     assert_eq!(outcomes(&sink), vec![OAuthOutcome::Cancelled]);
 }
 
-/// The "Other" path with a Microsoft address: no pick, so the first sign-in
-/// uses the address's own provider (IMAP scopes).
-const MSN: &str = "anna@msn.com";
+/// The "Other" path with an address whose default is still IMAP (a known
+/// consumer domain goes to Graph first, #384): no pick, so the first sign-in
+/// uses the address's own provider (IMAP scopes) and the tenant routes it.
+const WORK_DEFAULT_IMAP: &str = "anna@office365.com";
 
 #[test]
 fn on_the_other_path_a_work_tenant_saves_an_imap_account_without_a_question() {
     let dir = tempfile::tempdir().unwrap();
     let (config, sink) = (config(dir.path()), Sink::default());
     let mut worker = open(&config, &sink);
-    worker.start_oauth(MSN, None, None);
-    answer(&mut worker, &sink, tokens(MSN, Some(WORK)));
+    worker.start_oauth(WORK_DEFAULT_IMAP, None, None);
+    answer(&mut worker, &sink, tokens(WORK_DEFAULT_IMAP, Some(WORK)));
     let saved = added(&worker);
     assert_eq!(saved.len(), 1);
     assert_eq!(saved[0].settings.backend, BackendKind::Imap);
@@ -562,14 +563,22 @@ fn on_the_other_path_a_consumer_tenant_signs_in_with_graph_scopes_and_saves_grap
     let dir = tempfile::tempdir().unwrap();
     let (config, sink) = (config(dir.path()), Sink::default());
     let mut worker = open(&config, &sink);
-    worker.start_oauth(MSN, None, None);
+    worker.start_oauth(WORK_DEFAULT_IMAP, None, None);
     assert!(!urls(&sink)[0].contains("Mail.ReadWrite"));
-    answer(&mut worker, &sink, tokens(MSN, Some(CONSUMER_TENANT)));
+    answer(
+        &mut worker,
+        &sink,
+        tokens(WORK_DEFAULT_IMAP, Some(CONSUMER_TENANT)),
+    );
     // The IMAP-scoped token cannot serve Graph: one more sign-in, no question.
     assert!(mismatches(&sink).is_empty());
     assert!(added(&worker).is_empty());
     assert!(urls(&sink)[1].contains("Mail.ReadWrite"));
-    answer(&mut worker, &sink, tokens(MSN, Some(CONSUMER_TENANT)));
+    answer(
+        &mut worker,
+        &sink,
+        tokens(WORK_DEFAULT_IMAP, Some(CONSUMER_TENANT)),
+    );
     let saved = added(&worker);
     assert_eq!(saved.len(), 1);
     assert_eq!(saved[0].settings.backend, BackendKind::Graph);
@@ -579,5 +588,50 @@ fn on_the_other_path_a_consumer_tenant_signs_in_with_graph_scopes_and_saves_grap
     );
     assert!(mismatches(&sink).is_empty());
     assert_eq!(urls(&sink).len(), 2);
+    assert_eq!(outcomes(&sink), vec![OAuthOutcome::Added]);
+}
+
+const OUTLOOK: &str = "anna@outlook.com";
+
+#[test]
+fn a_consumer_address_with_no_pick_signs_in_once_and_saves_graph() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config, sink) = (config(dir.path()), Sink::default());
+    let mut worker = open(&config, &sink);
+    worker.start_oauth(OUTLOOK, None, None);
+    assert!(urls(&sink)[0].contains("Mail.ReadWrite"));
+    answer(&mut worker, &sink, tokens(OUTLOOK, Some(CONSUMER_TENANT)));
+    let saved = added(&worker);
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0].settings.backend, BackendKind::Graph);
+    assert_eq!(
+        token_of(&worker, &saved[0].key, ProviderKind::MicrosoftGraph).as_deref(),
+        Some("rt-new")
+    );
+    assert_eq!(urls(&sink).len(), 1, "one consent");
+    assert!(mismatches(&sink).is_empty());
+    assert_eq!(outcomes(&sink), vec![OAuthOutcome::Added]);
+}
+
+#[test]
+fn a_consumer_address_with_no_pick_and_a_work_token_signs_in_again_with_imap() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config, sink) = (config(dir.path()), Sink::default());
+    let mut worker = open(&config, &sink);
+    worker.start_oauth(OUTLOOK, None, None);
+    assert!(urls(&sink)[0].contains("Mail.ReadWrite"));
+    answer(&mut worker, &sink, tokens(OUTLOOK, Some(WORK)));
+    // The Graph token cannot serve a work tenant: one more sign-in, no question.
+    assert!(mismatches(&sink).is_empty());
+    assert!(added(&worker).is_empty());
+    assert!(urls(&sink)[1].contains("IMAP.AccessAsUser"));
+    answer(&mut worker, &sink, tokens(OUTLOOK, Some(WORK)));
+    let saved = added(&worker);
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved[0].settings.backend, BackendKind::Imap);
+    assert_eq!(
+        token_of(&worker, &saved[0].key, ProviderKind::Microsoft).as_deref(),
+        Some("rt-new")
+    );
     assert_eq!(outcomes(&sink), vec![OAuthOutcome::Added]);
 }

@@ -15,7 +15,9 @@ mod urlenc;
 pub use client::refresh_within;
 pub use client::{exchange_code, refresh};
 pub use pkce::Pkce;
-pub use provider::{Provider, ProviderKind, is_consumer_domain, provider_kind_for};
+pub use provider::{
+    Provider, ProviderKind, consumer_microsoft_domain, is_consumer_domain, provider_kind_for,
+};
 pub use redirect::{Redirect, RedirectError, authorize_url, parse_redirect};
 pub use token::{
     CONSUMER_TENANT, Grant, Identity, TokenError, Tokens, identity_matches, identity_of,
