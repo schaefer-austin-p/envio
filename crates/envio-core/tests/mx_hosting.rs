@@ -164,10 +164,13 @@ fn a_stale_microsoft_verdict_is_dropped() {
         detect(&h, email);
         std::thread::sleep(Duration::from_millis(50));
     }
-    let seen = drain_for(&h, Duration::from_millis(2_000));
+    // Wait for the answering card (#456: a fixed drain can end before it),
+    // then give a late stale card time to show.
+    h.wait(|e| matches!(e, Event::MailOnMicrosoft { .. }).then_some(()));
+    let seen = drain_for(&h, Duration::from_millis(1_200));
     // The first run's answer is stale; the replaced second never runs; the
     // third answers: one card, not two.
-    let cards = seen
+    let cards = 1 + seen
         .iter()
         .filter(|e| matches!(e, Event::MailOnMicrosoft { .. }))
         .count();
@@ -240,6 +243,12 @@ fn connecting_an_mx_hosted_domain_by_hand_is_not_refused() {
         servers_confirmed: true,
         accepted: vec![],
     })));
+    // The positive outcome comes first: the core connected to the typed
+    // server. Only then does "no refusal" mean something (#456).
+    assert!(
+        accepted_within(&listener, Duration::from_secs(5)),
+        "the core never connected"
+    );
     let rest = drain(&h);
     assert!(
         !rest.iter().any(|e| matches!(
@@ -247,9 +256,5 @@ fn connecting_an_mx_hosted_domain_by_hand_is_not_refused() {
             Event::SetupRefused { .. } | Event::MailOnMicrosoft { .. }
         )),
         "{rest:?}"
-    );
-    assert!(
-        accepted_within(&listener, Duration::from_secs(5)),
-        "the core never connected"
     );
 }
