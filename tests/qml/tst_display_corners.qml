@@ -23,6 +23,10 @@ Item {
             dc.windowHeight = 640 - 160
             compare(dc.rounded, true)
         }
+        function test_lomiri_full_width_half_height_is_square() {
+            dc.windowHeight = 320   // a top-half snap
+            compare(dc.rounded, false)
+        }
         function test_lomiri_narrower_is_square() {
             dc.windowWidth = 360 - 50
             compare(dc.rounded, false)
@@ -43,6 +47,10 @@ Item {
             dc.windowWidth = 200
             compare(dc.rounded, false)
             dc.windowWidth = 360
+            compare(dc.rounded, true)
+            dc.windowHeight = 300
+            compare(dc.rounded, false)
+            dc.windowHeight = 640
             compare(dc.rounded, true)
         }
         function test_unknown_screen_is_square() {

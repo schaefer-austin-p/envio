@@ -5,8 +5,11 @@ import QtQuick 2.15
 // `lomiriSession` like WindowMode), and only a window that spans the screen's
 // width is at them. A staged phone window always spans the width; only its
 // height loses the indicator panel, whose height does not follow gu, so height
-// is no reliable signal and is not tested. A windowed convergence window is
-// narrower. `widthTolerance` absorbs a pixel of rounding. Compared by
+// is only tested coarsely: `minHeightShare` of the screen, which the panel (about
+// 6%) never trips but a half-height snap does. An on-screen keyboard that
+// shrinks the window makes it square while open, harmless as the bottom corners
+// are covered. A windowed convergence window is narrower. `widthTolerance`
+// absorbs a pixel of rounding. Compared by
 // geometry, not Window.visibility (the compositor may report Maximized for a
 // windowed app; sizes are injectable and follow a resize by binding). Main
 // feeds the window and Screen widths and binds the result to
@@ -21,7 +24,10 @@ Item {
     property real screenHeight: 0
     // Pixels of slack on the width comparison.
     property real widthTolerance: 2
+    // The least height, as a share of the screen's, that still counts.
+    property real minHeightShare: 0.75
 
     readonly property bool rounded: phoneSession && screenWidth > 0 && screenHeight > 0
         && windowWidth >= screenWidth - widthTolerance
+        && windowHeight >= screenHeight * minHeightShare
 }
