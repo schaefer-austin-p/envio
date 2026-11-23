@@ -11,8 +11,13 @@ Item {
     property string foundText: ""
     // The two guessed servers, one line each (chosen and translated in Rust).
     property string serversText: ""
-    // Detected.source is "provider": that provider wants an app password.
-    property bool appPassword: false
+    // The provider wants an app password (#221): one translated sentence
+    // and the provider's help page, both from the core. Empty for no hint.
+    property string appHint: ""
+    property string appHelpUrl: ""
+    readonly property bool appPassword: appHint !== ""
+    // For tests: where the help page is opened.
+    readonly property alias uri: uri
     property string error: ""
     property bool busy: false
     property alias password: passwordField.text
@@ -39,6 +44,11 @@ Item {
     signal oauthRequested()
     signal oauthAnswered(bool accept)
 
+    Platform.Uri {
+        id: uri
+        objectName: "signInUri"
+        sourceFile: ""
+    }
     Platform.KeyboardAvoider { objectName: "keyboardAvoider"; flickable: flick }
 
     Flickable {
@@ -103,12 +113,48 @@ Item {
                 objectName: "appPasswordHint"
                 width: parent.width
                 visible: !root.oauth && root.appPassword
-                text: qsTr("This provider needs an app password for Envio, not your usual one. Create one in your account settings.")
+                text: root.appHint
                 wrapMode: Text.WordWrap
                 color: root.theme.text
                 font.family: root.theme.fontUi
                 font.pixelSize: 14
                 lineHeight: 1.3
+            }
+            // A text link on purpose: the hint is one contextual line, not a
+            // card or a second button beside "Continue".
+            Item {
+                objectName: "appPasswordHelpLink"
+                visible: !root.oauth && root.appPassword
+                width: parent.width
+                height: root.theme.gu(5.5)
+                readonly property alias text: linkText.text
+                Row {
+                    spacing: root.theme.gu(0.75)
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        id: linkText
+                        textFormat: Text.PlainText
+                        text: qsTr("Create an app password")
+                        color: root.theme.text
+                        font.family: root.theme.fontUi
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Icon {
+                        theme: root.theme
+                        name: "external"
+                        size: 18
+                        color: root.theme.text
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: uri.open(root.appHelpUrl)
+                }
+                Accessible.role: Accessible.Link
+                Accessible.name: linkText.text
             }
             Field {
                 id: passwordField

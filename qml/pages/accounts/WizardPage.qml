@@ -49,6 +49,10 @@ Item {
     property bool attempting: false
     property string foundText: ""
     property string serversText: ""
+    // The provider of this address wants an app password (#221): the core's
+    // sentence and the provider's help page; empty for no hint.
+    property string appHint: ""
+    property string appHelpUrl: ""
     property string setupJson: ""
     readonly property var setup: setupJson === "" ? ({}) : JSON.parse(setupJson)
     // True only after "Use these servers" for the hosts now in `setup`.
@@ -148,6 +152,8 @@ Item {
     // the confirmation of its hosts, and interest in any answer still on
     // its way (`attempting` is off, so late events are ignored).
     function forget() {
+        appHint = ""
+        appHelpUrl = ""
         hostedTitle = ""
         hostedText = ""
         hostedNoticeKind = ""
@@ -264,6 +270,7 @@ Item {
         anchors { top: counter.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
         visible: root.step === "apppass"
         provider: root.provider
+        helpUrl: root.core.appPasswordHelpUrl(root.provider)
         error: root.error
         busy: root.busy
         onContinued: root.submit()
@@ -299,7 +306,8 @@ Item {
         visible: root.step === "signin"
         foundText: root.foundText
         serversText: root.serversText
-        appPassword: root.setup.source === "provider"
+        appHint: root.appHint
+        appHelpUrl: root.appHelpUrl
         error: root.error
         busy: root.busy
         oauthProvider: root.oauthProvider
@@ -393,12 +401,14 @@ Item {
 
     Connections {
         target: root.core
-        function onDetected(email, text, needsConfirm, json, serversText, oauthProvider) {
+        function onDetected(email, text, needsConfirm, json, serversText, oauthProvider, appHint, appHelpUrl) {
             if (!root.current(email)) return
             root.busy = false
             root.oauthProvider = oauthProvider
             root.foundText = text
             root.serversText = serversText
+            root.appHint = appHint
+            root.appHelpUrl = appHelpUrl
             root.setupJson = json
             signIn.oauthEmail = root.asked
             root.serversConfirmed = false

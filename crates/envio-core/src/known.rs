@@ -2,35 +2,45 @@
 //! known, so nothing is looked up and the typed address goes straight to
 //! the sign-in. Pure.
 
-use envio_net::Security;
-use envio_net::autoconfig::Source;
+use envio_net::autoconfig::{Found, Setting, Source};
+use envio_net::{Endpoint, Security};
 
 use crate::api::command::AccountSetup;
+use crate::app_password::AppPasswordProvider;
 use crate::servers::ServerAddr;
+
+type Host = (&'static str, u16, Security);
+
+/// The (IMAP, SMTP) servers of a provider that has known ones; `None` for
+/// AOL, which the provider step does not offer.
+fn servers_of(provider: AppPasswordProvider) -> Option<(Host, Host)> {
+    match provider {
+        AppPasswordProvider::Icloud => Some((
+            ("imap.mail.me.com", 993, Security::Tls),
+            ("smtp.mail.me.com", 587, Security::StartTls),
+        )),
+        AppPasswordProvider::Google => Some((
+            ("imap.gmail.com", 993, Security::Tls),
+            ("smtp.gmail.com", 465, Security::Tls),
+        )),
+        AppPasswordProvider::Yahoo => Some((
+            ("imap.mail.yahoo.com", 993, Security::Tls),
+            ("smtp.mail.yahoo.com", 465, Security::Tls),
+        )),
+        AppPasswordProvider::Aol => None,
+    }
+}
 
 /// The servers of `provider` ("icloud", "gmail" or "yahoo") for `email`;
 /// `None` for any other provider id. The name is the part before the `@`.
 pub fn app_password_setup(provider: &str, email: &str) -> Option<AccountSetup> {
-    let addr = |host: &str, port, security| ServerAddr {
+    let (imap, smtp) = servers_of(AppPasswordProvider::from_id(provider)?)?;
+    let addr = |(host, port, security): Host| ServerAddr {
         host: host.to_owned(),
         port,
         security,
     };
-    let (imap, smtp) = match provider {
-        "icloud" => (
-            addr("imap.mail.me.com", 993, Security::Tls),
-            addr("smtp.mail.me.com", 587, Security::StartTls),
-        ),
-        "gmail" => (
-            addr("imap.gmail.com", 993, Security::Tls),
-            addr("smtp.gmail.com", 465, Security::Tls),
-        ),
-        "yahoo" => (
-            addr("imap.mail.yahoo.com", 993, Security::Tls),
-            addr("smtp.mail.yahoo.com", 465, Security::Tls),
-        ),
-        _ => return None,
-    };
+    let (imap, smtp) = (addr(imap), addr(smtp));
     let email = email.trim().to_owned();
     let name = email.rsplit_once('@').map_or("", |(local, _)| local);
     Some(AccountSetup {
@@ -42,6 +52,23 @@ pub fn app_password_setup(provider: &str, email: &str) -> Option<AccountSetup> {
         source: Some(Source::Provider),
         needs_confirm: false,
     })
+}
+
+/// Gmail's servers for a Google Workspace domain found by its MX records:
+/// autoconfig found nothing there, and `imap.<domain>` would not answer.
+pub fn google_found(email: &str) -> Found {
+    let ((imap, ip, is), (smtp, sp, ss)) =
+        servers_of(AppPasswordProvider::Google).expect("Google has servers");
+    let setting = |host, port, security| Setting {
+        endpoint: Endpoint::new(host, port, security),
+        username: email.trim().to_owned(),
+    };
+    Found {
+        imap: setting(imap, ip, is),
+        smtp: setting(smtp, sp, ss),
+        source: Source::Provider,
+        confirm: false,
+    }
 }
 
 #[cfg(test)]
@@ -104,7 +131,24 @@ mod tests {
     }
 
     #[test]
+    fn a_workspace_domain_gets_the_gmail_servers_as_a_provider_find() {
+        let f = google_found(" ann@studio.example ");
+        assert_eq!(
+            (f.imap.endpoint.host.as_str(), f.imap.endpoint.port),
+            ("imap.gmail.com", 993)
+        );
+        assert_eq!(
+            (f.smtp.endpoint.host.as_str(), f.smtp.endpoint.port),
+            ("smtp.gmail.com", 465)
+        );
+        assert_eq!(f.imap.username, "ann@studio.example");
+        assert_eq!(f.source, Source::Provider);
+        assert!(!f.confirm);
+    }
+
+    #[test]
     fn any_other_provider_id_has_none() {
+        assert_eq!(app_password_setup("aol", "ann@example.org"), None);
         assert_eq!(app_password_setup("other", "ann@example.org"), None);
         assert_eq!(app_password_setup("", "ann@example.org"), None);
     }

@@ -1,6 +1,7 @@
 //! The words for adding and removing accounts.
 
 use crate::api::view::UnsentCounts;
+use crate::app_password::AppPasswordProvider;
 use crate::i18n::{fill, tr, tr_n};
 use crate::text::status::untrusted_reason;
 use crate::{ServerAddr, Service};
@@ -53,6 +54,15 @@ pub fn microsoft_hosted_refused(domain: &str) -> (String, String) {
 /// The status of an existing Microsoft account while sign-in is off (#381).
 pub fn microsoft_account_unsupported() -> String {
     tr("Microsoft accounts aren\u{2019}t supported yet. Remove this account.")
+}
+
+/// The sign-in step's line for a provider that wants an app password
+/// (#221). The provider's name is a brand and stays as it is.
+pub fn app_password_hint(provider: AppPasswordProvider) -> String {
+    fill(
+        &tr("{provider} needs an app password, not your normal password."),
+        &[("provider", provider.name())],
+    )
 }
 
 pub fn found_by(source: Source) -> String {

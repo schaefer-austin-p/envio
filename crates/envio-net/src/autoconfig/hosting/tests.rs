@@ -87,3 +87,73 @@ fn consumer_and_sovereign_clouds_are_not_matched() {
         assert_eq!(hosting(&[(0, host)]), Hosting::Unknown, "{host}");
     }
 }
+
+#[test]
+fn google_mx_hosts_count() {
+    for host in [
+        "aspmx.l.google.com",
+        "alt1.aspmx.l.google.com",
+        "ALT4.aspmx.l.google.com.",
+        "aspmx.googlemail.com",
+        "aspmx2.googlemail.com",
+        "aspmx5.googlemail.com",
+        "smtp.google.com",
+    ] {
+        assert_eq!(hosting(&[(1, host)]), Hosting::Google, "{host}");
+    }
+}
+
+#[test]
+fn a_google_set_with_alternates_is_google() {
+    assert_eq!(
+        hosting(&[
+            (1, "aspmx.l.google.com"),
+            (5, "alt1.aspmx.l.google.com"),
+            (10, "alt3.aspmx.l.google.com"),
+        ]),
+        Hosting::Google
+    );
+    assert_eq!(
+        hosting(&[
+            (1, "aspmx.l.google.com"),
+            (1, "alt1.aspmx.l.google.com"),
+            (1, "aspmx2.googlemail.com"),
+        ]),
+        Hosting::Google
+    );
+}
+
+#[test]
+fn google_must_hold_for_every_best_record() {
+    assert_eq!(
+        hosting(&[(1, "aspmx.l.google.com"), (1, "mx.example.org")]),
+        Hosting::Unknown
+    );
+    assert_eq!(
+        hosting(&[(10, "mx.example.org"), (20, "aspmx.l.google.com")]),
+        Hosting::Unknown
+    );
+    assert_eq!(
+        hosting(&[(1, "aspmx.l.google.com"), (1, M365)]),
+        Hosting::Unknown
+    );
+}
+
+#[test]
+fn lookalike_google_hosts_are_not_matched() {
+    for host in [
+        "google.com",
+        "aspmx.l.google.com.example.org",
+        "evil-aspmx.l.google.com",
+        "alt.aspmx.l.google.com",
+        "altx.aspmx.l.google.com",
+        "x.alt1.aspmx.l.google.com",
+        "aspmx12.googlemail.com",
+        "aspmxa.googlemail.com",
+        "mail.googlemail.com",
+        "aspmx.googlemail.com.example.org",
+        "mail.smtp.google.com",
+    ] {
+        assert_eq!(hosting(&[(1, host)]), Hosting::Unknown, "{host}");
+    }
+}

@@ -38,6 +38,14 @@ pub struct OAuthOffer {
     pub name_hint: String,
 }
 
+/// The sign-in step's hint for a provider that wants an app password
+/// (#221): one translated sentence and the provider's help page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppPasswordHint {
+    pub text: String,
+    pub url: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OAuthFailure {
     Timeout,
@@ -166,6 +174,8 @@ pub enum Event {
         servers: String,
         /// Set when the address can sign in with its provider.
         oauth: Option<OAuthOffer>,
+        /// Set when the provider wants an app password (#221).
+        app_password: Option<AppPasswordHint>,
     },
     /// Open `url` in the browser (the user signs in there).
     OAuthBrowser {

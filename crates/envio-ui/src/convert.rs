@@ -239,6 +239,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             text,
             servers,
             oauth,
+            app_password,
         } => Signal::Detected {
             email,
             text,
@@ -246,6 +247,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             setup,
             servers,
             oauth,
+            app_password,
         },
         Event::SetupProblem { email, text } => Signal::SetupProblem { email, text },
         Event::SetupRefused {

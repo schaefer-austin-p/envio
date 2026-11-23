@@ -16,6 +16,7 @@ pub mod servers;
 pub mod hooks;
 
 mod alert;
+mod app_password;
 mod cause;
 mod clock;
 mod compose;
@@ -42,12 +43,15 @@ pub use api::command::{
     AccountSetup, Answer, Command, ComposeId, ConnectRequest, DraftInput, ImagesChoice,
     OutboxDecision, SearchScope, StartFrom, UndoId, UserAction,
 };
-pub use api::event::{Event, NewMail, OAuthFailure, OAuthOffer, OAuthOutcome, UndoScope};
+pub use api::event::{
+    AppPasswordHint, Event, NewMail, OAuthFailure, OAuthOffer, OAuthOutcome, UndoScope,
+};
 pub use api::view::{
     AccountInfo, AttachmentRow, CacheState, CardMethod, CardState, FolderRow, InviteCard,
     MessageHeader, MessageRow, MessageView, MigrationStage, MigrationState, OutboxRow,
     OutboxStatus, Suggestion, UnsentCounts,
 };
+pub use app_password::{AppPasswordProvider, app_password_help_url, app_password_provider};
 pub use core::{Config, Core, EventSink, default_oauth_providers, microsoft_sign_in_offered};
 pub use envio_net::oauth::ProviderKind;
 pub use envio_store::{
@@ -55,7 +59,7 @@ pub use envio_store::{
     LIST_PANE_MAX_GU, LIST_PANE_MIN_GU, ListRef, MessageRowId, PAGE, Settings, ThemeName,
 };
 pub use health::AccountStatus;
-pub use known::app_password_setup;
+pub use known::{app_password_setup, google_found};
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
 pub use text::count::{CountKind, count_text};

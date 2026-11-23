@@ -160,6 +160,7 @@ impl Worker<'_> {
                 provider: provider_name.to_owned(),
                 name_hint,
             }),
+            app_password: None,
         });
         true
     }

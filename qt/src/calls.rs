@@ -7,8 +7,8 @@ use std::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QList, QMap, QMapPair_QString_QVariant, QString, QVariant};
 use envio_core::{
-    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, app_password_setup,
-    count_text, ispdb_note,
+    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, app_password_help_url,
+    app_password_setup, count_text, ispdb_note,
 };
 use secrecy::SecretString;
 use zeroize::Zeroize;
@@ -92,6 +92,11 @@ impl qobject::EnvioCore {
             .map(|setup| crate::json::setup_to_json(&setup))
             .unwrap_or_default();
         QString::from(json)
+    }
+
+    /// Where the provider of a provider step id makes app passwords.
+    pub fn app_password_help_url(&self, provider: &QString) -> QString {
+        QString::from(app_password_help_url(&s(provider)))
     }
 
     /// The link the browser handed back; it is not logged.

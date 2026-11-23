@@ -162,6 +162,7 @@ impl qobject::EnvioCore {
                 setup,
                 servers,
                 oauth,
+                app_password,
             } => self.detected(
                 &q(&email),
                 &q(&text),
@@ -169,6 +170,8 @@ impl qobject::EnvioCore {
                 &q(&json::setup_to_json(&setup)),
                 &q(&servers),
                 &q(oauth.as_ref().map_or("", |o| o.provider.as_str())),
+                &q(app_password.as_ref().map_or("", |a| a.text.as_str())),
+                &q(app_password.as_ref().map_or("", |a| a.url.as_str())),
             ),
             Signal::SetupProblem { email, text } => self.setup_problem(&q(&email), &q(&text)),
             Signal::SetupRefused {

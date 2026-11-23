@@ -63,7 +63,7 @@ Item {
     signal notice(string text)
     signal storeProblem(string text)
     signal workerRestarted(string text)
-    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers, string oauthProvider)
+    signal detected(string email, string text, bool needsConfirm, string setupJson, string servers, string oauthProvider, string appHint, string appHelpUrl)
     signal setupProblem(string email, string text)
     signal setupRefused(string email, string title, string text, bool manualOk)
     signal mailOnMicrosoft(string email, string title, string text)
@@ -105,6 +105,13 @@ Item {
     function startOAuth(email, account, kind) { record("startOAuth", [email, account, kind]) }
     // The real one is envio_core::app_password_setup; the mock names the
     // account after the address and gives made-up hosts.
+    // The real one is envio_core::app_password_help_url.
+    function appPasswordHelpUrl(provider) {
+        return { "icloud": "https://account.apple.com/account/manage",
+                 "gmail": "https://myaccount.google.com/apppasswords",
+                 "yahoo": "https://login.yahoo.com/account/security",
+                 "aol": "https://login.aol.com/account/security" }[provider] || ""
+    }
     function appPasswordSetup(provider, email) {
         record("appPasswordSetup", [provider, email])
         if (["icloud", "gmail", "yahoo"].indexOf(provider) < 0) return ""

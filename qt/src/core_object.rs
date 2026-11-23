@@ -91,6 +91,8 @@ pub mod qobject {
             setup_json: &QString,
             servers: &QString,
             oauth_provider: &QString,
+            app_hint: &QString,
+            app_help_url: &QString,
         );
         #[qsignal]
         #[cxx_name = "setupProblem"]
@@ -270,6 +272,11 @@ pub mod qobject {
             account: &QString,
             kind: &QString,
         );
+        /// The provider's app-password page for a provider step id; empty
+        /// for any other id.
+        #[qinvokable]
+        #[cxx_name = "appPasswordHelpUrl"]
+        fn app_password_help_url(self: &EnvioCore, provider: &QString) -> QString;
         #[qinvokable]
         #[cxx_name = "appPasswordSetup"]
         fn app_password_setup(self: &EnvioCore, provider: &QString, email: &QString) -> QString;

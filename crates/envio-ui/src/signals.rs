@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 
 use envio_core::{
-    AccountSetup, ComposeId, DraftInput, MessageView, OAuthOffer, OAuthOutcome, Service, Settings,
-    UndoId, UndoScope,
+    AccountSetup, AppPasswordHint, ComposeId, DraftInput, MessageView, OAuthOffer, OAuthOutcome,
+    Service, Settings, UndoId, UndoScope,
 };
 
 /// The "Load older messages" row at the foot of a list.
@@ -41,6 +41,8 @@ pub enum Signal {
         servers: String,
         /// Signing in with a provider is possible.
         oauth: Option<OAuthOffer>,
+        /// The provider wants an app password: the hint and its help page.
+        app_password: Option<AppPasswordHint>,
     },
     SetupProblem {
         email: String,

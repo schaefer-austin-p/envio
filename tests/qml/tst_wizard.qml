@@ -74,7 +74,7 @@ Item {
         function toSignIn(json, needsConfirm) {
             typeEmail()
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", needsConfirm, json, serversLines, "")
+            core.detected("ann@example.org", "Settings found", needsConfirm, json, serversLines, "", "", "")
             compare(wizard.step, "signin")
         }
         function dialogButton(dialogName, action) {
@@ -195,7 +195,7 @@ Item {
 
             // Detected again; this time confirm.
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", true, srvJson, "", "")
+            core.detected("ann@example.org", "Settings found", true, srvJson, "", "", "", "")
             mouseClick(dialogButton("confirmHosts", "secondaryAction"))
             tryVerify(function() { return !dlg.visible })
             tryCompare(wizard, "serversConfirmed", true)
@@ -434,7 +434,7 @@ Item {
             // A found-settings sign-in for another address set the field.
             typeEmail()
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", false, plainJson, serversLines, "Microsoft")
+            core.detected("ann@example.org", "Settings found", false, plainJson, serversLines, "Microsoft", "", "")
             compare(find("oauthEmail").text, "ann@example.org")
             wizard.back()
             hosted()
@@ -566,7 +566,7 @@ Item {
             // Another address: step 2 comes up empty and unconfirmed.
             find("emailField").text = "bob@example.net"
             mouseClick(find("continueButton"))
-            core.detected("bob@example.net", "Settings found", false, plainJson, "", "")
+            core.detected("bob@example.net", "Settings found", false, plainJson, "", "", "", "")
             compare(wizard.step, "signin")
             compare(find("passwordField").text, "")
             compare(wizard.serversConfirmed, false)
@@ -638,7 +638,7 @@ Item {
             core.trustPrompt("ann@example.org", "imap", "mail.example.net", "Can't verify the imap server", "4F", "4f", "Late.")
             core.setupProblem("ann@example.org", "Late problem.")
             core.accountAdded("ann", "ann@example.org")
-            core.detected("ann@example.org", "Late", false, plainJson, "", "")
+            core.detected("ann@example.org", "Late", false, plainJson, "", "", "", "")
             wait(50)
             verify(!find("trustDialog").visible)
             compare(wizard.step, "email")
@@ -655,7 +655,7 @@ Item {
             find("emailField").text = "bob@example.org"
             mouseClick(find("continueButton"))
             core.detected("bob@example.org", "Settings found", false,
-                plainJson.replace(/ann@example.org/g, "bob@example.org"), "", "")
+                plainJson.replace(/ann@example.org/g, "bob@example.org"), "", "", "", "")
             compare(wizard.step, "signin")
             find("passwordField").text = "swordfish"
             mouseClick(find("signInContinue"))
@@ -697,7 +697,7 @@ Item {
             mouseClick(find("continueButton"))
             mouseClick(find("manualButton"))
             compare(wizard.step, "servers")
-            core.detected("ann@example.org", "Late", false, plainJson, "", "")
+            core.detected("ann@example.org", "Late", false, plainJson, "", "", "", "")
             compare(wizard.step, "servers")
         }
 
@@ -707,7 +707,7 @@ Item {
             tryVerify(function() { return !find("confirmHosts").visible })
             tryCompare(wizard, "serversConfirmed", true)
             // The same attempt is answered again, with hosts to confirm.
-            core.detected("ann@example.org", "Settings found", true, srvJson, "", "")
+            core.detected("ann@example.org", "Settings found", true, srvJson, "", "", "", "")
             compare(wizard.serversConfirmed, false)
             find("passwordField").text = "hunter2"
             wizard.submit()
@@ -802,14 +802,63 @@ Item {
             verify(!find("connectButton").enabled)
         }
 
-        function test_app_password_label_for_provider() {
-            const json = JSON.stringify({ name: "Ann", email: "ann@gmail.com", username: "ann@gmail.com",
+        // #221: the hint comes from the core's answer, not from the source of
+        // the servers. A typed gmail.com address is found through ISPDB.
+        readonly property string googleHint: "Google needs an app password, not your normal password."
+        readonly property string googleUrl: "https://myaccount.google.com/apppasswords"
+        function gmailJson(source) {
+            return JSON.stringify({ name: "ann", email: "ann@gmail.com", username: "ann@gmail.com",
                 imapHost: "imap.gmail.com", imapPort: 993, imapSecurity: "tls",
                 smtpHost: "smtp.gmail.com", smtpPort: 465, smtpSecurity: "tls",
-                source: "provider", needsConfirm: false })
-            toSignIn(json, false)
+                source: source, needsConfirm: false })
+        }
+        function detectGmail(source, hint, url) {
+            typeEmail()
+            mouseClick(find("continueButton"))
+            core.detected("ann@example.org", "Settings found", false, gmailJson(source),
+                serversLines, "", hint, url)
+            compare(wizard.step, "signin")
+        }
+
+        function test_app_password_hint_and_link_for_a_gmail_address() {
+            detectGmail("ispdb", googleHint, googleUrl)
             verify(find("appPasswordHint").visible)
+            compare(find("appPasswordHint").text, googleHint)
+            verify(find("appPasswordHelpLink").visible)
+            compare(find("appPasswordHelpLink").text, "Create an app password")
             compare(find("passwordField").label, "App password")
+        }
+
+        function test_the_help_link_opens_the_providers_page() {
+            detectGmail("ispdb", googleHint, googleUrl)
+            const opened = []
+            find("signInUri").opener = function(u) { opened.push(String(u)); return true }
+            mouseClick(find("appPasswordHelpLink"))
+            compare(opened, [googleUrl])
+        }
+
+        function test_no_hint_for_an_address_without_one() {
+            toSignIn(plainJson, false)
+            verify(!find("appPasswordHint").visible)
+            verify(!find("appPasswordHelpLink").visible)
+            compare(find("passwordField").label, "Password")
+        }
+
+        // The old rule showed the hint for any servers found by the
+        // provider's own autoconfig.
+        function test_a_provider_source_alone_shows_no_hint() {
+            detectGmail("provider", "", "")
+            verify(!find("appPasswordHint").visible)
+            verify(!find("appPasswordHelpLink").visible)
+            compare(find("passwordField").label, "Password")
+        }
+
+        function test_the_hint_is_gone_after_changing_the_address() {
+            detectGmail("ispdb", googleHint, googleUrl)
+            verify(find("appPasswordHint").visible)
+            wizard.forget()
+            compare(wizard.appHint, "")
+            compare(wizard.appHelpUrl, "")
         }
 
         // #87: while a step is busy its footer shows a spinner and a status
@@ -858,7 +907,7 @@ Item {
         function toMicrosoft() {
             typeEmail()
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "", false, plainJson, "", "Microsoft")
+            core.detected("ann@example.org", "", false, plainJson, "", "Microsoft", "", "")
             compare(wizard.step, "signin")
         }
         function startMicrosoft() {

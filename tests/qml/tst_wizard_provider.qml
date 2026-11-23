@@ -169,7 +169,7 @@ Item {
             compare(counter(), "Step 2 of 4")
             find("emailField").text = "ann@example.org"
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", false, "{}", "", "")
+            core.detected("ann@example.org", "Settings found", false, "{}", "", "", "", "")
             compare(wizard.step, "signin")
             compare(counter(), "Step 3 of 4")
             wizard.step = "options"
@@ -191,7 +191,7 @@ Item {
             pick("other")
             find("emailField").text = "ann@example.org"
             mouseClick(find("continueButton"))
-            core.detected("ann@example.org", "Settings found", false, "{}", "", "")
+            core.detected("ann@example.org", "Settings found", false, "{}", "", "", "", "")
             back()
             compare(wizard.step, "email")
             back()
@@ -341,6 +341,13 @@ Item {
             mouseClick(find("appPasswordLink"))
             compare(opened.length, 1)
             verify(opened[0].indexOf("https://") === 0)
+        }
+
+        // #221: the core owns the help URLs; the page asks it for them.
+        function test_the_link_opens_the_cores_url_for_the_provider() {
+            pick("gmail")
+            mouseClick(find("appPasswordLink"))
+            compare(opened[opened.length - 1], "https://myaccount.google.com/apppasswords")
         }
 
         function test_continue_waits_for_an_address_and_a_password() {

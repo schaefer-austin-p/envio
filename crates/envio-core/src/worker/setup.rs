@@ -4,17 +4,19 @@
 use std::collections::BTreeSet;
 
 use envio_net::Fingerprint;
-use envio_net::autoconfig::{Found, Hosting, Setting};
+use envio_net::autoconfig::{Found, Hosting, Setting, Source, plan};
 use envio_store::{Account, AccountSettings, BackendKind};
 use secrecy::SecretString;
 
 use super::Worker;
 use super::conn::Live;
 use crate::api::command::{AccountSetup, ConnectRequest};
-use crate::api::event::Event;
+use crate::api::event::{AppPasswordHint, Event};
 use crate::api::view::AccountInfo;
+use crate::app_password::app_password_provider;
 use crate::clock::now_ms;
 use crate::health::AccountStatus;
+use crate::known;
 use crate::mask;
 use crate::servers::{ServerAddr, Service, store_server};
 use crate::setup_thread::{
@@ -182,6 +184,19 @@ impl Worker<'_> {
         }
         match result {
             Ok(found) => {
+                // Autoconfig found nothing for a Google Workspace domain:
+                // `imap.<domain>` would not answer, Gmail's servers do.
+                let found = if hosting == Hosting::Google && found.source == Source::Guess {
+                    known::google_found(&email)
+                } else {
+                    found
+                };
+                let app_password = plan::domain_of(&email)
+                    .and_then(|domain| app_password_provider(&domain, hosting))
+                    .map(|provider| AppPasswordHint {
+                        text: text::setup::app_password_hint(provider),
+                        url: provider.help_url().to_owned(),
+                    });
                 let text = if found.confirm {
                     let (imap, smtp) = (&found.imap.endpoint.host, &found.smtp.endpoint.host);
                     text::setup::confirm_servers(imap, smtp)
@@ -199,6 +214,7 @@ impl Worker<'_> {
                     text,
                     servers,
                     oauth: None,
+                    app_password,
                 });
             }
             Err(_) => self.emit(Event::SetupProblem {

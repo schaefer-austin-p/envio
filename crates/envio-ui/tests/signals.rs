@@ -1,7 +1,8 @@
 mod support;
 
 use envio_core::{
-    AccountSetup, Command, ComposeId, Event, ServerAddr, Settings, UndoId, UserAction,
+    AccountSetup, AppPasswordHint, Command, ComposeId, Event, ServerAddr, Settings, UndoId,
+    UserAction,
 };
 use envio_net::Security;
 use envio_ui::{Model, Op, Row, Signal, Ui};
@@ -90,11 +91,17 @@ fn detected_signal_carries_servers() {
             text: "t".into(),
             servers: "Incoming (IMAP): a:993, TLS".into(),
             oauth: None,
+            app_password: Some(AppPasswordHint {
+                text: "Google needs an app password, not your normal password.".into(),
+                url: "https://myaccount.google.com/apppasswords".into(),
+            }),
         },
     );
     assert!(matches!(
         &signals(&outs)[0],
-        Signal::Detected { servers, .. } if servers == "Incoming (IMAP): a:993, TLS"
+        Signal::Detected { servers, app_password: Some(hint), .. }
+            if servers == "Incoming (IMAP): a:993, TLS"
+                && hint.url == "https://myaccount.google.com/apppasswords"
     ));
 }
 
@@ -111,6 +118,7 @@ fn one_shot_events_become_signals() {
             text: "t".into(),
             servers: "s".into(),
             oauth: None,
+            app_password: None,
         },
         Event::UndoOffer {
             undo: UndoId(1),
