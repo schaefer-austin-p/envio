@@ -50,15 +50,27 @@ SplitHandle {
     // whole gu as well, so the release does not snap.
     onMoved: function(size) { dragGu = Math.round(size) }
     onCommitted: function(size) {
+        _saving = true
         dragGu = Math.round(size)
         core.setListPane(Math.round(size))
+    }
+    // A drag that ends where it began commits nothing: its width must not
+    // linger (a saved 70 shown as 60 would stay 60 when the window grows).
+    property bool _saving: false
+    onDraggingChanged: {
+        if (dragging) _saving = false
+        else if (!_saving) dragGu = -1
     }
     // Any settings echo, changed or not (a failed save echoes the old
     // width), ends the drag's hold on the width; one that arrives mid-drag
     // is stale and left for the drag's own commit.
     Connections {
         target: root.core
-        function onSettingsEchoed() { if (!root.dragging) root.dragGu = -1 }
+        function onSettingsEchoed() {
+            if (root.dragging) return
+            root._saving = false
+            root.dragGu = -1
+        }
     }
 
     Rectangle {

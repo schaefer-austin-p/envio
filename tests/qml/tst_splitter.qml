@@ -302,5 +302,22 @@ Item {
             compare(lineX(b), thm.gu(40))
             b.shell.destroy(); b.core.destroy()
         }
+
+        function test_a_drag_that_ends_where_it_began_leaves_no_width_behind() {
+            // Saved 70, shown 60 for the room; a drag out and back commits
+            // nothing, so growing the window still gives 70.
+            const b = bootWide(100, 70)
+            compare(lineX(b), thm.gu(60))
+            const h = find(b.shell, "splitter")
+            const p = h.mapToItem(root, h.width / 2, 100)
+            mousePress(root, p.x, p.y)
+            mouseMove(root, p.x - thm.gu(2), p.y)
+            mouseMove(root, p.x, p.y)
+            mouseRelease(root, p.x, p.y)
+            compare(b.core.called("setListPane").length, 0)
+            b.shell.width = thm.gu(130)
+            compare(lineX(b), thm.gu(70))
+            b.shell.destroy(); b.core.destroy()
+        }
     }
 }
