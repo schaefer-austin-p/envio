@@ -40,10 +40,21 @@ fn what_is_pending_wants_a_sync_and_can_run() {
         ..Wants::default()
     };
     assert!(!refresh_pending(&send, &ready, now));
-    assert!(refresh_pending(&full(), &health(AccountStatus::Syncing), now));
-    assert!(refresh_pending(&full(), &health(AccountStatus::DiskFull), now));
+    assert!(refresh_pending(
+        &full(),
+        &health(AccountStatus::Syncing),
+        now
+    ));
+    assert!(refresh_pending(
+        &full(),
+        &health(AccountStatus::DiskFull),
+        now
+    ));
     let wait = |at| AccountStatus::Offline { retry_at_ms: at };
-    assert!(!refresh_pending(&full(), &health(wait(now + 1)), now), "not due");
+    assert!(
+        !refresh_pending(&full(), &health(wait(now + 1)), now),
+        "not due"
+    );
     assert!(refresh_pending(&full(), &health(wait(now)), now), "due");
     let local = AccountStatus::LocalError {
         retry_at_ms: now + 1,
@@ -147,7 +158,8 @@ fn a_refresh_waits_for_every_account_it_asked_for() {
     let sink = Sink::default();
     let mut w = open(&config, &sink);
     let other = add_account(&mut w, "other", 0);
-    w.live.insert(other.clone(), crate::worker::conn::Live::new());
+    w.live
+        .insert(other.clone(), crate::worker::conn::Live::new());
     w.refresh(None);
     w.live.get_mut(&seeded.account).unwrap().wants.full = false;
     w.settle_refreshes();

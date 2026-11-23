@@ -49,7 +49,10 @@ fn unified_can_refresh_while_one_account_is_fine() {
     status(&mut ui, "a", AccountStatus::SignInFailed);
     assert!(ui.can_refresh(None), "c is fine");
     status(&mut ui, "c", AccountStatus::SignInFailed);
-    assert!(!ui.can_refresh(None), "sign-in failed, broken, sign-in failed");
+    assert!(
+        !ui.can_refresh(None),
+        "sign-in failed, broken, sign-in failed"
+    );
 }
 
 #[test]
