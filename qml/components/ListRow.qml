@@ -22,6 +22,9 @@ AbstractButton {
     // The keyboard-focus row: the hover fill (the caller draws the outline).
     property bool cued: false
     property bool separator: true
+    // The lighter inner rule the boards draw between message-list rows; every
+    // other row keeps the hairline.
+    property bool lightRule: false
     property string iconName: ""
     property real iconSize: theme.iconSize
     property real iconGap: theme.gu(2)
@@ -41,11 +44,12 @@ AbstractButton {
     background: Rectangle {
         color: root.selected || root.down ? root.theme.selected : (root.cued ? root.theme.hover : "transparent")
         Rectangle {
+            objectName: "rowRule"
             visible: root.separator
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: root.theme.hairline
+            color: root.lightRule ? root.theme.rowRule : root.theme.hairline
         }
     }
     contentItem: Item {

@@ -50,7 +50,7 @@ colour in mail bodies).
 | R6 | **No disclosure chevrons anywhere.** The "forward" and "down" glyphs exist in `Icon.qml:32-33`, but nothing uses them. Boards show a chevron on settings rows, folder-group rows ("Work, 8 folders"), selects (From, Sync, Keep mail), "Server settings" and provider rows. Also the role split (Airmail red/blue) is unused. | Settings, folders drawer, compose From, wizard | Medium |
 | R7 | **Top bar is not the board's.** Board bar is a 48 px button row with 12 px top padding (about 60 px), title Carbon 20 mono 600 / Airmail 26 Lora 600, 24 px glyphs, and no bottom hairline. Built: `TopBar.qml:17` touch + 8 = 52, title 18 and 24 (`:49`), hairline at `:24-29`, `IconButton` 44 px (#64 aside). Compose needs a close X, an in-bar Send with a paper-plane glyph and no overflow button. | Every page | Medium |
 | R8 | **Page footers are in-flow, not pinned.** Board puts the primary action in a bottom bar (10 top, 16 bottom padding, 52 button, Carbon hairline above, Airmail none). Built wizard steps, options and the sync page put `AppButton`s in the flow (p01, p02, p09, p12). The inbox footer and reply bar are pinned, but always draw a hairline (`InboxPage.qml:200`, `ReplyBar.qml:14`). | Wizard, options, sign-in | Medium |
-| R9 | **Row and list separators use `hairline` where the board uses a lighter inner rule** (Carbon `#E4E1D8`, Airmail `#EAE3D3`; `hairline` is `#DAD7CE` / `#DDD5C4`). `ListRow.qml:21-28`. One new role (`rowRule`) or a blend. | Every list | Low |
+| R9 | **Fixed (#72): Row and list separators use `hairline` where the board uses a lighter inner rule** (Carbon `#E4E1D8`, Airmail `#EAE3D3`; `hairline` is `#DAD7CE` / `#DDD5C4`). `ListRow.qml:21-28`. `rowRule` role, opt-in per row (`lightRule`, set by `MessageRow`). | Every list | Low |
 
 ## Inbox, rows and account tabs
 
@@ -64,7 +64,7 @@ colour in mail bodies).
 | Carbon | Unread dot | 8 px dot, text column begins at 16+8+12 = 36 | dot 8 px, text begins at 16+22+12 = 50 (`MessageRow.qml:42`; 22 reserved for the selection box) | Medium | Reserve 8 px; widen only while selecting |
 | Carbon | Folder tag line | mono 11, +0.5 spacing, top margin 6 | matches (`MessageRow.qml:109-119`); built also shows it in the unified view only | Low | none |
 | Airmail | Account tag on rows | not shown | `showAccount` mono tag shown in unified view (`:111`) | Low | Hide in Airmail or give it Inter (R3) |
-| Both | Row separator | Carbon `#E4E1D8`, Airmail `#EAE3D3` | `hairline` (`ListRow.qml:27`) | Low | R9 |
+| Both | Row separator | Carbon `#E4E1D8`, Airmail `#EAE3D3` | fixed: `rowRule` via `lightRule` (`ListRow.qml`, `MessageRow.qml`) | Low | R9 (#72) |
 | Carbon | Account tabs | chips 44 high, 6 px radius, mono 13, gap 6, bar padding 8/16/12 | matches (`Chip.qml`, `AccountTabs.qml:136-151`); label appends an unread count "Name  3" (`AccountTabs.qml:172`) | Low | Board shows names only; drop the count or style it |
 | Airmail | Account tabs | text tabs, 3 px underline in heading blue, Inter 15 (600 selected, 500 other), padding 4/12/0 | underline 3 px, Inter 15 (`Chip.qml:36-44`); underline sits above the row hairline in the board, built has a separate gap row | Low | none |
 | Both | Top bar | see R7 | `TopBar.qml:17,49` | Medium | R7 |

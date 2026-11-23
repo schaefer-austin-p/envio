@@ -128,13 +128,13 @@ Control {
     readonly property var roles: ({
         "carbon": {
             "light": { "ground": "#F8F6F1", "surface": "#FFFFFF", "text": "#1E2A38", "heading": "#1E2A38",
-                       "secondary": "#5A5D62", "hairline": "#DAD7CE", "field": "#C9C6BD", "accent": "#B8342C",
+                       "secondary": "#5A5D62", "hairline": "#DAD7CE", "rowRule": "#E4E1D8", "field": "#C9C6BD", "accent": "#B8342C",
                        "primary": "#1E2A38", "primaryText": "#F8F6F1", "tintA": "#F4E3E1", "tintB": "#E3E6EA",
                        "selected": "#ECE9E1", "hover": "#F3F1EA", "scrim": Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.45),
                        "chevron": "#5A5D62", "chevronBlue": "#5A5D62",
                        "toastShadow": Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.3) },
             "dark":  { "ground": "#15181D", "surface": "#1F242B", "text": "#E8E5DE", "heading": "#E8E5DE",
-                       "secondary": "#A2A5AA", "hairline": "#2E343C", "field": "#3A4049", "accent": "#E36A60",
+                       "secondary": "#A2A5AA", "hairline": "#2E343C", "rowRule": "#262B32", "field": "#3A4049", "accent": "#E36A60",
                        "primary": "#E8E5DE", "primaryText": "#15181D", "tintA": "#3A2526", "tintB": "#26303B",
                        "selected": "#232932", "hover": "#1B2027", "scrim": Qt.rgba(0, 0, 0, 0.55),
                        "chevron": "#A2A5AA", "chevronBlue": "#A2A5AA",
@@ -142,13 +142,13 @@ Control {
         },
         "airmail": {
             "light": { "ground": "#FBF8F1", "surface": "#FFFFFF", "text": "#22303F", "heading": "#1F3A5F",
-                       "secondary": "#5D6A78", "hairline": "#DDD5C4", "field": "#CFC6B1", "accent": "#B23A33",
+                       "secondary": "#5D6A78", "hairline": "#DDD5C4", "rowRule": "#EAE3D3", "field": "#CFC6B1", "accent": "#B23A33",
                        "primary": "#1F3A5F", "primaryText": "#FBF8F1", "tintA": "#F3E2DF", "tintB": "#E0E7F0",
                        "selected": "#F1EADB", "hover": "#F7F2E8", "scrim": Qt.rgba(34 / 255, 48 / 255, 63 / 255, 0.45),
                        "chevron": "#B23A33", "chevronBlue": "#1F3A5F",
                        "toastShadow": Qt.rgba(34 / 255, 48 / 255, 63 / 255, 0.3) },
             "dark":  { "ground": "#141C27", "surface": "#1C2633", "text": "#ECE5D6", "heading": "#A9C1E3",
-                       "secondary": "#A3AEBB", "hairline": "#2C3747", "field": "#3A475A", "accent": "#E58C84",
+                       "secondary": "#A3AEBB", "hairline": "#2C3747", "rowRule": "#222C3A", "field": "#3A475A", "accent": "#E58C84",
                        "primary": "#A9C1E3", "primaryText": "#141C27", "tintA": "#3A2427", "tintB": "#1F2D42",
                        "selected": "#1F2A38", "hover": "#18222E", "scrim": Qt.rgba(0, 0, 0, 0.55),
                        "chevron": "#C4473F", "chevronBlue": "#5B7FB3",
@@ -163,6 +163,8 @@ Control {
     readonly property color heading: current.heading
     readonly property color secondary: current.secondary
     readonly property color hairline: current.hairline
+    // The rule between list rows: lighter than hairline (design audit R9).
+    readonly property color rowRule: current.rowRule
     readonly property color field: current.field
     readonly property color accent: current.accent
     // Links in a message body: no board shows one, so Carbon takes accent and
