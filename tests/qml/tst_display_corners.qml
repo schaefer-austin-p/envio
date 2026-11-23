@@ -14,39 +14,35 @@ Item {
     TestCase {
         name: "DisplayCorners"
 
-        function init() { dc.phoneSession = true; dc.windowWidth = 360; dc.windowHeight = 640; dc.panelAllowance = 108 }
+        function init() { dc.phoneSession = true; dc.windowWidth = 360; dc.windowHeight = 640 }
 
         function test_lomiri_full_screen_is_rounded() { compare(dc.rounded, true) }
+        function test_lomiri_full_width_any_height_is_rounded() {
+            dc.windowHeight = 640 - 108   // staged window under the indicator panel
+            compare(dc.rounded, true)
+            dc.windowHeight = 640 - 160
+            compare(dc.rounded, true)
+        }
         function test_lomiri_narrower_is_square() {
-            dc.windowWidth = 300
+            dc.windowWidth = 360 - 50
+            compare(dc.rounded, false)
             dc.windowHeight = 640 - 108
             compare(dc.rounded, false)
         }
-        function test_lomiri_below_the_indicator_panel_is_rounded() {
-            dc.windowHeight = 640 - 108   // staged window under the panel
+        function test_lomiri_one_pixel_narrower_is_rounded() {
+            dc.windowWidth = 359
             compare(dc.rounded, true)
         }
-        function test_lomiri_much_shorter_is_square() {
-            dc.windowHeight = 640 - 160
-            compare(dc.rounded, false)
-        }
-        function test_lomiri_smaller_window_is_square() {
-            dc.windowWidth = 300
-            compare(dc.rounded, false)
-            dc.windowWidth = 360
-            dc.windowHeight = 500
-            compare(dc.rounded, false)
-        }
-        function test_desktop_with_suru_is_square() {
-            // Full-size window, no Lomiri session: Suru presence is not asked.
+        function test_desktop_session_is_square() {
+            // Full-size window, no Lomiri session.
             dc.phoneSession = false
             compare(dc.rounded, false)
         }
         function test_follows_a_resize() {
             compare(dc.rounded, true)
-            dc.windowWidth = 200; dc.windowHeight = 300
+            dc.windowWidth = 200
             compare(dc.rounded, false)
-            dc.windowWidth = 360; dc.windowHeight = 640
+            dc.windowWidth = 360
             compare(dc.rounded, true)
         }
         function test_unknown_screen_is_square() {
