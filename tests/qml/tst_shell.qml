@@ -1005,6 +1005,16 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_crossing_resize_does_not_squeeze_the_pane_before_the_compose_leaves() {
+            const b = wideCompose()
+            const seen = []
+            b.shell.paneWidthChanged.connect(function () { seen.push(b.shell.wide) })
+            b.shell.width = thm.gu(70)
+            compare(b.shell.wide, false)
+            compare(seen.indexOf(true), -1)
+            b.shell.destroy()
+        }
+
         function test_grid_unit_change_rechecks_the_layout() {
             const b = boot()
             b.shell.width = thm.gu(70)
