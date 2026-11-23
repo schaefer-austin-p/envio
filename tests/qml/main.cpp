@@ -7,6 +7,10 @@
 //    (ENVIO_CORPUS_DIR; empty without it);
 //  - `shotsDir`, where a test may save screenshots to compare with the
 //    design boards (ENVIO_SHOTS_DIR; empty without it, then none are saved);
+//  - `fixtures`, the app's saved settings file under XDG_DATA_HOME, which a
+//    test writes before it makes a core and removes in `cleanup`, so the
+//    other tests see no file: `writeSettings(text)`, `removeSettings()`,
+//    `exists(name)`;
 //  - `netRequests`, which counts every request the QML engine's network
 //    access manager is asked to make (rich Text and Image fetching remote
 //    images go through it). Nothing leaves the machine: each request is
@@ -14,6 +18,8 @@
 //    `netRequests.count()` and `netRequests.reset()`.
 
 #include <QtCore/QAtomicInt>
+#include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtCore/QObject>
 #include <QtCore/QUrl>
 #include <QtNetwork/QNetworkAccessManager>
@@ -66,6 +72,33 @@ private:
     NetRequests *counter;
 };
 
+// The data folder the Rust core uses: <XDG_DATA_HOME>/<app id> (run.sh sets
+// XDG_DATA_HOME to a temporary tree).
+class Fixtures : public QObject {
+    Q_OBJECT
+public:
+    Q_INVOKABLE void writeSettings(const QString &text) const {
+        QDir().mkpath(dir());
+        QFile file(dir() + QStringLiteral("/settings.json"));
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(text.toUtf8());
+    }
+    // The file and any copy the core set aside as damaged.
+    Q_INVOKABLE void removeSettings() const {
+        QDir folder(dir());
+        for (const QString &name : folder.entryList({QStringLiteral("settings.json*")}, QDir::Files))
+            folder.remove(name);
+    }
+    Q_INVOKABLE bool exists(const QString &name) const { return QFile::exists(dir() + QLatin1Char('/') + name); }
+
+private:
+    static QString dir() {
+        const QString home = qEnvironmentVariable("XDG_DATA_HOME");
+        return (home.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/share") : home)
+            + QStringLiteral("/envio.aps");
+    }
+};
+
 class Setup : public QObject {
     Q_OBJECT
 public:
@@ -77,12 +110,14 @@ public slots:
             QStringLiteral("corpusDir"), qEnvironmentVariable("ENVIO_CORPUS_DIR"));
         engine->rootContext()->setContextProperty(
             QStringLiteral("shotsDir"), qEnvironmentVariable("ENVIO_SHOTS_DIR"));
+        engine->rootContext()->setContextProperty(QStringLiteral("fixtures"), &fixtures);
         engine->rootContext()->setContextProperty(QStringLiteral("netRequests"), &requests);
         engine->setNetworkAccessManagerFactory(&factory);
     }
 
 private:
     NetRequests requests;
+    Fixtures fixtures;
     CountingFactory factory;
 };
 

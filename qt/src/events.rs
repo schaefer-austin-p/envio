@@ -278,7 +278,7 @@ impl qobject::EnvioCore {
             Signal::AttachFailed { compose, text } => {
                 self.attach_failed(compose_num(compose), &q(&text));
             }
-            Signal::Settings(settings) => self.as_mut().settings_arrived(settings),
+            Signal::Settings(settings) => self.as_mut().apply_settings(settings),
             Signal::OlderRow(row) => self.set_older_row(convert::older_row_code(row)),
             Signal::SearchFailed(t) => self.search_failed(&q(&t)),
             Signal::SearchDone => self.search_done(),
@@ -287,7 +287,10 @@ impl qobject::EnvioCore {
         }
     }
 
-    fn settings_arrived(mut self: Pin<&mut Self>, settings: Settings) {
+    /// The settings into the properties and `rust().settings`: from the
+    /// worker's event, and at construction from the saved file (#463). A
+    /// value equal to the current one emits nothing.
+    pub(crate) fn apply_settings(mut self: Pin<&mut Self>, settings: Settings) {
         self.as_mut()
             .set_theme(QString::from(convert::theme_word(settings.theme)));
         self.as_mut()
