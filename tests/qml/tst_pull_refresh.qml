@@ -50,8 +50,9 @@ Item {
             core.reset()
             core.messages.clear()
             core.canRefresh = true
+            core.lastTicket = 0
             core.focusMessage = 0
-            ml.refreshScope = ""
+            core.refreshScope = ""
             ml.minBusyMs = 600
             ml.capMs = 15000
             if (ml.refreshing) ml.finish()
@@ -112,7 +113,7 @@ Item {
             ml.minBusyMs = 400
             pull(thm.gu(10) + 60)
             verify(ml.refreshing)
-            core.refreshed()
+            core.refreshed(core.lastTicket)
             verify(ml.refreshing, "acked at once: the line stays readable")
             tryVerify(function() { return !ml.refreshing })
             tryCompare(find("messageList"), "topMargin", 0)
@@ -150,7 +151,7 @@ Item {
         }
 
         function test_the_key_refreshes_with_the_tab_scope_and_opens_the_room() {
-            ml.refreshScope = "ann"
+            core.refreshScope = "ann"
             ml.refresh()
             compare(core.called("refresh").length, 1)
             compare(core.called("refresh")[0].args[0], "ann")
@@ -159,6 +160,53 @@ Item {
             tryVerify(function() { return Math.abs((list.originY - list.contentY) - thm.gu(7)) < 2 })
             ml.refresh()
             compare(core.called("refresh").length, 1, "one at a time")
+        }
+
+        // The scope is the core's (the shown folder's account, from Rust): a
+        // pull passes it as is.
+        function test_a_pull_passes_the_shown_lists_account() {
+            core.refreshScope = "ann"
+            pull(thm.gu(10) + 60)
+            compare(core.called("refresh").length, 1)
+            compare(core.called("refresh")[0].args[0], "ann")
+        }
+
+        function test_an_ack_of_another_refresh_does_not_end_the_hold() {
+            ml.minBusyMs = 100
+            pull(thm.gu(10) + 60)
+            verify(ml.refreshing)
+            const mine = core.lastTicket
+            core.refreshed(0)
+            core.refreshed(mine + 1)
+            wait(300)
+            verify(ml.refreshing, "a resume's or the problem page's ack is not ours")
+            core.refreshed(mine)
+            tryVerify(function() { return !ml.refreshing })
+        }
+
+        function test_a_late_ack_after_the_cap_is_ignored() {
+            ml.capMs = 200
+            ml.minBusyMs = 50
+            ml.refresh()
+            const first = core.lastTicket
+            tryVerify(function() { return !ml.refreshing })
+            ml.refresh()
+            verify(ml.refreshing)
+            verify(core.lastTicket !== first)
+            core.refreshed(first)
+            wait(150)
+            verify(ml.refreshing, "the first refresh's ack is not the second's")
+            core.refreshed(core.lastTicket)
+            tryVerify(function() { return !ml.refreshing })
+        }
+
+        // A screen reader reaches the action on the list, which is always
+        // there (the indicator is hidden at rest).
+        function test_the_accessible_action_of_the_list_refreshes() {
+            verify(!find("pullIndicator").visible)
+            ml.accessible.pressAction()
+            compare(core.called("refresh").length, 1)
+            verify(ml.refreshing)
         }
 
         function test_the_indicator_is_an_accessible_status_line() {

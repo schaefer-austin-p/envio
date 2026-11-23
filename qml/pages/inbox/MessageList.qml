@@ -16,10 +16,9 @@ Item {
     property bool showAccount: false
     // Whether the open row is marked (not while a compose is in the wide pane).
     property bool showOpen: true
-    // What a refresh asks for: an account key (its tab) or "" for every account.
-    property string refreshScope: ""
     // A refresh is running: the list rests below the indicator. It ends on
-    // the core's ack, but not before `minBusyMs` (so the line is readable)
+    // the core's ack for its own ticket (`core.refresh` hands one out; the
+    // shown list's scope is the core's `refreshScope`), but not before `minBusyMs` (so the line is readable)
     // and at the latest after `capMs` (a big first sync can outlast it; that
     // is expected, the sync goes on).
     readonly property bool refreshing: pull.busy
@@ -30,6 +29,8 @@ Item {
     property int selectedCount: 0
     property var selectedAccounts: []
     readonly property alias view: list
+    // The list's accessibility attachment (tests press its action).
+    readonly property var accessible: list.Accessible
     signal messageRequested(var message)
     // A local draft's row (`opens` is "compose"): Compose opens at once.
     signal draftRequested(string draftId)
@@ -48,8 +49,10 @@ Item {
         pull.busy = true
         minTimer.restart()
         capTimer.restart()
-        root.core.refresh(root.refreshScope)
+        ticket = Number(root.core.refresh(root.core.refreshScope))
     }
+    // The ticket of the refresh this list waits for; 0 when none.
+    property real ticket: 0
     property bool acked: false
     property bool minPassed: false
     function endIfDone() {
@@ -59,13 +62,20 @@ Item {
     function finish() {
         minTimer.stop()
         capTimer.stop()
+        ticket = 0
         pull.busy = false
     }
     Timer { id: minTimer; interval: root.minBusyMs; onTriggered: { root.minPassed = true; root.endIfDone() } }
     Timer { id: capTimer; interval: root.capMs; onTriggered: root.finish() }
     Connections {
         target: root.core
-        function onRefreshed() { if (pull.busy) { root.acked = true; root.endIfDone() } }
+        // Only the ack of this list's own refresh counts: not a resume's, the
+        // problem page's, nor a late one of a refresh the cap already ended.
+        function onRefreshed(ticket) {
+            if (!pull.busy || root.ticket === 0 || Number(ticket) !== root.ticket) return
+            root.acked = true
+            root.endIfDone()
+        }
     }
 
     function recount() {
@@ -104,6 +114,11 @@ Item {
         clip: true
         model: root.messages
         boundsBehavior: Flickable.DragOverBounds
+        // The accessible refresh: on the list, which is always there (the
+        // indicator is not, at rest).
+        Accessible.role: Accessible.List
+        Accessible.name: qsTr("Messages")
+        Accessible.onPressAction: root.refresh()
         // The end of the list asks for the next cached page and, once the
         // list is at the end of the cache, for older mail from the server
         // (the core asks for one batch only until rows arrive).
@@ -191,8 +206,6 @@ Item {
         armed: pull.armed
         busy: pull.busy
         shown: root.core.canRefresh
-        // The one accessible action: refresh, as pulling does.
-        Accessible.onPressAction: root.refresh()
     }
 
     RowMenu {

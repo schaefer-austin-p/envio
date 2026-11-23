@@ -208,8 +208,6 @@ Item {
         messages: root.messages
         showAccount: root.unified
         showOpen: root.showOpen
-        // A tab refreshes its account, the unified inbox and a folder list all.
-        refreshScope: root.tab === "folder" ? "" : root.tab
         anchors { top: banners.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         onMessageRequested: root.messageRequested(message)
         onMoveRequested: function(id, account) { move.targets = [id]; move.openFor(account) }
