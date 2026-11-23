@@ -2,7 +2,7 @@
 //! known, so nothing is looked up and the typed address goes straight to
 //! the sign-in. Pure.
 
-use envio_net::autoconfig::{Found, Setting, Source};
+use envio_net::autoconfig::{Found, Hosting, Setting, Source};
 use envio_net::{Endpoint, Security};
 
 use crate::api::command::AccountSetup;
@@ -67,8 +67,35 @@ pub fn google_found(email: &str) -> Found {
         imap: setting(imap, ip, is),
         smtp: setting(smtp, sp, ss),
         source: Source::Provider,
+        // No confirm step: the hosts are fixed Google hosts, so a spoofed MX
+        // record can say "Google" but cannot send the password anywhere else.
         confirm: false,
     }
+}
+
+/// What a Google Workspace MX verdict means for a detect result: a guess
+/// (autoconfig found nothing, `imap.<domain>` would not answer) becomes
+/// Gmail's servers. The returned verdict is `Google` only while the servers
+/// are Google's, so a hint never sits next to another provider's servers.
+pub fn settle_google(found: Found, hosting: Hosting, email: &str) -> (Found, Hosting) {
+    if hosting != Hosting::Google {
+        return (found, hosting);
+    }
+    let found = if found.source == Source::Guess {
+        google_found(email)
+    } else {
+        found
+    };
+    let google = found.imap.endpoint.host == "imap.gmail.com"
+        && found.smtp.endpoint.host == "smtp.gmail.com";
+    (
+        found,
+        if google {
+            Hosting::Google
+        } else {
+            Hosting::Unknown
+        },
+    )
 }
 
 #[cfg(test)]
@@ -144,6 +171,35 @@ mod tests {
         assert_eq!(f.imap.username, "ann@studio.example");
         assert_eq!(f.source, Source::Provider);
         assert!(!f.confirm);
+    }
+
+    fn guess() -> Found {
+        let mut f = google_found("ann@studio.example");
+        f.source = Source::Guess;
+        f.imap.endpoint = Endpoint::new("imap.studio.example", 993, Security::Tls);
+        f
+    }
+
+    #[test]
+    fn a_google_mx_turns_a_guess_into_gmails_servers() {
+        let (f, h) = settle_google(guess(), Hosting::Google, "ann@studio.example");
+        assert_eq!(f.imap.endpoint.host, "imap.gmail.com");
+        assert_eq!(h, Hosting::Google);
+    }
+
+    #[test]
+    fn a_google_mx_beside_other_servers_is_no_google_verdict() {
+        let mut other = guess();
+        other.source = Source::Srv;
+        let (f, h) = settle_google(other, Hosting::Google, "ann@studio.example");
+        assert_eq!(f.imap.endpoint.host, "imap.studio.example");
+        assert_eq!(h, Hosting::Unknown);
+    }
+
+    #[test]
+    fn other_verdicts_pass_through() {
+        let (f, h) = settle_google(guess(), Hosting::Unknown, "ann@studio.example");
+        assert_eq!((f.source, h), (Source::Guess, Hosting::Unknown));
     }
 
     #[test]

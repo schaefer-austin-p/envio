@@ -135,7 +135,8 @@ fn a_workspace_domain_with_its_own_autoconfig_keeps_those_servers() {
         Some(ispdb_found("own.example")),
         Hosting::Google,
     );
-    assert!(hint.is_some());
+    // Its servers are not Google's: no Google hint next to them.
+    assert_eq!(hint, None);
     assert_eq!(setup.imap.host, "imap.own.example");
 }
 

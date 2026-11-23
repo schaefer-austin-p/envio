@@ -853,6 +853,34 @@ Item {
             compare(find("passwordField").label, "Password")
         }
 
+        // With ENVIO_SHOTS_DIR: the sign-in step for a Gmail address and for
+        // example.org, in both looks (light), for the design review.
+        function test_shots_of_the_sign_in_step() {
+            if (shotsDir === "") skip("no ENVIO_SHOTS_DIR")
+            for (const look of ["carbon", "airmail"]) {
+                thm.name = look
+                thm.darkMode = "light"
+                for (const gmail of [true, false]) {
+                    wizard.forget()
+                    wizard.step = "email"
+                    if (gmail) detectGmail("ispdb", googleHint, googleUrl)
+                    else toSignIn(plainJson, false)
+                    find("passwordField").text = "secret-password"
+                    const ground = Qt.createQmlObject('import QtQuick 2.15; Rectangle { z: -1; anchors.fill: parent }', root)
+                    ground.color = thm.ground
+                    waitForRendering(root)
+                    let done = false
+                    root.grabToImage(function(res) {
+                        res.saveToFile(shotsDir + "/signin-" + (gmail ? "gmail" : "example") + "-" + look + ".png")
+                        done = true
+                    })
+                    tryVerify(function() { return done })
+                    ground.destroy()
+                }
+            }
+            thm.name = "carbon"
+        }
+
         function test_the_hint_is_gone_after_changing_the_address() {
             detectGmail("ispdb", googleHint, googleUrl)
             verify(find("appPasswordHint").visible)

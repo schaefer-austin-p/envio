@@ -16,6 +16,8 @@ pub enum AppPasswordProvider {
 const GOOGLE: &[&str] = &["gmail.com", "googlemail.com"];
 const ICLOUD: &[&str] = &["icloud.com", "me.com", "mac.com"];
 /// An explicit list: Yahoo Japan (yahoo.co.jp) is a separate service.
+/// sbcglobal.net and att.net are left out on purpose: AT&T mail uses its
+/// own "secure mail key", not a Yahoo app password.
 const YAHOO: &[&str] = &[
     "yahoo.com",
     "ymail.com",
@@ -26,10 +28,16 @@ const YAHOO: &[&str] = &[
     "yahoo.it",
     "yahoo.es",
     "yahoo.ca",
-    "yahoo.com.au",
-    "yahoo.com.br",
+    "yahoo.ie",
     "yahoo.in",
     "yahoo.co.in",
+    "yahoo.com.au",
+    "yahoo.com.br",
+    "yahoo.com.mx",
+    "yahoo.com.ar",
+    "yahoo.com.sg",
+    "yahoo.co.nz",
+    "yahoo.co.id",
 ];
 const AOL: &[&str] = &["aol.com"];
 
@@ -138,6 +146,8 @@ mod tests {
             "mail.gmail.com",
             "yahoo.co.jp",
             "yahoo.example",
+            "att.net",
+            "sbcglobal.net",
         ] {
             assert_eq!(of(d), None, "{d}");
         }

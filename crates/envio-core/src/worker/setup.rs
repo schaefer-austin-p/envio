@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use envio_net::Fingerprint;
-use envio_net::autoconfig::{Found, Hosting, Setting, Source, plan};
+use envio_net::autoconfig::{Found, Hosting, Setting, plan};
 use envio_store::{Account, AccountSettings, BackendKind};
 use secrecy::SecretString;
 
@@ -184,13 +184,7 @@ impl Worker<'_> {
         }
         match result {
             Ok(found) => {
-                // Autoconfig found nothing for a Google Workspace domain:
-                // `imap.<domain>` would not answer, Gmail's servers do.
-                let found = if hosting == Hosting::Google && found.source == Source::Guess {
-                    known::google_found(&email)
-                } else {
-                    found
-                };
+                let (found, hosting) = known::settle_google(found, hosting, &email);
                 let app_password = plan::domain_of(&email)
                     .and_then(|domain| app_password_provider(&domain, hosting))
                     .map(|provider| AppPasswordHint {
