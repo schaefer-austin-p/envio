@@ -50,7 +50,15 @@ pub(crate) fn drop_empty(html: &str) -> String {
 
 /// Whether nothing but whitespace follows the start tag at `from` in `out`.
 fn only_gap(out: &str, from: usize) -> bool {
-    out[from + tag_len(&out[from..])..]
-        .chars()
-        .all(char::is_whitespace)
+    let tail = &out[from + tag_len(&out[from..])..];
+    match tail.find(|c: char| !c.is_whitespace()) {
+        Some(i) => {
+            crate::work::tick(i + 1);
+            false
+        }
+        None => {
+            crate::work::tick(tail.len());
+            true
+        }
+    }
 }

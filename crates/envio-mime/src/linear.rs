@@ -118,6 +118,7 @@ impl Frame {
     /// Text in its own content (not an image's label): the open cell's
     /// width is the text's, not its pictures'.
     fn text(&mut self, text: &str) {
+        crate::work::tick(text.len());
         if let Some(cell) = &mut self.cell
             && !text.replace("&nbsp;", " ").trim().is_empty()
         {

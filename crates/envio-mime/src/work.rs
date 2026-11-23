@@ -1,11 +1,17 @@
 //! A deterministic work counter for the linear-growth tests (#365).
 //!
-//! Every scan the sanitizer passes make goes through a primitive here
-//! ([`find_lt`], [`find`], [`tick`]), and the shared tag
-//! primitives (`tag_len`, `parse_tag`, `Tag::attr`, `Tag::write`,
-//! `escape_into`, `style_value`) tick for the bytes they visit. A pass that
-//! rescans its input or its output, however deep inside a helper, therefore
-//! adds to the count. A test compares the count at N and at 2N.
+//! The scans the sanitizer passes make go through a primitive here
+//! ([`find_lt`], [`find`], [`tick`]), and the shared tag primitives
+//! (`tag_len`, `parse_tag`, `Tag::attr`, `Tag::write`, `escape_into`,
+//! `style_value`, `filter_style`) tick for the bytes they visit, as do the
+//! open-element stack walks and `only_gap`. A pass that rescans its input
+//! or its output through any of these adds to the count. A test compares
+//! the count at N and at 2N.
+//!
+//! Not counted: ammonia and html5ever themselves (ticked once for the
+//! input length), and any plain `str` method (`contains`, `find`,
+//! `matches`, a `chars()` loop) called directly on a pass's output or
+//! input. New scans in a pass should use `work::find` or `work::tick`.
 //!
 //! Without the `test-hooks` feature every function is the plain `str`
 //! method (or empty) and inlines away: release builds pay nothing.
