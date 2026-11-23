@@ -375,6 +375,13 @@ pub enum Event {
         compose: ComposeId,
         draft_id: String,
     },
+    /// The compose's draft was written to disk (every save, not only the
+    /// first), at `at_ms` Unix milliseconds: Compose shows "Draft saved
+    /// 09:41".
+    DraftStored {
+        compose: ComposeId,
+        at_ms: i64,
+    },
     /// A file was copied into the draft: `path` is the copy, which is what
     /// the draft's attachments hold.
     Attached {

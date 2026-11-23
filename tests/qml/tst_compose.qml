@@ -22,6 +22,7 @@ Item {
         compose: 1
         anchors.fill: parent
     }
+    ComposeFooter { id: narrowFooter; theme: thm; width: 150; savedAtMs: new Date(2026, 10, 23, 9, 41).getTime(); visible: false }
     SignalSpy { id: sent; target: page; signalName: "sent" }
     SignalSpy { id: closed; target: page; signalName: "closed" }
     SignalSpy { id: refused; target: page; signalName: "refused" }
@@ -102,6 +103,99 @@ Item {
             compare(quote.font.pixelSize, thm.bodySize - 2)
             compare(quote.lineHeight, thm.bodyLineHeight)
             thm.name = "carbon"
+        }
+
+        // #352: the footer says "Plain text" from the start and "Draft
+        // saved <time>" only once the core reports a save for this compose.
+        function test_footer_shows_the_save_time_after_a_save_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_footer_shows_the_save_time_after_a_save(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "", "")
+            const plain = find("plainText")
+            verify(plain !== undefined && plain.visible, "Plain text shows before any save")
+            compare(plain.text, qsTr("Plain text"))
+            verify(!shown("savedText"), "no Draft saved text before a save")
+            verify(!shown("savedCheck"), "no check before a save")
+            // Another compose's save is not this page's.
+            mock.draftStored(2, Date.UTC(2026, 10, 23, 9, 41))
+            verify(!shown("savedText"), "another compose's save is ignored")
+            const at = new Date(2026, 10, 23, 9, 41).getTime()
+            mock.draftStored(1, at)
+            verify(shown("savedText"), "the text shows after the save")
+            verify(shown("savedCheck"), "the check shows after the save")
+            compare(find("savedText").text,
+                    qsTr("Draft saved %1").arg(Qt.formatTime(new Date(at), Qt.locale().timeFormat(Locale.ShortFormat))))
+            verify(plain.x > find("savedText").x + find("savedText").width, "Plain text sits on the right")
+            page.reset()
+            verify(!shown("savedText"), "a reused page starts without the text")
+        }
+
+        // A long translation shares the width: the left text is elided and
+        // never runs under "Plain text".
+        function test_footer_left_text_never_overlaps_plain_text_when_narrow() {
+            const left = find("savedText", narrowFooter)
+            const right = find("plainText", narrowFooter)
+            verify(left.width > 0, "the left text keeps some room")
+            verify(left.x + left.width <= right.x, "no overlap at 150 px")
+            verify(right.x + right.width <= narrowFooter.width, "Plain text stays inside")
+            verify(left.truncated, "the left text is elided at 150 px")
+        }
+
+        // carbon-two-pane: the wide pane's footer lines up with the 5 gu
+        // field gutter and sits 10 px / 16 px from the text; the phone's is
+        // 16 px in, 8 above, 14 below.
+        function test_footer_margins_follow_the_wide_pane() {
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            const foot = find("composeFooter")
+            for (const wide of [false, true]) {
+                page.wide = wide
+                const side = thm.gu(wide ? 5 : 2)
+                compare(find("savedCheck", foot).x, side, "left margin, wide " + wide)
+                compare(foot.width - (find("plainText", foot).x + find("plainText", foot).width), side, "right margin, wide " + wide)
+                compare(find("plainText", foot).y, thm.gu(wide ? 1.25 : 1), "top margin, wide " + wide)
+                compare(foot.height - find("plainText", foot).y - find("plainText", foot).height,
+                        thm.gu(wide ? 2 : 1.75), "bottom margin, wide " + wide)
+            }
+            page.wide = false
+        }
+
+        // Phone check of #448: the footer rides on the on-screen keyboard
+        // (like PageFooter, #61), so the save time is not hidden while typing.
+        function test_footer_rides_on_the_keyboard() {
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            const foot = find("composeFooter")
+            const flick = find("composeFlick")
+            compare(foot.mapToItem(page, 0, foot.height).y, page.height)
+            const kb = Qt.rect(0, page.height - 300, page.width, 300)
+            foot.keyboard = kb
+            compare(foot.mapToItem(page, 0, foot.height).y, kb.y)
+            verify(flick.mapToItem(page, 0, flick.height).y <= foot.mapToItem(page, 0, 0).y,
+                   "the fields end above the footer")
+            foot.keyboard = Qt.rect(0, 0, 0, 0)
+            compare(foot.mapToItem(page, 0, foot.height).y, page.height)
+        }
+
+        // Review 1478: past 100 gu the fields are capped at 90 gu, and the
+        // footer's text ends at the same right edge, not at the pane's.
+        function test_footer_text_ends_at_the_capped_field_column() {
+            root.width = thm.gu(130)
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            page.wide = true
+            const foot = find("composeFooter")
+            const plain = find("plainText", foot)
+            const fields = find("to")
+            const fieldsRight = fields.mapToItem(page, fields.width, 0).x
+            const textRight = plain.mapToItem(page, plain.width, 0).x
+            verify(Math.abs(fieldsRight - thm.gu(95)) <= 1, "the column is capped: " + fieldsRight)
+            verify(Math.abs(textRight - fieldsRight) <= 1, "text right " + textRight + " vs fields " + fieldsRight)
+            compare(find("savedCheck", foot).mapToItem(page, 0, 0).x, thm.gu(5))
+            page.wide = false
+            root.width = 400
         }
 
         function test_ready_fills_fields_and_folds_quote() {

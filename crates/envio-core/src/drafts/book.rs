@@ -404,6 +404,8 @@ impl DraftBook {
         (compose, draft): (ComposeId, DraftInput),
         events: &mut Vec<Event>,
     ) -> bool {
+        // `store` writes nothing for a removed account: no time to report.
+        let skipped = st.removed.contains(&draft.account);
         match self.store_guarded(st, compose, &draft) {
             Ok(created) => {
                 st.save_failed.remove(&compose);
@@ -411,6 +413,12 @@ impl DraftBook {
                     events.push(Event::DraftSaved { compose, draft_id });
                     events.push(Event::LocalDraftsChanged {
                         account: draft.account.clone(),
+                    });
+                }
+                if !skipped {
+                    events.push(Event::DraftStored {
+                        compose,
+                        at_ms: now_ms(),
                     });
                 }
                 true
@@ -524,9 +532,29 @@ mod tests {
         // The next change starts a new second and replaces the same file.
         book.changed(A, input("b"), 1_050);
         assert_eq!(book.next_due(), Some(1_050 + DRAFT_SAVE_MS));
-        assert!(book.save_due(2_050).is_empty());
+        assert_eq!(saved(&book.save_due(2_050)), 0);
         let drafts = book.drafts().unwrap().list().unwrap();
         assert_eq!((drafts.len(), drafts[0].1.body.as_str()), (1, "b"));
+    }
+
+    #[test]
+    fn every_save_tells_when_it_happened_not_only_the_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        let stored = |events: &[Event]| {
+            events
+                .iter()
+                .filter(|e| matches!(e, Event::DraftStored { compose, at_ms } if *compose == A && *at_ms > 0))
+                .count()
+        };
+        book.changed(A, input("a"), 0);
+        let first = book.save_due(DRAFT_SAVE_MS);
+        assert_eq!((saved(&first), stored(&first)), (1, 1), "{first:?}");
+        // The second save updates the same draft: no `DraftSaved`, but the
+        // footer's time moves.
+        book.changed(A, input("b"), 1_500);
+        let second = book.save_due(1_500 + DRAFT_SAVE_MS);
+        assert_eq!((saved(&second), stored(&second)), (0, 1), "{second:?}");
     }
 
     #[test]
@@ -642,9 +670,10 @@ mod tests {
         let events = book.attach(A, &source);
         assert!(matches!(events[0], Event::DraftSaved { .. }));
         assert!(matches!(events[1], Event::LocalDraftsChanged { .. }));
+        assert!(matches!(events[2], Event::DraftStored { .. }));
         let Event::Attached {
             path, name, size, ..
-        } = &events[2]
+        } = &events[3]
         else {
             panic!("not attached: {events:?}");
         };
@@ -696,6 +725,18 @@ mod tests {
         book.changed(B, input("b"), 0);
         assert_eq!(book.next_due(), None);
         assert!(book.flush_all().is_empty());
+    }
+
+    #[test]
+    fn a_save_skipped_for_a_removed_account_tells_no_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        book.drop_account("acct");
+        let mut events = Vec::new();
+        // A save already taken from the throttle when the account went.
+        book.persist(&mut book.lock(), (A, input("late")), &mut events);
+        assert!(events.is_empty(), "{events:?}");
+        assert!(book.drafts().unwrap().list().unwrap().is_empty());
     }
 
     #[test]

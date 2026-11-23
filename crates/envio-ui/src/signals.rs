@@ -140,6 +140,11 @@ pub enum Signal {
     DraftSaved {
         compose: ComposeId,
     },
+    /// The draft was written to disk at `at_ms` (Unix milliseconds).
+    DraftStored {
+        compose: ComposeId,
+        at_ms: i64,
+    },
     ComposeRefused {
         compose: ComposeId,
         text: String,
