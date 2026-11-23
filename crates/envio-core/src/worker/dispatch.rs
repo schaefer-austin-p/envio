@@ -187,6 +187,7 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
                 .notify_off
                 .clone_from(&worker.store.settings.notify_off);
             settings.notify_show_text = worker.store.settings.notify_show_text;
+            settings.fullscreen = worker.store.settings.fullscreen;
             settings.list_pane_gu = worker.store.settings.list_pane_gu;
             worker.save_settings(settings);
             Flow::Continue
@@ -197,6 +198,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
         }
         Command::SetListPane { gu } => {
             worker.set_list_pane(gu);
+            Flow::Continue
+        }
+        Command::SetFullscreen { on } => {
+            worker.set_fullscreen(on);
             Flow::Continue
         }
         Command::SetNotifyText { on } => {

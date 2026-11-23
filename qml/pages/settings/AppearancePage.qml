@@ -11,6 +11,8 @@ Item {
     objectName: "appearancePage"
     required property Theme theme
     required property var core
+    // Phone only (WindowMode.available): the row is hidden elsewhere.
+    property bool fullscreenAvailable: false
     signal backRequested()
 
     function save(look, dark) {
@@ -119,6 +121,54 @@ Item {
                 text: modelData.label
                 selected: root.core.darkMode === modelData.key
                 onActivated: root.save(root.core.theme, modelData.key)
+            }
+        }
+
+        ListRow {
+            id: fullscreenRow
+            objectName: "fullscreenRow"
+            visible: root.fullscreenAvailable
+            theme: root.theme
+            width: parent.width
+            separator: false
+            implicitHeight: Math.max(root.theme.touch + root.theme.gu(2.5), fullscreenCol.height + root.theme.gu(2.5))
+            onClicked: root.core.chooseFullscreen(!root.core.fullscreen)
+            Column {
+                id: fullscreenCol
+                anchors.verticalCenter: parent.verticalCenter
+                x: root.theme.gu(2)
+                width: parent.width - x - fullscreenToggle.width - root.theme.gu(4)
+                Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: qsTr("Fullscreen")
+                    wrapMode: Text.WordWrap
+                    color: root.theme.text
+                    font.family: root.theme.fontUi
+                    font.pixelSize: 16
+                }
+                Text {
+                    textFormat: Text.PlainText
+                    width: parent.width
+                    text: qsTr("Hides the top bar. Swipe down from the top edge to bring it back.")
+                    wrapMode: Text.WordWrap
+                    color: root.theme.secondary
+                    font.family: root.theme.fontUi
+                    font.pixelSize: 13
+                }
+            }
+            Toggle {
+                id: fullscreenToggle
+                objectName: "fullscreenSwitch"
+                theme: root.theme
+                anchors { right: parent.right; rightMargin: root.theme.gu(2); verticalCenter: parent.verticalCenter }
+                text: qsTr("Fullscreen")
+                checked: root.core.fullscreen
+                onToggled: root.core.chooseFullscreen(checked)
+                Connections {
+                    target: root.core
+                    function onFullscreenChanged() { fullscreenToggle.checked = Qt.binding(function() { return root.core.fullscreen }) }
+                }
             }
         }
     }

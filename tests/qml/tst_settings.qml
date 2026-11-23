@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtTest 1.2
+import QtQuick.Window 2.15
 import Envio 1.0
 import "../../qml/platform"
 import "../../qml/pages/settings"
@@ -16,7 +17,13 @@ Item {
         name: core.theme
         darkMode: core.darkMode
     }
-    AppearancePage { id: appearance; theme: thm; core: core; anchors.fill: parent; visible: false }
+    AppearancePage { id: appearance; theme: thm; core: core; fullscreenAvailable: true; anchors.fill: parent; visible: false }
+    // The page where the platform has no fullscreen (the desktop).
+    AppearancePage { id: appearanceDesktop; theme: thm; core: core; anchors.fill: parent; visible: false }
+    // The window's visibility, through the platform hook (a stand-in for ut/).
+    WindowMode { id: mode; source: Qt.resolvedUrl("StubFullscreen.qml"); fullscreen: core.fullscreen }
+    // Where the platform file does not load (the desktop: no Suru).
+    WindowMode { id: desktopMode; source: Qt.resolvedUrl("NoSuchPlatform.qml"); fullscreen: core.fullscreen }
     ImagesPage { id: images; theme: thm; core: core; anchors.fill: parent; visible: false }
     SyncPage { id: sync; theme: thm; core: core; accounts: core.accounts; anchors.fill: parent; visible: false }
     AboutPage { id: about; theme: thm; anchors.fill: parent; visible: false }
@@ -143,6 +150,41 @@ Item {
             verify(find("darkMode-dark", appearance).selected)
             mouseClick(find("darkMode-light", appearance))
             compare(core.called("saveSettings")[1].args, ["carbon", "light", false, ""])
+        }
+
+        function test_fullscreen_row_toggles_the_setting() {
+            appearance.visible = true
+            const sw = find("fullscreenSwitch", appearance)
+            verify(!sw.checked)
+            mouseClick(sw)
+            compare(core.called("chooseFullscreen")[0].args, [true])
+            // The core answers with the settings; the switch follows.
+            core.fullscreen = true
+            verify(sw.checked)
+            mouseClick(sw)
+            compare(core.called("chooseFullscreen")[1].args, [false])
+            core.fullscreen = false
+            verify(!sw.checked)
+        }
+
+        function test_fullscreen_setting_drives_the_window_visibility() {
+            core.fullscreen = false
+            verify(mode.available)
+            compare(mode.visibility, Window.AutomaticVisibility)
+            core.fullscreen = true
+            compare(mode.visibility, Window.FullScreen)
+            core.fullscreen = false
+            compare(mode.visibility, Window.AutomaticVisibility)
+        }
+
+        function test_fullscreen_is_hidden_and_inert_where_the_platform_has_none() {
+            appearanceDesktop.visible = true
+            verify(!find("fullscreenRow", appearanceDesktop).visible)
+            // The platform file is missing: the window is left alone.
+            core.fullscreen = true
+            verify(!desktopMode.available)
+            compare(desktopMode.visibility, Window.AutomaticVisibility)
+            core.fullscreen = false
         }
 
         function test_images_always_saves() {

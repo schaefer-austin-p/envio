@@ -270,6 +270,21 @@ fn set_notify_then_set_notify_text_both_survive() {
     assert!(settings.notify_show_text);
 }
 
+#[test]
+fn set_fullscreen_is_saved_and_a_stale_save_keeps_it() {
+    let (h, _) = started(|_| ());
+    settings_event(&h);
+    h.send(Command::SetFullscreen { on: true });
+    assert!(settings_event(&h).fullscreen);
+    h.send(Command::SaveSettings(Settings {
+        dark: DarkMode::Dark,
+        ..Settings::default()
+    }));
+    let settings = settings_event(&h);
+    assert_eq!(settings.dark, DarkMode::Dark);
+    assert!(settings.fullscreen);
+}
+
 // An app save built from a snapshot older than a switch must not undo it.
 #[test]
 fn a_stale_save_keeps_the_notification_switches() {
