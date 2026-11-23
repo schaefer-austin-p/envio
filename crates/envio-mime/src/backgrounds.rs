@@ -67,7 +67,7 @@ pub(crate) fn fill(html: &str) -> String {
     // Each open element's name and the colour its content inherits.
     let mut open: Vec<(String, Option<String>)> = Vec::new();
     let mut rest = html;
-    while let Some(start) = rest.find('<') {
+    while let Some(start) = crate::work::find_lt(rest) {
         out.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];
@@ -155,7 +155,9 @@ fn give(tag: &mut Tag, colour: &str) {
 /// Closes the innermost open element called `name`, with any left open
 /// inside it; an end tag with no open element is ignored.
 fn close(open: &mut Vec<(String, Option<String>)>, name: &str) {
-    if let Some(at) = open.iter().rposition(|(n, _)| n.eq_ignore_ascii_case(name)) {
+    let found = open.iter().rposition(|(n, _)| n.eq_ignore_ascii_case(name));
+    crate::work::tick(found.map_or(open.len(), |at| open.len() - at));
+    if let Some(at) = found {
         open.truncate(at);
     }
 }

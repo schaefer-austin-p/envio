@@ -99,6 +99,7 @@ impl TokenSink for Sink {
     type Handle = ();
 
     fn process_token(&self, token: Token, _line: u64) -> TokenSinkResult<()> {
+        crate::work::tick(1);
         let Token::TagToken(tag) = token else {
             return TokenSinkResult::Continue;
         };
@@ -222,6 +223,7 @@ impl Model {
     /// through elements named in `through`.
     fn pop_through(&mut self, targets: &[&str], through: &[&str]) {
         for (index, open) in self.stack.iter().enumerate().rev() {
+            crate::work::tick(1);
             if open.ns != Ns::Html || open.inert {
                 return;
             }

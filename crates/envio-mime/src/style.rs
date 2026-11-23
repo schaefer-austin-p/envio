@@ -74,6 +74,7 @@ pub(crate) fn is_hidden(style: &str) -> bool {
 /// Keeps only allowed properties with safe values; `None` when nothing is
 /// left.
 pub(crate) fn filter_style(element: &str, style: &str) -> Option<String> {
+    crate::work::tick(style.len());
     let decls = declarations(style);
     let collapsed = collapsed(&decls).then(|| DISPLAY_NONE.to_owned());
     let kept: Vec<String> = decls

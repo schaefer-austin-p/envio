@@ -219,6 +219,9 @@ fn no_relative_url(_: &str) -> Option<Cow<'_, str>> {
 /// Mail nested deeper than [`crate::nesting::MAX_DEPTH`] skips ammonia and Qt
 /// layout (both blow up on deep nesting) and shows as escaped plain text.
 pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
+    // ammonia and html5ever are not ours to instrument; each reads the input
+    // once, and the passes below count their own work.
+    crate::work::tick(html.len());
     if crate::nesting::too_deep(html) {
         let text = mail_parser::decoders::html::html_to_text(html);
         return Rendered {

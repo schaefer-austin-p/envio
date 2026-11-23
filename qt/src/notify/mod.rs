@@ -59,6 +59,8 @@ struct Card {
 
 type ReplyFn = extern "C" fn(tag: *const u8, tag_len: i32, id: u32, generation: u32);
 type CardFn = extern "C" fn(id: u32);
+/// `ActivationToken`: the card and the token (UTF-8, valid for the call).
+type TokenFn = extern "C" fn(id: u32, token: *const u8, token_len: i32);
 /// `answer`: 0 the question failed; 1 no `body-markup`; 2 `body-markup`.
 /// `generation` is the one the question was asked under.
 type CapsFn = extern "C" fn(answer: i32, generation: u32);
@@ -73,12 +75,13 @@ unsafe extern "C" {
         on_reply: ReplyFn,
         on_closed: CardFn,
         on_clicked: CardFn,
+        on_token: TokenFn,
         on_caps: CapsFn,
         on_owner: OwnerFn,
     );
     fn envio_notify_query_caps(generation: u32);
     fn envio_notify_send(card: *const Card);
-    fn envio_activate_window();
+    fn envio_activate_window(token: *const u8, token_len: i32);
 }
 
 // `cargo test` links no C++: the calls do nothing there.
@@ -92,6 +95,7 @@ unsafe fn envio_notify_init(
     _on_reply: ReplyFn,
     _on_closed: CardFn,
     _on_clicked: CardFn,
+    _on_token: TokenFn,
     _on_caps: CapsFn,
     _on_owner: OwnerFn,
 ) {
@@ -100,8 +104,17 @@ unsafe fn envio_notify_init(
 unsafe fn envio_notify_query_caps(_generation: u32) {}
 #[cfg(test)]
 unsafe fn envio_notify_send(_card: *const Card) {}
+/// The tokens the tests' window raises were given.
 #[cfg(test)]
-unsafe fn envio_activate_window() {}
+static ACTIVATED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+#[cfg(test)]
+unsafe fn envio_activate_window(token: *const u8, token_len: i32) {
+    let bytes = unsafe { std::slice::from_raw_parts(token, usize::try_from(token_len).unwrap()) };
+    ACTIVATED
+        .lock()
+        .unwrap()
+        .push(String::from_utf8_lossy(bytes).into_owned());
+}
 
 static IDS: LazyLock<Mutex<Ids>> = LazyLock::new(|| Mutex::new(Ids::default()));
 static INIT: Once = Once::new();
@@ -138,7 +151,7 @@ pub(crate) fn poster() -> Box<dyn Poster> {
                 // SAFETY: the callbacks are `extern "C"` fns that live for
                 // ever; the call takes no pointers otherwise.
                 unsafe {
-                    envio_notify_init(on_reply, on_closed, on_clicked, on_caps, on_owner);
+                    envio_notify_init(on_reply, on_closed, on_clicked, on_token, on_caps, on_owner);
                 }
                 ask_caps();
             });
@@ -247,15 +260,36 @@ extern "C" fn on_closed(id: u32) {
     ids().closed(id);
 }
 
-/// `ActionInvoked`, main thread: a click on one of Envio's cards. Raising
-/// the window is best effort (Wayland may refuse without a token). Opening
-/// the account's Inbox is #230 / #247: `account_of` is the hook for it.
-extern "C" fn on_clicked(id: u32) {
-    let ours = ids().account_of(id).is_some();
-    if ours {
-        // SAFETY: takes no pointers.
-        unsafe { envio_activate_window() };
+/// `ActivationToken`, main thread: the server's xdg-activation token for a
+/// click that is about to be reported.
+extern "C" fn on_token(id: u32, token: *const u8, token_len: i32) {
+    let Ok(len) = usize::try_from(token_len) else {
+        return;
+    };
+    // SAFETY: C++ passes the token bytes it holds for the length of this call.
+    let bytes = unsafe { std::slice::from_raw_parts(token, len) };
+    if let Ok(token) = std::str::from_utf8(bytes) {
+        ids().token(id, token.to_owned());
     }
+}
+
+/// `ActionInvoked`, main thread: a click on one of Envio's cards. The window
+/// comes to the front (with the server's token where there is one, so
+/// Wayland allows it) and the app is asked for that account's Inbox.
+extern "C" fn on_clicked(id: u32) {
+    let click = ids().click(id);
+    let Some(click) = click else {
+        return;
+    };
+    // SAFETY: the pointer and length describe `click.token`, which outlives
+    // the call.
+    unsafe {
+        envio_activate_window(
+            click.token.as_ptr(),
+            i32::try_from(click.token.len()).unwrap_or(0),
+        )
+    };
+    crate::open_route::open_inbox(&click.account);
 }
 
 /// The answer to `GetCapabilities`, main thread. One to a question from
@@ -386,5 +420,31 @@ mod tests {
         assert!(CAPS_ASKED.load(Ordering::Acquire));
         on_caps(2, CAPS_EPOCH.load(Ordering::Acquire));
         assert_eq!(markup(), Markup::Yes);
+    }
+
+    #[test]
+    fn a_click_raises_the_window_with_its_token_and_opens_that_accounts_inbox() {
+        let _s = serial();
+        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&seen);
+        crate::open_route::set_handler(move |account| sink.lock().unwrap().push(account));
+        ACTIVATED.lock().unwrap().clear();
+        FreedesktopPoster.post(&alert("click-tag"));
+        let epoch = ids().epoch();
+        on_reply(b"click-tag".as_ptr(), 9, 41, epoch);
+        // The server sends the token just before the click.
+        on_token(41, b"tok-1".as_ptr(), 5);
+        on_clicked(41);
+        assert_eq!(*seen.lock().unwrap(), vec!["acc".to_owned()]);
+        assert_eq!(*ACTIVATED.lock().unwrap(), vec!["tok-1".to_owned()]);
+        // The token is used up; a click without one raises without a token.
+        on_clicked(41);
+        assert_eq!(ACTIVATED.lock().unwrap()[1], "");
+        // Another app's card (or a token for one) does nothing.
+        on_token(77, b"x".as_ptr(), 1);
+        on_clicked(77);
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        assert_eq!(ACTIVATED.lock().unwrap().len(), 2);
+        on_closed(41);
     }
 }

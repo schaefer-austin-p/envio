@@ -218,6 +218,11 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "statusText"]
         fn status_text(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);
+        /// Show this account's Inbox (a notification was clicked); the shell
+        /// decides how. Raised through `crate::open_route`.
+        #[qsignal]
+        #[cxx_name = "openInboxRequested"]
+        fn open_inbox_requested(self: Pin<&mut EnvioCore>, account: &QString);
         /// `Core::start` failed; `text` is translated.
         #[qsignal]
         #[cxx_name = "startFailed"]

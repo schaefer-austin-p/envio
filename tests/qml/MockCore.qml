@@ -75,6 +75,7 @@ Item {
     signal draftSaved(real compose)
     signal draftStored(real compose, real atMs)
     signal composeRefused(real compose, string text)
+    signal openInboxRequested(string account)
     signal queued(real compose, string text)
     signal attached(real compose, string path, string name, real size)
     signal attachFailed(real compose, string text)

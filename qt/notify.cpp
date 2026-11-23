@@ -61,12 +61,14 @@ QString text(Str s)
 
 using ReplyFn = void (*)(const char* tag, int tag_len, unsigned int id, unsigned int generation);
 using CardFn = void (*)(unsigned int id);
+using TokenFn = void (*)(unsigned int id, const char* token, int token_len);
 using CapsFn = void (*)(int answer, unsigned int generation);
 using OwnerFn = void (*)(bool hadOwner);
 
 ReplyFn g_onReply = nullptr;
 CardFn g_onClosed = nullptr;
 CardFn g_onClicked = nullptr;
+TokenFn g_onToken = nullptr;
 CapsFn g_onCaps = nullptr;
 OwnerFn g_onOwner = nullptr;
 
@@ -87,6 +89,14 @@ public Q_SLOTS:
     {
         if (key == QStringLiteral("default") && g_onClicked != nullptr) {
             g_onClicked(id);
+        }
+    }
+    // Sent by the server just before ActionInvoked, for xdg-activation.
+    void onActivationToken(uint id, const QString& token)
+    {
+        if (g_onToken != nullptr) {
+            const QByteArray bytes = token.toUtf8();
+            g_onToken(id, bytes.constData(), static_cast<int>(bytes.size()));
         }
     }
     void onClosed(uint id, uint)
@@ -156,12 +166,13 @@ bool envio_bus_has_service(const char* name, int len)
 // Once, on the main thread: the callbacks, and the signals. The service
 // name is given for the notification signals, so Qt follows the server
 // across a restart; NameOwnerChanged tells Rust when that happens.
-void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked, CapsFn onCaps,
-                       OwnerFn onOwner)
+void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked, TokenFn onToken,
+                       CapsFn onCaps, OwnerFn onOwner)
 {
     g_onReply = onReply;
     g_onClosed = onClosed;
     g_onClicked = onClicked;
+    g_onToken = onToken;
     g_onCaps = onCaps;
     g_onOwner = onOwner;
     static Signals signalsObject;
@@ -171,6 +182,8 @@ void envio_notify_init(ReplyFn onReply, CardFn onClosed, CardFn onClicked, CapsF
     const QString interface = QString::fromLatin1(kInterface);
     bus.connect(service, path, interface, QStringLiteral("ActionInvoked"), &signalsObject,
                 SLOT(onActionInvoked(uint, QString)));
+    bus.connect(service, path, interface, QStringLiteral("ActivationToken"), &signalsObject,
+                SLOT(onActivationToken(uint, QString)));
     bus.connect(service, path, interface, QStringLiteral("NotificationClosed"), &signalsObject,
                 SLOT(onClosed(uint, uint)));
     bus.connect(QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
@@ -273,9 +286,13 @@ void envio_notify_send(const Card* card)
         Qt::QueuedConnection);
 }
 
-// Best effort: Wayland may refuse to raise a window without a token. Only a
-// minimised window is restored; a maximised or fullscreen one stays as it is.
-void envio_activate_window()
+// Best effort: Wayland may refuse to raise a window without a token. The
+// server's xdg-activation token (empty: none) reaches this boundary but is
+// unused until native xdg_activation_v1 lands: Qt 5.15 reads no environment
+// variable for it, and setting one would leak a stale single-use token to
+// child processes. Only a minimised window is restored; a maximised or
+// fullscreen one stays as it is.
+void envio_activate_window(const char* /* token */, int /* tokenLen */)
 {
     QWindow* window = mainWindow();
     if (window == nullptr) {
