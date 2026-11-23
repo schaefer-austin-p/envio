@@ -155,6 +155,15 @@ Item {
             onClicked: root.searchRequested(root.folderId)
         }
         IconButton {
+            objectName: "refreshButton"
+            theme: root.theme
+            iconName: "refresh-cw"
+            iconRotating: root.refreshing
+            enabled: root.core.canRefresh
+            text: root.refreshing ? qsTr("Refreshing") : qsTr("Refresh")
+            onClicked: root.refresh()
+        }
+        IconButton {
             objectName: "menuButton"
             visible: !root.drawerInline
             theme: root.theme

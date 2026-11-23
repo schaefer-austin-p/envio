@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 11:28+0100\n"
+"POT-Creation-Date: 2026-11-23 13:26+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:227
+#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:236
 msgid "New message"
 msgstr ""
 
@@ -789,11 +789,19 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:162
+#: qml/pages/inbox/InboxPage.qml:163 qml/pages/inbox/PullIndicator.qml:24
+msgid "Refreshing"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:163
+msgid "Refresh"
+msgstr ""
+
+#: qml/pages/inbox/InboxPage.qml:171
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:275 qml/pages/reader/ReaderPage.qml:541
+#: qml/pages/inbox/InboxPage.qml:284 qml/pages/reader/ReaderPage.qml:541
 msgid "Undo"
 msgstr ""
 
@@ -852,10 +860,6 @@ msgstr ""
 
 #: qml/pages/inbox/OutboxRow.qml:122 qml/pages/reader/ReplyBar.qml:47
 msgid "Edit"
-msgstr ""
-
-#: qml/pages/inbox/PullIndicator.qml:24
-msgid "Refreshing"
 msgstr ""
 
 #: qml/pages/inbox/PullIndicator.qml:25
