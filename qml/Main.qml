@@ -24,8 +24,9 @@ ApplicationWindow {
     RowsModel { id: suggestionsModel; kind: "suggestions" }
     RowsModel { id: searchModel; kind: "search" }
 
-    // The settings, once they arrive, pick the look; until then the
-    // defaults.
+    // The saved settings are in `core` from its construction (read from the
+    // file, #463), so the first frame has the saved look; the worker's event
+    // confirms them. The defaults only cover a core without a file.
     Theme {
         id: appTheme
         name: core.theme !== "" ? core.theme : "carbon"

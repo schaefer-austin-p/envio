@@ -17,6 +17,8 @@ TestCase {
         id: core
         onReadyChanged: if (ready) testCase.seen.push("ready")
     }
+    // The worker's `Settings` event, whether or not it changed a value.
+    SignalSpy { id: echoes; target: core; signalName: "settingsEchoed" }
     RowsModel {
         id: accounts
         kind: "accounts"
@@ -71,6 +73,9 @@ TestCase {
     }
 
     function test_settings_arrive_after_start() {
+        // Saved values are in place from construction (tst_startup_settings),
+        // so the values alone no longer show the event came: count it.
+        tryVerify(function () { return echoes.count >= 1 }, 20000)
         tryCompare(core, "theme", "carbon", 20000)
         compare(core.darkMode, "system")
         compare(core.imagesAlways, false)

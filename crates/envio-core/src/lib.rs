@@ -10,6 +10,7 @@ pub mod paths;
 pub mod problem;
 pub mod secrets;
 pub mod servers;
+mod startup;
 
 #[cfg(feature = "test-hooks")]
 #[doc(hidden)]
@@ -58,6 +59,7 @@ pub use health::AccountStatus;
 pub use known::app_password_setup;
 pub use problem::CertDetails;
 pub use servers::{ServerAddr, Service};
+pub use startup::saved_settings;
 pub use text::count::{CountKind, count_text};
 pub use text::link::{looks_like, malformed as link_malformed, userinfo_decoration};
 pub use text::notice::start_failed;
