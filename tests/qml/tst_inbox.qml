@@ -801,9 +801,44 @@ Item {
         function test_online_tabs_and_all_have_no_icon() {
             core.accounts.setProperty(1, "state", "offline")
             tryVerify(function() { return chipIcon(find("tab-bob", page)) !== null })
-            compare(chipIcon(find("tab-all", page)), null)
             compare(chipIcon(find("tab-ann", page)), null)
             core.accounts.setProperty(1, "state", "ok")
+            compare(chipIcon(find("tab-all", page)), null)
+            compare(find("tab-all", page).Accessible.name, "All")
+        }
+
+        // The All tab says an account is offline or stopped, also when that
+        // account's own tab is scrolled out of the strip (#127).
+        function test_all_tab_shows_offline_with_a_count() {
+            const all = find("tab-all", page)
+            core.accounts.setProperty(1, "state", "offline")
+            tryVerify(function() { return chipIcon(all) !== null })
+            compare(chipIcon(all).name, "offline")
+            // All is the selected chip: the primary text on Carbon, the accent on Airmail.
+            compare(chipIcon(all).color, thm.airmail ? thm.accent : thm.primaryText)
+            compare(all.Accessible.name, "All, 1 offline")
+            core.accounts.setProperty(0, "state", "offline")
+            tryCompare(all.Accessible, "name", "All, 2 offline")
+            core.accounts.setProperty(0, "state", "ok")
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return chipIcon(all) === null })
+            compare(all.Accessible.name, "All")
+        }
+
+        function test_all_tab_shows_sync_stopped_and_it_wins_over_offline() {
+            const all = find("tab-all", page)
+            core.accounts.setProperty(0, "attention", true)
+            tryVerify(function() { return chipIcon(all) !== null })
+            compare(chipIcon(all).name, "alert")
+            compare(all.Accessible.name, "All, 1 sync stopped")
+            core.accounts.setProperty(1, "state", "offline")
+            tryCompare(all.Accessible, "name", "All, 1 sync stopped, 1 offline")
+            compare(chipIcon(all).name, "alert")
+            core.accounts.setProperty(0, "attention", false)
+            tryCompare(all.Accessible, "name", "All, 1 offline")
+            compare(chipIcon(all).name, "offline")
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return chipIcon(all) === null })
         }
 
         function test_selected_carbon_tab_draws_the_icon_in_its_text_colour() {

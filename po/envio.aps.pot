@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 19:41+0100\n"
+"POT-Creation-Date: 2026-11-23 20:25+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -752,15 +752,30 @@ msgstr ""
 msgid "written to %1"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:41
+#: qml/pages/inbox/AccountTabs.qml:75
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:61 qml/pages/inbox/FoldersDrawer.qml:206
+#: qml/pages/inbox/AccountTabs.qml:82
+msgctxt ""
+msgid "%n sync stopped"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:83
+msgctxt ""
+msgid "%n offline"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:84 qml/pages/inbox/AccountTabs.qml:85
+#: qml/pages/inbox/AccountTabs.qml:86
+msgid "%1, %2"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:107 qml/pages/inbox/FoldersDrawer.qml:206
 msgid "%1, sync stopped"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:62 qml/pages/inbox/FoldersDrawer.qml:207
+#: qml/pages/inbox/AccountTabs.qml:108 qml/pages/inbox/FoldersDrawer.qml:207
 msgid "%1, offline"
 msgstr ""
 
