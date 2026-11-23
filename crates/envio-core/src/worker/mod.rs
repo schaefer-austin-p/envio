@@ -32,6 +32,7 @@ mod outbox;
 mod plan;
 mod prefetch;
 mod read;
+mod refresh;
 mod remove;
 mod rows;
 mod run;
@@ -146,6 +147,9 @@ pub(crate) struct Worker<'s> {
     /// Folders whose Load older rows a window change drops with their next
     /// sync; `OlderReset` follows that sync.
     reset_pending: BTreeSet<FolderId>,
+    /// The refreshes still open: each holds the accounts it waits for
+    /// (see `refresh::settle_refreshes`).
+    refreshes: Vec<BTreeSet<String>>,
     /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
     local_ids: RefCell<local_rows::LocalIds>,
     /// The local-only Drafts entries of accounts with no Drafts folder.
@@ -299,6 +303,7 @@ impl<'s> Worker<'s> {
             loads: HashMap::new(),
             poster: Arc::clone(poster),
             reset_pending: BTreeSet::new(),
+            refreshes: Vec::new(),
             local_ids: RefCell::default(),
             local_folders: RefCell::default(),
             providers: config.oauth.clone(),
@@ -361,6 +366,13 @@ impl<'s> Worker<'s> {
     /// One loop iteration: run a step if an account has one, else wait for
     /// a command, an IDLE to end or the next timer.
     pub(crate) async fn turn(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
+        let flow = self.turn_once(commands).await;
+        // Once per iteration, after its commands and step.
+        self.settle_refreshes();
+        flow
+    }
+
+    async fn turn_once(&mut self, commands: &mut UnboundedReceiver<Input>) -> Flow {
         // Commands that came in during the last step go first: an Undo
         // pressed inside its window must not find the offer closed.
         if self.drain(commands).await == Flow::Stop {

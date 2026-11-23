@@ -523,16 +523,17 @@ impl Worker<'_> {
             Some(key) => vec![key.to_owned()],
             None => self.live.keys().cloned().collect(),
         };
-        for account in accounts {
-            let before = self.status_of(&account);
-            if let Some(live) = self.live.get_mut(&account) {
+        for account in &accounts {
+            let before = self.status_of(account);
+            if let Some(live) = self.live.get_mut(account) {
                 if matches!(live.health.status, AccountStatus::Offline { .. }) {
                     live.health.resume();
                 }
                 live.wants.full = true;
             }
-            self.report(&account, &before);
+            self.report(account, &before);
         }
+        self.open_refresh(&accounts);
     }
 }
 
