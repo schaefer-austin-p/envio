@@ -20,6 +20,24 @@ Rectangle {
     // Phone width: a 2 gu gutter on each side; never wider than 60 gu, so a
     // long notice on a window-wide parent stays a pill.
     property real maxWidth: parent ? Math.min(parent.width - theme.gu(4), theme.gu(60)) : theme.gu(40)
+    // Window-hosted toasts never overlap: one with a higher rank (ties: the
+    // later sibling) rises above the visible ones below it, a gu(1) gap
+    // apart. Pages subtract `lift` from their hosted `y`.
+    property int stackRank: 0
+    readonly property real lift: {
+        if (!parent) return 0
+        const kids = parent.children
+        let mine = -1
+        for (let i = 0; i < kids.length; i++) if (kids[i] === root) mine = i
+        let up = 0
+        for (let i = 0; i < kids.length; i++) {
+            const k = kids[i]
+            if (k === root || !k.visible || k.stackRank === undefined || k.maxWidth === undefined) continue
+            if (k.stackRank < stackRank || (k.stackRank === stackRank && i < mine))
+                up += k.height + theme.gu(1)
+        }
+        return up
+    }
     signal actionTriggered()
     signal expired()
 

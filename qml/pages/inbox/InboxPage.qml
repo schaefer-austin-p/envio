@@ -248,9 +248,10 @@ Item {
         objectName: "undoToast"
         theme: root.theme
         parent: root.toastHost !== null ? root.toastHost : root
+        stackRank: 0
         z: 5
         x: Math.round((parent.width - width) / 2)
-        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin
+        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - undoToast.lift
                                    : footer.y - height - root.theme.toastBottomMargin
         onActionTriggered: root.core.undo(root.undoId)
     }
@@ -259,9 +260,10 @@ Item {
         objectName: "noticeToast"
         theme: root.theme
         parent: root.toastHost !== null ? root.toastHost : root
+        stackRank: 0
         z: 5
         x: Math.round((parent.width - width) / 2)
-        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin
+        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - noticeToast.lift
                                    : footer.y - height - root.theme.toastBottomMargin
     }
 

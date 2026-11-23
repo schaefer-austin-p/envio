@@ -1335,6 +1335,35 @@ Item {
             b.shell.destroy()
         }
 
+        function test_wide_window_toasts_never_overlap() {
+            const b = wideCompose()
+            const undo = findByName(b.shell, "undoToast")
+            const notice = findByName(b.shell, "noticeToast")
+            const draft = findByName(b.shell, "composeToast")
+            const sent = findByName(b.shell, "sentToast")
+            let fired = 0
+            undo.actionTriggered.connect(function() { fired++ })
+            undo.show("Archived", "Undo")
+            notice.show("Moved")
+            draft.show("Draft saved")
+            sent.show("Sent")
+            wait(50)
+            const all = [undo, notice, draft, sent]
+            for (const t of all) verify(t.parent === b.shell, "on the window")
+            for (let i = 0; i < all.length; i++)
+                for (let j = i + 1; j < all.length; j++) {
+                    const x = all[i], y = all[j]
+                    verify(x.y + x.height <= y.y || y.y + y.height <= x.y,
+                           x.objectName + " and " + y.objectName + " overlap")
+                }
+            const act = findByName(undo, "toastAction")
+            const at = act.mapToItem(b.shell, act.width / 2, act.height / 2)
+            mouseClick(b.shell, at.x, at.y)
+            compare(fired, 1, "Undo is tappable")
+            for (const t of all) t.hide()
+            b.shell.destroy()
+        }
+
         function test_narrow_inbox_toast_stays_above_the_footer() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

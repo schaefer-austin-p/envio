@@ -466,9 +466,10 @@ Item {
         objectName: "composeToast"
         theme: root.theme
         parent: root.toastHost !== null ? root.toastHost : root
+        stackRank: 1
         z: 5
         x: Math.round((parent.width - width) / 2)
-        y: parent.height - height - (root.toastHost !== null ? root.theme.frameInset : 0) - root.theme.toastBottomMargin
+        y: parent.height - height - (root.toastHost !== null ? root.theme.frameInset : 0) - root.theme.toastBottomMargin - toast.lift
     }
 
     DiscardActions {
