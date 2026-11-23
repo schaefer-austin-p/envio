@@ -88,6 +88,7 @@ Item {
         subject.text = ""
         body.text = ""
         filling = false
+        filledWith = typed()
     }
 
     function nameOf(path) { return path.split("/").pop() }
@@ -113,6 +114,25 @@ Item {
         sending = false
         filling = false
         filled = true
+        filledWith = typed()
+    }
+    // What the user can have written: recipients, subject, body, attachments.
+    // `filledWith` is what the page was filled with (a reply's defaults, a saved
+    // draft's text), so only the user's own changes count as content.
+    property string filledWith: ""
+    function typed() {
+        return JSON.stringify([to.all(), cc.all(), bcc.all(), subject.text, body.text, attachments.map(function(a) { return a.path })])
+    }
+    function hasContent() {
+        if (!filled) return false
+        commitAll()
+        return typed() !== filledWith
+    }
+    // Close (X) or Esc: a compose with content of the user's asks first (Save
+    // draft or Discard draft); an untouched one leaves as Back does.
+    function close() {
+        if (hasContent()) more.openClosing()
+        else leave()
     }
 
     // What the user typed in the address fields and has not committed yet
@@ -142,7 +162,7 @@ Item {
     function snapshot() {
         commitAll()
         return {
-            filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, note: note, keepQuoted: keepQuoted, expanded: fold.expanded,
+            filledWith: filledWith, filled: filled, sending: sending, error: error, showCc: showCc, quoted: quoted, note: note, keepQuoted: keepQuoted, expanded: fold.expanded,
             attachments: attachments.slice(),
             draft: {
                 account: account, draftId: draftId, to: to.all(), cc: cc.all(), bcc: bcc.all(),
@@ -159,6 +179,7 @@ Item {
         keepQuoted = state.keepQuoted
         fold.expanded = state.expanded
         attachments = state.attachments
+        filledWith = state.filledWith
         // Between Send and the answer the new page waits too (no second send).
         sending = state.sending
         error = state.error
@@ -235,8 +256,8 @@ Item {
         core.closeCompose(compose, false)
         closed()
     }
-    // Esc in the pane: the Discard or Save draft sheet, as Close shows it.
-    function askClose() { more.openClosing() }
+    // Esc in the pane: as Close.
+    function askClose() { close() }
     function send() {
         commitAll()
         error = ""
@@ -252,9 +273,9 @@ Item {
         backIcon: "close"
         compact: true
         title: qsTr("Write")
-        // In the pane, Close asks first: the page is not a whole screen the
-        // user can back out of, and the draft may be worth keeping or not.
-        onBackClicked: if (root.wide) more.openClosing(); else root.leave()
+        // Close asks first when the user has written something: the draft may
+        // be worth keeping or not. Dismissing the sheet stays in compose.
+        onBackClicked: root.close()
         IconButton {
             objectName: "attachButton"
             theme: root.theme
