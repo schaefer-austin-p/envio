@@ -31,7 +31,8 @@ repeats these values, since the core is Qt-free.
 | surface | `#FFFFFF` | `#1F242B` | cards, dialogs, fields |
 | text | `#1E2A38` | `#E8E5DE` | running text, titles |
 | secondary | `#5A5D62` | `#A2A5AA` | previews, captions, labels |
-| hairline | `#DAD7CE` | `#2E343C` | rules, row separators |
+| hairline | `#DAD7CE` | `#2E343C` | rules, separators outside the message list |
+| rowRule | `#E4E1D8` | `#262B32` | the rule between message-list rows |
 | field border | `#C9C6BD` | `#3A4049` | text fields, outlined buttons |
 | accent | `#B8342C` | `#E36A60` | unread dot, links, destructive |
 | primary | `#1E2A38` on `#F8F6F1` | `#E8E5DE` on `#15181D` | primary buttons, selected tab |
@@ -51,7 +52,8 @@ repeats these values, since the core is Qt-free.
 | text | `#22303F` | `#ECE5D6` | running text |
 | heading | `#1F3A5F` | `#A9C1E3` | titles, sender names |
 | secondary | `#5D6A78` | `#A3AEBB` | previews, captions, labels |
-| hairline | `#DDD5C4` | `#2C3747` | rules, row separators |
+| hairline | `#DDD5C4` | `#2C3747` | rules, separators outside the message list |
+| rowRule | `#EAE3D3` | `#222C3A` | the rule between message-list rows |
 | field border | `#CFC6B1` | `#3A475A` | text fields, outlined buttons |
 | accent | `#B23A33` | `#E58C84` | unread, links, destructive |
 | primary | `#1F3A5F` on `#FBF8F1` | `#A9C1E3` on `#141C27` | primary buttons, selected tab |

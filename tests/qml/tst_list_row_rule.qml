@@ -11,7 +11,14 @@ Item {
 
     Theme { id: thm }
     ListRow {
+        id: plain
+        theme: thm
+        width: 300
+        Text { x: thm.gu(2.5); y: thm.gu(1.75); text: "Plain" }
+    }
+    ListRow {
         id: row
+        lightRule: true
         theme: thm
         width: 300
         Text { x: thm.gu(2.5); y: thm.gu(1.75); text: "Row" }
@@ -21,7 +28,7 @@ Item {
         name: "ListRowRule"
         when: windowShown
 
-        function rule() {
+        function rule(row) {
             for (let i = 0; i < row.background.children.length; i++)
                 if (row.background.children[i].objectName === "rowRule")
                     return row.background.children[i]
@@ -30,11 +37,18 @@ Item {
         function check(look, mode, expected) {
             thm.name = look
             thm.darkMode = mode
-            const r = rule()
+            const r = rule(row)
             verify(r !== null)
             compare(r.color.toString(), expected.toLowerCase())
             compare(thm.rowRule.toString(), expected.toLowerCase())
             verify(thm.rowRule.toString() !== thm.hairline.toString())
+        }
+        function test_default_row_keeps_the_hairline() {
+            for (const [look, mode] of [["carbon", "light"], ["airmail", "dark"]]) {
+                thm.name = look
+                thm.darkMode = mode
+                compare(rule(plain).color.toString(), thm.hairline.toString())
+            }
         }
         function test_carbon_light() { check("carbon", "light", "#E4E1D8") }
         function test_airmail_light() { check("airmail", "light", "#EAE3D3") }
