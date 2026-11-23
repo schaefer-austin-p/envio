@@ -313,6 +313,17 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_notification_click_over_the_accounts_page_leaves_it_alone() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 && b.shell.inboxItem !== null })
+            b.shell.currentPage.accountsRequested()
+            compare(b.shell.depth, 2)
+            b.core.openInboxRequested("ann")
+            compare(b.shell.depth, 2, "a rename or delete dialog may be open")
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
         function test_a_notification_click_over_the_wizard_is_ignored() {
             const b = boot(false)
             tryVerify(function() { return b.shell.depth === 1 })

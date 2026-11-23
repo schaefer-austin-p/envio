@@ -354,7 +354,7 @@ Item {
     // password and sign-in pages) or any page added later, is left alone
     // until someone decides it is safe to close.
     readonly property var closablePages: ["readerPage", "settingsPage", "appearancePage", "syncPage",
-        "notificationsPage", "imagesPage", "aboutPage", "searchPage", "outboxPage", "accountsPage"]
+        "notificationsPage", "imagesPage", "aboutPage", "searchPage", "outboxPage"]
     // Whether the jump has to leave the stack alone: a compose in the pane
     // or any page above the list that is not closable.
     function editingPageOpen() {
