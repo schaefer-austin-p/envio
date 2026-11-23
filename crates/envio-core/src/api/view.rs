@@ -149,6 +149,9 @@ pub struct MessageView {
     /// The mail sets its own colours, so the reader draws it on a light
     /// card. Always false for a raw message.
     pub own_colours: bool,
+    /// The body width in px this view was rendered for; the reader tells
+    /// the answer to a refit from a render at an older width (#192).
+    pub body_width: u32,
     pub attachments: Vec<AttachmentRow>,
     /// The meeting card, when the message carries an invite.
     pub invite: Option<InviteCard>,

@@ -176,6 +176,7 @@ Item {
     function answerInvite(id, answer, note) { record("answerInvite", [id, answer, note]) }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
+    function refit(id, widthPx) { record("refit", [id, widthPx]) }
     function reportImageSizes(id, sizesJson) { record("reportImageSizes", [id, sizesJson]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
     function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }

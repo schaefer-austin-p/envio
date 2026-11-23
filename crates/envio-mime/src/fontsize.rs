@@ -1,7 +1,7 @@
 //! Font sizes after ammonia: a heading wider than the phone reader wraps
 //! mid-word (#177), and a size under 1px is a blank line (#176). Every size
 //! the mail sets is resolved against the size it inherits and clamped to
-//! 1 to 26 px, so nested `%` and `em` cannot compound past the limit (#191).
+//! 1 to 26 px (the cap grows with the pane, see [`font_cap_px`]), so nested `%` and `em` cannot compound past the limit (#191).
 //!
 //! Qt 5 sizes some tags itself (#243): `h1` to `h5`, `big`, `small` and
 //! `<font size>` get a fixed multiple of the document's default font, not of
@@ -22,7 +22,8 @@
 use crate::hidden::VOID;
 use crate::images::{Tag, parse_tag, tag_len};
 
-/// The largest font size kept, in px.
+/// The largest font size kept on a phone, in px; a wider pane has more
+/// ([`font_cap_px`]).
 const MAX_PX: f64 = 26.0;
 /// The widest cap, for the widest pane.
 const WIDEST_CAP_PX: u32 = 40;
@@ -323,5 +324,5 @@ fn name_of(s: &str) -> &str {
 /// growing with the pane up to 40, so a heading is no wider (in proportion)
 /// than on the phone (#192). 0 (no width known) gives 26.
 pub fn font_cap_px(width_px: u32) -> u32 {
-    (width_px * MAX_PX as u32 / PHONE_BODY_PX).clamp(MAX_PX as u32, WIDEST_CAP_PX)
+    (width_px.saturating_mul(MAX_PX as u32) / PHONE_BODY_PX).clamp(MAX_PX as u32, WIDEST_CAP_PX)
 }

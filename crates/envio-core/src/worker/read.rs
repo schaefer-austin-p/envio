@@ -186,6 +186,7 @@ pub(crate) fn render_view(
         attachments,
         invite,
         is_draft: false,
+        body_width: width_px,
     };
     (view, rendered.unsized_images, trust.lookups)
 }
@@ -335,7 +336,7 @@ impl Worker<'_> {
         }
     }
 
-    fn unavailable(&self, id: MessageRowId) {
+    pub(super) fn unavailable(&self, id: MessageRowId) {
         self.emit(Event::MessageUnavailable {
             id,
             text: text::read::message_unavailable(),
@@ -541,6 +542,86 @@ mod tests {
             .into_iter()
             .any(|e| matches!(e, Event::MessageUnavailable { id, .. } if id == seeded.message));
         assert!(answered);
+    }
+
+    const REFIT_MAIL: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
+Content-Type: text/html\r\n\r\n<p>Hi</p>";
+
+    /// A refit shows the message again at another width (#192) and is not a
+    /// new open: it does not mark the message read again and keeps the
+    /// lookups that failed and the verdict of this open.
+    #[test]
+    fn a_refit_keeps_the_open_state_and_does_not_mark_read() {
+        use envio_store::Flags;
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker
+            .store
+            .bodies
+            .write(seeded.folder, 1, REFIT_MAIL)
+            .unwrap();
+        worker
+            .store
+            .db
+            .set_body_state(seeded.message, BodyState::Downloaded)
+            .unwrap();
+        worker.open_message(seeded.message, ImagesChoice::Load, 300);
+        assert!(
+            worker
+                .store
+                .db
+                .message(seeded.message)
+                .unwrap()
+                .flags
+                .contains(Flags::SEEN)
+        );
+        // The user marks it unread; a lookup failed; the sender verified.
+        worker
+            .store
+            .db
+            .set_flags(seeded.folder, 1, Flags::default())
+            .unwrap();
+        let shown = worker.store.shown.as_mut().unwrap();
+        shown.failed.insert("k._domainkey.example.org".into());
+        shown.verified = true;
+        sink.0.lock().unwrap().clear();
+
+        worker.refit_message(seeded.message, 500);
+
+        let shown = worker.store.shown.as_ref().unwrap();
+        assert_eq!(shown.choice, (ImagesChoice::Load, 500));
+        assert!(shown.failed.contains("k._domainkey.example.org"));
+        assert!(shown.verified);
+        let seen = worker
+            .store
+            .db
+            .message(seeded.message)
+            .unwrap()
+            .flags
+            .contains(Flags::SEEN);
+        assert!(!seen, "a refit must not mark the message read");
+        let widths: Vec<u32> = sink
+            .events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::MessageOpened { view, .. } => Some(view.body_width),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(widths, [500]);
+    }
+
+    #[test]
+    fn a_refit_of_a_message_that_is_not_open_says_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        sink.0.lock().unwrap().clear();
+        worker.refit_message(seeded.message, 500);
+        assert!(sink.events().is_empty());
     }
 
     const WITH_IMAGE: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\

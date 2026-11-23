@@ -141,6 +141,47 @@ impl Worker<'_> {
         self.show_again(id);
     }
 
+    /// The reader's width changed (#192): renders the shown message `id`
+    /// again for `width_px` and always answers with it (the reader waits for
+    /// the answer). The images choice, the failed lookups and the verdict of
+    /// this open stay, and the message is not marked read.
+    pub(super) fn refit_message(&mut self, id: MessageRowId, width_px: u32) {
+        if self.store.open_message != Some(id) {
+            return;
+        }
+        let Some(shown) = self.store.shown.as_ref().filter(|s| s.id == id) else {
+            // Still opening: the body arrives at the width asked for first.
+            if let Some(choice) = self.opening.get_mut(&id) {
+                choice.1 = width_px;
+            }
+            return;
+        };
+        let choice = (shown.choice.0, width_px);
+        let Ok(message) = self.store.db.message(id) else {
+            return self.unavailable(id);
+        };
+        if message.body == BodyState::Missing {
+            return self.unavailable(id);
+        }
+        let raw = match self.store.bodies.read(message.folder, message.uid) {
+            Ok(raw) => raw,
+            Err(e) => {
+                log::warn!("reading a cached body: {e}");
+                return self.unavailable(id);
+            }
+        };
+        let (view, open_images, lookups) = self.view(&message, &raw, choice);
+        if let Some(shown) = self.store.shown.as_mut() {
+            shown.choice = choice;
+            shown.verified = view.header.sender_verified;
+            shown.html.clone_from(&view.html);
+            shown.header.clone_from(&view.header);
+            shown.open_images = open_images;
+        }
+        self.emit(Event::MessageOpened { id, view });
+        self.request_keys(id, lookups);
+    }
+
     /// Renders message `id` again from its cached body and sends it when
     /// its HTML or its header changed (a size cap, a key that verified the
     /// sender). It is not marked read again.
