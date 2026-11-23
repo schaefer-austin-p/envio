@@ -126,6 +126,33 @@ fn an_explicit_pick_wins_over_the_default() {
 }
 
 #[test]
+fn manual_connect_with_only_the_graph_provider_is_refused_as_before() {
+    use envio_core::{AccountSetup, ConnectRequest, ServerAddr};
+    let h = core(&[ProviderKind::MicrosoftGraph]);
+    let addr = ServerAddr {
+        host: "127.0.0.1".into(),
+        port: 1,
+        security: envio_net::Security::Tls,
+    };
+    let email = "ann@outlook.com";
+    h.send(Command::Connect(Box::new(ConnectRequest {
+        setup: AccountSetup {
+            name: "Ann".into(),
+            email: email.into(),
+            username: email.into(),
+            imap: addr.clone(),
+            smtp: addr,
+            source: None,
+            needs_confirm: false,
+        },
+        password: secrecy::SecretString::from("hunter2".to_owned()),
+        servers_confirmed: true,
+        accepted: vec![],
+    })));
+    h.wait(|e| matches!(e, Event::SetupRefused { email: who, .. } if who == email).then_some(()));
+}
+
+#[test]
 fn only_the_graph_provider_does_not_refuse_a_consumer_address() {
     let h = core(&[ProviderKind::MicrosoftGraph]);
     let offer = detect(&h, "ann@outlook.com");

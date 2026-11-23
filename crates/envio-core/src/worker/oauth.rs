@@ -4,7 +4,7 @@
 
 use envio_net::oauth::{
     Identity, Pkce, Provider, ProviderKind, RedirectError, TokenError, Tokens, authorize_url,
-    identity_matches, parse_redirect,
+    identity_matches, parse_redirect, provider_kind_for,
 };
 use envio_store::{AccountSettings, BackendKind};
 use secrecy::SecretString;
@@ -167,9 +167,11 @@ impl Worker<'_> {
     /// A Microsoft address with no Microsoft provider set up (sign-in is off
     /// until #382, or the build has no client ID): refused before any
     /// lookup, since autoconfig would only lead to a password that Microsoft
-    /// does not take. `false`: not a Microsoft address, or sign-in is on.
+    /// does not take. `false`: not a Microsoft address, or sign-in is on. Gates on
+    /// the IMAP kind even where Graph is the default (#384): manual `Connect`
+    /// behaves as before.
     pub(crate) fn refuse_microsoft(&mut self, email: &str) -> bool {
-        let Some(kind) = self.default_kind(email) else {
+        let Some(kind) = provider_kind_for(email) else {
             return false;
         };
         if self.provider_of(kind).is_some() {

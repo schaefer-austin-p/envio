@@ -171,6 +171,7 @@ fn consumer_domains_are_the_narrow_list_never_work_domains() {
         "a@example.org",
         "a@live.org",
         "a@hotmail.biz",
+        "a@ outlook.com",
         "not an address",
     ] {
         assert!(!is_consumer_domain(no), "{no}");

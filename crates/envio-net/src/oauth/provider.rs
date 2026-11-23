@@ -103,7 +103,7 @@ pub fn is_consumer_domain(email: &str) -> bool {
 /// everything else. Case-insensitive, a trailing dot is ignored. The one
 /// copy of the list: #342's eligibility and the Graph default (#384) use it.
 pub fn consumer_microsoft_domain(domain: &str) -> bool {
-    consumer_domain(&domain.trim().trim_end_matches('.').to_ascii_lowercase())
+    consumer_domain(&domain.trim_end_matches('.').to_ascii_lowercase())
 }
 
 fn microsoft_domain(d: &str) -> bool {
