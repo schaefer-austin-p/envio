@@ -875,7 +875,7 @@ Item {
         objectName: "sentToast"
         theme: root.theme
         z: 5
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.frameInset + root.theme.gu(2) }
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.theme.frameInset + root.theme.toastBottomMargin }
     }
 
     Connections {

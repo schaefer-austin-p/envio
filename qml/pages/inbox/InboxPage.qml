@@ -242,14 +242,14 @@ Item {
         id: undoToast
         objectName: "undoToast"
         theme: root.theme
-        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: footer.top; bottomMargin: root.theme.toastBottomMargin }
         onActionTriggered: root.core.undo(root.undoId)
     }
     Toast {
         id: noticeToast
         objectName: "noticeToast"
         theme: root.theme
-        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: footer.top; bottomMargin: root.theme.toastBottomMargin }
     }
 
     FoldersDrawer {

@@ -131,24 +131,28 @@ Control {
                        "secondary": "#5A5D62", "hairline": "#DAD7CE", "field": "#C9C6BD", "accent": "#B8342C",
                        "primary": "#1E2A38", "primaryText": "#F8F6F1", "tintA": "#F4E3E1", "tintB": "#E3E6EA",
                        "selected": "#ECE9E1", "hover": "#F3F1EA", "scrim": Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.45),
-                       "chevron": "#5A5D62", "chevronBlue": "#5A5D62" },
+                       "chevron": "#5A5D62", "chevronBlue": "#5A5D62",
+                       "toastShadow": Qt.rgba(30 / 255, 42 / 255, 56 / 255, 0.3) },
             "dark":  { "ground": "#15181D", "surface": "#1F242B", "text": "#E8E5DE", "heading": "#E8E5DE",
                        "secondary": "#A2A5AA", "hairline": "#2E343C", "field": "#3A4049", "accent": "#E36A60",
                        "primary": "#E8E5DE", "primaryText": "#15181D", "tintA": "#3A2526", "tintB": "#26303B",
                        "selected": "#232932", "hover": "#1B2027", "scrim": Qt.rgba(0, 0, 0, 0.55),
-                       "chevron": "#A2A5AA", "chevronBlue": "#A2A5AA" }
+                       "chevron": "#A2A5AA", "chevronBlue": "#A2A5AA",
+                       "toastShadow": Qt.rgba(0, 0, 0, 0.5) }
         },
         "airmail": {
             "light": { "ground": "#FBF8F1", "surface": "#FFFFFF", "text": "#22303F", "heading": "#1F3A5F",
                        "secondary": "#5D6A78", "hairline": "#DDD5C4", "field": "#CFC6B1", "accent": "#B23A33",
                        "primary": "#1F3A5F", "primaryText": "#FBF8F1", "tintA": "#F3E2DF", "tintB": "#E0E7F0",
                        "selected": "#F1EADB", "hover": "#F7F2E8", "scrim": Qt.rgba(34 / 255, 48 / 255, 63 / 255, 0.45),
-                       "chevron": "#B23A33", "chevronBlue": "#1F3A5F" },
+                       "chevron": "#B23A33", "chevronBlue": "#1F3A5F",
+                       "toastShadow": Qt.rgba(34 / 255, 48 / 255, 63 / 255, 0.3) },
             "dark":  { "ground": "#141C27", "surface": "#1C2633", "text": "#ECE5D6", "heading": "#A9C1E3",
                        "secondary": "#A3AEBB", "hairline": "#2C3747", "field": "#3A475A", "accent": "#E58C84",
                        "primary": "#A9C1E3", "primaryText": "#141C27", "tintA": "#3A2427", "tintB": "#1F2D42",
                        "selected": "#1F2A38", "hover": "#18222E", "scrim": Qt.rgba(0, 0, 0, 0.55),
-                       "chevron": "#C4473F", "chevronBlue": "#5B7FB3" }
+                       "chevron": "#C4473F", "chevronBlue": "#5B7FB3",
+                       "toastShadow": Qt.rgba(0, 0, 0, 0.5) }
         }
     })
     readonly property var current: roles[airmail ? "airmail" : "carbon"][dark ? "dark" : "light"]
@@ -174,6 +178,17 @@ Control {
     readonly property color paperLink: airmail ? roles.airmail.light.heading : roles.carbon.light.accent
     readonly property color primary: current.primary
     readonly property color primaryText: current.primaryText
+    // The toast pill (carbon-two-pane board: #1E2A38 on #F8F6F1, shadow
+    // 0 6px 20px rgba(30,42,56,.3)). The reading boards' inline toast uses
+    // the same fill and text, so both looks and modes take the inverted
+    // primary roles; only the shadow has its own role.
+    readonly property color toastFill: primary
+    readonly property color toastText: primaryText
+    readonly property color toastShadow: current.toastShadow
+    // The board's 28 px from the window's bottom edge.
+    readonly property real toastBottomMargin: gu(3.5)
+    // Carbon: the board's 8 px; Airmail rounds the pill fully (height / 2).
+    readonly property real toastRadius: gu(1)
     readonly property color tintA: current.tintA
     readonly property color tintB: current.tintB
     readonly property color selected: current.selected

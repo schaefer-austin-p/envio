@@ -1258,6 +1258,8 @@ Item {
             const toast = findByName(b.shell, "sentToast")
             verify(toast !== null)
             compare(toast.text, qsTr("Draft saved"))
+            compare(toast.parent.mapFromItem(toast, toast.width / 2, 0).x, toast.parent.width / 2, "centred")
+            verify(toast.width < toast.parent.width / 2, "a pill, not a bar")
             b.shell.destroy()
         }
 

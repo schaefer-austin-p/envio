@@ -440,7 +440,7 @@ Item {
         id: toast
         objectName: "composeToast"
         theme: root.theme
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.gu(2) }
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.theme.toastBottomMargin }
     }
 
     DiscardActions {
