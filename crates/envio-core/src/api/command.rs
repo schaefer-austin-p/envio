@@ -158,7 +158,12 @@ pub enum Command {
     /// The app came to the foreground (`true`) or went to the background.
     AppActive(bool),
     /// Sync now: one account, or all. Ends an Offline wait.
-    Refresh { account: Option<String> },
+    /// `ticket` is the app's own number for this refresh, answered by the
+    /// `Refreshed` that ends it (0: nobody waits for it).
+    Refresh {
+        account: Option<String>,
+        ticket: u64,
+    },
     /// Look up the servers for an address (only its domain leaves the phone).
     Detect { email: String },
     /// Check the servers and password, then add the account.

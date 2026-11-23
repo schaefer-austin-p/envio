@@ -149,7 +149,7 @@ pub(crate) struct Worker<'s> {
     reset_pending: BTreeSet<FolderId>,
     /// The refreshes still open: each holds the accounts it waits for
     /// (see `refresh::settle_refreshes`).
-    refreshes: Vec<BTreeSet<String>>,
+    refreshes: Vec<(u64, BTreeSet<String>)>,
     /// The row ids of local drafts shown as pseudo-rows in Drafts lists.
     local_ids: RefCell<local_rows::LocalIds>,
     /// The local-only Drafts entries of accounts with no Drafts folder.

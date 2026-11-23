@@ -274,7 +274,7 @@ fn a_reset_that_clears_the_wants_ends_the_refresh_waiting_on_them() {
         live.next_full_ms = i64::MAX;
         worker
             .refreshes
-            .push(std::iter::once(seeded.account.clone()).collect());
+            .push((7, std::iter::once(seeded.account.clone()).collect()));
         worker.settle_refreshes();
         let before = sink.events().len();
         runtime.block_on(worker.pick_for(&seeded.account, now_ms(), false));
@@ -284,7 +284,7 @@ fn a_reset_that_clears_the_wants_ends_the_refresh_waiting_on_them() {
         (
             events[before..]
                 .iter()
-                .filter(|e| matches!(e, crate::api::event::Event::Refreshed))
+                .filter(|e| matches!(e, crate::api::event::Event::Refreshed { ticket: 7 }))
                 .count(),
             left,
         )

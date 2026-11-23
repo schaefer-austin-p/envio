@@ -15,17 +15,19 @@ use super::Worker;
 use super::plan::Wants;
 
 /// Whether an account still has a refresh's sync ahead of it: it wants the
-/// full pass or some folder, and is neither paused nor waiting out a retry.
+/// full pass, some folder or the Drafts upload, and is neither paused nor waiting out a retry.
 /// The connection is not an input: an account in IDLE with `full` set leaves
 /// IDLE and syncs.
 pub(super) fn refresh_pending(wants: &Wants, health: &Health, now_ms: i64) -> bool {
-    (wants.full || !wants.folders.is_empty()) && !health.is_paused() && health.can_run(now_ms)
+    (wants.full || !wants.folders.is_empty() || wants.drafts)
+        && !health.is_paused()
+        && health.can_run(now_ms)
 }
 
 impl Worker<'_> {
     /// A refresh of `accounts` was asked for: opens its ack, holding those
     /// of them that are pending now.
-    pub(super) fn open_refresh(&mut self, accounts: &[String]) {
+    pub(super) fn open_refresh(&mut self, accounts: &[String], ticket: u64) {
         let now = now_ms();
         let waiting = accounts
             .iter()
@@ -36,7 +38,7 @@ impl Worker<'_> {
             })
             .cloned()
             .collect();
-        self.refreshes.push(waiting);
+        self.refreshes.push((ticket, waiting));
     }
 
     /// Closes the open refreshes that nothing waits for, one `Refreshed`
@@ -54,22 +56,22 @@ impl Worker<'_> {
             live.get(key)
                 .is_some_and(|l| refresh_pending(&l.wants, &l.health, now))
         };
-        let mut done = 0;
-        let open: Vec<BTreeSet<String>> = std::mem::take(&mut self.refreshes)
+        let mut done = Vec::new();
+        let open: Vec<(u64, BTreeSet<String>)> = std::mem::take(&mut self.refreshes)
             .into_iter()
-            .filter_map(|mut set| {
+            .filter_map(|(ticket, mut set)| {
                 set.retain(&still);
                 if set.is_empty() {
-                    done += 1;
+                    done.push(ticket);
                     None
                 } else {
-                    Some(set)
+                    Some((ticket, set))
                 }
             })
             .collect();
         self.refreshes = open;
-        for _ in 0..done {
-            self.emit(Event::Refreshed);
+        for ticket in done {
+            self.emit(Event::Refreshed { ticket });
         }
     }
 }

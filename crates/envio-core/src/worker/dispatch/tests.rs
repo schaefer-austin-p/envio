@@ -31,7 +31,7 @@ fn refresh(w: &mut Worker<'_>, account: Option<String>) {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .build()
         .unwrap();
-    runtime.block_on(handle(w, Command::Refresh { account }, 0));
+    runtime.block_on(handle(w, Command::Refresh { account, ticket: 0 }, 0));
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn a_foreground_resume_leaves_the_wait() {
     let sink = Sink::default();
     let mut w = open(&config, &sink);
     let id = waiting_draft(&w, &seeded.account);
-    w.refresh(None);
-    w.refresh(Some(&seeded.account));
+    w.refresh(None, 0);
+    w.refresh(Some(&seeded.account), 0);
     assert_eq!(failed_at(&w, &id), 9_000);
 }

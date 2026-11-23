@@ -73,7 +73,7 @@ fn what_is_pending_wants_a_sync_and_can_run() {
 fn refreshed(sink: &Sink) -> usize {
     sink.events()
         .iter()
-        .filter(|e| matches!(e, Event::Refreshed))
+        .filter(|e| matches!(e, Event::Refreshed { .. }))
         .count()
 }
 
@@ -83,12 +83,12 @@ fn no_account_in_scope_acks_at_once() {
     let (config, _) = seed(dir.path());
     let sink = Sink::default();
     let mut w = open(&config, &sink);
-    w.refresh(Some("nobody"));
+    w.refresh(Some("nobody"), 0);
     assert_eq!(refreshed(&sink), 0, "not before the turn settles");
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 1);
     w.live.clear();
-    w.refresh(None);
+    w.refresh(None, 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 2, "no accounts at all");
 }
@@ -100,7 +100,7 @@ fn a_paused_account_acks_at_once() {
     let sink = Sink::default();
     let mut w = open(&config, &sink);
     w.live.get_mut(&seeded.account).unwrap().health.status = AccountStatus::SignInFailed;
-    w.refresh(Some(&seeded.account));
+    w.refresh(Some(&seeded.account), 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 1);
 }
@@ -115,7 +115,7 @@ fn an_offline_account_is_resumed_and_waits_for_its_pass() {
     live.health.status = AccountStatus::Offline {
         retry_at_ms: i64::MAX,
     };
-    w.refresh(Some(&seeded.account));
+    w.refresh(Some(&seeded.account), 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 0);
 }
@@ -126,7 +126,7 @@ fn a_pending_account_acks_once_when_its_pass_ends() {
     let (config, seeded) = seed(dir.path());
     let sink = Sink::default();
     let mut w = open(&config, &sink);
-    w.refresh(Some(&seeded.account));
+    w.refresh(Some(&seeded.account), 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 0, "the pass has not run");
     // What `finished` does at the end of a pass.
@@ -142,8 +142,8 @@ fn every_refresh_gets_its_own_ack() {
     let (config, seeded) = seed(dir.path());
     let sink = Sink::default();
     let mut w = open(&config, &sink);
-    w.refresh(Some(&seeded.account));
-    w.refresh(None);
+    w.refresh(Some(&seeded.account), 0);
+    w.refresh(None, 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 0);
     w.live.get_mut(&seeded.account).unwrap().wants.full = false;
@@ -160,7 +160,7 @@ fn a_refresh_waits_for_every_account_it_asked_for() {
     let other = add_account(&mut w, "other", 0);
     w.live
         .insert(other.clone(), crate::worker::conn::Live::new());
-    w.refresh(None);
+    w.refresh(None, 0);
     w.live.get_mut(&seeded.account).unwrap().wants.full = false;
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 0, "the other still syncs");
@@ -178,7 +178,7 @@ fn a_connect_failure_with_the_full_pass_pending_acks() {
     w.foreground = true;
     let (_keep, mut rx) = unbounded_channel::<Input>();
     w.live.get_mut(&seeded.account).unwrap().next_full_ms = i64::MAX;
-    w.refresh(Some(&seeded.account));
+    w.refresh(Some(&seeded.account), 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -207,11 +207,47 @@ fn an_account_removed_mid_pass_acks() {
     let (config, seeded) = seed(dir.path());
     let sink = Sink::default();
     let mut w = open(&config, &sink);
-    w.refresh(Some(&seeded.account));
+    w.refresh(Some(&seeded.account), 0);
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 0);
     w.remove_account(&seeded.account, true);
     assert!(!w.live.contains_key(&seeded.account));
     w.settle_refreshes();
     assert_eq!(refreshed(&sink), 1);
+}
+
+#[test]
+fn the_drafts_upload_is_a_pending_sync() {
+    let now = 1_000;
+    let drafts = Wants {
+        drafts: true,
+        ..Wants::default()
+    };
+    assert!(refresh_pending(&drafts, &health(AccountStatus::Ready), now));
+    assert!(!refresh_pending(
+        &Wants::default(),
+        &health(AccountStatus::Ready),
+        now
+    ));
+}
+
+#[test]
+fn the_ack_carries_the_ticket_of_its_refresh() {
+    let dir = tempfile::tempdir().unwrap();
+    let (config, seeded) = seed(dir.path());
+    let sink = Sink::default();
+    let mut w = open(&config, &sink);
+    w.refresh(Some(&seeded.account), 3);
+    w.refresh(Some(&seeded.account), 4);
+    w.live.get_mut(&seeded.account).unwrap().wants.full = false;
+    w.settle_refreshes();
+    let tickets: Vec<u64> = sink
+        .events()
+        .iter()
+        .filter_map(|e| match e {
+            Event::Refreshed { ticket } => Some(*ticket),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tickets, vec![3, 4]);
 }

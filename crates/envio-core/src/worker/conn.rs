@@ -514,11 +514,11 @@ impl Worker<'_> {
             live.conn = Conn::Closed;
             live.idle_synced_first = false;
         }
-        self.refresh(None);
+        self.refresh(None, 0);
     }
 
     /// Sync now; an Offline wait ends.
-    pub(crate) fn refresh(&mut self, account: Option<&str>) {
+    pub(crate) fn refresh(&mut self, account: Option<&str>, ticket: u64) {
         let accounts: Vec<String> = match account {
             Some(key) => vec![key.to_owned()],
             None => self.live.keys().cloned().collect(),
@@ -533,7 +533,7 @@ impl Worker<'_> {
             }
             self.report(account, &before);
         }
-        self.open_refresh(&accounts);
+        self.open_refresh(&accounts, ticket);
     }
 }
 
