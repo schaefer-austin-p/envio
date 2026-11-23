@@ -11,6 +11,18 @@ use crate::convert as cv;
 use crate::core_object::qobject;
 
 impl qobject::EnvioCore {
+    pub fn list_pane_min_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_MIN_GU).unwrap_or(i32::MAX)
+    }
+
+    pub fn list_pane_max_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_MAX_GU).unwrap_or(i32::MAX)
+    }
+
+    pub fn list_pane_default_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_DEFAULT_GU).unwrap_or(i32::MAX)
+    }
+
     #[allow(clippy::too_many_arguments)] // the QML signature
     pub fn save_settings(
         self: Pin<&mut Self>,
@@ -62,5 +74,13 @@ impl qobject::EnvioCore {
     /// "Show sender and subject" in new-mail notifications.
     pub fn set_notify_text(self: Pin<&mut Self>, on: bool) {
         self.send_command(Command::SetNotifyText { on });
+    }
+
+    /// The list pane's width in grid units, from the splitter; the core
+    /// clamps it and saves it.
+    pub fn set_list_pane(self: Pin<&mut Self>, gu: i32) {
+        self.send_command(Command::SetListPane {
+            gu: u32::try_from(gu).unwrap_or(0),
+        });
     }
 }

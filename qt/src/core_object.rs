@@ -41,6 +41,7 @@ pub mod qobject {
         #[qproperty(i32, older_row, cxx_name = "olderRow")]
         #[qproperty(i32, sync_days, cxx_name = "syncDays")]
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
+        #[qproperty(i32, list_pane_gu, cxx_name = "listPaneGu")]
         // Read-only: `setOpenMessage` below is the (invokable) way to set it.
         #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
         // Read-only: `stepFocus` below moves it (keyboard focus row, 0 for none).
@@ -69,6 +70,11 @@ pub mod qobject {
     extern "RustQt" {
         #[qsignal]
         fn notice(self: Pin<&mut EnvioCore>, text: &QString);
+        /// Every settings echo from the core, changed or not (a failed save
+        /// echoes the old values): what edits in flight are dropped on.
+        #[qsignal]
+        #[cxx_name = "settingsEchoed"]
+        fn settings_echoed(self: Pin<&mut EnvioCore>);
         #[qsignal]
         #[cxx_name = "storeProblem"]
         fn store_problem(self: Pin<&mut EnvioCore>, text: &QString);
@@ -332,6 +338,19 @@ pub mod qobject {
         #[cxx_name = "setNotifyText"]
         fn set_notify_text(self: Pin<&mut EnvioCore>, on: bool);
         #[qinvokable]
+        #[cxx_name = "setListPane"]
+        fn set_list_pane(self: Pin<&mut EnvioCore>, gu: i32);
+        /// The splitter's bounds and default in gu (the store's constants).
+        #[qinvokable]
+        #[cxx_name = "listPaneMinGu"]
+        fn list_pane_min_gu(self: &EnvioCore) -> i32;
+        #[qinvokable]
+        #[cxx_name = "listPaneMaxGu"]
+        fn list_pane_max_gu(self: &EnvioCore) -> i32;
+        #[qinvokable]
+        #[cxx_name = "listPaneDefaultGu"]
+        fn list_pane_default_gu(self: &EnvioCore) -> i32;
+        #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]
         #[cxx_name = "setOpenMessage"]
@@ -473,6 +492,8 @@ pub struct EnvioCoreRust {
     pub(crate) sync_days: i32,
     /// "Show sender and subject" in new-mail notifications.
     pub(crate) notify_show_text: bool,
+    /// The two-pane layout's list width in grid units (the splitter).
+    pub(crate) list_pane_gu: i32,
     /// The message the reader shows; 0 for none (`Ui::open_message`).
     pub(crate) open_message: i64,
     /// The keyboard-focus row; 0 for none (`Ui::focus_message`).

@@ -4,6 +4,7 @@ import QtQml 2.15
 import "../platform"
 import "../components"
 import "../bindle/Platform" as Platform
+import "../bindle/Behaviours"
 import "accounts"
 import "compose"
 import "inbox"
@@ -117,7 +118,20 @@ Item {
     // the window: a binding would squeeze a compose in the pane for a moment
     // before it is moved, and the text would re-wrap and scroll (#332).
     property real paneWidth: 0
-    function layoutPane() { paneWidth = Math.max(0, frame.area.width - theme.gu(50) - drawerWidth) }
+    // Clears only on a real mouse move with no finger down, away from the
+    // last touch: a touch drag's synthesized mouse moves do not (#397).
+    TouchSafeHover { id: touchSafe }
+    function layoutPane() { paneWidth = Math.max(0, frame.area.width - listWidth - drawerWidth) }
+
+    // The list pane's width (the splitter, #192): the splitter owns what is
+    // shown (the saved width or the live drag, held to the bounds the core
+    // gives and to what the window leaves: the reader keeps 40 gu). Narrowing
+    // the window only clamps what is shown; the saved width is never
+    // rewritten, so widening brings it back.
+    readonly property int readerMinGu: 40
+    readonly property real listGu: splitter.shownGu
+    readonly property real listWidth: splitter.shownWidth
+    onListWidthChanged: layoutPane()
     onWidthChanged: checkWide()
     onThemeChanged: checkWide()
     Connections {
@@ -502,7 +516,7 @@ Item {
             // Beside the pane the stack is the list's 50 gu and ends at the
             // hairline; pages above the inbox hide the pane and get it all.
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left; leftMargin: inlineDrawer.visible ? inlineDrawer.width : 0 }
-            width: pane.visible ? root.theme.gu(50) : parent.width - anchors.leftMargin
+            width: pane.visible ? root.listWidth : parent.width - anchors.leftMargin
             clip: pane.visible
             readonly property int enterMs: 150
             readonly property int enterShift: 24
@@ -560,11 +574,21 @@ Item {
         Rectangle {
             objectName: "paneHairline"
             visible: pane.visible
-            x: root.drawerWidth + root.theme.gu(50)
+            x: root.drawerWidth + root.listWidth
             width: 1
             height: parent.height
             color: root.theme.hairline
             z: 1
+        }
+        ListSplitter {
+            id: splitter
+            theme: root.theme
+            core: root.core
+            room: frame.area.width / root.theme.gu(1) - root.drawerWidth / root.theme.gu(1) - root.readerMinGu
+            leftEdge: root.drawerWidth
+            active: root.wide && pane.visible
+            touchSeen: touchSafe.touched
+            height: parent.height
         }
         // The right pane of the wide layout, beside the inbox at the root.
         // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
@@ -615,7 +639,7 @@ Item {
             id: inboxRoot
             // The list pane when wide, else the whole page (the stack does
             // not resize an item that sets its own size).
-            width: root.wide ? root.theme.gu(50) : stack.width
+            width: root.wide ? root.listWidth : stack.width
             height: stack.height
             theme: root.theme
             core: root.core

@@ -297,6 +297,8 @@ impl qobject::EnvioCore {
         self.as_mut()
             .set_notify_show_text(settings.notify_show_text);
         self.as_mut()
+            .set_list_pane_gu(i32::try_from(settings.list_pane_gu).unwrap_or(50));
+        self.as_mut()
             .set_images_always(settings.images == envio_core::ImagesDefault::Always);
         self.as_mut().set_default_account(QString::from(
             settings.default_account.as_deref().unwrap_or(""),
@@ -307,6 +309,7 @@ impl qobject::EnvioCore {
         }
         self.as_mut().set_allowed_senders(senders);
         self.as_mut().rust_mut().settings = settings;
+        self.settings_echoed();
     }
 }
 

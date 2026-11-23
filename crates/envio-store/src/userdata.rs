@@ -62,6 +62,25 @@ pub struct Settings {
     pub notify_off: BTreeSet<String>,
     /// Whether a card for one new message shows its sender and subject.
     pub notify_show_text: bool,
+    /// The list pane's width in grid units in the two-pane layout; read
+    /// values snap into `LIST_PANE_MIN_GU..=LIST_PANE_MAX_GU`.
+    #[serde(deserialize_with = "clamp_list_pane")]
+    pub list_pane_gu: u32,
+}
+
+/// The list pane's default, smallest and largest width in grid units.
+pub const LIST_PANE_DEFAULT_GU: u32 = 50;
+pub const LIST_PANE_MIN_GU: u32 = 36;
+pub const LIST_PANE_MAX_GU: u32 = 70;
+
+/// `gu` limited to what the splitter allows.
+pub fn clamp_list_pane_gu(gu: i64) -> u32 {
+    gu.clamp(LIST_PANE_MIN_GU.into(), LIST_PANE_MAX_GU.into()) as u32
+}
+
+fn clamp_list_pane<'de, D: serde::Deserializer<'de>>(de: D) -> std::result::Result<u32, D::Error> {
+    // Like the sync window: an odd number is snapped, a wrong type is not.
+    Ok(clamp_list_pane_gu(i64::deserialize(de)?))
 }
 
 impl Default for Settings {
@@ -76,6 +95,7 @@ impl Default for Settings {
             sync_window_days: thirty(),
             notify_off: BTreeSet::new(),
             notify_show_text: false,
+            list_pane_gu: LIST_PANE_DEFAULT_GU,
         }
     }
 }
@@ -222,6 +242,24 @@ mod tests {
         let settings = load_settings(&path).unwrap();
         assert!(settings.notify_off.is_empty());
         assert!(!settings.notify_show_text);
+    }
+
+    #[test]
+    fn list_pane_width_defaults_clamps_and_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, r#"{"version": 1}"#).unwrap();
+        assert_eq!(load_settings(&path).unwrap().list_pane_gu, 50);
+        fs::write(&path, r#"{"version": 1, "list_pane_gu": 5}"#).unwrap();
+        assert_eq!(load_settings(&path).unwrap().list_pane_gu, 36);
+        fs::write(&path, r#"{"version": 1, "list_pane_gu": 900}"#).unwrap();
+        assert_eq!(load_settings(&path).unwrap().list_pane_gu, 70);
+        let settings = Settings {
+            list_pane_gu: 61,
+            ..Settings::default()
+        };
+        save_settings(&path, &settings).unwrap();
+        assert_eq!(load_settings(&path).unwrap().list_pane_gu, 61);
     }
 
     #[test]

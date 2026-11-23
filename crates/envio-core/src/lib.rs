@@ -51,8 +51,8 @@ pub use api::view::{
 pub use core::{Config, Core, EventSink, default_oauth_providers, microsoft_sign_in_offered};
 pub use envio_net::oauth::ProviderKind;
 pub use envio_store::{
-    Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, ListRef, MessageRowId,
-    PAGE, Settings, ThemeName,
+    Contact, Cursor, DarkMode, Flags, FolderId, FolderRole, ImagesDefault, LIST_PANE_DEFAULT_GU,
+    LIST_PANE_MAX_GU, LIST_PANE_MIN_GU, ListRef, MessageRowId, PAGE, Settings, ThemeName,
 };
 pub use health::AccountStatus;
 pub use known::app_password_setup;

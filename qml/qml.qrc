@@ -100,6 +100,7 @@
         <file>components/RadioRow.qml</file>
         <file>components/Sheet.qml</file>
         <file>components/TextBlock.qml</file>
+        <file>components/ListSplitter.qml</file>
         <file>components/Toast.qml</file>
         <file>components/Toggle.qml</file>
         <file>components/TopBar.qml</file>

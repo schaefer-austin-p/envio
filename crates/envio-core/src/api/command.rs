@@ -314,7 +314,7 @@ pub enum Command {
     /// Save the settings except the allowed image senders and the
     /// notification switches, which the worker keeps as they are (they
     /// change only by `AllowImagesFrom`, `DisallowImagesFrom`, `SetNotify`
-    /// and `SetNotifyText`); the answer is `Settings`.
+    /// `SetNotifyText` and `SetListPane`); the answer is `Settings`.
     SaveSettings(Settings),
     /// Turn one account's new-mail notifications on or off. Applied to the
     /// worker's own settings, so toggles never overwrite one another; the
@@ -323,6 +323,10 @@ pub enum Command {
     /// Show the sender and subject in new-mail notifications, or not; the
     /// answer is `Settings`.
     SetNotifyText { on: bool },
+    /// The list pane's width in grid units (the splitter); clamped to the
+    /// allowed range. Applied to the worker's own settings; the answer is
+    /// `Settings`.
+    SetListPane { gu: u32 },
     /// Always load remote images from this sender. Open the message again
     /// to see them.
     AllowImagesFrom { address: String },
@@ -383,6 +387,7 @@ impl Command {
             Self::SaveSettings(_) => "SaveSettings",
             Self::SetNotify { .. } => "SetNotify",
             Self::SetNotifyText { .. } => "SetNotifyText",
+            Self::SetListPane { .. } => "SetListPane",
             Self::AllowImagesFrom { .. } => "AllowImagesFrom",
             Self::DisallowImagesFrom { .. } => "DisallowImagesFrom",
             #[cfg(feature = "test-hooks")]

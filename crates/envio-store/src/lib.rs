@@ -53,6 +53,7 @@ pub use rebuild::{Opened, open_or_rebuild};
 pub use refusal::RefusalKind;
 pub use search::{BODY_INDEX_BYTES, Within};
 pub use userdata::{
-    Contact, DarkMode, ImagesDefault, Settings, ThemeName, load_contacts, load_settings,
-    save_contacts, save_settings,
+    Contact, DarkMode, ImagesDefault, LIST_PANE_DEFAULT_GU, LIST_PANE_MAX_GU, LIST_PANE_MIN_GU,
+    Settings, ThemeName, clamp_list_pane_gu, load_contacts, load_settings, save_contacts,
+    save_settings,
 };
