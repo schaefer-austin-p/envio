@@ -70,6 +70,11 @@ pub mod qobject {
     extern "RustQt" {
         #[qsignal]
         fn notice(self: Pin<&mut EnvioCore>, text: &QString);
+        /// Every settings echo from the core, changed or not (a failed save
+        /// echoes the old values): what edits in flight are dropped on.
+        #[qsignal]
+        #[cxx_name = "settingsEchoed"]
+        fn settings_echoed(self: Pin<&mut EnvioCore>);
         #[qsignal]
         #[cxx_name = "storeProblem"]
         fn store_problem(self: Pin<&mut EnvioCore>, text: &QString);
@@ -332,6 +337,16 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "setListPane"]
         fn set_list_pane(self: Pin<&mut EnvioCore>, gu: i32);
+        /// The splitter's bounds and default in gu (the store's constants).
+        #[qinvokable]
+        #[cxx_name = "listPaneMinGu"]
+        fn list_pane_min_gu(self: &EnvioCore) -> i32;
+        #[qinvokable]
+        #[cxx_name = "listPaneMaxGu"]
+        fn list_pane_max_gu(self: &EnvioCore) -> i32;
+        #[qinvokable]
+        #[cxx_name = "listPaneDefaultGu"]
+        fn list_pane_default_gu(self: &EnvioCore) -> i32;
         #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]

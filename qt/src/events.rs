@@ -304,6 +304,7 @@ impl qobject::EnvioCore {
         }
         self.as_mut().set_allowed_senders(senders);
         self.as_mut().rust_mut().settings = settings;
+        self.settings_echoed();
     }
 }
 

@@ -57,6 +57,7 @@ Item {
     function called(name) { return calls.filter(function(c) { return c.name === name }) }
     function reset() { calls = [] }
 
+    signal settingsEchoed()
     signal notice(string text)
     signal storeProblem(string text)
     signal workerRestarted(string text)
@@ -138,7 +139,19 @@ Item {
     function setSyncWindow(days) { record("setSyncWindow", [days]) }
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
-    function setListPane(gu) { record("setListPane", [gu]); listPaneGu = gu }
+    // The list pane's bounds and default in gu (the store's constants).
+    property var paneLimits: [36, 70, 50]
+    function listPaneMinGu() { return paneLimits[0] }
+    function listPaneMaxGu() { return paneLimits[1] }
+    function listPaneDefaultGu() { return paneLimits[2] }
+    // The real core echoes the settings after every save; a test sets
+    // `autoEcho` false to deliver the echo itself with `echoSettings`.
+    property bool autoEcho: true
+    function setListPane(gu) {
+        record("setListPane", [gu])
+        if (autoEcho) echoSettings(gu)
+    }
+    function echoSettings(gu) { listPaneGu = gu; settingsEchoed() }
     function select(id, on) { record("select", [id, on]) }
     function stepFocus(delta) {
         record("stepFocus", [delta])

@@ -40,8 +40,9 @@ Item {
         }
         // A booted shell of the given width (gu); the saved list width is
         // `saved` gu (0: the settings have not arrived).
-        function bootWide(gu, saved) {
+        function bootWide(gu, saved, limits) {
             const c = coreComponent.createObject(root)
+            if (limits) c.paneLimits = limits
             c.accounts.append(ann)
             c.listPaneGu = saved
             const s = shellComponent.createObject(root, {
@@ -177,6 +178,128 @@ Item {
             compare(lineX(b), thm.gu(52))
             tryVerify(function() { return b.core.called("setListPane").length === 1 })
             compare(b.core.called("setListPane")[0].args[0], 52)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        // A touch on the window (the finger is not on the strip).
+        function touchTap(x, y) {
+            const t = touchEvent(root)
+            t.press(0, root, x, y).commit()
+            t.release(0, root, x, y).commit()
+        }
+
+        function test_a_touch_widens_the_strip_and_shows_the_grip_a_mouse_move_undoes() {
+            const b = bootWide(130, 60)
+            const h = find(b.shell, "splitter")
+            const grip = find(h, "splitterGrip")
+            compare(h.width, thm.gu(1))
+            compare(grip.visible, false)
+            touchTap(20, 4)
+            compare(h.width, thm.gu(3))
+            compare(grip.visible, true)
+            mouseMove(root, 120, 300)
+            mouseMove(root, 130, 300)
+            tryCompare(h, "width", thm.gu(1))
+            compare(grip.visible, false)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_a_move_synthesized_from_a_touch_keeps_the_touch_strip() {
+            const b = bootWide(130, 60)
+            const h = find(b.shell, "splitter")
+            const t = touchEvent(root)
+            t.press(0, root, 20, 4).commit()
+            // Qt turns a touch drag into mouse moves at the finger while it
+            // is down.
+            t.move(0, root, 40, 4).commit()
+            mouseMove(root, 40, 4)
+            t.move(0, root, 60, 4).commit()
+            mouseMove(root, 60, 4)
+            compare(h.width, thm.gu(3))
+            t.release(0, root, 60, 4).commit()
+            // And one at the lift, on the finger's last spot.
+            mouseMove(root, 60, 4)
+            compare(h.width, thm.gu(3))
+            compare(find(h, "splitterGrip").visible, true)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_a_double_click_resets_to_50_gu() {
+            const b = bootWide(130, 60)
+            const h = find(b.shell, "splitter")
+            const p = h.mapToItem(root, h.width / 2, 100)
+            mouseDoubleClickSequence(root, p.x, p.y)
+            compare(lineX(b), thm.gu(50))
+            compare(b.core.called("setListPane").length, 1)
+            compare(b.core.called("setListPane")[0].args[0], 50)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_home_resets_to_50_gu() {
+            const b = bootWide(130, 60)
+            find(b.shell, "splitter").forceActiveFocus()
+            keyClick(Qt.Key_Home)
+            compare(lineX(b), thm.gu(50))
+            tryVerify(function() { return b.core.called("setListPane").length === 1 })
+            compare(b.core.called("setListPane")[0].args[0], 50)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_the_live_drag_is_whole_gu_and_the_release_does_not_snap() {
+            const b = bootWide(130, 50)
+            b.core.autoEcho = false
+            const h = find(b.shell, "splitter")
+            const p = h.mapToItem(root, h.width / 2, 100)
+            mousePress(root, p.x, p.y)
+            mouseMove(root, p.x + thm.gu(2), p.y)
+            mouseMove(root, p.x + thm.gu(4) + thm.gu(1) * 0.4, p.y)
+            compare(lineX(b), thm.gu(54))
+            mouseRelease(root, p.x + thm.gu(4) + thm.gu(1) * 0.4, p.y)
+            compare(lineX(b), thm.gu(54))
+            compare(b.core.called("setListPane")[0].args[0], 54)
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_an_echo_with_the_width_unchanged_drops_the_unsaved_drag() {
+            // A failed save echoes the old width: the list goes back to it.
+            const b = bootWide(130, 50)
+            b.core.autoEcho = false
+            drag(b, thm.gu(10))
+            compare(lineX(b), thm.gu(60))
+            b.core.echoSettings(50)
+            compare(lineX(b), thm.gu(50))
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_a_stale_echo_during_a_second_drag_is_ignored() {
+            const b = bootWide(130, 50)
+            b.core.autoEcho = false
+            drag(b, thm.gu(10))
+            compare(lineX(b), thm.gu(60))
+            const h = find(b.shell, "splitter")
+            const p = h.mapToItem(root, h.width / 2, 100)
+            mousePress(root, p.x, p.y)
+            mouseMove(root, p.x + thm.gu(2), p.y)
+            mouseMove(root, p.x + thm.gu(4), p.y)
+            compare(lineX(b), thm.gu(64))
+            // The first save's echo, with the first width.
+            b.core.echoSettings(60)
+            compare(lineX(b), thm.gu(64))
+            mouseRelease(root, p.x + thm.gu(4), p.y)
+            compare(lineX(b), thm.gu(64))
+            b.core.echoSettings(64)
+            compare(lineX(b), thm.gu(64))
+            b.shell.destroy(); b.core.destroy()
+        }
+
+        function test_the_limits_come_from_the_core() {
+            // Bounds 40..60 and a default of 45 gu, not the usual 36..70/50.
+            const b = bootWide(130, 0, [40, 60, 45])
+            compare(lineX(b), thm.gu(45))
+            drag(b, thm.gu(30))
+            compare(lineX(b), thm.gu(60))
+            drag(b, -thm.gu(30))
+            compare(lineX(b), thm.gu(40))
             b.shell.destroy(); b.core.destroy()
         }
     }

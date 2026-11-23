@@ -11,6 +11,18 @@ use crate::convert as cv;
 use crate::core_object::qobject;
 
 impl qobject::EnvioCore {
+    pub fn list_pane_min_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_MIN_GU).unwrap_or(i32::MAX)
+    }
+
+    pub fn list_pane_max_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_MAX_GU).unwrap_or(i32::MAX)
+    }
+
+    pub fn list_pane_default_gu(&self) -> i32 {
+        i32::try_from(envio_core::LIST_PANE_DEFAULT_GU).unwrap_or(i32::MAX)
+    }
+
     #[allow(clippy::too_many_arguments)] // the QML signature
     pub fn save_settings(
         self: Pin<&mut Self>,
