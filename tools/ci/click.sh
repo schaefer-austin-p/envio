@@ -62,7 +62,9 @@ run "timeout 15m bash -euo pipefail -c 'apt-get update && apt-get install -y --n
 cache=build-cache
 if [ -z "$release" ] && [ -d "$cache/src" ]; then
   echo "restoring the cargo build cache ($(du -sh "$cache" | cut -f1))"
-  tar -C "$cache" -cf - . | docker exec -i "$c" tar -C / -xf -
+  # A bad restore must not fail the build: fall back to a cold one.
+  tar -C "$cache" -cf - . | docker exec -i "$c" tar -C / -xf - ||
+    echo "cache restore failed; building cold" >&2
   # Cargo trusts mtimes for our own crates, and git archive stamps every file
   # with the commit time, which can predate the cached build: touch the
   # sources so those crates rebuild. Dependencies from crates.io are keyed by
@@ -91,7 +93,7 @@ if [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = refs/heads/maste
     cd /
     { find src/build -name CACHEDIR.TAG -printf "%h\n"
       [ ! -d src/target/click-cargo/registry ] || echo src/target/click-cargo/registry; } |
-      sort -u | xargs tar -cf -' | tar -C "$cache" -xf -
+      sort -u | xargs -r tar -cf -' | tar -C "$cache" -xf -
   echo "cargo build cache for saving: $(du -sh "$cache" | cut -f1)"
 fi
 

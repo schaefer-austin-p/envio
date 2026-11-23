@@ -12,8 +12,10 @@ name: Click
 #   - this workflow and its scripts
 # QML, po/, and Rust or cxx-qt sources are the same code `app` and `rust`
 # build and test; since 2026-11-18 every click failure on a PR with green
-# rust and app was a timeout, none a code defect. Every push to master
-# still builds the package.
+# rust and app was a timeout, none a code defect. The trade-off: an
+# aarch64-only break shows first as a red master click. A push to master
+# still builds the package, except when the PR's green click already built
+# that exact tree (then master has no .click artifact for that merge).
 on:
   push:
     branches: [master]
@@ -69,7 +71,7 @@ jobs:
 
   click:
     needs: plan
-    if: ${{ !cancelled() && (needs.plan.result == 'skipped' || needs.plan.outputs.run == 'true') }}
+    if: ${{ !cancelled() && (needs.plan.result != 'success' || needs.plan.outputs.run == 'true') }}
     runs-on: docker
     timeout-minutes: 45
     steps:

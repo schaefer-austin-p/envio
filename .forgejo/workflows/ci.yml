@@ -25,7 +25,7 @@ env:
 jobs:
   # Pushes to master only: is this merge's tree already green on the PR head?
   # Then the heavy jobs below skip (tools/ci/master-plan.mjs says why). Tags
-  # and PRs never wait for this job.
+  # run it too (it says run). If it fails, the heavy jobs run anyway.
   plan:
     if: github.event_name == 'push'
     runs-on: docker
@@ -49,7 +49,7 @@ jobs:
   # already tested green (plan).
   rust:
     needs: plan
-    if: ${{ !cancelled() && (needs.plan.result == 'skipped' || needs.plan.outputs.run == 'true') }}
+    if: ${{ !cancelled() && (needs.plan.result != 'success' || needs.plan.outputs.run == 'true') }}
     runs-on: rust-ci
     timeout-minutes: 50
     steps:
@@ -143,7 +143,7 @@ jobs:
           key: ${{ steps.c_sccache.outputs.cache-primary-key }}
 
   # The Qt side in the ut-app-ci image: translations, qt/ fmt and clippy,
-  # qmllint, the -Werror CMake build and the QML tests. Always runs.
+  # qmllint, the -Werror CMake build and the QML tests. Skips with `rust`.
   # After `rust`: the runner takes two jobs at once, and this image's
   # multi-GB pull slows a build it shares the box with.
   app:
