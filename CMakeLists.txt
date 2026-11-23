@@ -68,6 +68,14 @@ if(ENVIO_QMLTEST)
     Qt5::QuickTest Qt5::Network)
 endif()
 
+# tests/notify/run.sh: the notification glue against a fake server on a
+# private session bus (#442). Needs no Rust, only the C++ glue.
+option(ENVIO_NOTIFYTEST "Build envio-notifytest, the D-Bus test of qt/notify.cpp" OFF)
+if(ENVIO_NOTIFYTEST)
+  add_executable(envio-notifytest tests/notify/main.cpp)
+  target_link_libraries(envio-notifytest PRIVATE envio_notify Qt5::Core Qt5::Gui Qt5::DBus)
+endif()
+
 # po/*.po -> share/locale/<lang>/LC_MESSAGES/envio.aps.mo
 find_program(MSGFMT msgfmt REQUIRED)
 file(GLOB ENVIO_PO CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/po/*.po)
