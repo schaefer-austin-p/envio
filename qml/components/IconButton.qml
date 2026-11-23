@@ -33,8 +33,11 @@ AbstractButton {
                 to: 360
                 duration: 900
                 loops: Animation.Infinite
+                // Finish the turn, so it stops upright (360 looks like 0)
+                // without the GUI thread writing `rotation` against the
+                // animator on the render thread.
+                alwaysRunToEnd: true
                 running: root.iconRotating && root.visible
-                onRunningChanged: if (!running) glyph.rotation = 0
             }
         }
     }
