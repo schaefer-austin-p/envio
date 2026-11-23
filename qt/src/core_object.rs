@@ -191,6 +191,9 @@ pub mod qobject {
         #[cxx_name = "draftSaved"]
         fn draft_saved(self: Pin<&mut EnvioCore>, compose: f64);
         #[qsignal]
+        #[cxx_name = "draftStored"]
+        fn draft_stored(self: Pin<&mut EnvioCore>, compose: f64, at_ms: f64);
+        #[qsignal]
         #[cxx_name = "composeRefused"]
         fn compose_refused(self: Pin<&mut EnvioCore>, compose: f64, text: &QString);
         #[qsignal]

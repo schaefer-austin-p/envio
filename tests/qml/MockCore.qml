@@ -73,6 +73,7 @@ Item {
     signal undoClosed(real undo)
     signal composeReady(real compose, var draft, string quoted, string note)
     signal draftSaved(real compose)
+    signal draftStored(real compose, real atMs)
     signal composeRefused(real compose, string text)
     signal queued(real compose, string text)
     signal attached(real compose, string path, string name, real size)

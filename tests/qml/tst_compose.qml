@@ -104,6 +104,33 @@ Item {
             thm.name = "carbon"
         }
 
+        // #352: the footer says "Plain text" from the start and "Draft
+        // saved <time>" only once the core reports a save for this compose.
+        function test_footer_shows_the_save_time_after_a_save_data() {
+            return [{ tag: "carbon", airmail: false }, { tag: "airmail", airmail: true }]
+        }
+        function test_footer_shows_the_save_time_after_a_save(data) {
+            thm.name = data.airmail ? "airmail" : "carbon"
+            mock.composeReady(1, reply, "", "")
+            const plain = find("plainText")
+            verify(plain !== undefined && plain.visible, "Plain text shows before any save")
+            compare(plain.text, qsTr("Plain text"))
+            verify(!shown("savedText"), "no Draft saved text before a save")
+            verify(!shown("savedCheck"), "no check before a save")
+            // Another compose's save is not this page's.
+            mock.draftStored(2, Date.UTC(2026, 10, 23, 9, 41))
+            verify(!shown("savedText"), "another compose's save is ignored")
+            const at = new Date(2026, 10, 23, 9, 41).getTime()
+            mock.draftStored(1, at)
+            verify(shown("savedText"), "the text shows after the save")
+            verify(shown("savedCheck"), "the check shows after the save")
+            compare(find("savedText").text,
+                    qsTr("Draft saved %1").arg(Qt.formatTime(new Date(at), Qt.locale().timeFormat(Locale.ShortFormat))))
+            verify(plain.x > find("savedText").x + find("savedText").width, "Plain text sits on the right")
+            page.reset()
+            verify(!shown("savedText"), "a reused page starts without the text")
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             compare(find("to").entries, ["Bob <bob@example.org>"])
