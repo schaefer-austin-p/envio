@@ -11,7 +11,13 @@ export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target/ci-qt}
 section() { echo "== $1"; }
 
 section "translations: po/ is up to date with the sources"
-command -v xgettext >/dev/null || { apt-get update -q && apt-get install -yq --no-install-recommends gettext; }
+# A stalled mirror once hung apt-get for 43 min (#451). This job has no
+# timeout-minutes, so the 15 min cap is its only bound.
+command -v xgettext >/dev/null || timeout 15m sh -eu -c 'apt-get update -q && apt-get install -yq --no-install-recommends gettext' || {
+  rc=$?
+  [ "$rc" -ne 124 ] || echo "apt setup exceeded 15 min (#451)" >&2
+  exit "$rc"
+}
 "$root/tools/i18n/update.sh" --check
 
 section "format: qt/ Rust"

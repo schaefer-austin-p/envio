@@ -51,7 +51,9 @@ run() {
 # clickable in it would remove this step. --ignore-installed: pip would
 # otherwise uninstall the image's apt `click` (the package tool) to make room
 # for the `click` library clickable needs.
-run "apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version"
+# A stalled mirror once hung apt-get for 43 min (#451); one 15 min cap on the
+# whole setup (apt and pip) fails well before the job's 45-min limit.
+run "timeout 15m bash -euo pipefail -c 'apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version' || { rc=\$?; [ \$rc -ne 124 ] || echo 'apt/pip setup exceeded 15 min (#451)' >&2; exit \$rc; }"
 
 # --skip-review: the review below decides (errors fail, warnings print);
 # the build's own review would fail on a warning and skip the report.
