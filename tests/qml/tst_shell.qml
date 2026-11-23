@@ -300,6 +300,19 @@ Item {
             s.destroy()
         }
 
+        function test_a_notification_click_over_the_sign_in_again_page_leaves_it_alone() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 && b.shell.inboxItem !== null })
+            b.shell.currentPage.accountsRequested()
+            compare(b.shell.depth, 2)
+            b.shell.currentPage.signInAgainRequested("ann")
+            compare(b.shell.currentPage.objectName, "signInAgainPage")
+            b.core.openInboxRequested("ann")
+            compare(b.shell.depth, 3, "an OAuth sign-in in progress stays")
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
         function test_a_notification_click_over_the_wizard_is_ignored() {
             const b = boot(false)
             tryVerify(function() { return b.shell.depth === 1 })

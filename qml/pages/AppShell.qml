@@ -337,8 +337,8 @@ Item {
     // A notification click (the core's openInboxRequested, from the platform
     // glue): that account's Inbox, once the core is up and the inbox is the
     // root. Pages above the list close, except while a compose is open
-    // (stacked, buried or in the pane: its text is not ours to drop) or the
-    // Add-account wizard is. An account that is gone is ignored. A request
+    // (stacked, buried or in the pane: its text is not ours to drop) or any
+    // other page that is not closable (see closablePages) is open. An account that is gone is ignored. A request
     // that waited for the start is tried once after route(), then dropped.
     property string pendingInbox: ""
     function openAccountInbox(account) {
@@ -349,13 +349,19 @@ Item {
         for (let i = 0; i < accountRows.count; i++) if (accountRows.itemAt(i) !== null && accountRows.itemAt(i).key === key) return true
         return false
     }
-    // Whether a compose (stacked, buried, or in the pane) or the wizard is
-    // open: pages that identify themselves by objectName.
+    // The pages a jump to an Inbox may close: they hold nothing typed. An
+    // allowlist, so a page that takes input (compose, the wizard, the
+    // password and sign-in pages) or any page added later, is left alone
+    // until someone decides it is safe to close.
+    readonly property var closablePages: ["readerPage", "settingsPage", "appearancePage", "syncPage",
+        "notificationsPage", "imagesPage", "aboutPage", "searchPage", "outboxPage", "accountsPage"]
+    // Whether the jump has to leave the stack alone: a compose in the pane
+    // or any page above the list that is not closable.
     function editingPageOpen() {
         if (paneCompose > 0 || composeItem !== null) return true
-        for (let i = 0; i < stack.depth; i++) {
+        for (let i = 1; i < stack.depth; i++) {
             const page = stack.get(i, StackView.DontLoad)
-            if (page !== null && (page.objectName === "composePage" || page.objectName === "wizardPage")) return true
+            if (page === null || closablePages.indexOf(page.objectName) < 0) return true
         }
         return false
     }
@@ -699,6 +705,7 @@ Item {
     Component {
         id: accountsPage
         AccountsPage {
+            objectName: "accountsPage"
             theme: root.theme
             core: root.core
             accounts: root.accounts
