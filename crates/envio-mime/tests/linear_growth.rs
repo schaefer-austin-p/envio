@@ -37,12 +37,28 @@ fn work(html: &str, options: &RenderOptions) -> u64 {
 /// `sanitize_html` ticks at entry, twice over), then that 2N costs at most
 /// `MAX_RATIO` times N.
 fn assert_linear(shape: &str, options: &RenderOptions, build: impl Fn(usize) -> String, ran: &str) {
+    assert_linear_without(shape, options, build, (ran, ""));
+}
+
+/// [`assert_linear`], and `gone` (when not empty) must be absent from the
+/// output at both sizes: what the target pass removes.
+fn assert_linear_without(
+    shape: &str,
+    options: &RenderOptions,
+    build: impl Fn(usize) -> String,
+    (ran, gone): (&str, &str),
+) {
     let (small, large) = (build(N), build(2 * N));
     for html in [&small, &large] {
         let out = sanitize_html(html, options).html;
         assert!(
             out.contains(ran),
             "{shape}: the target pass did not run at {} bytes: no {ran:?} in the output",
+            html.len()
+        );
+        assert!(
+            gone.is_empty() || !out.contains(gone),
+            "{shape}: the target pass did not run at {} bytes: {gone:?} is still in the output",
             html.len()
         );
     }
@@ -68,7 +84,9 @@ fn imgs(n: usize, attrs: &str) -> String {
 #[test]
 fn distinct_image_urls_allowed() {
     let shape = "distinct urls, allowed";
-    assert_linear(shape, &options(true), |n| imgs(n, ""), "<img");
+    // `images::fit` scales a 900 px image to the 600 px reader width.
+    let build = |n| imgs(n, r#" width="900""#);
+    assert_linear(shape, &options(true), build, r#"width="600""#);
 }
 
 #[test]
@@ -89,12 +107,12 @@ fn many_sized_images_of_one_url() {
         |n| {
             (0..n)
                 .map(|h| {
-                    let tag = r#"<img src="https://example.com/a.png" height=""#;
+                    let tag = r#"<img src="https://example.com/a.png" width="900" height=""#;
                     format!("{tag}{}\">", h + 1)
                 })
                 .collect()
         },
-        "<img",
+        r#"width="600""#,
     );
 }
 
@@ -176,8 +194,12 @@ fn many_hidden_elements() {
     // `images::fit` drops a hidden element with its content.
     let hidden = r#"<div style="display:none"><span>gone</span></div>kept "#;
     let shape = "hidden elements";
-    assert_linear(shape, &options(true), |n| hidden.repeat(n), "kept");
-    assert!(!sanitize_html(hidden, &options(true)).html.contains("gone"));
+    assert_linear_without(
+        shape,
+        &options(true),
+        |n| hidden.repeat(n),
+        ("kept", "gone"),
+    );
 }
 
 #[test]
