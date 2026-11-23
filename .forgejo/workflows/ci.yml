@@ -36,9 +36,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Caches: every run restores, only pushes to master save (the Save steps
+      # at the end of each job). Keys hash lockfiles, Cargo.toml and this file,
+      # so a PR changing one would otherwise save its own multi-GB entry;
+      # PRs get a warm cache through restore-keys instead.
       # CARGO_HOME is /usr/local/cargo in the rust image, not ~/.cargo
       - name: Cache cargo registry
-        uses: actions/cache@v4
+        id: c_reg
+        uses: actions/cache/restore@v4
         with:
           path: |
             /usr/local/cargo/registry/index
@@ -49,7 +54,8 @@ jobs:
             cargo-registry-
 
       - name: Cache sccache compilation objects
-        uses: actions/cache@v4
+        id: c_sccache
+        uses: actions/cache/restore@v4
         with:
           path: /root/.cache/sccache
           key: sccache-${{ hashFiles('Cargo.lock', '**/Cargo.toml', '.forgejo/workflows/ci.yml') }}
@@ -96,6 +102,23 @@ jobs:
         if: always()
         run: sccache --show-stats
 
+      - name: Save cargo registry cache (master only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.c_reg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /usr/local/cargo/registry/index
+            /usr/local/cargo/registry/cache
+            /usr/local/cargo/git/db
+          key: ${{ steps.c_reg.outputs.cache-primary-key }}
+
+      - name: Save sccache objects (master only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.c_sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /root/.cache/sccache
+          key: ${{ steps.c_sccache.outputs.cache-primary-key }}
+
   # The Qt side in the ut-app-ci image: translations, qt/ fmt and clippy,
   # qmllint, the -Werror CMake build and the QML tests. Always runs.
   # After `rust`: the runner takes two jobs at once, and this image's
@@ -115,7 +138,8 @@ jobs:
 
       # CARGO_HOME is /opt/rust/cargo in the clickable image.
       - name: Cache cargo registry and CMake FetchContent
-        uses: actions/cache@v4
+        id: c_deps
+        uses: actions/cache/restore@v4
         with:
           path: |
             /opt/rust/cargo/registry/index
@@ -126,7 +150,8 @@ jobs:
             app-deps-
 
       - name: Cache app build output
-        uses: actions/cache@v4
+        id: c_build
+        uses: actions/cache/restore@v4
         with:
           path: |
             target/ci-qt
@@ -137,6 +162,25 @@ jobs:
 
       - name: App checks
         run: tools/ci/app.sh
+
+      - name: Save cargo registry and FetchContent cache (master only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.c_deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /opt/rust/cargo/registry/index
+            /opt/rust/cargo/registry/cache
+            /root/.cache/envio-fetchcontent
+          key: ${{ steps.c_deps.outputs.cache-primary-key }}
+
+      - name: Save app build cache (master only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.c_build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            target/ci-qt
+            build-ci
+          key: ${{ steps.c_build.outputs.cache-primary-key }}
 
   audit:
     needs: rust
