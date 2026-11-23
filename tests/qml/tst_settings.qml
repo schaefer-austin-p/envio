@@ -121,6 +121,7 @@ Item {
             core.theme = "carbon"
             core.darkMode = "system"
             core.imagesAlways = false
+            core.fullscreen = false
             core.defaultAccount = ""
             core.syncDays = 30
             core.allowedSenders = []

@@ -41,15 +41,23 @@ public:
     [[nodiscard]] bool isEmpty() const override { return false; }
 };
 
+// GRID_UNIT_PX as Lomiri sets it for its apps; 0 when it is unset, empty or
+// not a positive number (so not a Lomiri session).
+int lomiriGridUnit()
+{
+    bool ok = false;
+    const int gridUnit = qEnvironmentVariableIntValue("GRID_UNIT_PX", &ok);
+    return ok && gridUnit > 0 ? gridUnit : 0;
+}
+
 // Lomiri sizes everything in grid units of GRID_UNIT_PX pixels, 8 at scale
 // 1. A Controls 2 app without the Lomiri toolkit gets no scaling of its
 // own, so turn the grid unit into Qt's scale factor. Must run before the
 // QGuiApplication exists; an explicit QT_SCALE_FACTOR wins.
 void scaleFromGridUnit()
 {
-    bool ok = false;
-    const int gridUnit = qEnvironmentVariableIntValue("GRID_UNIT_PX", &ok);
-    if (!ok || gridUnit <= 0 || qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
+    const int gridUnit = lomiriGridUnit();
+    if (gridUnit <= 0 || qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
         return;
     }
     qputenv("QT_SCALE_FACTOR", QByteArray::number(gridUnit / 8.0));
@@ -76,7 +84,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     // Lomiri sets GRID_UNIT_PX for its apps and nothing else does: the one
     // sign of the phone session the QML can use (platform/WindowMode.qml).
-    engine.rootContext()->setContextProperty(QStringLiteral("lomiriSession"), qEnvironmentVariableIsSet("GRID_UNIT_PX"));
+    engine.rootContext()->setContextProperty(QStringLiteral("lomiriSession"), lomiriGridUnit() > 0);
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty()) {
         return 1;
