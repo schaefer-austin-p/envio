@@ -8,6 +8,8 @@ Item {
     id: root
     required property Theme theme
     required property var accounts
+    // Counted text comes from the core (plural rules differ by language).
+    required property var core
     property string current: ""
     signal chosen(string key)
     // The tab of an account whose sync is stopped was tapped while already
@@ -79,8 +81,8 @@ Item {
                 iconName: stopped ? "alert" : (offline ? "offline" : "")
                 iconColor: selected && !root.theme.airmail ? root.theme.primaryText : root.theme.accent
                 Accessible.name: {
-                    const stoppedText = qsTr("%n sync stopped", "", root.stoppedCount)
-                    const offlineText = qsTr("%n offline", "", root.offlineCount)
+                    const stoppedText = root.core.countText("syncstopped", root.stoppedCount)
+                    const offlineText = root.core.countText("offline", root.offlineCount)
                     if (stopped && offline) return qsTr("%1, %2").arg(text).arg(qsTr("%1, %2").arg(stoppedText).arg(offlineText))
                     if (stopped) return qsTr("%1, %2").arg(text).arg(stoppedText)
                     if (offline) return qsTr("%1, %2").arg(text).arg(offlineText)

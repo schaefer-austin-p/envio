@@ -12,6 +12,10 @@ pub enum CountKind {
     NewMail,
     /// Search's note on the sync window: mail older than this is on the server only.
     KeptDays,
+    /// The All tab's count of accounts whose sync is stopped.
+    SyncStopped,
+    /// The All tab's count of offline accounts.
+    Offline,
 }
 
 fn with_count(template: &str, n: u64) -> String {
@@ -54,6 +58,14 @@ pub fn kept_days(n: u64) -> String {
     )
 }
 
+pub fn sync_stopped(n: u64) -> String {
+    with_count(&tr_n("{n} sync stopped", "{n} sync stopped", n), n)
+}
+
+pub fn offline(n: u64) -> String {
+    with_count(&tr_n("{n} offline", "{n} offline", n), n)
+}
+
 pub fn count_text(kind: CountKind, n: u64) -> String {
     match kind {
         CountKind::Selected => selected(n),
@@ -61,6 +73,8 @@ pub fn count_text(kind: CountKind, n: u64) -> String {
         CountKind::Waiting => waiting(n),
         CountKind::NewMail => new_mail(n),
         CountKind::KeptDays => kept_days(n),
+        CountKind::SyncStopped => sync_stopped(n),
+        CountKind::Offline => offline(n),
     }
 }
 
@@ -76,13 +90,18 @@ mod tests {
             CountKind::Waiting,
             CountKind::NewMail,
             CountKind::KeptDays,
+            CountKind::SyncStopped,
+            CountKind::Offline,
         ];
         for kind in all {
             let one = count_text(kind, 1);
             let many = count_text(kind, 3);
             assert!(one.contains("1") && !one.contains("{n}"), "{one}");
             assert!(many.contains("3") && !many.contains("{n}"), "{many}");
-            if kind != CountKind::Selected {
+            if !matches!(
+                kind,
+                CountKind::Selected | CountKind::SyncStopped | CountKind::Offline
+            ) {
                 assert_ne!(one.replace("1", "#"), many.replace("3", "#"), "{kind:?}");
             }
         }
@@ -90,6 +109,8 @@ mod tests {
         assert_eq!(results(0), "0 results");
         assert_eq!(waiting(2), "2 messages waiting to send");
         assert_eq!(new_mail(1), "1 new message");
+        assert_eq!(sync_stopped(1), "1 sync stopped");
+        assert_eq!(offline(2), "2 offline");
         assert_eq!(selected(4), "4 selected");
         assert_eq!(kept_days(90), "Finds mail older than the 90 days kept here");
     }

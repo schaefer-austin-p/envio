@@ -194,6 +194,7 @@ Item {
         anchors.top: bar.bottom
         width: parent.width
         accounts: root.accounts
+        core: root.core
         current: root.tab === "folder" ? "-" : root.tab
         onChosen: key === "" ? root.showUnified() : root.showAccount(key)
         onAttentionRequested: root.accountsRequested()
