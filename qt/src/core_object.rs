@@ -57,6 +57,9 @@ pub mod qobject {
         // Read-only: whether a refresh of the shown list can do anything
         // (`Ui::can_refresh_shown`).
         #[qproperty(bool, can_refresh, cxx_name = "canRefresh", READ, NOTIFY)]
+        // Read-only: the account key the shown list refreshes, "" for all
+        // (`Ui::refresh_scope_shown`); `refresh` takes it as is.
+        #[qproperty(QString, refresh_scope, cxx_name = "refreshScope", READ, NOTIFY)]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -215,9 +218,10 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "searchDone"]
         fn search_done(self: Pin<&mut EnvioCore>);
-        /// A refresh the app asked for is over (`Signal::Refreshed`).
+        /// A refresh the app asked for is over (`Signal::Refreshed`); the
+        /// ticket is what `refresh` returned.
         #[qsignal]
-        fn refreshed(self: Pin<&mut EnvioCore>);
+        fn refreshed(self: Pin<&mut EnvioCore>, ticket: i64);
         #[qsignal]
         #[cxx_name = "statusText"]
         fn status_text(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);
@@ -242,7 +246,7 @@ pub mod qobject {
         #[cxx_name = "setActive"]
         fn set_active(self: Pin<&mut EnvioCore>, active: bool);
         #[qinvokable]
-        fn refresh(self: Pin<&mut EnvioCore>, account: &QString);
+        fn refresh(self: Pin<&mut EnvioCore>, account: &QString) -> i64;
         #[qinvokable]
         #[cxx_name = "ispdbNote"]
         fn ispdb_note(self: &EnvioCore) -> QString;
@@ -474,6 +478,10 @@ pub struct EnvioCoreRust {
     pub(crate) selection_has_local: bool,
     /// A refresh of the shown list can do something (`Ui::can_refresh_shown`).
     pub(crate) can_refresh: bool,
+    /// `Ui::refresh_scope_shown`, "" for every account.
+    pub(crate) refresh_scope: QString,
+    /// The last ticket `refresh` handed out (0 is nobody's).
+    pub(crate) next_refresh: i64,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,

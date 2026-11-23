@@ -63,10 +63,11 @@ impl qobject::EnvioCore {
     /// `listIsDrafts`, `selectionHasLocal` and `canRefresh` follow `Ui`, queued like
     /// `sync_open_message`.
     fn sync_list_flags(self: Pin<&mut Self>) {
-        let (drafts, local, refresh) = (
+        let (drafts, local, refresh, scope) = (
             self.rust().ui.list_is_drafts(),
             self.rust().ui.selection_has_local(),
             self.rust().ui.can_refresh_shown(),
+            QString::from(self.rust().ui.refresh_scope_shown().unwrap_or("")),
         );
         let queued = self.qt_thread().queue(move |mut obj| {
             if obj.rust().list_is_drafts != drafts {
@@ -80,6 +81,10 @@ impl qobject::EnvioCore {
             if obj.rust().can_refresh != refresh {
                 obj.as_mut().rust_mut().can_refresh = refresh;
                 obj.as_mut().can_refresh_changed();
+            }
+            if obj.rust().refresh_scope != scope {
+                obj.as_mut().rust_mut().refresh_scope = scope;
+                obj.as_mut().refresh_scope_changed();
             }
         });
         if queued.is_err() {
@@ -273,7 +278,7 @@ impl qobject::EnvioCore {
             Signal::SearchFailed(t) => self.search_failed(&q(&t)),
             Signal::SearchDone => self.search_done(),
             Signal::Status { account, text } => self.status_text(&q(&account), &q(&text)),
-            Signal::Refreshed => self.refreshed(),
+            Signal::Refreshed { ticket } => self.refreshed(ticket as i64),
         }
     }
 
