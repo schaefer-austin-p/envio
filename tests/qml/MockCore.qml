@@ -74,6 +74,7 @@ Item {
     signal composeReady(real compose, var draft, string quoted, string note)
     signal draftSaved(real compose)
     signal composeRefused(real compose, string text)
+    signal openInboxRequested(string account)
     signal queued(real compose, string text)
     signal attached(real compose, string path, string name, real size)
     signal attachFailed(real compose, string text)

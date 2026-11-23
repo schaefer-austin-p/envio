@@ -10,6 +10,7 @@ mod json;
 mod lifecycle;
 mod models;
 mod notify;
+mod open_route;
 mod postal;
 mod settings_calls;
 mod sink;
