@@ -291,3 +291,22 @@ fn a_stale_save_keeps_the_notification_switches() {
     assert!(settings.notify_off.contains("a"));
     assert!(settings.notify_show_text);
 }
+
+#[test]
+fn the_list_pane_width_is_clamped_saved_and_kept_by_a_stale_save() {
+    let (h, _) = started(|_| ());
+    settings_event(&h);
+    h.send(Command::SetListPane { gu: 61 });
+    assert_eq!(settings_event(&h).list_pane_gu, 61);
+    assert_eq!(
+        load_settings(&h.paths().settings()).unwrap().list_pane_gu,
+        61
+    );
+    h.send(Command::SetListPane { gu: 500 });
+    assert_eq!(settings_event(&h).list_pane_gu, 70);
+    h.send(Command::SetListPane { gu: 1 });
+    assert_eq!(settings_event(&h).list_pane_gu, 36);
+    // An app save built from an older snapshot must not undo the width.
+    h.send(Command::SaveSettings(Settings::default()));
+    assert_eq!(settings_event(&h).list_pane_gu, 36);
+}

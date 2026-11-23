@@ -34,6 +34,7 @@ fn settings_round_trip() {
         sync_window_days: 90,
         notify_off: ["1701".to_owned()].into(),
         notify_show_text: true,
+        list_pane_gu: 64,
     };
     save_settings(&path, &settings).unwrap();
     assert_eq!(load_settings(&path).unwrap(), settings);

@@ -4,6 +4,7 @@ import QtQml 2.15
 import "../platform"
 import "../components"
 import "../bindle/Platform" as Platform
+import "../bindle/Behaviours"
 import "accounts"
 import "compose"
 import "inbox"
@@ -117,7 +118,37 @@ Item {
     // the window: a binding would squeeze a compose in the pane for a moment
     // before it is moved, and the text would re-wrap and scroll (#332).
     property real paneWidth: 0
-    function layoutPane() { paneWidth = Math.max(0, frame.area.width - theme.gu(50) - drawerWidth) }
+    // Whether the last pointer was a finger: the splitter's strip is wider
+    // and shows a grip then.
+    property bool touchSeen: false
+    PointHandler {
+        acceptedDevices: PointerDevice.TouchScreen
+        onActiveChanged: if (active) root.touchSeen = true
+    }
+    HoverHandler {
+        acceptedDevices: PointerDevice.Mouse
+        onPointChanged: root.touchSeen = false
+    }
+    function layoutPane() { paneWidth = Math.max(0, frame.area.width - listWidth - drawerWidth) }
+
+    // The list pane's width (the splitter, #192): the width the core saved,
+    // in gu (0 until the settings arrive), or the live drag, held to what
+    // the window leaves: the reader keeps 40 gu and the list 36..70 gu.
+    // Narrowing the window only clamps what is shown; the saved width is
+    // never rewritten, so widening brings it back.
+    readonly property int defaultListGu: 50
+    readonly property int minListGu: 36
+    readonly property int readerMinGu: 40
+    property real dragListGu: -1
+    readonly property real maxListGu: Math.min(70, frame.area.width / theme.gu(1) - (drawerWidth / theme.gu(1)) - readerMinGu)
+    readonly property real listGu: Math.max(minListGu, Math.min(maxListGu,
+        dragListGu >= 0 ? dragListGu : (core.listPaneGu > 0 ? core.listPaneGu : defaultListGu)))
+    readonly property real listWidth: theme.gu(listGu)
+    onListWidthChanged: layoutPane()
+    Connections {
+        target: root.core
+        function onListPaneGuChanged() { root.dragListGu = -1 }
+    }
     onWidthChanged: checkWide()
     onThemeChanged: checkWide()
     Connections {
@@ -502,7 +533,7 @@ Item {
             // Beside the pane the stack is the list's 50 gu and ends at the
             // hairline; pages above the inbox hide the pane and get it all.
             anchors { top: parent.top; bottom: parent.bottom; left: parent.left; leftMargin: inlineDrawer.visible ? inlineDrawer.width : 0 }
-            width: pane.visible ? root.theme.gu(50) : parent.width - anchors.leftMargin
+            width: pane.visible ? root.listWidth : parent.width - anchors.leftMargin
             clip: pane.visible
             readonly property int enterMs: 150
             readonly property int enterShift: 24
@@ -560,11 +591,61 @@ Item {
         Rectangle {
             objectName: "paneHairline"
             visible: pane.visible
-            x: root.drawerWidth + root.theme.gu(50)
+            x: root.drawerWidth + root.listWidth
             width: 1
             height: parent.height
             color: root.theme.hairline
             z: 1
+        }
+        // The splitter: a strip over the hairline, 1 gu wide for a mouse and
+        // 3 gu for a touch, that drags the list's width (frame 10). Hidden
+        // when the window leaves no room (the width cannot exceed the default).
+        SplitHandle {
+            id: splitter
+            objectName: "splitter"
+            readonly property real hit: root.touchSeen ? root.theme.gu(3) : root.theme.gu(1)
+            visible: root.wide && pane.visible && usable
+            x: root.drawerWidth + root.listWidth + 0.5 - hit / 2
+            width: hit
+            height: parent.height
+            z: 2
+            value: root.listGu
+            minimum: root.minListGu
+            maximum: root.maxListGu
+            defaultValue: root.defaultListGu
+            hideAtDefault: true
+            pxPerUnit: root.theme.gu(1)
+            // Dragging works in px; the core is told whole gu.
+            onMoved: function(size) { root.dragListGu = size }
+            onCommitted: function(size) {
+                // The drag's width stays until the core's echo (`listPaneGu`
+                // changes), so the list does not jump back meanwhile.
+                root.dragListGu = Math.round(size)
+                root.core.setListPane(Math.round(size))
+            }
+            Rectangle {
+                objectName: "splitterLine"
+                anchors { top: parent.top; bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
+                width: 2
+                color: root.theme.accent
+                visible: splitter.hovered || splitter.dragging
+            }
+            Rectangle {
+                objectName: "splitterGrip"
+                anchors.centerIn: parent
+                width: 4
+                height: 32
+                radius: 2
+                color: root.theme.secondary
+                visible: root.touchSeen
+            }
+            Rectangle {
+                objectName: "splitterFocus"
+                anchors.fill: parent
+                color: "transparent"
+                border { width: 2; color: root.theme.text }
+                visible: splitter.focusVisible
+            }
         }
         // The right pane of the wide layout, beside the inbox at the root.
         // Pages above the inbox (Search, Outbox, Settings, Accounts) cover
@@ -615,7 +696,7 @@ Item {
             id: inboxRoot
             // The list pane when wide, else the whole page (the stack does
             // not resize an item that sets its own size).
-            width: root.wide ? root.theme.gu(50) : stack.width
+            width: root.wide ? root.listWidth : stack.width
             height: stack.height
             theme: root.theme
             core: root.core

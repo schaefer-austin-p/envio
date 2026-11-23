@@ -63,4 +63,12 @@ impl qobject::EnvioCore {
     pub fn set_notify_text(self: Pin<&mut Self>, on: bool) {
         self.send_command(Command::SetNotifyText { on });
     }
+
+    /// The list pane's width in grid units, from the splitter; the core
+    /// clamps it and saves it.
+    pub fn set_list_pane(self: Pin<&mut Self>, gu: i32) {
+        self.send_command(Command::SetListPane {
+            gu: u32::try_from(gu).unwrap_or(0),
+        });
+    }
 }

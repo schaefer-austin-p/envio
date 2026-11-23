@@ -41,6 +41,7 @@ pub mod qobject {
         #[qproperty(i32, older_row, cxx_name = "olderRow")]
         #[qproperty(i32, sync_days, cxx_name = "syncDays")]
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
+        #[qproperty(i32, list_pane_gu, cxx_name = "listPaneGu")]
         // Read-only: `setOpenMessage` below is the (invokable) way to set it.
         #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
         // Read-only: `stepFocus` below moves it (keyboard focus row, 0 for none).
@@ -329,6 +330,9 @@ pub mod qobject {
         #[cxx_name = "setNotifyText"]
         fn set_notify_text(self: Pin<&mut EnvioCore>, on: bool);
         #[qinvokable]
+        #[cxx_name = "setListPane"]
+        fn set_list_pane(self: Pin<&mut EnvioCore>, gu: i32);
+        #[qinvokable]
         fn select(self: Pin<&mut EnvioCore>, id: i64, on: bool);
         #[qinvokable]
         #[cxx_name = "setOpenMessage"]
@@ -470,6 +474,8 @@ pub struct EnvioCoreRust {
     pub(crate) sync_days: i32,
     /// "Show sender and subject" in new-mail notifications.
     pub(crate) notify_show_text: bool,
+    /// The two-pane layout's list width in grid units (the splitter).
+    pub(crate) list_pane_gu: i32,
     /// The message the reader shows; 0 for none (`Ui::open_message`).
     pub(crate) open_message: i64,
     /// The keyboard-focus row; 0 for none (`Ui::focus_message`).
