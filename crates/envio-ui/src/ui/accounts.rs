@@ -15,7 +15,34 @@ fn status_text(info: &AccountInfo) -> String {
     }
 }
 
+/// Whether a refresh of `scope` (one account, or every account for `None`)
+/// can do anything: some account in it is not stopped by a problem only the
+/// user can fix. An offline account counts: refresh is its retry-now.
+/// `needs_attention` covers sign-in, pin and unsupported; "broken" (a stored
+/// entry that cannot be read, never retried) is added here.
+fn can_refresh(accounts: &[AccountRow], scope: Option<&str>) -> bool {
+    accounts
+        .iter()
+        .filter(|a| scope.is_none_or(|key| a.key == key))
+        .any(|a| !a.attention && a.state != "broken")
+}
+
 impl Ui {
+    /// `can_refresh` for the account `scope` names, or all of them.
+    pub fn can_refresh(&self, scope: Option<&str>) -> bool {
+        can_refresh(&self.accounts, scope)
+    }
+
+    /// `can_refresh` for what the shown list refreshes: its account for a
+    /// folder, every account for the unified inbox.
+    pub fn can_refresh_shown(&self) -> bool {
+        let scope = match self.current.as_ref().map(|c| c.list) {
+            Some(ListRef::Folder(id)) => self.folder_roles.get(&id.0).map(|(a, _)| a.as_str()),
+            _ => None,
+        };
+        can_refresh(&self.accounts, scope)
+    }
+
     fn row_of(&self, info: &AccountInfo) -> AccountRow {
         let mut row = convert::account_row(info, &status_text(info));
         row.notify = !self.notify_off.contains(&info.key);

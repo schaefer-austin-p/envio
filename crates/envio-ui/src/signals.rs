@@ -159,6 +159,8 @@ pub enum Signal {
         text: String,
     },
     Settings(Settings),
+    /// A refresh the app asked for is over (`Event::Refreshed`).
+    Refreshed,
     /// The state of the "Load older messages" row changed.
     OlderRow(OlderRow),
     SearchFailed(String),
