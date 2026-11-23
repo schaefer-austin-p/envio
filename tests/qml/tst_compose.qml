@@ -143,6 +143,25 @@ Item {
             verify(left.truncated, "the left text is elided at 150 px")
         }
 
+        // carbon-two-pane: the wide pane's footer lines up with the 5 gu
+        // field gutter and sits 10 px / 16 px from the text; the phone's is
+        // 16 px in, 8 above, 14 below.
+        function test_footer_margins_follow_the_wide_pane() {
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            const foot = find("composeFooter")
+            for (const wide of [false, true]) {
+                page.wide = wide
+                const side = thm.gu(wide ? 5 : 2)
+                compare(find("savedCheck", foot).x, side, "left margin, wide " + wide)
+                compare(foot.width - (find("plainText", foot).x + find("plainText", foot).width), side, "right margin, wide " + wide)
+                compare(find("plainText", foot).y, thm.gu(wide ? 1.25 : 1), "top margin, wide " + wide)
+                compare(foot.height - find("plainText", foot).y - find("plainText", foot).height,
+                        thm.gu(wide ? 2 : 1.75), "bottom margin, wide " + wide)
+            }
+            page.wide = false
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             compare(find("to").entries, ["Bob <bob@example.org>"])

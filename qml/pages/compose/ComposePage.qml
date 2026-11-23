@@ -432,6 +432,7 @@ Item {
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         theme: root.theme
         savedAtMs: root.savedAtMs
+        wide: root.wide
     }
 
     Toast {

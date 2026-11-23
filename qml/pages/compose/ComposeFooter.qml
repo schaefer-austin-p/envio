@@ -12,12 +12,18 @@ Item {
     objectName: "composeFooter"
     required property Theme theme
     property real savedAtMs: 0
+    // In the wide pane: the fields' 5 gu gutter, 10 px above, 16 below
+    // (carbon-two-pane); on the phone 16 px sides, 8 above, 14 below.
+    property bool wide: false
+    readonly property real sideMargin: theme.gu(wide ? 5 : 2)
+    readonly property real topMargin: theme.gu(wide ? 1.25 : 1)
+    readonly property real bottomMargin: theme.gu(wide ? 2 : 1.75)
 
     readonly property string savedText: savedAtMs > 0
         ? qsTr("Draft saved %1").arg(Qt.formatTime(new Date(savedAtMs), Qt.locale().timeFormat(Locale.ShortFormat)))
         : ""
 
-    implicitHeight: marker.implicitHeight + theme.gu(1) + theme.gu(1.75)
+    implicitHeight: marker.implicitHeight + topMargin + bottomMargin
     height: implicitHeight
 
     // "Plain text" keeps its room on the right; the left text takes the
@@ -31,7 +37,7 @@ Item {
         size: 14
         color: root.theme.secondary
         visible: root.savedAtMs > 0
-        anchors { left: parent.left; leftMargin: root.theme.gu(2); verticalCenter: marker.verticalCenter }
+        anchors { left: parent.left; leftMargin: root.sideMargin; verticalCenter: marker.verticalCenter }
     }
     Text {
         objectName: "savedText"
@@ -52,7 +58,7 @@ Item {
         id: marker
         objectName: "plainText"
         textFormat: Text.PlainText
-        anchors { right: parent.right; rightMargin: root.theme.gu(2); top: parent.top; topMargin: root.theme.gu(1) }
+        anchors { right: parent.right; rightMargin: root.sideMargin; top: parent.top; topMargin: root.topMargin }
         text: qsTr("Plain text")
         color: root.theme.secondary
         font.family: root.theme.fontLabel
