@@ -13,10 +13,6 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
-# Actions caches are restored by every run but saved only by pushes to master
-# (the save steps at the end of each job). Keys hash Cargo.toml, Cargo.lock
-# and this file, so a PR that changes one would otherwise save its own
-# multi-GB copy; PRs get a warm cache through restore-keys instead.
 env:
   # No debuginfo in CI builds: nothing reads it, and it is most of target/.
   CARGO_PROFILE_DEV_DEBUG: "0"
@@ -40,6 +36,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # Caches: every run restores, only pushes to master save (the Save steps
+      # at the end of each job). Keys hash lockfiles, Cargo.toml and this file,
+      # so a PR changing one would otherwise save its own multi-GB entry;
+      # PRs get a warm cache through restore-keys instead.
       # CARGO_HOME is /usr/local/cargo in the rust image, not ~/.cargo
       - name: Cache cargo registry
         id: c_reg
