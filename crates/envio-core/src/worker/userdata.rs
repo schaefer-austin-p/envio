@@ -220,6 +220,12 @@ impl Worker<'_> {
         self.save_settings(settings);
     }
 
+    pub(super) fn set_fullscreen(&mut self, on: bool) {
+        let mut settings = self.store.settings.clone();
+        settings.fullscreen = on;
+        self.save_settings(settings);
+    }
+
     pub(super) fn set_list_pane(&mut self, gu: u32) {
         let mut settings = self.store.settings.clone();
         settings.list_pane_gu = envio_store::clamp_list_pane_gu(gu.into());

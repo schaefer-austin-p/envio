@@ -20,6 +20,8 @@ Item {
     property int syncDays: 30
     // Whether a notification shows the sender and subject.
     property bool notifyShowText: false
+    // The Fullscreen switch in Appearance.
+    property bool fullscreen: false
     // The list pane width in gu (0 until the settings arrive).
     property int listPaneGu: 0
     // The message the reader shows; 0 for none (`setOpenMessage` sets it).
@@ -140,6 +142,7 @@ Item {
     function setSyncWindow(days) { record("setSyncWindow", [days]) }
     function setNotify(account, on) { record("setNotify", [account, on]) }
     function setNotifyText(on) { record("setNotifyText", [on]) }
+    function chooseFullscreen(on) { record("chooseFullscreen", [on]) }
     // The list pane's bounds and default in gu (the store's constants).
     property var paneLimits: [36, 70, 50]
     function listPaneMinGu() { return paneLimits[0] }

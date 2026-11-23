@@ -41,6 +41,7 @@ pub mod qobject {
         #[qproperty(i32, older_row, cxx_name = "olderRow")]
         #[qproperty(i32, sync_days, cxx_name = "syncDays")]
         #[qproperty(bool, notify_show_text, cxx_name = "notifyShowText")]
+        #[qproperty(bool, fullscreen)]
         #[qproperty(i32, list_pane_gu, cxx_name = "listPaneGu")]
         // Read-only: `setOpenMessage` below is the (invokable) way to set it.
         #[qproperty(i64, open_message, cxx_name = "openMessage", READ, NOTIFY)]
@@ -338,6 +339,9 @@ pub mod qobject {
         #[cxx_name = "setNotifyText"]
         fn set_notify_text(self: Pin<&mut EnvioCore>, on: bool);
         #[qinvokable]
+        #[cxx_name = "chooseFullscreen"]
+        fn choose_fullscreen(self: Pin<&mut EnvioCore>, on: bool);
+        #[qinvokable]
         #[cxx_name = "setListPane"]
         fn set_list_pane(self: Pin<&mut EnvioCore>, gu: i32);
         /// The splitter's bounds and default in gu (the store's constants).
@@ -492,6 +496,8 @@ pub struct EnvioCoreRust {
     pub(crate) sync_days: i32,
     /// "Show sender and subject" in new-mail notifications.
     pub(crate) notify_show_text: bool,
+    /// The Fullscreen switch in Appearance.
+    pub(crate) fullscreen: bool,
     /// The two-pane layout's list width in grid units (the splitter).
     pub(crate) list_pane_gu: i32,
     /// The message the reader shows; 0 for none (`Ui::open_message`).

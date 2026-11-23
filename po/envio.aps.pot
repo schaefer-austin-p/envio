@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 19:41+0100\n"
+"POT-Creation-Date: 2026-11-23 20:22+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -150,7 +150,7 @@ msgstr ""
 msgid "%1 GB"
 msgstr ""
 
-#: qml/pages/AppShell.qml:315
+#: qml/pages/AppShell.qml:317
 msgid "Draft saved"
 msgstr ""
 
@@ -1076,33 +1076,44 @@ msgstr ""
 msgid "not as a click"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:25
+#: qml/pages/settings/AppearancePage.qml:27
 #: qml/pages/settings/SettingsPage.qml:33
 msgid "Appearance"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:39
+#: qml/pages/settings/AppearancePage.qml:41
 msgid "Carbon"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:40
+#: qml/pages/settings/AppearancePage.qml:42
 msgid "Airmail"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:100
+#: qml/pages/settings/AppearancePage.qml:102
 msgid "Colour scheme"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:110
+#: qml/pages/settings/AppearancePage.qml:112
 msgid "Light"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:111
+#: qml/pages/settings/AppearancePage.qml:113
 msgid "Dark"
 msgstr ""
 
-#: qml/pages/settings/AppearancePage.qml:112
+#: qml/pages/settings/AppearancePage.qml:114
 msgid "System"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:144
+#: qml/pages/settings/AppearancePage.qml:165
+msgid "Fullscreen"
+msgstr ""
+
+#: qml/pages/settings/AppearancePage.qml:153
+msgid ""
+"Hides the indicator bar at the top of the screen. Swipe down from the top "
+"edge to bring it back."
 msgstr ""
 
 #: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:36

@@ -314,7 +314,7 @@ pub enum Command {
     /// Save the settings except the allowed image senders and the
     /// notification switches, which the worker keeps as they are (they
     /// change only by `AllowImagesFrom`, `DisallowImagesFrom`, `SetNotify`
-    /// `SetNotifyText` and `SetListPane`); the answer is `Settings`.
+    /// `SetNotifyText`, `SetFullscreen` and `SetListPane`); the answer is `Settings`.
     SaveSettings(Settings),
     /// Turn one account's new-mail notifications on or off. Applied to the
     /// worker's own settings, so toggles never overwrite one another; the
@@ -323,6 +323,9 @@ pub enum Command {
     /// Show the sender and subject in new-mail notifications, or not; the
     /// answer is `Settings`.
     SetNotifyText { on: bool },
+    /// Run fullscreen, or not. Applied to the worker's own settings; the
+    /// answer is `Settings`.
+    SetFullscreen { on: bool },
     /// The list pane's width in grid units (the splitter); clamped to the
     /// allowed range. Applied to the worker's own settings; the answer is
     /// `Settings`.
@@ -387,6 +390,7 @@ impl Command {
             Self::SaveSettings(_) => "SaveSettings",
             Self::SetNotify { .. } => "SetNotify",
             Self::SetNotifyText { .. } => "SetNotifyText",
+            Self::SetFullscreen { .. } => "SetFullscreen",
             Self::SetListPane { .. } => "SetListPane",
             Self::AllowImagesFrom { .. } => "AllowImagesFrom",
             Self::DisallowImagesFrom { .. } => "DisallowImagesFrom",

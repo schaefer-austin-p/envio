@@ -296,6 +296,7 @@ impl qobject::EnvioCore {
             .set_sync_days(i32::try_from(settings.sync_window_days).unwrap_or(30));
         self.as_mut()
             .set_notify_show_text(settings.notify_show_text);
+        self.as_mut().set_fullscreen(settings.fullscreen);
         self.as_mut()
             .set_list_pane_gu(i32::try_from(settings.list_pane_gu).unwrap_or(50));
         self.as_mut()
