@@ -11,7 +11,9 @@ Item {
     required property Theme theme
     // The hint with %1 where the key chips go (the chips are drawn here).
     readonly property string shortcutHint: qsTr("Or press %1 to write one.")
-    readonly property var hintParts: shortcutHint.split("%1")
+    // The text before and after the chips, without the spaces around %1: the
+    // Row's spacing sets the gaps, not spaces a Text may not count.
+    readonly property var hintParts: shortcutHint.split("%1").map(function(t) { return t.trim() })
 
     Rectangle { anchors.fill: parent; color: root.theme.ground }
 
@@ -35,26 +37,35 @@ Item {
             font.family: root.theme.fontUi
             font.pixelSize: 18
         }
+        // The board's line: 14 px text with 4 px (a space) between the text and
+        // the chips and between the chips.
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: root.theme.gu(0.75)
+            spacing: root.theme.gu(0.5)
             Text {
+                objectName: "emptyHintBefore"
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
                 text: root.hintParts[0]
                 color: root.theme.secondary
                 font.family: root.theme.fontBody
-                font.pixelSize: root.theme.bodySize
+                font.pixelSize: 14
             }
-            KeyChip { anchors.verticalCenter: parent.verticalCenter; theme: root.theme; text: qsTr("Ctrl") }
-            KeyChip { anchors.verticalCenter: parent.verticalCenter; theme: root.theme; text: "N" }
+            Row {
+                objectName: "emptyHintChips"
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: root.theme.gu(0.5)
+                KeyChip { theme: root.theme; text: qsTr("Ctrl") }
+                KeyChip { theme: root.theme; text: "N" }
+            }
             Text {
+                objectName: "emptyHintAfter"
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
                 text: root.hintParts.slice(1).join("%1")
                 color: root.theme.secondary
                 font.family: root.theme.fontBody
-                font.pixelSize: root.theme.bodySize
+                font.pixelSize: 14
             }
         }
     }
