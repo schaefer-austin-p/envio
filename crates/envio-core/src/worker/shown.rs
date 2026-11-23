@@ -142,8 +142,10 @@ impl Worker<'_> {
     }
 
     /// The reader's width changed (#192): renders the shown message `id`
-    /// again for `width_px` and always answers with it (the reader waits for
-    /// the answer). The images choice, the failed lookups and the verdict of
+    /// again for `width_px` and answers with it (the reader waits for the
+    /// answer). It says nothing when `id` is not the open message, and while
+    /// the body is still being fetched it only updates the width the
+    /// pending open will render at. The images choice, the failed lookups and the verdict of
     /// this open stay, and the message is not marked read.
     pub(super) fn refit_message(&mut self, id: MessageRowId, width_px: u32) {
         if self.store.open_message != Some(id) {

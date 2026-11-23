@@ -386,6 +386,9 @@ mod tests {
         view.header.sender_checkable = true;
         assert_eq!(message_view_value(1, &view)["senderCheckable"], true);
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
+        assert_eq!(message_view_value(1, &view)["bodyWidth"], 0);
+        view.body_width = 344;
+        assert_eq!(message_view_value(1, &view)["bodyWidth"], 344);
         assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
         view.remote_images = vec!["https://example.org/a.png".into()];
         assert_eq!(

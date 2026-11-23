@@ -624,6 +624,19 @@ Content-Type: text/html\r\n\r\n<p>Hi</p>";
         assert!(sink.events().is_empty());
     }
 
+    #[test]
+    fn a_refit_while_the_body_is_pending_changes_the_width_of_the_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        worker.open_message(seeded.message, ImagesChoice::Default, 300);
+        sink.0.lock().unwrap().clear();
+        worker.refit_message(seeded.message, 500);
+        assert_eq!(worker.opening[&seeded.message].1, 500);
+        assert!(sink.events().is_empty());
+    }
+
     const WITH_IMAGE: &[u8] = b"From: a@example.org\r\nSubject: s\r\nMIME-Version: 1.0\r\n\
 Content-Type: multipart/related; boundary=XX\r\n\r\n\
 --XX\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:l@example.org\">\r\n\
