@@ -22,6 +22,7 @@ Item {
         compose: 1
         anchors.fill: parent
     }
+    ComposeFooter { id: narrowFooter; theme: thm; width: 150; savedAtMs: new Date(2026, 10, 23, 9, 41).getTime(); visible: false }
     SignalSpy { id: sent; target: page; signalName: "sent" }
     SignalSpy { id: closed; target: page; signalName: "closed" }
     SignalSpy { id: refused; target: page; signalName: "refused" }
@@ -129,6 +130,17 @@ Item {
             verify(plain.x > find("savedText").x + find("savedText").width, "Plain text sits on the right")
             page.reset()
             verify(!shown("savedText"), "a reused page starts without the text")
+        }
+
+        // A long translation shares the width: the left text is elided and
+        // never runs under "Plain text".
+        function test_footer_left_text_never_overlaps_plain_text_when_narrow() {
+            const left = find("savedText", narrowFooter)
+            const right = find("plainText", narrowFooter)
+            verify(left.width > 0, "the left text keeps some room")
+            verify(left.x + left.width <= right.x, "no overlap at 150 px")
+            verify(right.x + right.width <= narrowFooter.width, "Plain text stays inside")
+            verify(left.truncated, "the left text is elided at 150 px")
         }
 
         function test_ready_fills_fields_and_folds_quote() {

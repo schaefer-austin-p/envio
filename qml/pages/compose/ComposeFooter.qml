@@ -20,26 +20,32 @@ Item {
     implicitHeight: marker.implicitHeight + theme.gu(1) + theme.gu(1.75)
     height: implicitHeight
 
-    Row {
-        id: saved
-        anchors { left: parent.left; leftMargin: root.theme.gu(2); verticalCenter: marker.verticalCenter }
-        spacing: root.theme.gu(0.75)
+    // "Plain text" keeps its room on the right; the left text takes the
+    // rest and is elided, so a long translation never runs into it. Anchors
+    // follow LayoutMirroring (RTL).
+    Icon {
+        id: check
+        objectName: "savedCheck"
+        theme: root.theme
+        name: "check"
+        size: 14
+        color: root.theme.secondary
         visible: root.savedAtMs > 0
-        Icon {
-            objectName: "savedCheck"
-            theme: root.theme
-            name: "check"
-            size: 14
-            color: root.theme.secondary
-            anchors.verticalCenter: parent.verticalCenter
-        }
-        Text {
-            objectName: "savedText"
-            textFormat: Text.PlainText
-            text: root.savedText
-            color: root.theme.secondary
-            font.family: root.theme.fontLabel
-            font.pixelSize: 12
+        anchors { left: parent.left; leftMargin: root.theme.gu(2); verticalCenter: marker.verticalCenter }
+    }
+    Text {
+        objectName: "savedText"
+        textFormat: Text.PlainText
+        visible: root.savedAtMs > 0
+        text: root.savedText
+        elide: Text.ElideRight
+        color: root.theme.secondary
+        font.family: root.theme.fontLabel
+        font.pixelSize: 12
+        anchors {
+            left: check.right; leftMargin: root.theme.gu(0.75)
+            right: marker.left; rightMargin: root.theme.gu(1)
+            verticalCenter: marker.verticalCenter
         }
     }
     Text {

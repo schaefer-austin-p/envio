@@ -404,6 +404,8 @@ impl DraftBook {
         (compose, draft): (ComposeId, DraftInput),
         events: &mut Vec<Event>,
     ) -> bool {
+        // `store` writes nothing for a removed account: no time to report.
+        let skipped = st.removed.contains(&draft.account);
         match self.store_guarded(st, compose, &draft) {
             Ok(created) => {
                 st.save_failed.remove(&compose);
@@ -413,10 +415,12 @@ impl DraftBook {
                         account: draft.account.clone(),
                     });
                 }
-                events.push(Event::DraftStored {
-                    compose,
-                    at_ms: now_ms(),
-                });
+                if !skipped {
+                    events.push(Event::DraftStored {
+                        compose,
+                        at_ms: now_ms(),
+                    });
+                }
                 true
             }
             Err(text) => {
@@ -721,6 +725,18 @@ mod tests {
         book.changed(B, input("b"), 0);
         assert_eq!(book.next_due(), None);
         assert!(book.flush_all().is_empty());
+    }
+
+    #[test]
+    fn a_save_skipped_for_a_removed_account_tells_no_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let book = book(dir.path());
+        book.drop_account("acct");
+        let mut events = Vec::new();
+        // A save already taken from the throttle when the account went.
+        book.persist(&mut book.lock(), (A, input("late")), &mut events);
+        assert!(events.is_empty(), "{events:?}");
+        assert!(book.drafts().unwrap().list().unwrap().is_empty());
     }
 
     #[test]
