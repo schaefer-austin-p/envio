@@ -76,6 +76,11 @@ impl qobject::EnvioCore {
         self.send_command(Command::SetNotifyText { on });
     }
 
+    /// The Fullscreen switch in Appearance.
+    pub fn choose_fullscreen(self: Pin<&mut Self>, on: bool) {
+        self.send_command(Command::SetFullscreen { on });
+    }
+
     /// The list pane's width in grid units, from the splitter; the core
     /// clamps it and saves it.
     pub fn set_list_pane(self: Pin<&mut Self>, gu: i32) {

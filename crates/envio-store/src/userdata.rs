@@ -62,6 +62,8 @@ pub struct Settings {
     pub notify_off: BTreeSet<String>,
     /// Whether a card for one new message shows its sender and subject.
     pub notify_show_text: bool,
+    /// Run fullscreen (phone: the indicator panel hides until a swipe down).
+    pub fullscreen: bool,
     /// The list pane's width in grid units in the two-pane layout; read
     /// values snap into `LIST_PANE_MIN_GU..=LIST_PANE_MAX_GU`.
     #[serde(deserialize_with = "clamp_list_pane")]
@@ -95,6 +97,7 @@ impl Default for Settings {
             sync_window_days: thirty(),
             notify_off: BTreeSet::new(),
             notify_show_text: false,
+            fullscreen: false,
             list_pane_gu: LIST_PANE_DEFAULT_GU,
         }
     }
@@ -260,6 +263,22 @@ mod tests {
         };
         save_settings(&path, &settings).unwrap();
         assert_eq!(load_settings(&path).unwrap().list_pane_gu, 61);
+    }
+
+    #[test]
+    fn fullscreen_is_off_by_default_and_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        assert!(!Settings::default().fullscreen);
+        // A file written before the field existed reads as off.
+        std::fs::write(&path, r#"{"version":1}"#).unwrap();
+        assert!(!load_settings(&path).unwrap().fullscreen);
+        let on = Settings {
+            fullscreen: true,
+            ..Settings::default()
+        };
+        save_settings(&path, &on).unwrap();
+        assert!(load_settings(&path).unwrap().fullscreen);
     }
 
     #[test]

@@ -74,6 +74,7 @@ TestCase {
         tryCompare(core, "theme", "carbon", 20000)
         compare(core.darkMode, "system")
         compare(core.imagesAlways, false)
+        compare(core.fullscreen, false)
         compare(core.defaultAccount, "")
     }
 

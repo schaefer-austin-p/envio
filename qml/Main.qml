@@ -9,10 +9,13 @@ ApplicationWindow {
     width: 360
     height: 640
     visible: true
+    visibility: windowMode.visibility
     title: "Envio"
     color: appTheme.ground
 
     EnvioCore { id: core }
+    // Fullscreen on the phone, hiding the indicator panel (#383).
+    WindowMode { id: windowMode; fullscreen: core.fullscreen }
     RowsModel { id: accountsModel; kind: "accounts" }
     RowsModel { id: foldersModel; kind: "folders" }
     RowsModel { id: messagesModel; kind: "messages" }
@@ -39,6 +42,7 @@ ApplicationWindow {
         suggestions: suggestionsModel
         searchResults: searchModel
         receiveShares: true
+        fullscreenAvailable: windowMode.available
     }
 
     Component.onCompleted: {

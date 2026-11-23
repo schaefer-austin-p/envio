@@ -21,6 +21,8 @@ Item {
     id: root
     required property Theme theme
     required property var core
+    // The Fullscreen switch in Appearance shows only where the platform has it.
+    property bool fullscreenAvailable: false
     required property var accounts
     required property var folders
     required property var messages
@@ -688,7 +690,7 @@ Item {
     }
     Component {
         id: appearancePage
-        AppearancePage { theme: root.theme; core: root.core; onBackRequested: stack.pop() }
+        AppearancePage { theme: root.theme; core: root.core; fullscreenAvailable: root.fullscreenAvailable; onBackRequested: stack.pop() }
     }
     Component {
         id: syncPage
