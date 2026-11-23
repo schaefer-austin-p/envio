@@ -72,6 +72,7 @@ Item {
             required property var model
             required property int index
             visible: false
+            readonly property string key: model.key
             Binding {
                 target: root
                 property: "firstAccount"
@@ -333,6 +334,37 @@ Item {
         const id = core.startCompose("new", 0, composeAccount, "")
         if (id > 0) composeOpened(id)
     }
+    // A notification click (the core's openInboxRequested, from the platform
+    // glue): that account's Inbox, once the core is up and the inbox is the
+    // root. Pages above the list close, except while a compose is open: its
+    // text is not ours to drop. An account that is gone is ignored.
+    property string pendingInbox: ""
+    function openAccountInbox(account) {
+        pendingInbox = account
+        startPendingInbox()
+    }
+    function hasAccount(key) {
+        for (let i = 0; i < accountRows.count; i++) if (accountRows.itemAt(i) !== null && accountRows.itemAt(i).key === key) return true
+        return false
+    }
+    function startPendingInbox() {
+        if (pendingInbox === "" || !core.ready || rootKind !== "inbox" || inboxItem === null) return
+        const key = pendingInbox
+        pendingInbox = ""
+        if (!hasAccount(key) || composeItem !== null) return
+        if (stack.depth > 1) {
+            retireReader()
+            stack.pop(null, StackView.Immediate)
+        }
+        if (core.openMessage > 0) core.setOpenMessage(0)
+        inboxItem.showAccount(key)
+    }
+    Connections {
+        target: root.core
+        function onOpenInboxRequested(account) { root.openAccountInbox(account) }
+        function onReadyChanged() { root.startPendingInbox() }
+    }
+
     // A mailto: link waits until the core is up and there is an account to
     // write from; then the core fills the compose from it.
     property alias uriSource: links.sourceFile

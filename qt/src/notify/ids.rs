@@ -25,6 +25,8 @@ pub(crate) struct Ids {
     slots: HashMap<String, Slot>,
     /// Card id -> (tag, account), for clicks.
     cards: HashMap<u32, (String, String)>,
+    /// Card id -> the `activation-token` the server sent for its click.
+    tokens: HashMap<u32, String>,
     /// Counts the server owners seen: a call carries the number it was
     /// made under, and its reply counts only under the same one.
     epoch: u32,
@@ -33,6 +35,13 @@ pub(crate) struct Ids {
 /// An alert to send now, replacing the card with this id (0: a new card),
 /// and the epoch the reply must name to count.
 pub(crate) type ToSend = (Alert, u32, u32);
+
+/// What a click on one of Envio's cards asks for.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct Click {
+    pub account: String,
+    pub token: String,
+}
 
 impl Ids {
     /// The worker has an alert: `Some` to send now, `None` when it waits for
@@ -101,6 +110,7 @@ impl Ids {
     /// The server closed card `id` (dismissed, expired, replaced): it is not
     /// ours any more, and servers may reuse ids.
     pub(crate) fn closed(&mut self, id: u32) {
+        self.tokens.remove(&id);
         let Some((tag, _)) = self.cards.remove(&id) else {
             return;
         };
@@ -121,6 +131,7 @@ impl Ids {
         self.epoch = self.epoch.wrapping_add(1);
         let old = std::mem::take(&mut self.slots);
         self.cards.clear();
+        self.tokens.clear();
         let mut again = Vec::new();
         for (tag, slot) in old {
             if let Slot::InFlight {
@@ -150,6 +161,23 @@ impl Ids {
     /// The account a card with this id belongs to, if Envio posted it.
     pub(crate) fn account_of(&self, id: u32) -> Option<&str> {
         self.cards.get(&id).map(|(_, account)| account.as_str())
+    }
+
+    /// The server's `ActivationToken` for card `id` (it comes just before the
+    /// click's `ActionInvoked`). Kept only for Envio's own cards.
+    pub(crate) fn token(&mut self, id: u32, token: String) {
+        if self.cards.contains_key(&id) {
+            self.tokens.insert(id, token);
+        }
+    }
+
+    /// A click on card `id`: the account to open and the token to raise the
+    /// window with (empty when the server sent none). `None` for a card that
+    /// is not Envio's. The token is single-use, so it is taken.
+    pub(crate) fn click(&mut self, id: u32) -> Option<Click> {
+        let account = self.account_of(id)?.to_owned();
+        let token = self.tokens.remove(&id).unwrap_or_default();
+        Some(Click { account, token })
     }
 }
 
@@ -312,5 +340,31 @@ mod tests {
         assert!(ids.begin(alert("t", "3")).is_none());
         let (next, _, _) = ids.finished("t", 4, *epoch).unwrap();
         assert_eq!(next.body, "3");
+    }
+
+    #[test]
+    fn a_click_takes_the_token_once_and_only_for_envios_cards() {
+        let mut ids = Ids::default();
+        ids.begin(alert("t", "1")).unwrap();
+        ids.finished("t", 7, 0);
+        ids.token(7, "tok".into());
+        ids.token(99, "foreign".into());
+        assert_eq!(
+            ids.click(7),
+            Some(Click {
+                account: "acc-t".into(),
+                token: "tok".into()
+            })
+        );
+        // Used up: a second click has none.
+        assert_eq!(ids.click(7).unwrap().token, "");
+        assert_eq!(ids.click(99), None);
+        // A token for a closed card is dropped, and ids may be reused.
+        ids.token(7, "old".into());
+        ids.closed(7);
+        assert_eq!(ids.click(7), None);
+        ids.begin(alert("t", "2")).unwrap();
+        ids.finished("t", 7, 0);
+        assert_eq!(ids.click(7).unwrap().token, "");
     }
 }

@@ -54,6 +54,11 @@ impl qobject::EnvioCore {
             foreground: true,
         };
         let sink = Arc::new(QtSink::new(self.qt_thread()));
+        // "Open this account's Inbox" from the platform glue becomes a signal.
+        let thread = self.qt_thread();
+        crate::open_route::set_handler(move |account| {
+            let _ = thread.queue(move |obj| obj.open_inbox_requested(&QString::from(account)));
+        });
         match Core::start(config, sink) {
             Ok(core) => {
                 // Postal on Ubuntu Touch, the freedesktop service on a desktop.

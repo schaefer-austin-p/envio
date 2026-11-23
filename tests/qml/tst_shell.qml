@@ -205,6 +205,30 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_notification_click_opens_that_accounts_inbox() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 && b.shell.inboxItem !== null })
+            b.shell.currentPage.settingsRequested()
+            compare(b.shell.depth, 2)
+            b.core.openInboxRequested("ann")
+            compare(b.shell.depth, 1, "the page above the list closed")
+            compare(b.core.called("listFolders").length, 1)
+            compare(b.core.called("listFolders")[0].args, ["ann"])
+            compare(b.shell.inboxItem.tab, "ann")
+            // An account that is gone does nothing.
+            b.core.openInboxRequested("gone")
+            compare(b.core.called("listFolders").length, 1)
+            b.shell.destroy()
+        }
+
+        function test_a_notification_click_over_the_wizard_is_ignored() {
+            const b = boot(false)
+            tryVerify(function() { return b.shell.depth === 1 })
+            b.core.openInboxRequested("ann")
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
         // What Content Hub hands over: items with file:// URLs.
         function newTransfer() {
             return { finalized: 0, finalize: function() { this.finalized++ }, items: [
