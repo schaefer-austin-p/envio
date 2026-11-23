@@ -162,6 +162,23 @@ Item {
             page.wide = false
         }
 
+        // Phone check of #448: the footer rides on the on-screen keyboard
+        // (like PageFooter, #61), so the save time is not hidden while typing.
+        function test_footer_rides_on_the_keyboard() {
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            const foot = find("composeFooter")
+            const flick = find("composeFlick")
+            compare(foot.mapToItem(page, 0, foot.height).y, page.height)
+            const kb = Qt.rect(0, page.height - 300, page.width, 300)
+            foot.keyboard = kb
+            compare(foot.mapToItem(page, 0, foot.height).y, kb.y)
+            verify(flick.mapToItem(page, 0, flick.height).y <= foot.mapToItem(page, 0, 0).y,
+                   "the fields end above the footer")
+            foot.keyboard = Qt.rect(0, 0, 0, 0)
+            compare(foot.mapToItem(page, 0, foot.height).y, page.height)
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             compare(find("to").entries, ["Bob <bob@example.org>"])

@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Platform" as Platform
 
 // The line under the message (carbon-compose, airmail-compose): a check and
 // "Draft saved 09:41" on the left once the draft has been written, and
@@ -22,6 +23,22 @@ Item {
     readonly property string savedText: savedAtMs > 0
         ? qsTr("Draft saved %1").arg(Qt.formatTime(new Date(savedAtMs), Qt.locale().timeFormat(Locale.ShortFormat)))
         : ""
+
+    // The keyboard in window coordinates (bindle KeyboardInset). Tests set it.
+    property alias keyboard: inset.keyboard
+    // How far the keyboard covers the bottom of the parent.
+    readonly property real lift: inset.inset
+
+    // Rides on the on-screen keyboard like PageFooter (#61): it sits above
+    // Qt's keyboardRectangle, so the page's KeyboardAvoider only sees the
+    // room that is left.
+    Platform.KeyboardInset {
+        id: inset
+        target: root.parent
+    }
+    y: (parent ? parent.height : 0) - height - lift
+
+    Rectangle { anchors.fill: parent; color: root.theme.ground }
 
     implicitHeight: marker.implicitHeight + topMargin + bottomMargin
     height: implicitHeight
