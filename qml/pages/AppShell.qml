@@ -635,7 +635,7 @@ Item {
                 anchors.centerIn: parent
                 width: 4
                 height: 32
-                radius: 2
+                radius: width / 2
                 color: root.theme.secondary
                 visible: root.touchSeen
             }
