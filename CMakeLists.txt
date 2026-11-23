@@ -39,8 +39,18 @@ if(ENVIO_WERROR)
   target_compile_options(envio_postal PRIVATE -Werror)
 endif()
 
+# org.freedesktop.Notifications over QtDBus (qt/notify.cpp), for desktops.
+add_library(envio_notify OBJECT qt/notify.cpp)
+target_link_libraries(envio_notify PUBLIC Qt5::Core Qt5::Gui Qt5::DBus)
+target_compile_definitions(envio_notify PRIVATE QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASCII QT_NO_KEYWORDS)
+target_compile_options(envio_notify PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
+  -Wold-style-cast -Wnon-virtual-dtor -Woverloaded-virtual -Wformat=2)
+if(ENVIO_WERROR)
+  target_compile_options(envio_notify PRIVATE -Werror)
+endif()
+
 add_executable(envio qt/main.cpp qml/qml.qrc qml/bindle/bindle.qrc)
-target_link_libraries(envio PRIVATE envio_qml envio_postal Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
+target_link_libraries(envio PRIVATE envio_qml envio_postal envio_notify Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick Qt5::QuickControls2)
 target_compile_options(envio PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion
   -Wold-style-cast -Wnon-virtual-dtor -Woverloaded-virtual -Wformat=2)
 target_compile_definitions(envio PRIVATE QT_NO_CAST_FROM_ASCII QT_NO_CAST_TO_ASCII
@@ -54,7 +64,7 @@ endif()
 if(ENVIO_QMLTEST)
   find_package(Qt5 5.15 REQUIRED COMPONENTS QuickTest Network)
   add_executable(envio-qmltest tests/qml/main.cpp)
-  target_link_libraries(envio-qmltest PRIVATE envio_qml envio_postal Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
+  target_link_libraries(envio-qmltest PRIVATE envio_qml envio_postal envio_notify Qt5::Core Qt5::Gui Qt5::Qml Qt5::Quick
     Qt5::QuickTest Qt5::Network)
 endif()
 
