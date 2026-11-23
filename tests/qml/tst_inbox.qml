@@ -1175,6 +1175,73 @@ Item {
             id: spyComponent
             SignalSpy { signalName: "outboxRequested" }
         }
+        // #449: the visible Refresh button, the pull's twin.
+        function endRefresh() {
+            core.refreshed(core.lastTicket)
+            tryVerify(function() { return !page.refreshing })
+            core.canRefresh = true
+            core.refreshScope = ""
+            page.drawerInline = false
+        }
+        function test_refresh_button_shows_in_the_narrow_and_wide_layouts() {
+            core.canRefresh = true
+            const btn = find("refreshButton", page)
+            verify(btn.visible)
+            compare(btn.Accessible.name, "Refresh")
+            page.drawerInline = true
+            verify(btn.visible)
+            verify(!find("menuButton", page).visible)
+            page.drawerInline = false
+        }
+        function test_refresh_button_is_hidden_while_selecting() {
+            core.messages.append(message(11, true))
+            tryVerify(function() { return find("selectionBar", page).visible })
+            verify(!find("refreshButton", page).visible)
+            core.messages.clear()
+            tryVerify(function() { return !find("selectionBar", page).visible })
+            verify(find("refreshButton", page).visible)
+        }
+        function test_refresh_button_is_disabled_without_canRefresh() {
+            core.canRefresh = false
+            const btn = find("refreshButton", page)
+            verify(!btn.enabled)
+            mouseClick(btn)
+            compare(core.called("refresh").length, 0)
+            core.canRefresh = true
+            verify(btn.enabled)
+        }
+        function test_refresh_button_refreshes_the_shown_scope_once() {
+            core.canRefresh = true
+            core.refreshScope = "ann"
+            mouseClick(find("refreshButton", page))
+            compare(core.called("refresh").length, 1)
+            compare(core.called("refresh")[0].args[0], "ann")
+            verify(page.refreshing)
+            endRefresh()
+        }
+        function test_a_second_tap_while_refreshing_does_nothing() {
+            core.canRefresh = true
+            const btn = find("refreshButton", page)
+            mouseClick(btn)
+            verify(page.refreshing)
+            verify(btn.enabled, "not dimmed while refreshing")
+            mouseClick(btn)
+            compare(core.called("refresh").length, 1)
+            endRefresh()
+        }
+        function test_refresh_button_name_and_spin_follow_refreshing() {
+            core.canRefresh = true
+            const btn = find("refreshButton", page)
+            compare(btn.Accessible.name, "Refresh")
+            verify(!btn.iconRotating)
+            mouseClick(btn)
+            compare(btn.Accessible.name, "Refreshing")
+            verify(btn.iconRotating)
+            endRefresh()
+            compare(btn.Accessible.name, "Refresh")
+            verify(!btn.iconRotating)
+        }
+
     }
 
     TestCase {
