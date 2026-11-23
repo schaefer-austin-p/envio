@@ -145,6 +145,7 @@ pub(crate) fn render_view(
         image_sizes: ctx.image_sizes.clone(),
         blocked_label: text::read::blocked_images(),
         max_image_width: width_px,
+        max_font_px: envio_mime::font_cap_px(width_px),
     };
     let rendered = envio_mime::render(&message, &options);
     let mut html = rendered.html;

@@ -52,6 +52,7 @@ pub use build::{Built, CalendarPart, Outgoing, OutgoingAttachment, build, new_me
 pub use colours::{parse_colour, sets_colours};
 pub use content_type::content_type_for;
 pub use envelope::{Envelope, envelope, header_suggests_attachments};
+pub use fontsize::font_cap_px;
 pub use image_size::size as image_size;
 pub use invite::{
     Invite, InviteMethod, NaiveParts, PartStat, Person, When, calendar_file, invite_of,

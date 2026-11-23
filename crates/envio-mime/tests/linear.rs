@@ -5,6 +5,7 @@ use envio_mime::{RenderOptions, sanitize_html};
 fn clean(html: &str) -> String {
     let options = RenderOptions {
         max_image_width: 360,
+        max_font_px: 0,
         ..RenderOptions::default()
     };
     sanitize_html(html, &options).html
@@ -159,6 +160,7 @@ fn a_table_without_rows_is_kept() {
 fn with_images(html: &str) -> String {
     let options = RenderOptions {
         max_image_width: 360,
+        max_font_px: 0,
         allow_remote_images: true,
         ..RenderOptions::default()
     };

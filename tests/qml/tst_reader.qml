@@ -747,6 +747,64 @@ Item {
             root.page.width = thm.gu(60)
             compare(find("bodyCard").width, thm.gu(60) - thm.gu(10))
         }
+        // The pane's width changes after open (window resize, a breakpoint,
+        // the folder column): the images are fitted to the new body (#192).
+        function test_width_change_refits_images_after_a_pause() {
+            open(view([], 2))
+            mock.reset()
+            root.page.width = 300
+            compare(mock.called("open").length, 0, "the refit waits for the width to settle")
+            tryVerify(function() { return mock.called("open").length === 1 })
+            const args = mock.called("open")[0].args
+            compare(args[0], 5)
+            compare(args[1], false)
+            compare(args[2], 300 - thm.gu(7))
+        }
+        function test_refit_keeps_loaded_images() {
+            open(view([], 2))
+            mouseClick(find("loadImages"))
+            mock.reset()
+            root.page.width = 300
+            tryVerify(function() { return mock.called("open").length === 1 })
+            compare(mock.called("open")[0].args[1], true)
+        }
+        function test_live_resize_refits_once() {
+            open(view([], 0))
+            mock.reset()
+            for (const w of [390, 380, 370, 360]) {
+                root.page.width = w
+                wait(40)
+            }
+            tryVerify(function() { return mock.called("open").length === 1 })
+            wait(500)
+            compare(mock.called("open").length, 1)
+            compare(mock.called("open")[0].args[2], 360 - thm.gu(7))
+        }
+        function test_width_change_past_the_measure_cap_does_not_refit() {
+            wideReader()
+            mock.reset()
+            root.page.width = 1200
+            wait(600)
+            compare(mock.called("open").length, 0, "the body is as wide as before")
+        }
+        function test_refit_keeps_the_scroll_fraction() {
+            const longHtml = "<p>" + new Array(400).join("Hello again. ") + "</p>"
+            const v = { id: 5, html: longHtml, blockedImages: 0, from: "Ana Ruiz", fromAddress: "ana@example.org", to: ["me@example.org"],
+                cc: [], subject: "Invoice", date: 1700000000, account: "ann", senderKnown: false, senderVerified: true, attachments: [] }
+            mock.messageOpened(v)
+            waitForRendering(root.page)
+            const flick = find("readerFlick")
+            flick.contentY = 0.5 * (flick.contentHeight - flick.height)
+            fuzzyCompare(root.page.scrollFraction, 0.5, 0.02)
+            mock.reset()
+            root.page.width = 250
+            tryVerify(function() { return mock.called("open").length === 1 })
+            // The core's answer lays the body out again, as the fitted one.
+            mock.messageOpened(v)
+            waitForRendering(root.page)
+            tryVerify(function() { return Math.abs(flick.contentY / (flick.contentHeight - flick.height) - 0.5) < 0.02 })
+            fuzzyCompare(root.page.scrollFraction, 0.5, 0.02)
+        }
         function test_wide_reader_column_is_5_gu_from_the_pane_edge() {
             wideReader()
             compare(find("bodyCard").mapToItem(root.page, 0, 0).x, thm.gu(5))

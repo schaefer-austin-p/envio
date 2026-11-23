@@ -9,6 +9,7 @@ fn options() -> RenderOptions {
     RenderOptions {
         blocked_label: "[image]".to_owned(),
         max_image_width: 360,
+        max_font_px: 0,
         ..RenderOptions::default()
     }
 }

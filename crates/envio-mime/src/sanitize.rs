@@ -160,6 +160,18 @@ pub struct RenderOptions {
     /// Widest image or table in pixels; wider ones are scaled down (images)
     /// or lose their width (tables, cells). 0 means no limit.
     pub max_image_width: u32,
+    /// Largest font size in px (see [`crate::font_cap_px`]); 0 means 26.
+    pub max_font_px: u32,
+}
+
+impl RenderOptions {
+    pub(crate) fn font_cap(&self) -> f64 {
+        if self.max_font_px == 0 {
+            26.0
+        } else {
+            f64::from(self.max_font_px)
+        }
+    }
 }
 
 /// Rich text for Qt plus what was held back.
@@ -241,7 +253,7 @@ pub fn sanitize_html(html: &str, options: &RenderOptions) -> Rendered {
     rendered.html = crate::linear::linearise(&rendered.html, &images, !has_doctype(html));
     rendered.html = crate::emptydiv::drop_empty(&rendered.html);
     rendered.html = crate::backgrounds::fill(&rendered.html);
-    rendered.html = crate::fontsize::fit(&rendered.html);
+    rendered.html = crate::fontsize::fit(&rendered.html, options.font_cap());
     rendered.own_colours = crate::colours::sets_colours(&rendered.html);
     rendered
 }

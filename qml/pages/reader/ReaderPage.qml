@@ -72,7 +72,10 @@ Item {
     property bool holdActive: false
     readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
     // A redraw due for the last message must not lay out the next one.
-    onViewChanged: imageRedraw.stop()
+    onViewChanged: {
+        imageRedraw.stop()
+        if (refitting) { refitting = false; restoreScroll() }
+    }
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(wide ? Math.min(width - theme.gu(13), theme.gu(77)) : width - theme.gu(7)))
@@ -108,19 +111,51 @@ Item {
     // The compose id `startCompose` returned; the compose page follows it.
     signal composeOpened(var compose)
 
+    // What the last open asked for, so a width change can ask again.
+    property bool loadedImages: false
+    property int loadedWidth: -1
     function load(images) {
         unavailable = ""
+        loadedImages = images
+        loadedWidth = bodyWidth
         core.open(messageId, images, bodyWidth)
     }
+    // The pane's width changes after open (window resize, a breakpoint, the
+    // folder column): the core fits images to the body width it is given, so
+    // it is asked again once the width has stopped moving (#192). The scroll
+    // fraction is held until the new body is in.
+    property bool refitting: false
+    Timer {
+        id: refitTimer
+        interval: 250
+        onTriggered: {
+            if (!root.started || root.view === null) return
+            if (root.bodyWidth === root.loadedWidth) {
+                root.restoreScroll()
+                return
+            }
+            root.refitting = true
+            root.load(root.loadedImages)
+        }
+    }
+    onUnavailableChanged: if (refitting) { refitting = false; scrollHeld = false }
     function start() {
         if (started || messageId < 0 || width <= 0) return
         started = true
         load(false)
     }
-    onWidthChanged: start()
+    onWidthChanged: {
+        start()
+        if (!started || view === null) return
+        // The text lays out again at once; the scroll fraction must not
+        // follow that, so it is held until the refit is settled.
+        holdScroll()
+        refitTimer.restart()
+    }
     onMessageIdChanged: {
         started = false; view = null
         sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
+        refitTimer.stop(); refitting = false; scrollHeld = false
         // The pane reuses this page for the next message: nothing of the
         // last one stays (scroll, a queued action, a sheet).
         flick.contentY = 0
