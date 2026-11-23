@@ -506,7 +506,8 @@ impl qobject::EnvioCore {
         self.send_command(command);
     }
 
-    /// `kind` is "selected", "results", "waiting" or "newmail".
+    /// `kind` is "selected", "results", "waiting", "newmail", "keptdays",
+    /// "syncstopped" or "offline"; any other word gives an empty string.
     pub fn count_text(&self, kind: &QString, n: i32) -> QString {
         let text = cv::count_kind(&s(kind))
             .map(|kind| count_text(kind, u64::try_from(n).unwrap_or(0)))

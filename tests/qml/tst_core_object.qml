@@ -143,6 +143,10 @@ TestCase {
         compare(core.countText("results", 1), "1 result")
         compare(core.countText("results", 2), "2 results")
         compare(core.countText("keptdays", 90), "Finds mail older than the 90 days kept here")
+        compare(core.countText("syncstopped", 1), "1 sync stopped")
+        compare(core.countText("syncstopped", 3), "3 sync stopped")
+        compare(core.countText("offline", 1), "1 offline")
+        compare(core.countText("offline", 2), "2 offline")
         compare(core.countText("nonsense", 2), "")
     }
 

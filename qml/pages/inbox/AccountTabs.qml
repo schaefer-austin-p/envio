@@ -67,9 +67,15 @@ Item {
         spacing: root.theme.gu(0.75)
         clip: true
         model: root.accounts
+        // The All chip widens when it gains an icon. A strip nobody scrolled
+        // stays at its start, so All keeps its left gutter.
+        property bool scrolled: false
+        onMovementStarted: scrolled = true
+        onMovementEnded: scrolled = !atXBeginning
         header: Item {
             width: all.width + tabs.spacing
             height: tabs.height
+            onWidthChanged: if (!tabs.scrolled) Qt.callLater(function() { tabs.contentX = tabs.originX - tabs.leftMargin })
             Chip {
                 id: all
                 objectName: "tab-all"

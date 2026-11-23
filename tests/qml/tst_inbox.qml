@@ -807,6 +807,22 @@ Item {
             compare(find("tab-all", page).Accessible.name, "All")
         }
 
+        // The strip keeps its left gutter when All gains an icon and the
+        // strip overflows (the header widens after the first layout).
+        function test_all_tab_keeps_the_gutter_when_it_gains_an_icon() {
+            for (let i = 0; i < 8; ++i)
+                core.accounts.append({ key: "extra" + i, name: "Extra", display: "Extra account " + i, label: "", email: "e" + i + "@example.org",
+                                       heading: "Extra", status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
+            const all = find("tab-all", page)
+            waitForRendering(page)
+            const gutter = all.mapToItem(page, 0, 0).x
+            core.accounts.setProperty(core.accounts.count - 1, "state", "offline")
+            tryVerify(function() { return chipIcon(all) !== null })
+            waitForRendering(page)
+            compare(all.mapToItem(page, 0, 0).x, gutter)
+            verify(gutter >= thm.gu(2) - 0.5, "gutter " + gutter)
+        }
+
         // The All tab says an account is offline or stopped, also when that
         // account's own tab is scrolled out of the strip (#127).
         function test_all_tab_shows_offline_with_a_count() {
