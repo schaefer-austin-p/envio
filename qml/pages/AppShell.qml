@@ -97,20 +97,34 @@ Item {
     // not flap.
     readonly property bool wide: _wide
     property bool _wide: false
+    // The decision is bindle's AdaptiveSwitch; `_wide` is flipped by
+    // toWide/toNarrow, which read the layout before it changes.
+    AdaptiveSwitch {
+        id: wideSwitch
+        width: root.width
+        wideAt: root.theme ? root.theme.gu(90) : 0
+        narrowBelow: root.theme ? root.theme.gu(86) : 0
+        onSwitched: root.checkWide()
+    }
+    // Brings `_wide` (and the layout) to the switch's verdict. The switch
+    // decides; this runs the layout change around it. Also called when the
+    // grid unit or frame inset changes, in case the two ever disagree.
     function checkWide() {
         if (!theme) return
-        const on = width >= theme.gu(90), off = width < theme.gu(86)
-        if (!_wide && on) toWide()
-        else if (_wide && off) toNarrow()
-        // The third column (the folders drawer) from 180 gu, back to the
-        // overlay drawer below 176 gu; only ever while wide.
-        const von = width >= theme.gu(180), voff = width < theme.gu(176)
-        if (!_veryWide && _wide && von) _veryWide = true
-        else if (_veryWide && (!_wide || voff)) _veryWide = false
+        if (!_wide && wideSwitch.wide) toWide()
+        else if (_wide && !wideSwitch.wide) toNarrow()
         layoutPane()
     }
-    readonly property bool veryWide: _veryWide
-    property bool _veryWide: false
+    // The third column (the folders drawer) from 180 gu, back to the overlay
+    // drawer below 176 gu; only ever while wide.
+    AdaptiveSwitch {
+        id: veryWideSwitch
+        width: root.width
+        wideAt: root.theme ? root.theme.gu(180) : 0
+        narrowBelow: root.theme ? root.theme.gu(176) : 0
+    }
+    readonly property bool veryWide: _wide && veryWideSwitch.wide
+    onVeryWideChanged: layoutPane()
     // The inbox page (the stack's root while the inbox is the root), which
     // the inline drawer steers.
     property Item inboxItem: null
@@ -134,8 +148,7 @@ Item {
     readonly property real listGu: splitter.shownGu
     readonly property real listWidth: splitter.shownWidth
     onListWidthChanged: layoutPane()
-    onWidthChanged: checkWide()
-    onThemeChanged: checkWide()
+    onWidthChanged: layoutPane()
     Connections {
         target: root.theme
         function onGridUnitChanged() { root.checkWide() }
