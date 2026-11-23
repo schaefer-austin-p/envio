@@ -10,6 +10,7 @@ import "../../platform/stampTint.js" as StampTint
 ListRow {
     id: root
     required property var model
+    lightRule: true
     required property int index
     // Any row is selected: show the checkboxes.
     property bool selecting: false
