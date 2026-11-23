@@ -28,6 +28,13 @@ Item {
     // draft (a pseudo-row). Both follow `Ui` in the real core.
     property bool listIsDrafts: false
     property bool selectionHasLocal: false
+    // Whether a pull to refresh can do anything for the shown list (`Ui::can_refresh_shown`).
+    property bool canRefresh: true
+    // The account the shown list refreshes ("" for every one): the real
+    // core's `Ui::refresh_scope_shown`.
+    property string refreshScope: ""
+    property real lastTicket: 0
+    signal refreshed(real ticket)
 
     // What the page called, in order.
     property var calls: []
@@ -87,7 +94,7 @@ Item {
     function start() { record("start", []) }
     function stop() { record("stop", []) }
     function setActive(active) { record("setActive", [active]) }
-    function refresh(account) { record("refresh", [account]) }
+    function refresh(account) { record("refresh", [account]); lastTicket += 1; return lastTicket }
     function ispdbNote() { record("ispdbNote", []); return note }
     function detect(email) { record("detect", [email]) }
     function startOAuth(email, account, kind) { record("startOAuth", [email, account, kind]) }
@@ -177,6 +184,7 @@ Item {
     function answerInvite(id, answer, note) { record("answerInvite", [id, answer, note]) }
     function undo(id) { record("undo", [id]) }
     function open(id, loadImages, widthPx) { record("open", [id, loadImages, widthPx]) }
+    function refit(id, widthPx) { record("refit", [id, widthPx]) }
     function reportImageSizes(id, sizesJson) { record("reportImageSizes", [id, sizesJson]) }
     function allowImagesFrom(address) { record("allowImagesFrom", [address]) }
     function disallowImagesFrom(address) { record("disallowImagesFrom", [address]) }

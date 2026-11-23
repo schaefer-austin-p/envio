@@ -17,6 +17,7 @@ fn every_fixture_survives_every_entry_point() {
                 let options = RenderOptions {
                     allow_remote_images,
                     max_image_width: 600,
+                    max_font_px: 0,
                     ..RenderOptions::default()
                 };
                 let _ = render(&parse(&raw), &options);

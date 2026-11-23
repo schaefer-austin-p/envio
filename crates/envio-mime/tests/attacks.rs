@@ -80,6 +80,7 @@ fn options(allow_remote_images: bool) -> RenderOptions {
         image_sizes: HashMap::new(),
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
+        max_font_px: 0,
     }
 }
 

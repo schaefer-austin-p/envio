@@ -49,6 +49,7 @@ fn a_revoked_refresh_token_pauses_the_account_with_sign_in_again() {
     let before = r.requests.lock().unwrap().len();
     r.h.send(Command::Refresh {
         account: Some(r.key.clone()),
+        ticket: 0,
     });
     settle();
     assert_eq!(r.requests.lock().unwrap().len(), before);

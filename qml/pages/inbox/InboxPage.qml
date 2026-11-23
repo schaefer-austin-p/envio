@@ -46,6 +46,10 @@ Item {
     readonly property int waitingCount: waitingProbe.toSend
     readonly property bool selecting: list.selectedCount > 0
 
+    // F5 and the like: refresh what the list shows (a no-op while one runs).
+    function refresh() { list.refresh() }
+    readonly property bool refreshing: list.refreshing
+
     function showUnified() {
         tab = ""
         title = qsTr("Inbox")
@@ -149,6 +153,15 @@ Item {
             iconName: "search"
             text: qsTr("Search")
             onClicked: root.searchRequested(root.folderId)
+        }
+        IconButton {
+            objectName: "refreshButton"
+            theme: root.theme
+            iconName: "refresh-cw"
+            iconRotating: root.refreshing
+            enabled: root.core.canRefresh
+            text: root.refreshing ? qsTr("Refreshing") : qsTr("Refresh")
+            onClicked: root.refresh()
         }
         IconButton {
             objectName: "menuButton"

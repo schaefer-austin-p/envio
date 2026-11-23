@@ -109,7 +109,10 @@ fn a_sync_after_load_older_keeps_the_older_rows() {
     older_loaded(&h, list);
     assert_eq!(settled(&h, &server, list), 10);
     let before = lines(&server, "UID SEARCH SINCE");
-    h.send(Command::Refresh { account: Some(key) });
+    h.send(Command::Refresh {
+        account: Some(key),
+        ticket: 0,
+    });
     until_lines(&server, "UID SEARCH SINCE", before + 1);
     // The 2020 rows are outside the 30 day window but above the floor.
     assert_eq!(rows_of(&h, list), 10);

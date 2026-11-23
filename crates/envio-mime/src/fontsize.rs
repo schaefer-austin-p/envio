@@ -1,7 +1,7 @@
 //! Font sizes after ammonia: a heading wider than the phone reader wraps
 //! mid-word (#177), and a size under 1px is a blank line (#176). Every size
 //! the mail sets is resolved against the size it inherits and clamped to
-//! 1 to 26 px, so nested `%` and `em` cannot compound past the limit (#191).
+//! 1 to 26 px (the cap grows with the pane, see [`font_cap_px`]), so nested `%` and `em` cannot compound past the limit (#191).
 //!
 //! Qt 5 sizes some tags itself (#243): `h1` to `h5`, `big`, `small` and
 //! `<font size>` get a fixed multiple of the document's default font, not of
@@ -22,8 +22,13 @@
 use crate::hidden::VOID;
 use crate::images::{Tag, parse_tag, tag_len};
 
-/// The largest font size kept, in px.
+/// The largest font size kept on a phone, in px; a wider pane has more
+/// ([`font_cap_px`]).
 const MAX_PX: f64 = 26.0;
+/// The widest cap, for the widest pane.
+const WIDEST_CAP_PX: u32 = 40;
+/// The body width (px) the 26px cap is made for: a phone.
+const PHONE_BODY_PX: u32 = 360;
 /// The smallest: Qt 5 ignores 0 and may truncate less than 1px to it.
 const MIN_PX: f64 = 1.0;
 /// The size at the root of the document.
@@ -66,7 +71,7 @@ fn tag_adjustment(name: &str) -> Option<i32> {
 }
 
 /// `html` with every font size it sets resolved and clamped.
-pub(crate) fn fit(html: &str) -> String {
+pub(crate) fn fit(html: &str, max_px: f64) -> String {
     let mut out = String::with_capacity(html.len());
     let mut open: Vec<Open> = Vec::new();
     let mut rest = html;
@@ -92,7 +97,7 @@ pub(crate) fn fit(html: &str) -> String {
             matches!(tag.name.as_str(), "sub" | "sup") || open.last().is_some_and(|o| o.scripted);
         let before = tag.attrs.clone();
         let rewritten = tag.name == "font" || tag.attr("style").is_some();
-        let px = resize(&mut tag, inherited, scripted);
+        let px = resize(&mut tag, inherited, scripted, max_px);
         if rewritten || tag.attrs != before {
             tag.write(&mut out);
         } else {
@@ -112,7 +117,7 @@ pub(crate) fn fit(html: &str) -> String {
 
 /// Rewrites the sizes `tag` sets and returns the size its content has.
 /// `scripted` is true for `sub`, `sup` and what is inside them.
-fn resize(tag: &mut Tag, inherited: f64, scripted: bool) -> f64 {
+fn resize(tag: &mut Tag, inherited: f64, scripted: bool, max_px: f64) -> f64 {
     let min = if scripted { MIN_SCRIPT_PX } else { MIN_PX };
     let mut px = inherited;
     if tag.name == "font"
@@ -130,7 +135,7 @@ fn resize(tag: &mut Tag, inherited: f64, scripted: bool) -> f64 {
     }
     let mut keyword = false;
     if let Some(at) = tag.attrs.iter().position(|(n, _)| n == "style") {
-        let resized = resize_style(&tag.attrs[at].1, inherited, min);
+        let resized = resize_style(&tag.attrs[at].1, inherited, min, max_px);
         px = resized.size.unwrap_or(px);
         keyword = resized.keyword;
         if resized.style.is_empty() {
@@ -145,7 +150,7 @@ fn resize(tag: &mut Tag, inherited: f64, scripted: bool) -> f64 {
         && !keyword
     {
         px = adjusted_px(adjustment);
-        if px > MAX_PX {
+        if px > max_px {
             set_style_size(tag, NEUTRAL_KEYWORD);
             px = adjusted_px(NEUTRAL_ADJUSTMENT);
         }
@@ -189,7 +194,7 @@ struct Resized {
 
 /// `style` with each `font-size` clamped to at least `min` (or dropped when
 /// unparseable); sizes are relative to `inherited`.
-fn resize_style(style: &str, inherited: f64, min: f64) -> Resized {
+fn resize_style(style: &str, inherited: f64, min: f64, max_px: f64) -> Resized {
     let mut size = None;
     let mut keyword = false;
     let kept: Vec<String> = style
@@ -197,7 +202,7 @@ fn resize_style(style: &str, inherited: f64, min: f64) -> Resized {
         .filter_map(|declaration| match declaration.split_once(':') {
             Some((prop, value)) if prop.trim().eq_ignore_ascii_case("font-size") => {
                 let px = computed_px(value, inherited)?;
-                let fitted = px.clamp(min, MAX_PX);
+                let fitted = px.clamp(min, max_px);
                 size = Some(fitted);
                 if fitted == px {
                     keyword |= is_adjusting_keyword(value);
@@ -313,4 +318,11 @@ fn name_of(s: &str) -> &str {
         .find(|c: char| !c.is_ascii_alphanumeric())
         .unwrap_or(s.len());
     &s[..len]
+}
+
+/// The largest font size, in px, for a body `width_px` wide: 26 on a phone,
+/// growing with the pane up to 40, so a heading is no wider (in proportion)
+/// than on the phone (#192). 0 (no width known) gives 26.
+pub fn font_cap_px(width_px: u32) -> u32 {
+    (width_px.saturating_mul(MAX_PX as u32) / PHONE_BODY_PX).clamp(MAX_PX as u32, WIDEST_CAP_PX)
 }

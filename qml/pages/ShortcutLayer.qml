@@ -16,6 +16,7 @@ Item {
     signal openFocusedRequested()
     signal deleteRequested()
     signal newRequested()
+    signal refreshRequested()
     signal replyRequested()
     signal closeRequested()
     signal helpRequested()
@@ -32,6 +33,7 @@ Item {
     readonly property alias openKey: open
     readonly property alias deleteKey: del
     readonly property alias newKey: newMessage
+    readonly property alias refreshKey: refresh
     readonly property alias replyKey: reply
     readonly property alias closeKey: close
     readonly property alias helpKey: help
@@ -41,6 +43,7 @@ Item {
     Shortcut { id: open; sequences: ["Return", "Enter"]; enabled: root.active; onActivated: if (!root.typing()) root.openFocusedRequested() }
     Shortcut { id: del; sequence: "Delete"; enabled: root.active; onActivated: if (!root.typing()) root.deleteRequested() }
     Shortcut { id: newMessage; sequence: "Ctrl+N"; enabled: root.active; onActivated: root.newRequested() }
+    Shortcut { id: refresh; sequence: "F5"; enabled: root.active; onActivated: root.refreshRequested() }
     Shortcut { id: reply; sequence: "Ctrl+R"; enabled: root.active; onActivated: root.replyRequested() }
     Shortcut { id: close; sequence: "Escape"; enabled: root.active; onActivated: if (!root.typing()) root.closeRequested() }
     Shortcut { id: help; sequence: "?"; enabled: root.active; onActivated: if (!root.typing()) root.helpRequested() }

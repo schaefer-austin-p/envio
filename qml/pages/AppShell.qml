@@ -132,8 +132,9 @@ Item {
 
     // The reader and the compose are single items, made once and moved
     // between the stack (narrow) and the pane (wide) when the window crosses
-    // the breakpoint: nothing reopens, nothing reloads, and the core is never
-    // told (`closeCompose` is only for Close, Send, a discard and a row click).
+    // the breakpoint: nothing reopens or reloads, and the core is told only
+    // of the reader's new body width (`refit`, once the width has settled;
+    // #192). `closeCompose` is only for Close, Send, a discard and a row click.
     // A page pushed from a component (Search's reader, a second compose) is
     // not one of these and stays a stack page.
     property Item readerItem: null
@@ -800,6 +801,16 @@ Item {
         onActivated: root.newMessage()
     }
 
+    // F5: refresh the list. Wide, the ShortcutLayer has it.
+    readonly property alias refreshShortcut: refreshKey
+    Shortcut {
+        id: refreshKey
+        sequence: "F5"
+        enabled: !root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.theme.popupsUp === 0
+        onActivated: root.refreshList()
+    }
+    function refreshList() { if (inboxItem) inboxItem.refresh() }
+
     // The wide layout's keys (frame 7). Not over a page (Search, Settings,
     // Outbox) and not under the shortcuts dialog.
     readonly property alias shortcuts: keys
@@ -821,6 +832,7 @@ Item {
             if (root.paneCompose === 0 && id > 0) root.core.actOn([id], "delete", 0)
         }
         onNewRequested: if (root.paneCompose === 0) root.newMessage()
+        onRefreshRequested: root.refreshList()
         onReplyRequested: {
             const r = root.readerItem
             if (root.paneCompose === 0 && r !== null && r.parent === pane && r.view !== null && !r.isDraft) r.compose("reply")

@@ -17,11 +17,11 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.app_active(active);
             Flow::Continue
         }
-        Command::Refresh { account } => {
+        Command::Refresh { account, ticket } => {
             // Only here, not in `Worker::refresh`: that also runs on every
             // foreground resume, which must not lift the wait (#266).
             worker.lift_draft_waits(account.as_deref());
-            worker.refresh(account.as_deref());
+            worker.refresh(account.as_deref(), ticket);
             Flow::Continue
         }
         Command::Detect { email } => {
@@ -102,6 +102,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             width_px,
         } => {
             worker.open_message(id, images, width_px);
+            Flow::Continue
+        }
+        Command::RefitMessage { id, width_px } => {
+            worker.refit_message(id, width_px);
             Flow::Continue
         }
         Command::ImageSizes { id, sizes } => {

@@ -119,6 +119,13 @@ TestCase {
         verify(core.ready)
     }
 
+    // A refit for a message that is not open is ignored by the core.
+    function test_refit_is_invokable() {
+        tryVerify(function () { return core.ready }, 20000)
+        core.refit(1, 344)
+        verify(core.ready)
+    }
+
     // What Main.qml binds the Theme to: the settings the core sends back after
     // a save (Main itself cannot be loaded without an ApplicationWindow).
     function test_saved_settings_come_back_for_the_theme_binding() {

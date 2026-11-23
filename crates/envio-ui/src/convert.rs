@@ -341,6 +341,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
         },
         Event::AttachFailed { compose, text } => Signal::AttachFailed { compose, text },
         Event::Settings(settings) => Signal::Settings(settings),
+        Event::Refreshed { ticket } => Signal::Refreshed { ticket },
         _ => return None,
     })
 }

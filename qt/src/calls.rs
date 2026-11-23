@@ -43,9 +43,20 @@ impl qobject::EnvioCore {
         self.send_command(Command::AppActive(active));
     }
 
-    pub fn refresh(self: Pin<&mut Self>, account: &QString) {
+    /// Asks for a refresh and returns its ticket: `refreshed` carries it
+    /// back when that refresh is over.
+    pub fn refresh(mut self: Pin<&mut Self>, account: &QString) -> i64 {
         let account = Some(s(account)).filter(|a| !a.is_empty());
-        self.send_command(Command::Refresh { account });
+        let ticket = {
+            let mut state = self.as_mut().rust_mut();
+            state.next_refresh += 1;
+            state.next_refresh
+        };
+        self.send_command(Command::Refresh {
+            account,
+            ticket: ticket as u64,
+        });
+        ticket
     }
 
     pub fn ispdb_note(&self) -> QString {
@@ -315,6 +326,14 @@ impl qobject::EnvioCore {
             } else {
                 ImagesChoice::Default
             },
+            width_px: u32::try_from(width_px).unwrap_or(0),
+        });
+    }
+
+    /// The reader's width changed: show message `id` again for `width_px`.
+    pub fn refit(self: Pin<&mut Self>, id: i64, width_px: i32) {
+        self.send_command(Command::RefitMessage {
+            id: MessageRowId(id),
             width_px: u32::try_from(width_px).unwrap_or(0),
         });
     }
