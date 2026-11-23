@@ -47,11 +47,22 @@ pub fn select(packages: &[Package], changed: &[PathBuf]) -> Selection {
     if changed.iter().any(|f| runs_everything(f)) {
         return Selection::All;
     }
-    let direct: BTreeSet<String> = changed.iter().filter_map(|f| owner(packages, f)).collect();
+    let mut direct: BTreeSet<String> = changed.iter().filter_map(|f| owner(packages, f)).collect();
+    // The QML sources and their tests are checked against envio-ui's name
+    // table (`tests/qml_names.rs`), so a QML-only change runs it.
+    if changed.iter().any(|f| is_qml(f)) && packages.iter().any(|p| p.name == UI_CRATE) {
+        direct.insert(UI_CRATE.to_owned());
+    }
     if direct.is_empty() {
         return Selection::None;
     }
     Selection::Some(with_dependents(packages, direct))
+}
+
+const UI_CRATE: &str = "envio-ui";
+
+fn is_qml(file: &Path) -> bool {
+    file.starts_with("qml") || file.starts_with("tests/qml")
 }
 
 /// The member whose directory holds the file (the deepest, if nested).
@@ -120,6 +131,7 @@ mod tests {
             pkg("envio-net", "crates/envio-net", &[]),
             pkg("envio-store", "crates/envio-store", &[]),
             pkg("envio-mime", "crates/envio-mime", &[]),
+            pkg("envio-ui", "crates/envio-ui", &["envio-core"]),
             pkg("envio-e2e", "crates/envio-e2e", &["envio-core"]),
             pkg("xtask", "xtask", &[]),
         ]
@@ -138,23 +150,41 @@ mod tests {
         let sel = select(&workspace(), &changed(&["crates/envio-mime/src/lib.rs"]));
         assert_eq!(
             sel,
-            some(&["envio-core", "envio-e2e", "envio-mime", "envio-sync"])
+            some(&[
+                "envio-core",
+                "envio-e2e",
+                "envio-mime",
+                "envio-sync",
+                "envio-ui"
+            ])
         );
     }
 
     #[test]
     fn the_top_crate_brings_only_itself_and_e2e() {
         let sel = select(&workspace(), &changed(&["crates/envio-core/src/lib.rs"]));
-        assert_eq!(sel, some(&["envio-core", "envio-e2e"]));
+        assert_eq!(sel, some(&["envio-core", "envio-e2e", "envio-ui"]));
     }
 
     #[test]
-    fn docs_and_qml_test_nothing() {
+    fn docs_and_the_qt_glue_test_nothing() {
         let sel = select(
             &workspace(),
-            &changed(&["docs/10-design.md", "qml/Main.qml", "qt/src/lib.rs"]),
+            &changed(&["docs/10-design.md", "qt/src/lib.rs"]),
         );
         assert_eq!(sel, Selection::None);
+    }
+
+    #[test]
+    fn a_qml_only_change_selects_envio_ui() {
+        for file in [
+            "qml/WizardPage.qml",
+            "qml/pages/accounts/WizardPage.qml",
+            "tests/qml/tst_wizard.qml",
+        ] {
+            let sel = select(&workspace(), &changed(&[file]));
+            assert_eq!(sel, some(&["envio-ui"]), "{file}");
+        }
     }
 
     #[test]
@@ -186,7 +216,13 @@ mod tests {
         let sel = select(&workspace(), &changed(&["crates/envio-store/Cargo.toml"]));
         assert_eq!(
             sel,
-            some(&["envio-core", "envio-e2e", "envio-store", "envio-sync"])
+            some(&[
+                "envio-core",
+                "envio-e2e",
+                "envio-store",
+                "envio-sync",
+                "envio-ui"
+            ])
         );
     }
 

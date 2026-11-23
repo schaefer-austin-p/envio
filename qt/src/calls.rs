@@ -7,8 +7,8 @@ use std::pin::Pin;
 use cxx_qt::CxxQtType;
 use cxx_qt_lib::{QList, QMap, QMapPair_QString_QVariant, QString, QVariant};
 use envio_core::{
-    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, ProviderKind, UndoId,
-    app_password_setup, count_text, ispdb_note,
+    Answer, Command, ConnectRequest, ImagesChoice, MessageRowId, UndoId, app_password_setup,
+    count_text, ispdb_note,
 };
 use secrecy::SecretString;
 use zeroize::Zeroize;
@@ -66,11 +66,7 @@ impl qobject::EnvioCore {
     /// address's own provider, or the account's.
     pub fn start_oauth(self: Pin<&mut Self>, email: &QString, account: &QString, kind: &QString) {
         let account = s(account);
-        let kind = match s(kind).as_str() {
-            "graph" => Some(ProviderKind::MicrosoftGraph),
-            "imap" => Some(ProviderKind::Microsoft),
-            _ => None,
-        };
+        let kind = envio_ui::parse_kind(&s(kind));
         self.send_command(Command::StartOAuth {
             email: s(email),
             account: (!account.is_empty()).then_some(account),

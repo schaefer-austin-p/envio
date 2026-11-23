@@ -7,7 +7,7 @@ use std::pin::Pin;
 
 use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::{QString, QStringList};
-use envio_core::{Command, ComposeId, Event, OAuthFailure, OAuthOutcome, Settings};
+use envio_core::{Command, ComposeId, Event, OAuthOutcome, Settings};
 use envio_ui::{ModelChange, Output, Signal};
 
 use crate::convert;
@@ -180,17 +180,10 @@ impl qobject::EnvioCore {
                 self.oauth_mismatch(&q(&email), &q(&title), &q(&text));
             }
             Signal::OAuthDone { email, outcome } => {
-                let (name, text) = match outcome {
-                    OAuthOutcome::Added => ("added", String::new()),
-                    OAuthOutcome::Resumed => ("resumed", String::new()),
-                    OAuthOutcome::Updated => ("updated", String::new()),
-                    OAuthOutcome::Cancelled => ("cancelled", String::new()),
-                    OAuthOutcome::Failed(why @ OAuthFailure::Admin) => ("admin", why.text()),
-                    OAuthOutcome::Failed(why @ OAuthFailure::NotPersonal) => ("work", why.text()),
-                    OAuthOutcome::Failed(
-                        why @ (OAuthFailure::Mismatch | OAuthFailure::NoTenant),
-                    ) => ("mismatch", why.text()),
-                    OAuthOutcome::Failed(why) => ("failed", why.text()),
+                let name = envio_ui::outcome_name(&outcome);
+                let text = match outcome {
+                    OAuthOutcome::Failed(why) => why.text(),
+                    _ => String::new(),
                 };
                 self.oauth_done(&q(&email), &q(name), &q(&text));
             }
