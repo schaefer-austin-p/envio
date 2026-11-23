@@ -137,7 +137,15 @@ Item {
     // Clears only on a real mouse move with no finger down, away from the
     // last touch: a touch drag's synthesized mouse moves do not (#397).
     TouchSafeHover { id: touchSafe }
-    function layoutPane() { paneWidth = Math.max(0, frame.area.width - listWidth - drawerWidth) }
+    // Not while the width is across the switch's edge from `_wide` (a switch
+    // is pending, or about to be): checkWide lays out after toNarrow/toWide.
+    // The order of the width handlers and the switch's width binding is
+    // undefined, and a pane squeezed while the compose is still in it
+    // re-wraps its text (#332).
+    function layoutPane() {
+        if (_wide ? width < wideSwitch.narrowBelow : width >= wideSwitch.wideAt) return
+        paneWidth = Math.max(0, frame.area.width - listWidth - drawerWidth)
+    }
 
     // The list pane's width (the splitter, #192): the splitter owns what is
     // shown (the saved width or the live drag, held to the bounds the core
