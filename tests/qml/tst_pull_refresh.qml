@@ -98,6 +98,25 @@ Item {
             mouseRelease(list, 100, y + thm.gu(10))
         }
 
+        function test_the_line_fits_the_band_of_a_short_pull() {
+            const list = find("messageList")
+            const ind = find("pullIndicator")
+            const y = pull(48, true)
+            tryVerify(function() { return ind.visible && ind.height >= 40 })
+            const label = find("pullLabel")
+            const glyph = find("pullGlyph")
+            const line = find("pullLine")
+            const top = line.mapToItem(ind, 0, 0).y
+            verify(top >= 0 && top + line.height <= ind.height,
+                "the disc and label sit inside the band: " + top + "+" + line.height + " in " + ind.height)
+            verify(label.height <= ind.height && glyph.height <= ind.height)
+            const g = glyph.mapToItem(ind, 0, 0)
+            const l = label.mapToItem(ind, 0, 0)
+            verify(l.x >= g.x + glyph.width, "the label is right of the disc")
+            compare(Math.round(g.y + glyph.height / 2), Math.round(l.y + label.height / 2), "one line, centred")
+            mouseRelease(list, 100, y)
+        }
+
         function test_a_long_pull_refreshes_once_and_holds_the_list() {
             pull(thm.gu(10) + 60)
             compare(core.called("refresh").length, 1)
