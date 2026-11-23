@@ -159,8 +159,11 @@ pub enum Signal {
         text: String,
     },
     Settings(Settings),
-    /// A refresh the app asked for is over (`Event::Refreshed`).
-    Refreshed,
+    /// A refresh the app asked for is over (`Event::Refreshed`); `ticket`
+    /// is the number `refresh` returned for it.
+    Refreshed {
+        ticket: u64,
+    },
     /// The state of the "Load older messages" row changed.
     OlderRow(OlderRow),
     SearchFailed(String),

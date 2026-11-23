@@ -68,12 +68,25 @@ fn a_tab_asks_about_its_own_account() {
 }
 
 #[test]
+fn a_local_error_is_not_refreshable() {
+    // Worker::refresh neither resumes nor awaits a LocalError account.
+    let mut ui = Ui::new();
+    with(&mut ui, vec![info("a"), info("b")]);
+    status(&mut ui, "a", AccountStatus::LocalError { retry_at_ms: 5 });
+    assert!(!ui.can_refresh(Some("a")));
+    assert!(ui.can_refresh(None), "b is fine");
+    status(&mut ui, "b", AccountStatus::LocalError { retry_at_ms: 5 });
+    assert!(!ui.can_refresh(None));
+}
+
+#[test]
 fn the_shown_list_sets_the_scope() {
     let mut ui = Ui::new();
     with(&mut ui, vec![info("a"), info("b")]);
     status(&mut ui, "b", AccountStatus::SignInFailed);
     opened(&mut ui, ListRef::Inboxes, vec![], true);
     assert!(ui.can_refresh_shown(), "unified: a is fine");
+    assert_eq!(ui.refresh_scope_shown(), None, "unified: every account");
     feed(
         &mut ui,
         Event::Folders {
@@ -83,6 +96,7 @@ fn the_shown_list_sets_the_scope() {
     );
     opened(&mut ui, F1, vec![msg_in(1, 10, 1, "b")], true);
     assert!(!ui.can_refresh_shown(), "b's folder: b needs the user");
+    assert_eq!(ui.refresh_scope_shown(), Some("b"), "a folder: its account");
     status(&mut ui, "b", AccountStatus::Ready);
     assert!(ui.can_refresh_shown());
 }
@@ -90,6 +104,6 @@ fn the_shown_list_sets_the_scope() {
 #[test]
 fn refreshed_becomes_a_signal() {
     let mut ui = Ui::new();
-    let outs = feed(&mut ui, Event::Refreshed);
-    assert_eq!(signals(&outs), vec![&Signal::Refreshed]);
+    let outs = feed(&mut ui, Event::Refreshed { ticket: 7 });
+    assert_eq!(signals(&outs), vec![&Signal::Refreshed { ticket: 7 }]);
 }
