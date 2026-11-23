@@ -38,6 +38,7 @@ ApplicationWindow {
         windowHeight: window.height
         screenWidth: Screen.width
         screenHeight: Screen.height
+        panelAllowance: appTheme.gu(6)
     }
 
     AppShell {
