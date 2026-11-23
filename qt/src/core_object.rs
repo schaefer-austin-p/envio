@@ -54,6 +54,9 @@ pub mod qobject {
             READ,
             NOTIFY
         )]
+        // Read-only: whether a refresh of the shown list can do anything
+        // (`Ui::can_refresh_shown`).
+        #[qproperty(bool, can_refresh, cxx_name = "canRefresh", READ, NOTIFY)]
         type EnvioCore = super::EnvioCoreRust;
     }
 
@@ -212,6 +215,9 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "searchDone"]
         fn search_done(self: Pin<&mut EnvioCore>);
+        /// A refresh the app asked for is over (`Signal::Refreshed`).
+        #[qsignal]
+        fn refreshed(self: Pin<&mut EnvioCore>);
         #[qsignal]
         #[cxx_name = "statusText"]
         fn status_text(self: Pin<&mut EnvioCore>, account: &QString, text: &QString);
@@ -466,6 +472,8 @@ pub struct EnvioCoreRust {
     pub(crate) list_is_drafts: bool,
     /// The selection holds a pseudo-row (`Ui::selection_has_local`).
     pub(crate) selection_has_local: bool,
+    /// A refresh of the shown list can do something (`Ui::can_refresh_shown`).
+    pub(crate) can_refresh: bool,
     pub(crate) core: Option<Core>,
     pub(crate) ui: Ui,
     pub(crate) models: HashMap<Model, Box<CxxQtThread<RowsModel>>>,
