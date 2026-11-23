@@ -40,6 +40,7 @@ mod style;
 mod tagnames;
 mod thread;
 mod widths;
+mod work;
 
 pub use address::{Address, same_email};
 pub use align::aligned;
@@ -67,3 +68,6 @@ pub use render::render;
 pub use reply::{ForwardDraft, ForwardLabels, Quote, ReplyDraft, ReplyKind, forward, reply};
 pub use sanitize::{RenderOptions, Rendered, sanitize_html};
 pub use thread::{normalize_id, thread_root};
+#[cfg(feature = "test-hooks")]
+#[doc(hidden)]
+pub use work::take_work;

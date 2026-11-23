@@ -70,7 +70,7 @@ pub(crate) fn fit(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut open: Vec<Open> = Vec::new();
     let mut rest = html;
-    while let Some(start) = rest.find('<') {
+    while let Some(start) = crate::work::find_lt(rest) {
         out.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];

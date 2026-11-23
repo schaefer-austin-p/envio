@@ -430,7 +430,7 @@ fn bgcolor(attrs: &[(String, String)]) -> Option<Cow<'_, str>> {
 /// The byte range of the first tag at or after `pos`. Every `<` starts a
 /// tag: ammonia escapes `<` in text.
 fn next_tag(html: &str, pos: usize) -> Option<(usize, usize)> {
-    let start = pos + html[pos..].find('<')?;
+    let start = pos + crate::work::find_lt(&html[pos..])?;
     Some((start, start + tag_len(&html[start..])))
 }
 

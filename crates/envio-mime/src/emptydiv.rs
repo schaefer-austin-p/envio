@@ -19,7 +19,7 @@ pub(crate) fn drop_empty(html: &str) -> String {
     // would empty.
     let mut open: Vec<usize> = Vec::new();
     let mut pos = 0;
-    while let Some(i) = html[pos..].find('<') {
+    while let Some(i) = crate::work::find_lt(&html[pos..]) {
         let start = pos + i;
         out.push_str(&html[pos..start]);
         let len = tag_len(&html[start..]);

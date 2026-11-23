@@ -67,7 +67,7 @@ pub(crate) fn fill(html: &str) -> String {
     // Each open element's name and the colour its content inherits.
     let mut open: Vec<(String, Option<String>)> = Vec::new();
     let mut rest = html;
-    while let Some(start) = rest.find('<') {
+    while let Some(start) = crate::work::find_lt(rest) {
         out.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];

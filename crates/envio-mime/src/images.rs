@@ -42,6 +42,7 @@ pub(crate) struct Tag {
 
 impl Tag {
     pub(crate) fn attr(&self, name: &str) -> Option<&str> {
+        crate::work::tick(self.attrs.len());
         self.attrs
             .iter()
             .find(|(n, _)| n == name)
@@ -49,6 +50,7 @@ impl Tag {
     }
 
     pub(crate) fn write(&self, out: &mut String) {
+        crate::work::tick(1 + self.attrs.len());
         out.push('<');
         out.push_str(&self.name);
         for (name, value) in &self.attrs {
@@ -117,7 +119,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
     // The pixel width of each open table cell, so a percentage image
     // width is a share of its cell rather than of the whole reader.
     let mut cells: Vec<Option<u32>> = Vec::new();
-    while let Some(start) = rest.find('<') {
+    while let Some(start) = crate::work::find_lt(rest) {
         out.html.push_str(&rest[..start]);
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];
@@ -135,6 +137,7 @@ pub(crate) fn fit(html: &str, options: &RenderOptions, images: &mut Vec<Placed>)
             _ if is_unwrapped(raw) => {}
             Some(tag) if tag.name == "img" => {
                 let at = out.html.len();
+                crate::work::tick(cells.len());
                 let cell = cells.iter().rev().find_map(|w| *w);
                 if let Some(width) = image(&tag, cell, &mut seen, &mut out) {
                     let end = out.html.len();
@@ -169,15 +172,20 @@ pub(crate) fn tag_len(s: &str) -> usize {
     for (i, c) in s.char_indices() {
         match c {
             '"' => quoted = !quoted,
-            '>' if !quoted => return i + 1,
+            '>' if !quoted => {
+                crate::work::tick(i + 1);
+                return i + 1;
+            }
             _ => {}
         }
     }
+    crate::work::tick(s.len());
     s.len()
 }
 
 /// Parses `<name a="v" ...>`; `None` for end tags and anything else.
 pub(crate) fn parse_tag(raw: &str) -> Option<Tag> {
+    crate::work::tick(raw.len());
     let inner = raw.strip_prefix('<')?.strip_suffix('>')?;
     let inner = inner.strip_suffix('/').unwrap_or(inner);
     if !inner.starts_with(|c: char| c.is_ascii_alphabetic()) {
@@ -410,6 +418,7 @@ fn size(tag: &Tag, name: &str) -> Option<u32> {
 }
 
 pub(crate) fn style_value<'s>(style: &'s str, name: &str) -> Option<&'s str> {
+    crate::work::tick(style.len());
     style.split(';').find_map(|declaration| {
         let (prop, value) = declaration.split_once(':')?;
         prop.trim().eq_ignore_ascii_case(name).then_some(value)

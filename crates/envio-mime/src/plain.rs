@@ -46,6 +46,7 @@ pub fn plain_to_rich(text: &str, flowed: bool, delsp: bool) -> String {
 
 /// HTML-escapes `text` into `out`.
 pub(crate) fn escape_into(text: &str, out: &mut String) {
+    crate::work::tick(text.len());
     for c in text.chars() {
         match c {
             '&' => out.push_str("&amp;"),

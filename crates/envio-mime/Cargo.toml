@@ -10,6 +10,12 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+# A work counter in sanitize_html's passes (src/work.rs) for the
+# linear-growth tests. Enabled only through the dev-dependency below; the
+# app never turns it on, and without it the counter compiles to nothing.
+test-hooks = []
+
 [dependencies]
 ammonia = "4.2"
 getrandom = "0.4"
@@ -37,5 +43,6 @@ base64 = "0.23"
 ring = "0.17"
 
 [dev-dependencies]
+envio-mime = { path = ".", features = ["test-hooks"] }
 insta = "1.49"
 proptest = "1.12.0"

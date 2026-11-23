@@ -19,7 +19,7 @@ const DARK: f64 = 0.18;
 /// a background.
 pub fn sets_colours(html: &str) -> bool {
     let mut rest = html;
-    while let Some(start) = rest.find('<') {
+    while let Some(start) = crate::work::find_lt(rest) {
         let len = tag_len(&rest[start..]);
         let raw = &rest[start..start + len];
         rest = &rest[start + len..];
