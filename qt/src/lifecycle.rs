@@ -34,6 +34,17 @@ fn log_roots(roots: &Roots) {
     }
 }
 
+impl cxx_qt::Initialize for qobject::EnvioCore {
+    /// The saved look, dark mode, Fullscreen and the rest are in place before
+    /// QML binds to them, so the first frame is right (#463). The worker's
+    /// `Settings` event later confirms them.
+    fn initialize(self: Pin<&mut Self>) {
+        let env = |name: &str| std::env::var(name).ok();
+        let (_, data_dir) = paths::app_dirs(&env);
+        self.apply_settings(envio_core::saved_settings(&data_dir));
+    }
+}
+
 impl qobject::EnvioCore {
     /// Start the core: folders, roots, worker. `Started` arrives later; if
     /// the core cannot start, `startFailed` says so.

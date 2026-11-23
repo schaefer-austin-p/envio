@@ -141,6 +141,16 @@ pub fn load_settings(path: &Path) -> Result<Settings> {
     load(path)
 }
 
+/// The settings as saved, for a start-up that cannot wait for the worker.
+/// Read-only: it never writes, renames or creates anything (the worker's
+/// `load_settings` sets a bad file aside). Missing or unparsable: defaults.
+pub fn peek_settings(path: &Path) -> Settings {
+    fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
 pub fn save_settings(path: &Path, settings: &Settings) -> Result<()> {
     let settings = Settings {
         version: SETTINGS_VERSION,
@@ -195,6 +205,56 @@ fn set_aside<T: Default>(path: &Path) -> Result<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn dir_with(name: &str, bytes: &[u8]) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(name);
+        fs::write(&path, bytes).unwrap();
+        (dir, path)
+    }
+
+    #[test]
+    fn peek_missing_file_is_the_defaults_and_creates_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        assert_eq!(peek_settings(&path), Settings::default());
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn peek_corrupt_file_is_the_defaults_and_leaves_the_file() {
+        let (dir, path) = dir_with("settings.json", b"{ not json");
+        assert_eq!(peek_settings(&path), Settings::default());
+        assert_eq!(fs::read(&path).unwrap(), b"{ not json");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn peek_reads_what_save_wrote_and_matches_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let saved = Settings {
+            theme: ThemeName::Airmail,
+            dark: DarkMode::Dark,
+            fullscreen: true,
+            ..Settings::default()
+        };
+        save_settings(&path, &saved).unwrap();
+        let peeked = peek_settings(&path);
+        assert_eq!(peeked.theme, ThemeName::Airmail);
+        assert_eq!(peeked.dark, DarkMode::Dark);
+        assert!(peeked.fullscreen);
+        assert_eq!(peeked, load_settings(&path).unwrap());
+    }
+
+    #[test]
+    fn peek_snaps_odd_values_like_load() {
+        let (_dir, path) = dir_with(
+            "settings.json",
+            br#"{"sync_window_days":7,"list_pane_gu":9999,"theme":"airmail"}"#,
+        );
+        assert_eq!(peek_settings(&path), load_settings(&path).unwrap());
+    }
 
     #[test]
     fn enums_use_lowercase_names() {

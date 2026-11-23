@@ -66,6 +66,8 @@ pub mod qobject {
     }
 
     impl cxx_qt::Threading for EnvioCore {}
+    // The saved settings are in the properties at construction (#463).
+    impl cxx_qt::Initialize for EnvioCore {}
 
     // One signal per envio_ui::Signal variant, with flat arguments.
     extern "RustQt" {
