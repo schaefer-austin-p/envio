@@ -240,14 +240,15 @@ job service):
   Only those run their unit tests and `tests/` integration tests.
 - Always: `cargo fmt --check`, clippy on the whole workspace and `envio-e2e`.
 - The clickable build (`click.yml`, not a required check): on pushes to
-  master, tags and manual runs, and on a PR that touches `clickable.yaml`,
-  `manifest.json`, `envio.apparmor`, `CMakeLists.txt`, `qt/`,
-  `.forgejo/workflows/` or the click scripts. On a `v*` tag it also puts
+  master (unless the PR's green click built that exact tree), tags and
+  manual runs, and on a PR that touches the phone-build inputs (see the
+  header of `click.yml`). On a `v*` tag it also puts
   the package on the tag's Forgejo release (`tools/ci/release-click.mjs`),
   creating the release from the version's CHANGELOG section if it isn't
   there; a full release tag without a section fails the job.
 - Everything runs when `Cargo.lock`, the workspace `Cargo.toml` or
-  `.forgejo/` change, and on pushes to master and on tags.
+  `.forgejo/` change, and on tags; a push to master skips what the PR
+  head already passed on the same tree (`tools/ci/master-plan.mjs`).
 
 ## Design docs
 

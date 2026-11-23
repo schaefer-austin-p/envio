@@ -23,12 +23,35 @@ env:
   INSTA_UPDATE: "no"
 
 jobs:
+  # Pushes to master only: is this merge's tree already green on the PR head?
+  # Then the heavy jobs below skip (tools/ci/master-plan.mjs says why). Tags
+  # run it too (it says run). If it fails, the heavy jobs run anyway.
+  plan:
+    if: github.event_name == 'push'
+    runs-on: docker
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.plan.outputs.run }}
+    steps:
+      # Depth 2: the merge commit and both parents.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Plan
+        id: plan
+        run: node tools/ci/master-plan.mjs ci
+
   # The Qt-free workspace. On a PR, unit and single-crate integration tests
   # run only for the crates the PR changed plus their dependents (cargo
   # xtask affected); fmt, clippy and the cross-crate tests always run.
-  # On master and tags everything runs.
+  # On master and tags everything runs, except a merge whose tree the PR
+  # already tested green (plan).
   rust:
+    needs: plan
+    if: ${{ !cancelled() && (needs.plan.result != 'success' || needs.plan.outputs.run == 'true') }}
     runs-on: rust-ci
+    timeout-minutes: 50
     steps:
       # Full history: affected diffs against the merge base with master.
       - uses: actions/checkout@v4
@@ -120,12 +143,13 @@ jobs:
           key: ${{ steps.c_sccache.outputs.cache-primary-key }}
 
   # The Qt side in the ut-app-ci image: translations, qt/ fmt and clippy,
-  # qmllint, the -Werror CMake build and the QML tests. Always runs.
+  # qmllint, the -Werror CMake build and the QML tests. Skips with `rust`.
   # After `rust`: the runner takes two jobs at once, and this image's
   # multi-GB pull slows a build it shares the box with.
   app:
     needs: rust
     runs-on: docker
+    timeout-minutes: 40
     container:
       image: code.austinschaefer.com/schaefera/ut-app-ci:24.04-2.x-1
     env:
@@ -182,9 +206,13 @@ jobs:
             build-ci
           key: ${{ steps.c_build.outputs.cache-primary-key }}
 
+  # Also when the plan skipped the tests: advisories change with time, not
+  # with the tree, and this job takes 30 s.
   audit:
-    needs: rust
+    needs: [plan, rust]
+    if: ${{ !cancelled() && (needs.rust.result == 'success' || (needs.plan.result == 'success' && needs.plan.outputs.run != 'true')) }}
     runs-on: rust-ci
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -196,4 +224,4 @@ jobs:
           cargo audit --file qt/Cargo.lock
 
       - name: CI script tests
-        run: node --test tools/ci/advisory-issue.test.mjs tools/ci/release-click.test.mjs
+        run: node --test tools/ci/advisory-issue.test.mjs tools/ci/release-click.test.mjs tools/ci/master-plan.test.mjs

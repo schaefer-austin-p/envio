@@ -55,6 +55,23 @@ run() {
 # whole setup (apt and pip) fails well before the job's 45-min limit.
 run "timeout 15m bash -euo pipefail -c 'apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version' || { rc=\$?; [ \$rc -ne 124 ] || echo 'apt/pip setup exceeded 15 min (#451)' >&2; exit \$rc; }"
 
+# The aarch64 Rust build is the long part (14 min cold, over 40 on a busy
+# runner). Restore its cargo registry and target dirs from the Actions cache
+# directory (absent on a miss) and put them back after the build for the
+# cache save. A v* tag is the official package: always built from scratch.
+cache=build-cache
+if [ -z "$release" ] && [ -d "$cache/src" ]; then
+  echo "restoring the cargo build cache ($(du -sh "$cache" | cut -f1))"
+  # A bad restore must not fail the build: fall back to a cold one.
+  tar -C "$cache" -cf - . | docker exec -i "$c" tar -C / -xf - ||
+    echo "cache restore failed; building cold" >&2
+  # Cargo trusts mtimes for our own crates, and git archive stamps every file
+  # with the commit time, which can predate the cached build: touch the
+  # sources so those crates rebuild. Dependencies from crates.io are keyed by
+  # version and stay cached.
+  run 'find /src -path /src/build -prune -o -path /src/target -prune -o -type f -exec touch {} +'
+fi
+
 # --skip-review: the review below decides (errors fail, warnings print);
 # the build's own review would fail on a warning and skip the report.
 run 'clickable build --arch arm64 --container-mode --skip-review'
@@ -65,6 +82,19 @@ if [ -n "$release" ] && docker exec "$c" grep -rqa --include='*.rlib' --include=
   --include='*.so' --include=envio "$sentinel" /src/build; then
   echo "the release build is stamped: ENVIO_RELEASE didn't reach it" >&2
   exit 1
+fi
+
+# Cargo target dirs (marked by CACHEDIR.TAG) and the registry, for the cache
+# save step. Only a master push saves, so only it pays for the copy.
+rm -rf "$cache"
+if [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = refs/heads/master ]; then
+  mkdir -p "$cache"
+  docker exec "$c" bash -c '
+    cd /
+    { find src/build -name CACHEDIR.TAG -printf "%h\n"
+      [ ! -d src/target/click-cargo/registry ] || echo src/target/click-cargo/registry; } |
+      sort -u | xargs -r tar -cf -' | tar -C "$cache" -xf -
+  echo "cargo build cache for saving: $(du -sh "$cache" | cut -f1)"
 fi
 
 rm -rf "$out"

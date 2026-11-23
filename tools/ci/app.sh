@@ -11,8 +11,8 @@ export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target/ci-qt}
 section() { echo "== $1"; }
 
 section "translations: po/ is up to date with the sources"
-# A stalled mirror once hung apt-get for 43 min (#451). This job has no
-# timeout-minutes, so the 15 min cap is its only bound.
+# A stalled mirror once hung apt-get for 43 min (#451). The job's
+# timeout-minutes (40) bounds the rest.
 command -v xgettext >/dev/null || timeout 15m sh -eu -c 'apt-get update -q && apt-get install -yq --no-install-recommends gettext' || {
   rc=$?
   [ "$rc" -ne 124 ] || echo "apt setup exceeded 15 min (#451)" >&2
