@@ -51,7 +51,11 @@ run() {
 # clickable in it would remove this step. --ignore-installed: pip would
 # otherwise uninstall the image's apt `click` (the package tool) to make room
 # for the `click` library clickable needs.
-run "apt-get update && apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version"
+# Bounded apt network waits: an unbounded mirror stall ate the whole 45 minute
+# job timeout (#451). The apt timeouts bound a silent stall; `timeout 15m`
+# bounds a slow trickle, which they do not.
+apt_conf='Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3";'
+run "echo '$apt_conf' > /etc/apt/apt.conf.d/99ci-timeouts && timeout 15m apt-get update && timeout 15m apt-get install -y --no-install-recommends python3-pip && pip install --break-system-packages --ignore-installed clickable-ut==$clickable_version"
 
 # --skip-review: the review below decides (errors fail, warnings print);
 # the build's own review would fail on a warning and skip the report.
