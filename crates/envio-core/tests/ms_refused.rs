@@ -171,12 +171,18 @@ fn connecting_a_microsoft_address_by_hand_is_refused_without_a_connection() {
         servers_confirmed: true,
         accepted: vec![],
     })));
+    // The worker handles Connect on its own thread: wait for the refusal
+    // (a one-shot drain can come back empty, #456), failing on a wrong
+    // outcome that arrives first.
+    h.wait(|e| match e {
+        Event::SetupRefused { email: who, .. } if who == email => Some(()),
+        Event::SetupProblem { .. } | Event::AccountAdded { .. } => {
+            panic!("expected a refusal, got {e:?}")
+        }
+        _ => None,
+    });
+    // Then give a wrong follow-up event time to show.
     let rest = drain(&h);
-    assert!(
-        rest.iter()
-            .any(|e| matches!(e, Event::SetupRefused { email: who, .. } if who == email)),
-        "{rest:?}"
-    );
     assert!(
         !rest
             .iter()

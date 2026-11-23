@@ -232,19 +232,22 @@ fn starting_without_a_provider_is_refused_and_opens_no_browser() {
         account: None,
         kind: None,
     });
-    let mut refused = 0;
-    let deadline = Instant::now() + Duration::from_millis(800);
-    while Instant::now() < deadline {
-        match h.events.recv_timeout(Duration::from_millis(50)) {
-            Ok(Event::OAuthDone { outcome, .. }) => {
-                assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::Unavailable));
-                refused += 1;
-            }
+    // Wait for the refusal (#456: a fixed poll can end before it), then
+    // check that nothing opened a browser.
+    let outcome = h.wait(|e| match e {
+        Event::OAuthDone { outcome, .. } => Some(*outcome),
+        Event::OAuthBrowser { .. } => panic!("a sign-in began"),
+        _ => None,
+    });
+    assert_eq!(outcome, OAuthOutcome::Failed(OAuthFailure::Unavailable));
+    let until = Instant::now() + Duration::from_millis(300);
+    while let Some(left) = until.checked_duration_since(Instant::now()) {
+        match h.events.recv_timeout(left) {
             Ok(Event::OAuthBrowser { .. }) => panic!("a sign-in began"),
+            Ok(Event::OAuthDone { .. }) => panic!("refused twice"),
             _ => {}
         }
     }
-    assert_eq!(refused, 1);
     drop(h.core.take());
 }
 
