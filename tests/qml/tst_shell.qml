@@ -1315,6 +1315,26 @@ Item {
             b.shell.destroy()
         }
 
+        function test_wide_sent_toast_does_not_cover_the_undo_toast() {
+            const b = bootWide(100)
+            const undo = findByName(b.shell, "undoToast")
+            const sent = findByName(b.shell, "sentToast")
+            let fired = 0
+            undo.actionTriggered.connect(function() { fired++ })
+            undo.show("Archived", "Undo")
+            sent.show("Sent")
+            wait(50)
+            verify(sent.y + sent.height <= undo.y, "Sent sits above Undo, no overlap")
+            const act = findByName(undo, "toastAction")
+            const at = act.mapToItem(b.shell, act.width / 2, act.height / 2)
+            mouseClick(b.shell, at.x, at.y)
+            compare(fired, 1, "Undo is tappable")
+            wait(50)
+            fuzzyCompare(sent.y + sent.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "Sent drops back when alone")
+            sent.hide()
+            b.shell.destroy()
+        }
+
         function test_narrow_inbox_toast_stays_above_the_footer() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

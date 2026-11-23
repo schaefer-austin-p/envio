@@ -878,7 +878,20 @@ Item {
         objectName: "sentToast"
         theme: root.theme
         z: 5
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.theme.frameInset + root.theme.toastBottomMargin }
+        // Never over another toast: wide, the pages' toasts sit on the window
+        // at the same spot, so the one shown last rises above them.
+        readonly property real lift: {
+            let up = 0
+            const kids = root.children
+            for (let i = 0; i < kids.length; i++) {
+                const k = kids[i]
+                if (k !== sentToast && k.visible && k.actionText !== undefined && k.maxWidth !== undefined)
+                    up = Math.max(up, k.height + root.theme.gu(1))
+            }
+            return up
+        }
+        x: Math.round((parent.width - width) / 2)
+        y: parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - lift
     }
 
     Connections {

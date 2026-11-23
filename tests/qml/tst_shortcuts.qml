@@ -213,10 +213,16 @@ Item {
             b.shell.destroy()
         }
 
+        // Close asks only when the user has written something.
+        function typeInto(b, text) {
+            findByName(find(b.shell, "composePage"), "bodyField").input.text = text
+        }
+
         function test_esc_on_compose_shows_discard_sheet() {
             const b = boot(100)
             b.shell.composeOpened(4)
             b.core.composeReady(4, composeDraft, "", "")
+            typeInto(b, "x")
             const page = find(b.shell, "composePage")
             verify(page !== null)
             const sheet = findByName(page, "discardSheet")
@@ -275,6 +281,7 @@ Item {
             const b = boot(100)
             b.shell.composeOpened(4)
             b.core.composeReady(4, composeDraft, "", "")
+            typeInto(b, "x")
             const sheet = findByName(find(b.shell, "composePage"), "discardSheet")
             b.shell.shortcuts.closeKey.activated()
             tryVerify(function() { return sheet.opened })
@@ -299,6 +306,7 @@ Item {
             const b = boot(100)
             b.shell.composeOpened(4)
             b.core.composeReady(4, composeDraft, "", "")
+            typeInto(b, "x")
             const sheet = findByName(find(b.shell, "composePage"), "discardSheet")
             b.shell.shortcuts.closeKey.activated()
             tryVerify(function() { return sheet.opened })
