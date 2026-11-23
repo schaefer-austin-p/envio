@@ -221,6 +221,85 @@ Item {
             b.shell.destroy()
         }
 
+        function test_a_notification_click_over_a_stacked_compose_leaves_it_alone() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 && b.shell.inboxItem !== null })
+            b.shell.openMessageFromRow(7)
+            compare(b.shell.depth, 2)
+            b.shell.composeOpened(1)
+            compare(b.shell.depth, 3)
+            b.core.openInboxRequested("ann")
+            compare(b.shell.depth, 3, "the reader and its reply stay")
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_a_notification_click_over_a_pane_compose_leaves_it_alone() {
+            const b = bootWide(100)
+            b.shell.composeOpened(1)
+            compare(b.shell.paneCompose, 1)
+            b.core.openInboxRequested("ann")
+            compare(b.shell.paneCompose, 1)
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_a_notification_click_over_the_add_account_wizard_is_ignored() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 && b.shell.inboxItem !== null })
+            b.shell.currentPage.accountsRequested()
+            compare(b.shell.depth, 2)
+            b.shell.currentPage.addRequested()
+            compare(b.shell.currentPage.objectName, "wizardPage")
+            b.core.openInboxRequested("ann")
+            compare(b.shell.depth, 3)
+            compare(b.core.called("listFolders").length, 0)
+            b.shell.destroy()
+        }
+
+        function test_a_click_before_the_start_fires_once_after_route() {
+            const c = coreComponent.createObject(root)
+            c.accounts.append(ann)
+            const s = shellComponent.createObject(root, {
+                theme: thm, core: c, accounts: c.accounts, folders: c.folders,
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
+                searchResults: c.searchResults
+            })
+            c.openInboxRequested("ann")
+            compare(c.called("listFolders").length, 0, "the core is not up yet")
+            c.ready = true
+            tryVerify(function() { return s.depth === 1 })
+            compare(c.called("listFolders").length, 1)
+            compare(c.called("listFolders")[0].args, ["ann"])
+            // A later ready change does not replay it.
+            c.ready = false
+            c.ready = true
+            wait(50)
+            compare(c.called("listFolders").length, 1)
+            s.destroy()
+        }
+
+        function test_a_click_that_cannot_apply_after_the_start_is_dropped() {
+            const c = coreComponent.createObject(root)
+            const s = shellComponent.createObject(root, {
+                theme: thm, core: c, accounts: c.accounts, folders: c.folders,
+                messages: c.messages, outbox: c.outbox, suggestions: c.suggestions,
+                searchResults: c.searchResults
+            })
+            c.openInboxRequested("ann")
+            c.ready = true
+            tryVerify(function() { return s.depth === 1 && s.rootKind === "wizard" })
+            c.accounts.append(ann)
+            tryVerify(function() { return s.accountCount === 1 })
+            s.wizardClosed()
+            tryVerify(function() { return s.rootKind === "inbox" && s.inboxItem !== null })
+            c.ready = false
+            c.ready = true
+            wait(50)
+            compare(c.called("listFolders").length, 0, "a stale request never jumps the user later")
+            s.destroy()
+        }
+
         function test_a_notification_click_over_the_wizard_is_ignored() {
             const b = boot(false)
             tryVerify(function() { return b.shell.depth === 1 })

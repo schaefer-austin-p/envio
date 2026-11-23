@@ -287,16 +287,13 @@ void envio_notify_send(const Card* card)
 }
 
 // Best effort: Wayland may refuse to raise a window without a token. The
-// server's xdg-activation token (empty: none) goes to the toolkit the way
-// launchers hand it over, in the environment, before the request. Only a
-// minimised window is restored; a maximised or fullscreen one stays as it is.
-void envio_activate_window(const char* token, int tokenLen)
+// server's xdg-activation token (empty: none) reaches this boundary but is
+// unused until native xdg_activation_v1 lands: Qt 5.15 reads no environment
+// variable for it, and setting one would leak a stale single-use token to
+// child processes. Only a minimised window is restored; a maximised or
+// fullscreen one stays as it is.
+void envio_activate_window(const char* /* token */, int /* tokenLen */)
 {
-    if (tokenLen > 0) {
-        const QByteArray value(token, tokenLen);
-        qputenv("XDG_ACTIVATION_TOKEN", value);
-        qputenv("DESKTOP_STARTUP_ID", value);
-    }
     QWindow* window = mainWindow();
     if (window == nullptr) {
         return;
