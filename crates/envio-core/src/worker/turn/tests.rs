@@ -255,6 +255,44 @@ fn pick_for_ends_when_wants_and_steps_disagree() {
     assert_eq!(step, None);
 }
 
+#[test]
+fn a_reset_that_clears_the_wants_ends_the_refresh_waiting_on_them() {
+    // `ResetAndRetry` forgets the wants of a folder the background does
+    // not serve; the refresh that waited on them is then over.
+    let (events, left) = within_bound(|| {
+        FORCE_WANTS.with(|force| force.set(true));
+        let dir = tempfile::tempdir().unwrap();
+        let (config, seeded) = seed(dir.path());
+        let sink = Sink::default();
+        let mut worker = open(&config, &sink);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let live = worker.live.get_mut(&seeded.account).unwrap();
+        live.wants = Wants::default();
+        live.wants.folders.insert(envio_store::FolderId(9_999));
+        live.next_full_ms = i64::MAX;
+        worker
+            .refreshes
+            .push((7, std::iter::once(seeded.account.clone()).collect()));
+        worker.settle_refreshes();
+        let before = sink.events().len();
+        runtime.block_on(worker.pick_for(&seeded.account, now_ms(), false));
+        worker.settle_refreshes();
+        let events = sink.events();
+        let left = worker.live[&seeded.account].wants.folders.len();
+        (
+            events[before..]
+                .iter()
+                .filter(|e| matches!(e, crate::api::event::Event::Refreshed { ticket: 7 }))
+                .count(),
+            left,
+        )
+    });
+    assert_eq!(left, 0, "the reset cleared the folder");
+    assert_eq!(events, 1);
+}
+
 // Passes on master too (the rules agree there): a guard for the single
 // prefetch rule. `disk_full` is in `Env` but not in `Timing`, so a full
 // disk is where `has_wants` and `steps` could part.

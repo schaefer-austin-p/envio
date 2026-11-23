@@ -105,6 +105,7 @@ pub fn edit_and_save(
 ) {
     run.core().send(Command::Refresh {
         account: Some(account.to_owned()),
+        ticket: 0,
     });
     edit_shown_and_save(run, (account, folder), subject, edited);
 }

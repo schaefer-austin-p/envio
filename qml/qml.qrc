@@ -9,6 +9,7 @@
         <file>pages/inbox/AccountTabs.qml</file>
         <file>pages/inbox/LoadOlderRow.qml</file>
         <file>pages/inbox/MessageList.qml</file>
+        <file>pages/inbox/PullIndicator.qml</file>
         <file>pages/inbox/MessageRow.qml</file>
         <file>pages/inbox/FoldersDrawer.qml</file>
         <file>pages/inbox/SelectionBar.qml</file>

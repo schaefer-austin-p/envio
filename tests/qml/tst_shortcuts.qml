@@ -94,6 +94,26 @@ Item {
             return it
         }
 
+        // F5 refreshes the list, in the wide layout (the ShortcutLayer's key)
+        // and in the narrow one (the shell's own).
+        function test_f5_refreshes_in_the_wide_layout() {
+            const b = boot(100)
+            verify(b.shell.shortcuts.refreshKey.enabled)
+            verify(!b.shell.refreshShortcut.enabled)
+            b.shell.shortcuts.refreshKey.activated()
+            compare(b.core.called("refresh").length, 1)
+            b.shell.destroy()
+        }
+
+        function test_f5_refreshes_in_the_narrow_layout() {
+            const b = boot(50)
+            verify(b.shell.refreshShortcut.enabled)
+            verify(!b.shell.shortcuts.refreshKey.enabled)
+            b.shell.refreshShortcut.activated()
+            compare(b.core.called("refresh").length, 1)
+            b.shell.destroy()
+        }
+
         function test_down_moves_focus_row_not_open_row() {
             const b = boot(100)
             openedReader(b, 7)

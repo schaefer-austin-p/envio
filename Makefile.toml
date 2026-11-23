@@ -110,8 +110,13 @@ description = "bindle.qrc lists every bindle QML file (#229)"
 command = "cargo"
 args = ["xtask", "bindle-qrc"]
 
+[tasks.app-qrc]
+description = "qml.qrc lists every app QML file (#125)"
+command = "cargo"
+args = ["xtask", "app-qrc"]
+
 [tasks.ci]
-dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals", "oauth-wired", "bindle-qrc"]
+dependencies = ["format-check", "lint", "coverage-report", "audit", "no-qml-plurals", "oauth-wired", "bindle-qrc", "app-qrc"]
 
 [tasks.default]
 alias = "ci"

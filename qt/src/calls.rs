@@ -43,9 +43,20 @@ impl qobject::EnvioCore {
         self.send_command(Command::AppActive(active));
     }
 
-    pub fn refresh(self: Pin<&mut Self>, account: &QString) {
+    /// Asks for a refresh and returns its ticket: `refreshed` carries it
+    /// back when that refresh is over.
+    pub fn refresh(mut self: Pin<&mut Self>, account: &QString) -> i64 {
         let account = Some(s(account)).filter(|a| !a.is_empty());
-        self.send_command(Command::Refresh { account });
+        let ticket = {
+            let mut state = self.as_mut().rust_mut();
+            state.next_refresh += 1;
+            state.next_refresh
+        };
+        self.send_command(Command::Refresh {
+            account,
+            ticket: ticket as u64,
+        });
+        ticket
     }
 
     pub fn ispdb_note(&self) -> QString {
