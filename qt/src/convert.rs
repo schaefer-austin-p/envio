@@ -119,7 +119,8 @@ pub fn decision(word: &str) -> Option<OutboxDecision> {
     }
 }
 
-/// "selected", "results", "waiting", "newmail" or "keptdays".
+/// "selected", "results", "waiting", "newmail", "keptdays",
+/// "syncstopped" or "offline".
 pub fn count_kind(word: &str) -> Option<CountKind> {
     match word {
         "selected" => Some(CountKind::Selected),
@@ -127,6 +128,8 @@ pub fn count_kind(word: &str) -> Option<CountKind> {
         "waiting" => Some(CountKind::Waiting),
         "newmail" => Some(CountKind::NewMail),
         "keptdays" => Some(CountKind::KeptDays),
+        "syncstopped" => Some(CountKind::SyncStopped),
+        "offline" => Some(CountKind::Offline),
         _ => None,
     }
 }

@@ -801,9 +801,60 @@ Item {
         function test_online_tabs_and_all_have_no_icon() {
             core.accounts.setProperty(1, "state", "offline")
             tryVerify(function() { return chipIcon(find("tab-bob", page)) !== null })
-            compare(chipIcon(find("tab-all", page)), null)
             compare(chipIcon(find("tab-ann", page)), null)
             core.accounts.setProperty(1, "state", "ok")
+            compare(chipIcon(find("tab-all", page)), null)
+            compare(find("tab-all", page).Accessible.name, "All")
+        }
+
+        // The strip keeps its left gutter when All gains an icon and the
+        // strip overflows (the header widens after the first layout).
+        function test_all_tab_keeps_the_gutter_when_it_gains_an_icon() {
+            for (let i = 0; i < 8; ++i)
+                core.accounts.append({ key: "extra" + i, name: "Extra", display: "Extra account " + i, label: "", email: "e" + i + "@example.org",
+                                       heading: "Extra", status: "Up to date", state: "ok", unread: 0, unreadText: "", attention: false })
+            const all = find("tab-all", page)
+            waitForRendering(page)
+            const gutter = all.mapToItem(page, 0, 0).x
+            core.accounts.setProperty(core.accounts.count - 1, "state", "offline")
+            tryVerify(function() { return chipIcon(all) !== null })
+            waitForRendering(page)
+            compare(all.mapToItem(page, 0, 0).x, gutter)
+            verify(gutter >= thm.gu(2) - 0.5, "gutter " + gutter)
+        }
+
+        // The All tab says an account is offline or stopped, also when that
+        // account's own tab is scrolled out of the strip (#127).
+        function test_all_tab_shows_offline_with_a_count() {
+            const all = find("tab-all", page)
+            core.accounts.setProperty(1, "state", "offline")
+            tryVerify(function() { return chipIcon(all) !== null })
+            compare(chipIcon(all).name, "offline")
+            // All is the selected chip: the primary text on Carbon, the accent on Airmail.
+            compare(chipIcon(all).color, thm.airmail ? thm.accent : thm.primaryText)
+            compare(all.Accessible.name, "All, offline 1")
+            core.accounts.setProperty(0, "state", "offline")
+            tryCompare(all.Accessible, "name", "All, offline 2")
+            core.accounts.setProperty(0, "state", "ok")
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return chipIcon(all) === null })
+            compare(all.Accessible.name, "All")
+        }
+
+        function test_all_tab_shows_sync_stopped_and_it_wins_over_offline() {
+            const all = find("tab-all", page)
+            core.accounts.setProperty(0, "attention", true)
+            tryVerify(function() { return chipIcon(all) !== null })
+            compare(chipIcon(all).name, "alert")
+            compare(all.Accessible.name, "All, syncstopped 1")
+            core.accounts.setProperty(1, "state", "offline")
+            tryCompare(all.Accessible, "name", "All, syncstopped 1, offline 1")
+            compare(chipIcon(all).name, "alert")
+            core.accounts.setProperty(0, "attention", false)
+            tryCompare(all.Accessible, "name", "All, offline 1")
+            compare(chipIcon(all).name, "offline")
+            core.accounts.setProperty(1, "state", "ok")
+            tryVerify(function() { return chipIcon(all) === null })
         }
 
         function test_selected_carbon_tab_draws_the_icon_in_its_text_colour() {

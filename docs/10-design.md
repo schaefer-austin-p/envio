@@ -109,7 +109,7 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 | Compose | `*-compose` | New, reply (quoted), from a `mailto:` link; share-in board is 0.3.0. Drafts save on their own. |
 | Folders, search, selection | `*-folders` | Folders menu with Outbox; search with "Search on server"; long-press to select, actions in the top bar. |
 | Reopen a draft | `carbon-draft-edit` | Reopening a saved draft (#228): Drafts list where every local draft with no current server copy (never tried, offline, refused #266) has a row with the "Not uploaded" status chip (tint A, which also covers this chip), the reader of a Drafts-role message with one "Edit" button (no Reply, Reply all, Forward; no Archive or Move, also in the Drafts selection bar; Delete stays), and Compose filled from the draft, saving back over the same draft; and "Edit a copy" (an HTML draft or one with no usable Message-ID): Compose with the info banner "Editing a copy. The original stays in Drafts.", the original kept. Carbon only. No new colour role. |
-| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and Undo toast. The meeting invite card (0.2.0) sits above the body, in all its states, light and dark. |
+| Reading | `*-reading` | HTML mail with remote images blocked; attachment sheet (Open, Save, Share through Content Hub); offline icon on the account tab and on the All tab (none, one or two offline, sync stopped, both, another tab selected; #127) and Undo toast. The meeting invite card (0.2.0) sits above the body, in all its states, light and dark. |
 | Contacts | `*-contacts` | Superseded in part, see below. |
 | Prompts and settings | `*-prompts` | Sync reads "While Envio is open" and "Push relay — not set up". Settings → Notifications (0.2.0) sits at the foot, light. Appearance (third frame) ends with the "Fullscreen" switch (#383): off by default, "Hides the indicator bar at the top of the screen. Swipe down from the top edge to bring it back.", phone only (the row is hidden on the desktop). |
 | Two panes | `carbon-two-pane` | Tablet and desktop (#192): list left, reader or compose right (wide from 90 gu), multi-select, empty reader, optional drawer column, the breakpoint, hover, right-click menu, shortcut legend, dark rows, Airmail frame (hover value for all four palettes). The open row is the selected fill plus a 3 px accent bar (not multi-select). New: reader Close, empty state, hover role, context menu, shortcuts dialog. Key chips are keycaps (#434, variant B, see `keycap-variants.html`): face gradient, 1 px lighter top edge, 3 px skirt. The list pane's splitter (frame 10): a draggable strip over the hairline, 36 to 70 gu with the reader keeping 40 gu, saved as `list_pane_gu` in `settings.json`. |
@@ -125,8 +125,12 @@ On the phone the fonts ship in the click (all OFL). Ubuntu is the fallback.
 - **Undo instead of confirm.** Archive, delete and move show an Undo toast
   for about 5 s before they reach the server.
 - **Offline is an icon, not a dialog.** An offline account shows a cloud-off
-  icon on its tab and its drawer row. The Outbox banner says how many
-  messages wait.
+  icon on its tab and its drawer row. The All tab shows the alert icon while
+  any account's sync is stopped, else the same icon while any account is
+  offline (#127). Its name carries the counts ("All, 1 sync stopped, 2
+  offline"), so an account whose tab is scrolled out of the strip still
+  shows. The
+  Outbox banner says how many messages wait.
 - **Errors sit with their item.** A refused send shows on its Outbox entry
   with Edit and Retry.
 

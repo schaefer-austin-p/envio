@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 20:22+0100\n"
+"POT-Creation-Date: 2026-11-23 21:30+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:241
+#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:242
 msgid "New message"
 msgstr ""
 
@@ -752,15 +752,20 @@ msgstr ""
 msgid "written to %1"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:41
+#: qml/pages/inbox/AccountTabs.qml:83
 msgid "All"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:61 qml/pages/inbox/FoldersDrawer.qml:206
+#: qml/pages/inbox/AccountTabs.qml:92 qml/pages/inbox/AccountTabs.qml:93
+#: qml/pages/inbox/AccountTabs.qml:94
+msgid "%1, %2"
+msgstr ""
+
+#: qml/pages/inbox/AccountTabs.qml:115 qml/pages/inbox/FoldersDrawer.qml:206
 msgid "%1, sync stopped"
 msgstr ""
 
-#: qml/pages/inbox/AccountTabs.qml:62 qml/pages/inbox/FoldersDrawer.qml:207
+#: qml/pages/inbox/AccountTabs.qml:116 qml/pages/inbox/FoldersDrawer.qml:207
 msgid "%1, offline"
 msgstr ""
 
@@ -809,7 +814,7 @@ msgstr ""
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:299 qml/pages/reader/ReaderPage.qml:608
+#: qml/pages/inbox/InboxPage.qml:300 qml/pages/reader/ReaderPage.qml:608
 msgid "Undo"
 msgstr ""
 
@@ -1264,33 +1269,45 @@ msgstr ""
 msgid "Could not save your draft"
 msgstr ""
 
-#: crates/envio-core/src/text/count.rs:22
+#: crates/envio-core/src/text/count.rs:26
 msgid "{n} selected"
 msgid_plural "{n} selected"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:26
+#: crates/envio-core/src/text/count.rs:30
 msgid "{n} result"
 msgid_plural "{n} results"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:33
+#: crates/envio-core/src/text/count.rs:37
 msgid "{n} message waiting to send"
 msgid_plural "{n} messages waiting to send"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:42
+#: crates/envio-core/src/text/count.rs:46
 msgid "{n} new message"
 msgid_plural "{n} new messages"
 msgstr[0] ""
 msgstr[1] ""
 
-#: crates/envio-core/src/text/count.rs:49
+#: crates/envio-core/src/text/count.rs:53
 msgid "Finds mail older than the {n} day kept here"
 msgid_plural "Finds mail older than the {n} days kept here"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:62
+msgid "{n} sync stopped"
+msgid_plural "{n} sync stopped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/envio-core/src/text/count.rs:66
+msgid "{n} offline"
+msgid_plural "{n} offline"
 msgstr[0] ""
 msgstr[1] ""
 
