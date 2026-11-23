@@ -1,4 +1,5 @@
 Theme 1.0 Theme.qml
+DisplayCorners 1.0 DisplayCorners.qml
 Content 1.0 Content.qml
 ShareIn 1.0 ShareIn.qml
 WindowMode 1.0 WindowMode.qml

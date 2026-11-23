@@ -97,11 +97,9 @@ Control {
     // one is the visible corner of a Sheet or dialog). Carbon has none.
     readonly property real frameInset: airmail ? 10 : 0
     // The ring's outer radius at the bottom corners, which meet the phone's
-    // rounded display corners.
-    // Only a phone has rounded display corners; a desktop window is square.
-    // The Suru loader answering (Ubuntu Touch only) says which; only an approximation: UT in
-    // windowed or convergence mode keeps rounded corners. Tests assign it.
-    property bool roundedDisplay: loader.item !== null
+    // rounded display corners. Main binds roundedDisplay from DisplayCorners
+    // (Lomiri session, window covers the screen); square otherwise.
+    property bool roundedDisplay: false
     readonly property real frameOuterRadius: airmail && roundedDisplay ? 30 : 0
     // 0: the top edge meets the system bar (indicator or title bar), straight.
     readonly property real frameTopOuterRadius: 0

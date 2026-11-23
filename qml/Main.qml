@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import QtQuick.Window 2.15
 import Envio 1.0
 import "platform"
 import "pages"
@@ -29,6 +30,14 @@ ApplicationWindow {
         id: appTheme
         name: core.theme !== "" ? core.theme : "carbon"
         darkMode: core.darkMode !== "" ? core.darkMode : "system"
+        roundedDisplay: displayCorners.rounded
+    }
+    DisplayCorners {
+        id: displayCorners
+        windowWidth: window.width
+        windowHeight: window.height
+        screenWidth: Screen.width
+        screenHeight: Screen.height
     }
 
     AppShell {
