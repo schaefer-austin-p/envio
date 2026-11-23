@@ -179,6 +179,25 @@ Item {
             compare(foot.mapToItem(page, 0, foot.height).y, page.height)
         }
 
+        // Review 1478: past 100 gu the fields are capped at 90 gu, and the
+        // footer's text ends at the same right edge, not at the pane's.
+        function test_footer_text_ends_at_the_capped_field_column() {
+            root.width = thm.gu(130)
+            mock.composeReady(1, reply, "", "")
+            mock.draftStored(1, new Date(2026, 10, 23, 9, 41).getTime())
+            page.wide = true
+            const foot = find("composeFooter")
+            const plain = find("plainText", foot)
+            const fields = find("to")
+            const fieldsRight = fields.mapToItem(page, fields.width, 0).x
+            const textRight = plain.mapToItem(page, plain.width, 0).x
+            verify(Math.abs(fieldsRight - thm.gu(95)) <= 1, "the column is capped: " + fieldsRight)
+            verify(Math.abs(textRight - fieldsRight) <= 1, "text right " + textRight + " vs fields " + fieldsRight)
+            compare(find("savedCheck", foot).mapToItem(page, 0, 0).x, thm.gu(5))
+            page.wide = false
+            root.width = 400
+        }
+
         function test_ready_fills_fields_and_folds_quote() {
             mock.composeReady(1, reply, "On Monday Bob wrote:\n> hi", "")
             compare(find("to").entries, ["Bob <bob@example.org>"])

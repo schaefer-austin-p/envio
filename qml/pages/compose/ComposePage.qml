@@ -433,6 +433,7 @@ Item {
         theme: root.theme
         savedAtMs: root.savedAtMs
         wide: root.wide
+        maxContent: root.theme.gu(90)
     }
 
     Toast {

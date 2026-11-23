@@ -13,10 +13,17 @@ Item {
     objectName: "composeFooter"
     required property Theme theme
     property real savedAtMs: 0
-    // In the wide pane: the fields' 5 gu gutter, 10 px above, 16 below
-    // (carbon-two-pane); on the phone 16 px sides, 8 above, 14 below.
+    // In the wide pane the text spans the fields' column: the 5 gu gutter
+    // on the left and, when the pane is wider than `maxContent` plus both
+    // gutters, the column's right edge on the right (the same formula as
+    // ComposePage's column). 10 px above, 16 below (carbon-two-pane); on
+    // the phone 16 px sides, 8 above, 14 below.
     property bool wide: false
+    property real maxContent: 0
     readonly property real sideMargin: theme.gu(wide ? 5 : 2)
+    readonly property real rightInset: wide && maxContent > 0
+        ? sideMargin + Math.max(0, width - 2 * sideMargin - maxContent)
+        : sideMargin
     readonly property real topMargin: theme.gu(wide ? 1.25 : 1)
     readonly property real bottomMargin: theme.gu(wide ? 2 : 1.75)
 
@@ -75,7 +82,7 @@ Item {
         id: marker
         objectName: "plainText"
         textFormat: Text.PlainText
-        anchors { right: parent.right; rightMargin: root.sideMargin; top: parent.top; topMargin: root.topMargin }
+        anchors { right: parent.right; rightMargin: root.rightInset; top: parent.top; topMargin: root.topMargin }
         text: qsTr("Plain text")
         color: root.theme.secondary
         font.family: root.theme.fontLabel
