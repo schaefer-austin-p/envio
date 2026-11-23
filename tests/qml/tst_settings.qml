@@ -21,9 +21,11 @@ Item {
     // The page where the platform has no fullscreen (the desktop).
     AppearancePage { id: appearanceDesktop; theme: thm; core: core; anchors.fill: parent; visible: false }
     // The window's visibility, through the platform hook (a stand-in for ut/).
-    WindowMode { id: mode; source: Qt.resolvedUrl("StubFullscreen.qml"); fullscreen: core.fullscreen }
-    // Where the platform file does not load (the desktop: no Suru).
-    WindowMode { id: desktopMode; source: Qt.resolvedUrl("NoSuchPlatform.qml"); fullscreen: core.fullscreen }
+    WindowMode { id: mode; phoneSession: true; source: Qt.resolvedUrl("StubFullscreen.qml"); fullscreen: core.fullscreen }
+    // A desktop session: the platform file is never used.
+    WindowMode { id: desktopMode; phoneSession: false; fullscreen: core.fullscreen }
+    // The real phone file with the phone session on: Suru imports in the CI image.
+    WindowMode { id: realMode; phoneSession: true; fullscreen: core.fullscreen }
     ImagesPage { id: images; theme: thm; core: core; anchors.fill: parent; visible: false }
     SyncPage { id: sync; theme: thm; core: core; accounts: core.accounts; anchors.fill: parent; visible: false }
     AboutPage { id: about; theme: thm; anchors.fill: parent; visible: false }
@@ -184,6 +186,39 @@ Item {
             core.fullscreen = true
             verify(!desktopMode.available)
             compare(desktopMode.visibility, Window.AutomaticVisibility)
+            core.fullscreen = false
+        }
+
+        // Suru imports in the CI image (as on some desktops): the real phone
+        // file loads, yet a desktop session must not use it.
+        function test_a_desktop_session_with_suru_is_not_fullscreen_capable() {
+            const c = Qt.createComponent(Qt.resolvedUrl("../../qml/platform/ut/PhoneFullscreen.qml"))
+            compare(c.status, Component.Ready, c.errorString())
+            const o = c.createObject(root)
+            compare(o.visibilityOn, Window.FullScreen)
+            o.destroy()
+            core.fullscreen = true
+            verify(!desktopMode.available)
+            compare(desktopMode.visibility, Window.AutomaticVisibility)
+            // The same file, in a phone session, does the job.
+            verify(realMode.available)
+            compare(realMode.visibility, Window.FullScreen)
+            core.fullscreen = false
+            compare(realMode.visibility, Window.AutomaticVisibility)
+        }
+
+        function test_fullscreen_switch_falls_back_when_the_save_did_not_take() {
+            appearance.visible = true
+            const sw = find("fullscreenSwitch", appearance)
+            verify(!sw.checked)
+            mouseClick(sw)
+            verify(sw.checked)
+            // The core refused: the setting is still off, a notice says so.
+            core.notice("Could not save the settings.")
+            verify(!sw.checked)
+            // And the switch still follows the setting afterwards.
+            core.fullscreen = true
+            verify(sw.checked)
             core.fullscreen = false
         }
 

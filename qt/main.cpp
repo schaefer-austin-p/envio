@@ -6,6 +6,7 @@
 
 #include <QByteArray>
 #include <QGuiApplication>
+#include <QQmlContext>
 #include <QQmlApplicationEngine>
 #include <QString>
 #include <QTranslator>
@@ -73,6 +74,9 @@ int main(int argc, char *argv[])
     QGuiApplication::installTranslator(&translator);
 
     QQmlApplicationEngine engine;
+    // Lomiri sets GRID_UNIT_PX for its apps and nothing else does: the one
+    // sign of the phone session the QML can use (platform/WindowMode.qml).
+    engine.rootContext()->setContextProperty(QStringLiteral("lomiriSession"), qEnvironmentVariableIsSet("GRID_UNIT_PX"));
     engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
     if (engine.rootObjects().isEmpty()) {
         return 1;

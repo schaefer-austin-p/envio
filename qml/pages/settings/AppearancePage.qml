@@ -150,7 +150,7 @@ Item {
                 Text {
                     textFormat: Text.PlainText
                     width: parent.width
-                    text: qsTr("Hides the top bar. Swipe down from the top edge to bring it back.")
+                    text: qsTr("Hides the indicator bar at the top of the screen. Swipe down from the top edge to bring it back.")
                     wrapMode: Text.WordWrap
                     color: root.theme.secondary
                     font.family: root.theme.fontUi
@@ -167,6 +167,9 @@ Item {
                 onToggled: root.core.chooseFullscreen(checked)
                 Connections {
                     target: root.core
+                    // A save that did not take leaves `fullscreen` as it was: a notice
+                    // puts the switch back to it.
+                    function onNotice() { fullscreenToggle.checked = Qt.binding(function() { return root.core.fullscreen }) }
                     function onFullscreenChanged() { fullscreenToggle.checked = Qt.binding(function() { return root.core.fullscreen }) }
                 }
             }

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 19:30+0100\n"
+"POT-Creation-Date: 2026-11-23 19:37+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -1111,7 +1111,9 @@ msgid "Fullscreen"
 msgstr ""
 
 #: qml/pages/settings/AppearancePage.qml:153
-msgid "Hides the top bar. Swipe down from the top edge to bring it back."
+msgid ""
+"Hides the indicator bar at the top of the screen. Swipe down from the top "
+"edge to bring it back."
 msgstr ""
 
 #: qml/pages/settings/ImagesPage.qml:23 qml/pages/settings/SettingsPage.qml:36
