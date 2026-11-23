@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 13:26+0100\n"
+"POT-Creation-Date: 2026-11-23 14:19+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/RowMenu.qml:146
-#: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:278
+#: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:335
 msgid "Archive"
 msgstr ""
 
@@ -66,7 +66,7 @@ msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:10
 #: qml/pages/accounts/UpdateSignInPage.qml:327
-#: qml/pages/reader/ReaderPage.qml:271
+#: qml/pages/reader/ReaderPage.qml:328
 msgid "Close"
 msgstr ""
 
@@ -84,7 +84,7 @@ msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:45 qml/pages/inbox/OutboxPage.qml:89
 #: qml/pages/inbox/OutboxRow.qml:129 qml/pages/inbox/RowMenu.qml:155
-#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:286
+#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:343
 msgid "Delete"
 msgstr ""
 
@@ -122,7 +122,7 @@ msgstr ""
 msgid "Step %1"
 msgstr ""
 
-#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:271
+#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:328
 msgid "Back"
 msgstr ""
 
@@ -150,7 +150,7 @@ msgstr ""
 msgid "%1 GB"
 msgstr ""
 
-#: qml/pages/AppShell.qml:300
+#: qml/pages/AppShell.qml:301
 msgid "Draft saved"
 msgstr ""
 
@@ -158,7 +158,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:467
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:524
 msgid "Try again"
 msgstr ""
 
@@ -676,7 +676,7 @@ msgid "Attach a file"
 msgstr ""
 
 #: qml/pages/compose/ComposePage.qml:267 qml/pages/inbox/SelectionBar.qml:56
-#: qml/pages/reader/ReaderPage.qml:294
+#: qml/pages/reader/ReaderPage.qml:351
 msgid "More actions"
 msgstr ""
 
@@ -801,7 +801,7 @@ msgstr ""
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:284 qml/pages/reader/ReaderPage.qml:541
+#: qml/pages/inbox/InboxPage.qml:284 qml/pages/reader/ReaderPage.qml:598
 msgid "Undo"
 msgstr ""
 
@@ -1016,7 +1016,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:445
+#: qml/pages/reader/ReaderPage.qml:502
 msgid "Loading…"
 msgstr ""
 

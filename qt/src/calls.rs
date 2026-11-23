@@ -330,6 +330,14 @@ impl qobject::EnvioCore {
         });
     }
 
+    /// The reader's width changed: show message `id` again for `width_px`.
+    pub fn refit(self: Pin<&mut Self>, id: i64, width_px: i32) {
+        self.send_command(Command::RefitMessage {
+            id: MessageRowId(id),
+            width_px: u32::try_from(width_px).unwrap_or(0),
+        });
+    }
+
     /// The natural sizes of the remote images the reader loaded for
     /// message `id`, as `{"url": [width, height]}`.
     pub fn report_image_sizes(self: Pin<&mut Self>, id: i64, sizes_json: &QString) {

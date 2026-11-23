@@ -747,6 +747,108 @@ Item {
             root.page.width = thm.gu(60)
             compare(find("bodyCard").width, thm.gu(60) - thm.gu(10))
         }
+        // The body width changes after open (window resize, a breakpoint,
+        // the folder column): the core renders the message again for it (#192).
+        function withWidth(v, width) { v.bodyWidth = width; return v }
+        function longView() {
+            const longHtml = "<p>" + new Array(400).join("Hello again. ") + "</p>"
+            return { id: 5, html: longHtml, blockedImages: 0, from: "Ana Ruiz", fromAddress: "ana@example.org", to: ["me@example.org"],
+                cc: [], subject: "Invoice", date: 1700000000, account: "ann", senderKnown: false, senderVerified: true, attachments: [] }
+        }
+        function test_width_change_refits_after_a_pause() {
+            open(view([], 2))
+            mock.reset()
+            root.page.width = 300
+            compare(mock.called("refit").length, 0, "the refit waits for the width to settle")
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            compare(mock.called("refit")[0].args, [5, 300 - thm.gu(7)])
+            compare(mock.called("open").length, 0, "a refit is not a new open")
+        }
+        function test_live_resize_refits_once() {
+            open(view([], 0))
+            mock.reset()
+            for (const w of [390, 380, 370, 360]) {
+                root.page.width = w
+                wait(40)
+            }
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            wait(500)
+            compare(mock.called("refit").length, 1)
+            compare(mock.called("refit")[0].args[1], 360 - thm.gu(7))
+        }
+        function test_width_change_past_the_measure_cap_does_not_refit() {
+            wideReader()
+            mock.reset()
+            root.page.width = 1200
+            wait(600)
+            compare(mock.called("refit").length, 0, "the body is as wide as before")
+        }
+        function test_a_wide_flip_at_the_same_width_refits() {
+            // The width does not change, the body width does (`wide` caps it).
+            root.page.width = 1000
+            open(view([], 0))
+            mock.reset()
+            root.page.wide = true
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            compare(mock.called("refit")[0].args[1], thm.gu(77))
+        }
+        function test_width_change_before_the_view_arrives_refits() {
+            // The first open is still in flight when the width moves.
+            root.page.width = 300
+            wait(400)
+            compare(mock.called("refit").length, 0, "nothing is shown to refit yet")
+            open(withWidth(view([], 0), 400 - thm.gu(7)))
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            compare(mock.called("refit")[0].args, [5, 300 - thm.gu(7)])
+        }
+        function test_message_change_during_the_pause_cancels_the_refit() {
+            open(view([], 0))
+            mock.reset()
+            root.page.width = 300
+            root.page.messageId = 6
+            wait(500)
+            compare(mock.called("refit").length, 0)
+            verify(!root.page.scrollHeld, "the hold is released")
+        }
+        function test_only_the_answer_to_the_refit_ends_it() {
+            open(view([], 0))
+            mock.reset()
+            const old = 400 - thm.gu(7)
+            root.page.width = 300
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            verify(root.page.refitting)
+            // A render at the old width (an image-size report) is not the answer.
+            open(withWidth(view([], 0), old))
+            verify(root.page.refitting)
+            open(withWidth(view([], 0), 300 - thm.gu(7)))
+            verify(!root.page.refitting)
+        }
+        function test_a_refit_answered_as_unavailable_releases_the_hold() {
+            open(view([], 0))
+            mock.reset()
+            root.page.width = 300
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            verify(root.page.refitting)
+            mock.messageUnavailable(5, "gone")
+            verify(!root.page.refitting)
+            verify(!root.page.scrollHeld)
+        }
+        function test_refit_keeps_the_scroll_fraction() {
+            mock.messageOpened(longView())
+            waitForRendering(root.page)
+            const flick = find("readerFlick")
+            // Near the end, so a wider body (a shorter text) clamps a pixel offset.
+            flick.contentY = 0.9 * (flick.contentHeight - flick.height)
+            fuzzyCompare(root.page.scrollFraction, 0.9, 0.02)
+            mock.reset()
+            root.page.width = 700
+            tryVerify(function() { return mock.called("refit").length === 1 })
+            // The core's answer lays the body out again, as the fitted one.
+            mock.messageOpened(withWidth(longView(), root.page.bodyWidth))
+            waitForRendering(root.page)
+            tryVerify(function() { return Math.abs(flick.contentY / (flick.contentHeight - flick.height) - 0.9) < 0.03 })
+            fuzzyCompare(root.page.scrollFraction, 0.9, 0.03)
+        }
         function test_wide_reader_column_is_5_gu_from_the_pane_edge() {
             wideReader()
             compare(find("bodyCard").mapToItem(root.page, 0, 0).x, thm.gu(5))

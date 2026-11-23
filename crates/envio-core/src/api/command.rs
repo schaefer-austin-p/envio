@@ -231,6 +231,12 @@ pub enum Command {
         /// Widest image or table, in pixels.
         width_px: u32,
     },
+    /// The reader's width changed after the message was shown: render it
+    /// again for `width_px`, with the images choice and the lookup state of
+    /// this open. It is not a new open: the message is not marked read, and
+    /// the answer is `MessageOpened` (or `MessageUnavailable` when the body
+    /// is gone). Ignored when `id` is not the shown message (#192).
+    RefitMessage { id: MessageRowId, width_px: u32 },
     /// The natural pixel size (width, height) of remote images the reader
     /// loaded for message `id`, by URL. When the open message is that one
     /// and a size changes how it draws (an image with no width wider than
@@ -357,6 +363,7 @@ impl Command {
             Self::SearchServer { .. } => "SearchServer",
             Self::LoadOlder { .. } => "LoadOlder",
             Self::OpenMessage { .. } => "OpenMessage",
+            Self::RefitMessage { .. } => "RefitMessage",
             Self::ImageSizes { .. } => "ImageSizes",
             Self::SaveAttachment { .. } => "SaveAttachment",
             Self::Act { .. } => "Act",

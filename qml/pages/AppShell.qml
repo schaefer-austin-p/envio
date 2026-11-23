@@ -132,8 +132,9 @@ Item {
 
     // The reader and the compose are single items, made once and moved
     // between the stack (narrow) and the pane (wide) when the window crosses
-    // the breakpoint: nothing reopens, nothing reloads, and the core is never
-    // told (`closeCompose` is only for Close, Send, a discard and a row click).
+    // the breakpoint: nothing reopens or reloads, and the core is told only
+    // of the reader's new body width (`refit`, once the width has settled;
+    // #192). `closeCompose` is only for Close, Send, a discard and a row click.
     // A page pushed from a component (Search's reader, a second compose) is
     // not one of these and stays a stack page.
     property Item readerItem: null

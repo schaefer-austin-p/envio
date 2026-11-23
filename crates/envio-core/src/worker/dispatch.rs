@@ -104,6 +104,10 @@ pub(crate) async fn handle(worker: &mut Worker<'_>, command: Command, at_ms: i64
             worker.open_message(id, images, width_px);
             Flow::Continue
         }
+        Command::RefitMessage { id, width_px } => {
+            worker.refit_message(id, width_px);
+            Flow::Continue
+        }
         Command::ImageSizes { id, sizes } => {
             worker.image_sizes(id, sizes);
             Flow::Continue

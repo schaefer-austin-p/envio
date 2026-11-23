@@ -366,6 +366,8 @@ pub mod qobject {
         #[qinvokable]
         fn open(self: Pin<&mut EnvioCore>, id: i64, load_images: bool, width_px: i32);
         #[qinvokable]
+        fn refit(self: Pin<&mut EnvioCore>, id: i64, width_px: i32);
+        #[qinvokable]
         #[cxx_name = "reportImageSizes"]
         fn report_image_sizes(self: Pin<&mut EnvioCore>, id: i64, sizes_json: &QString);
         #[qinvokable]

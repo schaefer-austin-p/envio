@@ -8,6 +8,7 @@ fn blocked() -> RenderOptions {
     RenderOptions {
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
+        max_font_px: 0,
         ..RenderOptions::default()
     }
 }
@@ -217,6 +218,7 @@ fn a_percentage_width_is_a_share_of_its_cell() {
 fn a_percentage_width_is_left_alone_without_a_limit() {
     let options = RenderOptions {
         max_image_width: 0,
+        max_font_px: 0,
         ..allowed()
     };
     let html = r#"<img src="https://example.com/a.png" style="width:100%">"#;
@@ -240,6 +242,7 @@ fn drops_wide_table_widths() {
 fn no_width_limit_when_zero() {
     let options = RenderOptions {
         max_image_width: 0,
+        max_font_px: 0,
         ..allowed()
     };
     let html = r#"<img src="https://example.com/a.png" width="5000">"#;

@@ -201,6 +201,7 @@ pub fn message_view_value(id: i64, view: &MessageView) -> Value {
         "blockedImages": view.blocked_images,
         "remoteImages": view.remote_images,
         "ownColours": view.own_colours,
+        "bodyWidth": view.body_width,
         "from": h.from,
         "fromAddress": h.from_address,
         "to": h.to,
@@ -344,6 +345,7 @@ mod tests {
             blocked_images: 0,
             remote_images: vec![],
             own_colours: false,
+            body_width: 0,
             attachments: vec![],
             invite: None,
             is_draft: false,
@@ -372,6 +374,7 @@ mod tests {
             blocked_images: 0,
             remote_images: vec![],
             own_colours: true,
+            body_width: 0,
             attachments: vec![],
             invite: None,
             is_draft: false,
@@ -383,6 +386,9 @@ mod tests {
         view.header.sender_checkable = true;
         assert_eq!(message_view_value(1, &view)["senderCheckable"], true);
         assert_eq!(message_view_value(1, &view)["ownColours"], true);
+        assert_eq!(message_view_value(1, &view)["bodyWidth"], 0);
+        view.body_width = 344;
+        assert_eq!(message_view_value(1, &view)["bodyWidth"], 344);
         assert_eq!(message_view_value(1, &view)["remoteImages"], json!([]));
         view.remote_images = vec!["https://example.org/a.png".into()];
         assert_eq!(
@@ -417,6 +423,7 @@ mod tests {
             blocked_images: 0,
             remote_images: vec![],
             own_colours: false,
+            body_width: 0,
             attachments: vec![],
             invite: None,
             is_draft: false,

@@ -72,7 +72,22 @@ Item {
     property bool holdActive: false
     readonly property var remoteImages: view !== null && view.remoteImages !== undefined ? view.remoteImages : []
     // A redraw due for the last message must not lay out the next one.
-    onViewChanged: imageRedraw.stop()
+    onViewChanged: {
+        imageRedraw.stop()
+        if (view === null) {
+            // Reset, or the message is gone: no refit is waited for.
+            refitting = false
+            refitGuard.stop()
+            scrollHeld = false
+        } else if (refitting) {
+            // Only the answer to the last refit ends it; a render at an older
+            // width (an image-size report) does not.
+            if (view.bodyWidth === loadedWidth) { refitting = false; refitGuard.stop(); restoreScroll() }
+        } else if (started && loadedWidth >= 0 && bodyWidth !== loadedWidth) {
+            // The width moved while the message was still opening.
+            refitTimer.restart()
+        }
+    }
 
     // The body's width in pixels, which the core scales images to.
     readonly property int bodyWidth: Math.max(0, Math.round(wide ? Math.min(width - theme.gu(13), theme.gu(77)) : width - theme.gu(7)))
@@ -108,9 +123,43 @@ Item {
     // The compose id `startCompose` returned; the compose page follows it.
     signal composeOpened(var compose)
 
+    // The body width the core last rendered (or was asked to render) for.
+    property int loadedWidth: -1
     function load(images) {
         unavailable = ""
+        loadedWidth = bodyWidth
         core.open(messageId, images, bodyWidth)
+    }
+    // The body width changes after open (window resize, a breakpoint, the
+    // folder column, a grid unit change): the core fits images and fonts to
+    // the width it is given, so it renders again once the width has stopped
+    // moving (#192). The scroll fraction is held until the new body is in.
+    property bool refitting: false
+    function refit() {
+        loadedWidth = bodyWidth
+        core.refit(messageId, bodyWidth)
+    }
+    Timer {
+        id: refitTimer
+        interval: 250
+        onTriggered: {
+            if (!root.started || root.view === null) return
+            if (root.bodyWidth === root.loadedWidth) {
+                root.restoreScroll()
+                return
+            }
+            root.refitting = true
+            root.holdScroll()
+            root.refit()
+            refitGuard.restart()
+        }
+    }
+    // The core answers a refit at once, but ignores one for a message it no
+    // longer shows: the hold must not outlast that.
+    Timer {
+        id: refitGuard
+        interval: 10000
+        onTriggered: { root.refitting = false; root.scrollHeld = false }
     }
     function start() {
         if (started || messageId < 0 || width <= 0) return
@@ -118,9 +167,17 @@ Item {
         load(false)
     }
     onWidthChanged: start()
+    onBodyWidthChanged: {
+        if (!started || view === null) return
+        // The text lays out again at once; the scroll fraction must not
+        // follow that, so it is held until the refit is settled.
+        holdScroll()
+        refitTimer.restart()
+    }
     onMessageIdChanged: {
         started = false; view = null
         sizeReport.stop(); pendingSizes = ({}); reportedSizes = ({})
+        refitTimer.stop(); refitGuard.stop(); refitting = false; scrollHeld = false
         // The pane reuses this page for the next message: nothing of the
         // last one stays (scroll, a queued action, a sheet).
         flick.contentY = 0

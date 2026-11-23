@@ -19,6 +19,7 @@ fn options() -> RenderOptions {
         ]),
         blocked_label: "[image]".to_owned(),
         max_image_width: 600,
+        max_font_px: 0,
         ..RenderOptions::default()
     }
 }
@@ -43,6 +44,7 @@ fn caps_a_height_only_cid_image_that_would_draw_too_wide() {
     assert_eq!(r.html, r#"<img src="file:///c/f.png" height="50">"#);
     let narrow = RenderOptions {
         max_image_width: 360,
+        max_font_px: 0,
         ..options()
     };
     let r = sanitize_html(html, &narrow);
