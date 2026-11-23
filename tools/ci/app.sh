@@ -11,8 +11,9 @@ export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target/ci-qt}
 section() { echo "== $1"; }
 
 section "translations: po/ is up to date with the sources"
-# Bounded apt waits: a mirror stall ate a whole job (#451); timeout caps a trickle.
-command -v xgettext >/dev/null || { echo 'Acquire::http::Timeout "30"; Acquire::https::Timeout "30"; Acquire::Retries "3";' >/etc/apt/apt.conf.d/99ci-timeouts && timeout 15m apt-get update -q && apt-get install -yq --no-install-recommends gettext; }
+# A stalled mirror once hung apt-get for 43 min (#451); fail well before the
+# job's 45-min limit.
+command -v xgettext >/dev/null || { timeout 15m apt-get update -q && timeout 15m apt-get install -yq --no-install-recommends gettext; }
 "$root/tools/i18n/update.sh" --check
 
 section "format: qt/ Rust"
