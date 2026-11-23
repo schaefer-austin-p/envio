@@ -509,6 +509,7 @@ Item {
         function test_wide_close_offers_save_draft_and_discard() {
             mock.composeReady(1, reply, "", "")
             page.wide = true
+            find("subjectField").input.text = "Re: Plans, and lunch"
             mouseClick(find("backButton"))
             tryVerify(function() { return shown("saveDraftRow") })
             verify(shown("discardRow"))
@@ -526,6 +527,87 @@ Item {
             compare(mock.called("closeCompose").pop().args, [1, false])
             compare(closed.count, 1)
             page.wide = false
+        }
+
+        function settled(name) {
+            let lastY = -1
+            tryVerify(function() {
+                const o = find(name)
+                if (o === undefined || !o.visible) return false
+                const y = o.mapToItem(null, 0, 0).y
+                const still = y === lastY
+                lastY = y
+                return still
+            })
+        }
+        // Leave no sheet or dialog open (and none still sliding out) for the next test.
+        function allClosed() {
+            tryVerify(function() { return !find("discardSheet").visible && !find("discardAsk").visible })
+        }
+        function openSheetWithContent() {
+            mock.composeReady(1, reply, "", "")
+            find("bodyField").input.text = "Hello, and more"
+            mouseClick(find("backButton"))
+            tryVerify(function() { return shown("saveDraftRow") })
+            settled("saveDraftRow")
+        }
+
+        function test_close_on_an_untouched_compose_has_no_sheet() {
+            // Blank, and a reply with only its defaults.
+            mock.composeReady(1, { account: "ann", to: [], cc: [], bcc: [], subject: "", body: "",
+                                   inReplyTo: "", references: [], attachments: [] }, "", "")
+            mouseClick(find("backButton"))
+            verify(!shown("saveDraftRow"))
+            compare(mock.called("closeCompose").pop().args, [1, false])
+            compare(closed.count, 1)
+            closed.clear()
+            mock.reset()
+            page.reset()
+            mock.composeReady(1, reply, "", "")
+            mouseClick(find("backButton"))
+            verify(!shown("saveDraftRow"))
+            compare(closed.count, 1)
+        }
+
+        function test_close_with_content_shows_the_sheet() {
+            openSheetWithContent()
+            verify(shown("discardRow"))
+            compare(closed.count, 0)
+            compare(mock.called("closeCompose").length, 0)
+            keyClick(Qt.Key_Escape)
+            allClosed()
+        }
+
+        function test_close_sheet_keep_saves() {
+            openSheetWithContent()
+            mouseClick(find("saveDraftRow"))
+            tryVerify(function() { return mock.called("closeCompose").length === 1 })
+            compare(mock.called("closeCompose").pop().args, [1, false])
+            compare(closed.count, 1)
+            allClosed()
+        }
+
+        function test_close_sheet_discard_deletes() {
+            openSheetWithContent()
+            mouseClick(find("discardRow"))
+            const dlg = find("discardAsk")
+            tryVerify(function() { return dlg.opened })
+            mouseClick(laidOut(dlg, "secondaryAction"))
+            tryCompare(closed, "count", 1)
+            compare(mock.called("closeCompose").pop().args, [1, true])
+            allClosed()
+        }
+
+        function test_close_sheet_dismissed_stays_in_compose() {
+            openSheetWithContent()
+            const sheet = find("discardSheet")
+            keyClick(Qt.Key_Escape)
+            tryVerify(function() { return !sheet.visible })
+            wait(50)
+            compare(closed.count, 0)
+            compare(mock.called("closeCompose").length, 0)
+            verify(shown("bodyField"))
+            allClosed()
         }
 
         function test_back_keeps_the_draft() {
