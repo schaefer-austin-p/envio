@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import "../../platform"
 import "../../components"
+import "../../bindle/Behaviours" as Behaviours
 
 // The list over `core.messages`. Rust owns the rows and the selection; this
 // reads the `selected` role to know whether selection mode is on. Near the
@@ -15,6 +16,15 @@ Item {
     property bool showAccount: false
     // Whether the open row is marked (not while a compose is in the wide pane).
     property bool showOpen: true
+    // What a refresh asks for: an account key (its tab) or "" for every account.
+    property string refreshScope: ""
+    // A refresh is running: the list rests below the indicator. It ends on
+    // the core's ack, but not before `minBusyMs` (so the line is readable)
+    // and at the latest after `capMs` (a big first sync can outlast it; that
+    // is expected, the sync goes on).
+    readonly property bool refreshing: pull.busy
+    property int minBusyMs: 600
+    property int capMs: 15000
 
     // What is selected now, from the rows' `selected` role.
     property int selectedCount: 0
@@ -28,6 +38,35 @@ Item {
     signal moveRequested(int id, string account)
 
     function positionViewAtEnd() { list.positionViewAtEnd() }
+
+    // The pull, F5 and the indicator's accessible action all come here. A
+    // second request while one runs does nothing.
+    function refresh() {
+        if (pull.busy || !root.core.canRefresh) return
+        acked = false
+        minPassed = false
+        pull.busy = true
+        minTimer.restart()
+        capTimer.restart()
+        root.core.refresh(root.refreshScope)
+    }
+    property bool acked: false
+    property bool minPassed: false
+    function endIfDone() {
+        if (!pull.busy || !acked || !minPassed) return
+        finish()
+    }
+    function finish() {
+        minTimer.stop()
+        capTimer.stop()
+        pull.busy = false
+    }
+    Timer { id: minTimer; interval: root.minBusyMs; onTriggered: { root.minPassed = true; root.endIfDone() } }
+    Timer { id: capTimer; interval: root.capMs; onTriggered: root.finish() }
+    Connections {
+        target: root.core
+        function onRefreshed() { if (pull.busy) { root.acked = true; root.endIfDone() } }
+    }
 
     function recount() {
         let n = 0
@@ -85,7 +124,11 @@ Item {
             target: root.core
             function onFocusMessageChanged() {
                 const at = Number(root.core.messageIndex(Number(root.core.focusMessage)))
-                if (at >= 0) list.positionViewAtIndex(at, ListView.Contain)
+                if (at < 0) return
+                list.positionViewAtIndex(at, ListView.Contain)
+                // Contain ignores the hold's margin: the first row would
+                // scroll up under the indicator.
+                if (at === 0 && pull.busy) list.contentY = list.originY - list.topMargin
             }
         }
         Connections {
@@ -94,7 +137,9 @@ Item {
             // grows the list, so it is no longer at the very end).
             function onOlderRowChanged() { Qt.callLater(list.askOlder) }
         }
-        onDragEnded: if (contentY < -root.theme.gu(10)) root.core.refresh("")
+        flickableDirection: Flickable.VerticalFlick
+        // topMargin jumps to the hold or back; the list's own return to
+        // bounds is the ease (an animated margin leaves it short of the hold).
         footer: LoadOlderRow {
             theme: root.theme
             width: list.width
@@ -125,6 +170,29 @@ Item {
             onPressAndHold: if (!row.model.selected) root.core.select(row.model.id, true)
             Component.onCompleted: if (row.index > list.count - 10) root.core.more()
         }
+    }
+
+    Behaviours.PullToRefresh {
+        id: pull
+        flickable: list
+        threshold: root.theme.gu(10)
+        holdHeight: root.theme.gu(7)
+        enabled: root.core.canRefresh
+        onTriggered: root.refresh()
+    }
+
+    // Over the list's top, in its coordinates; not part of its content.
+    PullIndicator {
+        id: indicator
+        theme: root.theme
+        width: parent.width
+        gap: pull.gap
+        progress: pull.progress
+        armed: pull.armed
+        busy: pull.busy
+        shown: root.core.canRefresh
+        // The one accessible action: refresh, as pulling does.
+        Accessible.onPressAction: root.refresh()
     }
 
     RowMenu {

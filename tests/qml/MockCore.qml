@@ -28,6 +28,9 @@ Item {
     // draft (a pseudo-row). Both follow `Ui` in the real core.
     property bool listIsDrafts: false
     property bool selectionHasLocal: false
+    // Whether a pull to refresh can do anything for the shown list (`Ui::can_refresh_shown`).
+    property bool canRefresh: true
+    signal refreshed()
 
     // What the page called, in order.
     property var calls: []

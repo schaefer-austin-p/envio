@@ -46,6 +46,10 @@ Item {
     readonly property int waitingCount: waitingProbe.toSend
     readonly property bool selecting: list.selectedCount > 0
 
+    // F5 and the like: refresh what the list shows (a no-op while one runs).
+    function refresh() { list.refresh() }
+    readonly property bool refreshing: list.refreshing
+
     function showUnified() {
         tab = ""
         title = qsTr("Inbox")
@@ -204,6 +208,8 @@ Item {
         messages: root.messages
         showAccount: root.unified
         showOpen: root.showOpen
+        // A tab refreshes its account, the unified inbox and a folder list all.
+        refreshScope: root.tab === "folder" ? "" : root.tab
         anchors { top: banners.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         onMessageRequested: root.messageRequested(message)
         onMoveRequested: function(id, account) { move.targets = [id]; move.openFor(account) }

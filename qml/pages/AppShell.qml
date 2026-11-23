@@ -800,6 +800,16 @@ Item {
         onActivated: root.newMessage()
     }
 
+    // F5: refresh the list. Wide, the ShortcutLayer has it.
+    readonly property alias refreshShortcut: refreshKey
+    Shortcut {
+        id: refreshKey
+        sequence: "F5"
+        enabled: !root.wide && root.core.ready && root.rootKind === "inbox" && stack.depth === 1 && root.theme.popupsUp === 0
+        onActivated: root.refreshList()
+    }
+    function refreshList() { if (inboxItem) inboxItem.refresh() }
+
     // The wide layout's keys (frame 7). Not over a page (Search, Settings,
     // Outbox) and not under the shortcuts dialog.
     readonly property alias shortcuts: keys
@@ -821,6 +831,7 @@ Item {
             if (root.paneCompose === 0 && id > 0) root.core.actOn([id], "delete", 0)
         }
         onNewRequested: if (root.paneCompose === 0) root.newMessage()
+        onRefreshRequested: root.refreshList()
         onReplyRequested: {
             const r = root.readerItem
             if (root.paneCompose === 0 && r !== null && r.parent === pane && r.view !== null && !r.isDraft) r.compose("reply")
