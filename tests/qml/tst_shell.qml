@@ -1302,6 +1302,19 @@ Item {
             b.shell.destroy()
         }
 
+        function test_wide_compose_toast_centres_on_the_whole_window() {
+            const b = wideCompose()
+            const toast = findByName(b.shell, "composeToast")
+            verify(toast !== undefined && toast !== null, "the compose has a toast")
+            toast.show("Draft saved")
+            wait(50)
+            verify(toast.parent === b.shell, "sits on the window, not the pane")
+            fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, "centred on the window")
+            fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "28 px up")
+            toast.hide()
+            b.shell.destroy()
+        }
+
         function test_narrow_inbox_toast_stays_above_the_footer() {
             const b = boot()
             tryVerify(function() { return b.shell.depth === 1 })

@@ -22,6 +22,10 @@ Item {
     property real compose: -1
     // In the right pane of the wide layout: fields 5 gu in from the edge, 90 gu at most.
     property bool wide: false
+    // The window-level item the toast sits on in the wide layout (the board:
+    // centred at the bottom of the whole window, not of the pane); null on
+    // the phone.
+    property Item toastHost: null
     // The platform's file picker; the tests replace it (the Content Hub only
     // exists on the phone).
     property var importFiles: function() { content.importFiles() }
@@ -440,7 +444,10 @@ Item {
         id: toast
         objectName: "composeToast"
         theme: root.theme
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: root.theme.toastBottomMargin }
+        parent: root.toastHost !== null ? root.toastHost : root
+        z: 5
+        x: Math.round((parent.width - width) / 2)
+        y: parent.height - height - (root.toastHost !== null ? root.theme.frameInset : 0) - root.theme.toastBottomMargin
     }
 
     DiscardActions {

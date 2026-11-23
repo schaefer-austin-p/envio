@@ -17,8 +17,9 @@ Rectangle {
     property string text: ""
     property string actionText: ""
     property int duration: 5000
-    // Phone width: a 2 gu gutter on each side.
-    property real maxWidth: parent ? parent.width - theme.gu(4) : theme.gu(40)
+    // Phone width: a 2 gu gutter on each side; never wider than 60 gu, so a
+    // long notice on a window-wide parent stays a pill.
+    property real maxWidth: parent ? Math.min(parent.width - theme.gu(4), theme.gu(60)) : theme.gu(40)
     signal actionTriggered()
     signal expired()
 

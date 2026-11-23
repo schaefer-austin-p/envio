@@ -129,5 +129,14 @@ Item {
             verify(text.truncated)
             verify(toast.mapToItem(stage, 0, 0).x >= 0)
         }
+
+        function test_long_text_is_capped_on_a_wide_parent() {
+            stage.width = 1200
+            toast.show("A rather long message that cannot possibly fit a phone window in one line, and then it goes on and on and on, well past any sensible pill width", "Undo")
+            wait(50)
+            compare(toast.width, thm.gu(60))
+            verify(toast.width < stage.width - thm.gu(4))
+            verify(find(toast, "toastText").truncated)
+        }
     }
 }

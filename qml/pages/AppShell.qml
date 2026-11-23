@@ -797,6 +797,7 @@ Item {
                 if (done && StackView.status === StackView.Active)
                     Qt.callLater(function() { if (stack.currentItem === page) root.composeDone(page) })
             }
+            toastHost: root.wide ? root : null
             theme: root.theme
             core: root.core
             accounts: root.accounts
