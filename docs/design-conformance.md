@@ -192,3 +192,24 @@ here.
 | Airmail | Primary button on dark | `#A9C1E3` fill, `#141C27` text, pill | `primary` and `primaryText` roles correct; shape (R5) | Medium | R5 |
 | Both | Colour roles | palette values | `Theme.qml:44-65` match `10-design.md` | Low | none |
 | Carbon | Dark inbox and reader | as light with dark palette | no deviation beyond the light-mode rows | Low | none |
+
+## Toast pill (#353)
+
+The two-pane board's pill ("The moment after clicking row 3") is the rule
+for every toast, in both looks and both modes. `Toast.qml` draws it:
+shrink to fit, a check icon, 14 px text, 8 px radius (Carbon) or fully round
+(Airmail), a soft shadow, centred 28 px (3.5 gu) above the bottom of the
+whole window. The Undo action sits inside it (14 px semibold, underlined,
+44 px hit area).
+
+- **Superseded:** the `*-reading` boards' inline Undo toast (no icon, 15 px
+  text, 15 px/700 "Undo", full width, 84 px up) is superseded by the pill,
+  per #353. One style for all toasts; on the phone the Inbox and Reader
+  toasts still sit above their footer, in the wide layout on the window.
+- **Dark modes:** no board shows a dark toast. The pill inverts the primary
+  roles (Carbon `#E8E5DE` on `#15181D`, Airmail `#A9C1E3` on `#141C27`).
+- **Airmail "Draft saved":** has no board of its own; it takes the round
+  shape of the Airmail `*-reading` Undo toast.
+- **Shadow tint:** the Airmail shadow (`rgba(34,48,63,.3)` light, black .5
+  dark) is a deliberate choice, not read from a board; it is a stack of 14
+  faint layers, since no blur effect is used anywhere in the app.

@@ -1263,6 +1263,57 @@ Item {
             b.shell.destroy()
         }
 
+        function collect(item, name, out) {
+            if (item.objectName === name) out.push(item)
+            const list = item.data !== undefined ? item.data : item.children
+            for (let i = 0; list && i < list.length; i++) collect(list[i], name, out)
+            if (item.contentItem && item.contentItem !== item) collect(item.contentItem, name, out)
+            return out
+        }
+
+        function test_wide_inbox_toasts_centre_on_the_whole_window() {
+            const b = bootWide(100)
+            for (const name of ["undoToast", "noticeToast"]) {
+                const toast = findByName(b.shell, name)
+                toast.show("Archived", "Undo")
+                wait(50)
+                verify(toast.parent === b.shell, name + " sits on the window")
+                fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, name + " is centred on the window")
+                fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, name + " is 28 px up")
+                toast.hide()
+            }
+            b.shell.destroy()
+        }
+
+        function test_wide_reader_toast_centres_on_the_whole_window() {
+            const b = bootWide(100)
+            b.shell.openMessageFromRow(8)
+            verify(findByName(findByName(b.shell, "pane"), "readerFooter") !== undefined, "the pane holds a reader")
+            // The inbox's and the reader's toast share a name: take the second.
+            const all = collect(b.shell, "undoToast", [])
+            compare(all.length, 2)
+            const toast = all[1]
+            toast.show("Archived", "Undo")
+            wait(50)
+            verify(toast.parent === b.shell)
+            fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, "centred on the window")
+            fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "28 px up")
+            toast.hide()
+            b.shell.destroy()
+        }
+
+        function test_narrow_inbox_toast_stays_above_the_footer() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const toast = findByName(b.shell, "undoToast")
+            toast.show("Archived", "Undo")
+            wait(50)
+            verify(toast.parent !== b.shell, "on the page, not the window")
+            fuzzyCompare(toast.y + toast.height + thm.toastBottomMargin, findByName(b.shell, "inboxFooter").y, 1, "above the footer")
+            toast.hide()
+            b.shell.destroy()
+        }
+
         function test_no_row_open_while_compose_in_pane() {
             const b = bootWide(100)
             b.shell.currentPage.messageRequested(7)

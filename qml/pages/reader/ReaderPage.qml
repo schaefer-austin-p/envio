@@ -21,6 +21,10 @@ Item {
     property real messageId: -1
     // In the right pane of the wide layout: Close in place of Back, a capped text measure.
     property bool wide: false
+    // The window-level item the toasts sit on in the wide layout (the board:
+    // centred at the bottom of the whole window, not of a pane); null on the
+    // phone, where they sit above the footer.
+    property Item toastHost: null
 
     // Set by messageOpened; null until then.
     property var view: null
@@ -528,6 +532,7 @@ Item {
 
     ReplyBar {
         id: footer
+        objectName: "readerFooter"
         theme: root.theme
         visible: root.view !== null
         wide: root.wide
@@ -541,7 +546,11 @@ Item {
         id: undoToast
         objectName: "undoToast"
         theme: root.theme
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: footer.top; bottomMargin: root.theme.toastBottomMargin }
+        parent: root.toastHost !== null ? root.toastHost : root
+        z: 5
+        x: Math.round((parent.width - width) / 2)
+        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin
+                                   : footer.y - height - root.theme.toastBottomMargin
         onActionTriggered: root.core.undo(root.undoId)
     }
 

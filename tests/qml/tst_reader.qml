@@ -134,6 +134,17 @@ Item {
             verify(hit.length > 0, "no item with text " + text)
             return hit[0]
         }
+        function test_undo_toast_is_a_centred_pill_above_the_footer() {
+            open(view([], 0))
+            const toast = find("undoToast")
+            toast.show("Reply queued", "Undo")
+            wait(50)
+            fuzzyCompare(toast.x + toast.width / 2, root.page.width / 2, 1, "centred")
+            verify(toast.width < root.page.width - thm.gu(2), "a pill")
+            fuzzyCompare(toast.y + toast.height + thm.toastBottomMargin, find("readerFooter").y, 1, "above the footer")
+            toast.hide()
+        }
+
         function test_reader_offer_shows_undo_toast() {
             open(view([], 0))
             const toast = find("undoToast")

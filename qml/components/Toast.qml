@@ -6,11 +6,11 @@ import "../platform"
 // A transient message with an optional action (Undo), drawn as the board's
 // compact pill (carbon-two-pane, "The moment after clicking row 3"): shrink
 // to fit, a check icon, 14 px text, a soft shadow. The caller centres it
-// (`anchors.horizontalCenter`) and sets `anchors.bottomMargin` to
-// `theme.toastBottomMargin`; it is never wider than `maxWidth`, and long
-// text elides. `show()` makes it visible and hides it again after
-// `duration` ms (5000: the Undo window of 10-design.md). `actionTriggered`
-// fires on a tap on the action, `expired` when the time ran out without one.
+// (`anchors.horizontalCenter`, or `x`) and sits it `theme.toastBottomMargin`
+// above its bottom; it is never wider than `maxWidth`, and long text
+// elides. `show()` makes it visible and hides it again after `duration` ms
+// (5000: the Undo window of 10-design.md). `actionTriggered` fires on a tap
+// on the action, `expired` when the time ran out without one.
 Rectangle {
     id: root
     required property Theme theme
@@ -34,7 +34,10 @@ Rectangle {
     }
 
     visible: false
-    implicitWidth: Math.min(maxWidth, row.implicitWidth + theme.gu(5))
+    // The pill is sized by its text row; the Undo button (touch height) may
+    // overhang it by a pixel or two, so its hit area stays 44 px.
+    implicitWidth: Math.min(maxWidth, theme.gu(2.5) + row.implicitWidth
+                            + (action.visible ? theme.gu(2.5) + action.implicitWidth : theme.gu(2.5)))
     implicitHeight: Math.max(row.implicitHeight + theme.gu(3), action.visible ? theme.touch : 0)
     width: implicitWidth
     height: implicitHeight
@@ -48,19 +51,22 @@ Rectangle {
         onTriggered: { root.visible = false; root.expired() }
     }
 
-    // A soft drop shadow (the board's 0 6px 20px): growing, faint layers.
+    // A soft drop shadow (the board's 0 6px 20px rgba(.., .3)): 14 faint
+    // layers growing 1.5 px each, so the falloff reads as a blur, reaching
+    // 21 px around the pill and offset 6 px down.
     Repeater {
-        model: 5
+        model: 14
         Rectangle {
             required property int index
+            readonly property real grow: (index + 1) * 1.5
             z: -1
-            x: -index * 2
-            y: 5 - index * 2
-            width: root.width + index * 4
-            height: root.height + index * 4
-            radius: root.theme.airmail ? height / 2 : root.theme.toastRadius
+            x: -grow
+            y: 6 - grow
+            width: root.width + grow * 2
+            height: root.height + grow * 2
+            radius: root.theme.airmail ? height / 2 : root.theme.toastRadius + grow
             color: Qt.rgba(root.theme.toastShadow.r, root.theme.toastShadow.g, root.theme.toastShadow.b,
-                           root.theme.toastShadow.a / 5)
+                           root.theme.toastShadow.a / 14 * 0.7)
         }
     }
 
@@ -69,7 +75,8 @@ Rectangle {
         objectName: "toastRow"
         anchors {
             left: parent.left; leftMargin: root.theme.gu(2.5)
-            right: parent.right; rightMargin: action.visible ? root.theme.gu(1) : root.theme.gu(2.5)
+            right: action.visible ? action.left : parent.right
+            rightMargin: action.visible ? root.theme.gu(1.5) : root.theme.gu(2.5)
             verticalCenter: parent.verticalCenter
         }
         spacing: root.theme.gu(1.25)
@@ -82,6 +89,7 @@ Rectangle {
             size: 16
         }
         Text {
+            objectName: "toastText"
             Layout.fillWidth: true
             Layout.preferredWidth: implicitWidth
             textFormat: Text.PlainText
@@ -91,25 +99,29 @@ Rectangle {
             font.family: root.theme.fontUi
             font.pixelSize: 14
         }
-        AbstractButton {
-            id: action
-            visible: root.actionText !== ""
-            text: root.actionText
-            implicitWidth: label.implicitWidth + root.theme.gu(2.5)
-            implicitHeight: root.theme.touch
-            onClicked: { timer.stop(); root.visible = false; root.actionTriggered() }
-            contentItem: Text {
-                textFormat: Text.PlainText
-                id: label
-                text: action.text
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                color: root.theme.toastText
-                font.family: root.theme.fontLabel
-                font.pixelSize: 14
-                font.weight: Font.DemiBold
-                font.underline: true
-            }
+    }
+    AbstractButton {
+        id: action
+        objectName: "toastAction"
+        visible: root.actionText !== ""
+        text: root.actionText
+        anchors.right: parent.right
+        anchors.rightMargin: root.theme.gu(1)
+        anchors.verticalCenter: parent.verticalCenter
+        implicitWidth: label.implicitWidth + root.theme.gu(2.5)
+        implicitHeight: root.theme.touch
+        onClicked: { timer.stop(); root.visible = false; root.actionTriggered() }
+        contentItem: Text {
+            textFormat: Text.PlainText
+            id: label
+            text: action.text
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            color: root.theme.toastText
+            font.family: root.theme.fontLabel
+            font.pixelSize: 14
+            font.weight: Font.DemiBold
+            font.underline: true
         }
     }
 }

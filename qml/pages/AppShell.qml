@@ -648,6 +648,7 @@ Item {
             messages: root.messages
             outbox: root.outbox
             showOpen: root.paneCompose === 0
+            toastHost: root.wide ? root : null
             drawerInline: root.veryWide
             Component.onCompleted: root.inboxItem = inboxRoot
             Component.onDestruction: if (root.inboxItem === inboxRoot) root.inboxItem = null
@@ -713,6 +714,7 @@ Item {
             core: root.core
             accounts: root.accounts
             folders: root.folders
+            toastHost: root.wide ? root : null
             onBackRequested: root.readerBack(reader)
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }

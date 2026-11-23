@@ -57,12 +57,16 @@ Item {
             compare(toast.width, toast.implicitWidth)
         }
 
-        function test_centred_and_28px_up() {
+        function test_height_follows_the_text_row_not_the_button() {
             toast.show("Draft saved")
             wait(50)
-            fuzzyCompare(toast.mapToItem(stage, 0, 0).x + toast.width / 2, stage.width / 2, 1)
-            compare(stage.height - (toast.y + toast.height), thm.toastBottomMargin)
-            compare(thm.toastBottomMargin, thm.gu(3.5))
+            const plain = toast.height
+            verify(plain >= 40 && plain <= thm.touch, "Draft saved is about 44 px: " + plain)
+            toast.show("Archived", "Undo")
+            wait(50)
+            compare(toast.height, thm.touch, "with Undo the pill is the touch size, not text plus the button")
+            verify(toast.height < plain + thm.gu(1), "Undo adds under 1 gu: " + (toast.height - plain))
+            compare(find(toast, "toastAction").height, thm.touch)
         }
 
         function test_has_a_check_icon() {
@@ -77,7 +81,7 @@ Item {
         function test_undo_inside_the_pill_still_fires() {
             toast.show("Archived", "Undo")
             wait(50)
-            const label = find(toast, "toastRow").children[2]
+            const label = find(toast, "toastAction")
             verify(label.visible)
             const p = label.mapToItem(toast, label.width / 2, label.height / 2)
             verify(p.x < toast.width && p.y < toast.height, "the action lies inside the pill")
@@ -120,7 +124,7 @@ Item {
             wait(50)
             compare(toast.width, stage.width - thm.gu(4))
             fuzzyCompare(toast.mapToItem(stage, 0, 0).x + toast.width / 2, stage.width / 2, 1)
-            const text = find(toast, "toastRow").children[1]
+            const text = find(toast, "toastText")
             verify(text.width < text.implicitWidth)
             verify(text.truncated)
             verify(toast.mapToItem(stage, 0, 0).x >= 0)
