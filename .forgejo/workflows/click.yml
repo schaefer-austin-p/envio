@@ -1,7 +1,19 @@
 name: Click
 
 # The arm64 .click package. Not a required check: on a PR it runs only when
-# something that goes into the package changes.
+# something that goes into the package or its arm64 build changes (a skipped
+# workflow leaves no status, and nothing waits for one). What click adds over
+# the `app` job, which builds the same CMake targets natively and runs
+# qmllint and the QML tests:
+#   - packaging and click-review: the manifest, desktop, apparmor, content-hub,
+#     url-dispatcher files, assets/ and push/
+#   - the aarch64 release build of dependencies: Cargo manifests, lockfiles,
+#     build scripts, third_party/
+#   - this workflow and its scripts
+# QML, po/, and Rust or cxx-qt sources are the same code `app` and `rust`
+# build and test; since 2026-11-18 every click failure on a PR with green
+# rust and app was a timeout, none a code defect. Every push to master
+# still builds the package.
 on:
   push:
     branches: [master]
@@ -15,20 +27,49 @@ on:
       - envio.content-hub
       - envio.url-dispatcher
       - "assets/**"
+      - "push/**"
       - envio.apparmor
       - CMakeLists.txt
-      - "qt/**"
-      - ".forgejo/workflows/**"
+      - Cargo.toml
+      - Cargo.lock
+      - "**/Cargo.toml"
+      - qt/Cargo.lock
+      - qt/build.rs
+      - "qt/stamp/**"
+      - "crates/*/build.rs"
+      - "third_party/**"
+      - .forgejo/workflows/click.yml
       - tools/ci/click.sh
       - tools/stamp.sh
       - tools/ci/dind.sh
+      - tools/ci/master-plan.mjs
 
 concurrency:
   group: click-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+  # Pushes to master only: skip when the PR head's click already built this
+  # exact tree (tools/ci/master-plan.mjs). A PR that skipped click has no
+  # green click status, so master builds it.
+  plan:
+    if: github.event_name == 'push'
+    runs-on: docker
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.plan.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Plan
+        id: plan
+        run: node tools/ci/master-plan.mjs click
+
   click:
+    needs: plan
+    if: ${{ !cancelled() && (needs.plan.result == 'skipped' || needs.plan.outputs.run == 'true') }}
     runs-on: docker
     timeout-minutes: 45
     steps:
@@ -36,6 +77,19 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+
+      # The aarch64 Rust build took 14 min cold on a quiet runner and over 40
+      # on a busy one (the cause of the 45 min timeouts). click.sh copies this
+      # directory into the build container and back out. Every run restores,
+      # only pushes to master save.
+      - name: Cache the aarch64 cargo build
+        id: c_click
+        uses: actions/cache/restore@v4
+        with:
+          path: build-cache
+          key: click-cargo-v1-${{ hashFiles('Cargo.lock', 'qt/Cargo.lock', '**/Cargo.toml', 'CMakeLists.txt', 'tools/ci/click.sh') }}
+          restore-keys: |
+            click-cargo-v1-
 
       # A v* tag needs its CHANGELOG section in the tagged commit (a re-run
       # sees the same tree), so check that before the long build.
@@ -61,6 +115,13 @@ jobs:
         run: node tools/ci/release-click.mjs build-click/*.click
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Save the aarch64 cargo build cache (master only)
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.c_click.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build-cache
+          key: ${{ steps.c_click.outputs.cache-primary-key }}
 
       # Also after a failed build or review, so the report is still there.
       - uses: actions/upload-artifact@v3
