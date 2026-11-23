@@ -881,8 +881,29 @@ Item {
             page.userTookOver()
         }
 
-        // The stack page's X still saves with no sheet; only the pane's
-        // Close (wide) asks.
+        // The stack page's X with nothing written still saves with no sheet;
+        // with something written it asks, as the pane's Close does.
+        function test_narrow_close_with_content_shows_the_sheet() {
+            page.wide = false
+            openSheetWithContent()
+            compare(closed.count, 0)
+            keyClick(Qt.Key_Escape)
+            allClosed()
+        }
+
+        function test_close_before_the_fill_has_no_sheet() {
+            // New was pressed; composeReady has not arrived: a page of its own,
+            // never filled (the shared page has been through other tests).
+            const fresh = Qt.createQmlObject('import QtQuick 2.15; import "../../qml/pages/compose"; ComposePage { theme: thm; core: mock; accounts: mock.accounts; suggestions: mock.suggestions; compose: 7; width: 400; height: 700 }', root, "fresh.qml")
+            const gone = createTemporaryObject(spyComponent, root, { target: fresh })
+            fresh.askClose()
+            verify(!fresh.hasContent(), "an unfilled compose has no content")
+            compare(gone.count, 1)
+            compare(mock.called("closeCompose").pop().args, [7, false])
+            fresh.destroy()
+        }
+        Component { id: spyComponent; SignalSpy { signalName: "closed" } }
+
         function test_narrow_close_saves_without_a_sheet() {
             mock.composeReady(1, reply, "", "")
             page.wide = false

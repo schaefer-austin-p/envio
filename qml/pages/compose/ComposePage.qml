@@ -88,6 +88,7 @@ Item {
         subject.text = ""
         body.text = ""
         filling = false
+        filledWith = typed()
     }
 
     function nameOf(path) { return path.split("/").pop() }
@@ -123,6 +124,7 @@ Item {
         return JSON.stringify([to.all(), cc.all(), bcc.all(), subject.text, body.text, attachments.map(function(a) { return a.path })])
     }
     function hasContent() {
+        if (!filled) return false
         commitAll()
         return typed() !== filledWith
     }
