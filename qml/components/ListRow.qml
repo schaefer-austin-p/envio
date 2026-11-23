@@ -41,11 +41,12 @@ AbstractButton {
     background: Rectangle {
         color: root.selected || root.down ? root.theme.selected : (root.cued ? root.theme.hover : "transparent")
         Rectangle {
+            objectName: "rowRule"
             visible: root.separator
             anchors.bottom: parent.bottom
             width: parent.width
             height: 1
-            color: root.theme.hairline
+            color: root.theme.rowRule
         }
     }
     contentItem: Item {
