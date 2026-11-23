@@ -73,29 +73,43 @@ private:
 };
 
 // The data folder the Rust core uses: <XDG_DATA_HOME>/<app id> (run.sh sets
-// XDG_DATA_HOME to a temporary tree).
+// XDG_DATA_HOME to a temporary tree). Without XDG_DATA_HOME every call does
+// nothing, so running the binary outside run.sh never touches the user's real
+// settings; the startup tests then fail instead.
 class Fixtures : public QObject {
     Q_OBJECT
 public:
     Q_INVOKABLE void writeSettings(const QString &text) const {
-        QDir().mkpath(dir());
-        QFile file(dir() + QStringLiteral("/settings.json"));
+        const QString folder = dir();
+        if (folder.isEmpty())
+            return;
+        QDir().mkpath(folder);
+        QFile file(folder + QStringLiteral("/settings.json"));
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
             file.write(text.toUtf8());
     }
     // The file and any copy the core set aside as damaged.
     Q_INVOKABLE void removeSettings() const {
-        QDir folder(dir());
+        const QString path = dir();
+        if (path.isEmpty())
+            return;
+        QDir folder(path);
         for (const QString &name : folder.entryList({QStringLiteral("settings.json*")}, QDir::Files))
             folder.remove(name);
     }
-    Q_INVOKABLE bool exists(const QString &name) const { return QFile::exists(dir() + QLatin1Char('/') + name); }
+    Q_INVOKABLE bool exists(const QString &name) const {
+        const QString folder = dir();
+        return !folder.isEmpty() && QFile::exists(folder + QLatin1Char('/') + name);
+    }
 
 private:
     static QString dir() {
         const QString home = qEnvironmentVariable("XDG_DATA_HOME");
-        return (home.isEmpty() ? QDir::homePath() + QStringLiteral("/.local/share") : home)
-            + QStringLiteral("/envio.aps");
+        if (home.isEmpty()) {
+            qWarning("fixtures: XDG_DATA_HOME is not set; run the tests through tests/qml/run.sh");
+            return {};
+        }
+        return home + QStringLiteral("/envio.aps");
     }
 };
 
