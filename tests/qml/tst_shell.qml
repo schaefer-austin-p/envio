@@ -1258,6 +1258,121 @@ Item {
             const toast = findByName(b.shell, "sentToast")
             verify(toast !== null)
             compare(toast.text, qsTr("Draft saved"))
+            compare(toast.parent.mapFromItem(toast, toast.width / 2, 0).x, toast.parent.width / 2, "centred")
+            verify(toast.width < toast.parent.width / 2, "a pill, not a bar")
+            b.shell.destroy()
+        }
+
+        function collect(item, name, out) {
+            if (item.objectName === name) out.push(item)
+            const list = item.data !== undefined ? item.data : item.children
+            for (let i = 0; list && i < list.length; i++) collect(list[i], name, out)
+            if (item.contentItem && item.contentItem !== item) collect(item.contentItem, name, out)
+            return out
+        }
+
+        function test_wide_inbox_toasts_centre_on_the_whole_window() {
+            const b = bootWide(100)
+            for (const name of ["undoToast", "noticeToast"]) {
+                const toast = findByName(b.shell, name)
+                toast.show("Archived", "Undo")
+                wait(50)
+                verify(toast.parent === b.shell, name + " sits on the window")
+                fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, name + " is centred on the window")
+                fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, name + " is 28 px up")
+                toast.hide()
+            }
+            b.shell.destroy()
+        }
+
+        function test_wide_reader_toast_centres_on_the_whole_window() {
+            const b = bootWide(100)
+            b.shell.openMessageFromRow(8)
+            verify(findByName(findByName(b.shell, "pane"), "readerFooter") !== undefined, "the pane holds a reader")
+            // The inbox's and the reader's toast share a name: take the second.
+            const all = collect(b.shell, "undoToast", [])
+            compare(all.length, 2)
+            const toast = all[1]
+            toast.show("Archived", "Undo")
+            wait(50)
+            verify(toast.parent === b.shell)
+            fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, "centred on the window")
+            fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "28 px up")
+            toast.hide()
+            b.shell.destroy()
+        }
+
+        function test_wide_compose_toast_centres_on_the_whole_window() {
+            const b = wideCompose()
+            const toast = findByName(b.shell, "composeToast")
+            verify(toast !== undefined && toast !== null, "the compose has a toast")
+            toast.show("Draft saved")
+            wait(50)
+            verify(toast.parent === b.shell, "sits on the window, not the pane")
+            fuzzyCompare(toast.x + toast.width / 2, b.shell.width / 2, 1, "centred on the window")
+            fuzzyCompare(toast.y + toast.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "28 px up")
+            toast.hide()
+            b.shell.destroy()
+        }
+
+        function test_wide_sent_toast_does_not_cover_the_undo_toast() {
+            const b = bootWide(100)
+            const undo = findByName(b.shell, "undoToast")
+            const sent = findByName(b.shell, "sentToast")
+            let fired = 0
+            undo.actionTriggered.connect(function() { fired++ })
+            undo.show("Archived", "Undo")
+            sent.show("Sent")
+            wait(50)
+            verify(sent.y + sent.height <= undo.y, "Sent sits above Undo, no overlap")
+            const act = findByName(undo, "toastAction")
+            const at = act.mapToItem(b.shell, act.width / 2, act.height / 2)
+            mouseClick(b.shell, at.x, at.y)
+            compare(fired, 1, "Undo is tappable")
+            wait(50)
+            fuzzyCompare(sent.y + sent.height + thm.frameInset + thm.toastBottomMargin, b.shell.height, 1, "Sent drops back when alone")
+            sent.hide()
+            b.shell.destroy()
+        }
+
+        function test_wide_window_toasts_never_overlap() {
+            const b = wideCompose()
+            const undo = findByName(b.shell, "undoToast")
+            const notice = findByName(b.shell, "noticeToast")
+            const draft = findByName(b.shell, "composeToast")
+            const sent = findByName(b.shell, "sentToast")
+            let fired = 0
+            undo.actionTriggered.connect(function() { fired++ })
+            undo.show("Archived", "Undo")
+            notice.show("Moved")
+            draft.show("Draft saved")
+            sent.show("Sent")
+            wait(50)
+            const all = [undo, notice, draft, sent]
+            for (const t of all) verify(t.parent === b.shell, "on the window")
+            for (let i = 0; i < all.length; i++)
+                for (let j = i + 1; j < all.length; j++) {
+                    const x = all[i], y = all[j]
+                    verify(x.y + x.height <= y.y || y.y + y.height <= x.y,
+                           x.objectName + " and " + y.objectName + " overlap")
+                }
+            const act = findByName(undo, "toastAction")
+            const at = act.mapToItem(b.shell, act.width / 2, act.height / 2)
+            mouseClick(b.shell, at.x, at.y)
+            compare(fired, 1, "Undo is tappable")
+            for (const t of all) t.hide()
+            b.shell.destroy()
+        }
+
+        function test_narrow_inbox_toast_stays_above_the_footer() {
+            const b = boot()
+            tryVerify(function() { return b.shell.depth === 1 })
+            const toast = findByName(b.shell, "undoToast")
+            toast.show("Archived", "Undo")
+            wait(50)
+            verify(toast.parent !== b.shell, "on the page, not the window")
+            fuzzyCompare(toast.y + toast.height + thm.toastBottomMargin, findByName(b.shell, "inboxFooter").y, 1, "above the footer")
+            toast.hide()
             b.shell.destroy()
         }
 

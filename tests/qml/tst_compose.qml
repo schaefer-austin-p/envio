@@ -708,6 +708,17 @@ Item {
             compare(find("composeToast").text, "Could not read that file.")
         }
 
+        function test_toast_is_a_centred_pill_at_the_bottom() {
+            mock.composeReady(1, reply, "", "")
+            const toast = find("composeToast")
+            toast.show("Saved")
+            wait(50)
+            fuzzyCompare(toast.x + toast.width / 2, page.width / 2, 1, "centred")
+            verify(toast.width < page.width - thm.gu(2), "a pill")
+            fuzzyCompare(toast.y + toast.height + thm.toastBottomMargin, page.height, 1, "28 px up")
+            toast.hide()
+        }
+
         function test_from_picks_the_account() {
             mock.composeReady(1, reply, "", "")
             compare(find("fromValue").text, "ann@example.org")

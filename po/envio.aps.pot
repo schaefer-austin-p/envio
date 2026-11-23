@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: envio.aps\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-23 18:45+0100\n"
+"POT-Creation-Date: 2026-11-23 19:41+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -34,8 +34,8 @@ msgstr ""
 msgid "Select all"
 msgstr ""
 
-#: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:21
-#: qml/pages/inbox/InboxPage.qml:55 qml/pages/inbox/InboxPage.qml:73
+#: qml/components/FolderLabel.qml:16 qml/pages/inbox/InboxPage.qml:25
+#: qml/pages/inbox/InboxPage.qml:59 qml/pages/inbox/InboxPage.qml:77
 msgid "Inbox"
 msgstr ""
 
@@ -52,7 +52,7 @@ msgid "Trash"
 msgstr ""
 
 #: qml/components/FolderLabel.qml:20 qml/pages/inbox/RowMenu.qml:146
-#: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:335
+#: qml/pages/inbox/SelectionBar.qml:31 qml/pages/reader/ReaderPage.qml:339
 msgid "Archive"
 msgstr ""
 
@@ -66,7 +66,7 @@ msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:10
 #: qml/pages/accounts/UpdateSignInPage.qml:327
-#: qml/pages/reader/ReaderPage.qml:328
+#: qml/pages/reader/ReaderPage.qml:332
 msgid "Close"
 msgstr ""
 
@@ -84,7 +84,7 @@ msgstr ""
 
 #: qml/components/ShortcutsDialog.qml:45 qml/pages/inbox/OutboxPage.qml:89
 #: qml/pages/inbox/OutboxRow.qml:129 qml/pages/inbox/RowMenu.qml:155
-#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:343
+#: qml/pages/inbox/SelectionBar.qml:38 qml/pages/reader/ReaderPage.qml:347
 msgid "Delete"
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Del"
 msgstr ""
 
-#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:236
+#: qml/components/ShortcutsDialog.qml:46 qml/pages/inbox/InboxPage.qml:241
 msgid "New message"
 msgstr ""
 
@@ -122,7 +122,7 @@ msgstr ""
 msgid "Step %1"
 msgstr ""
 
-#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:328
+#: qml/components/TopBar.qml:16 qml/pages/reader/ReaderPage.qml:332
 msgid "Back"
 msgstr ""
 
@@ -158,7 +158,7 @@ msgstr ""
 msgid "Trying again…"
 msgstr ""
 
-#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:524
+#: qml/pages/ProblemPage.qml:47 qml/pages/reader/ReaderPage.qml:528
 msgid "Try again"
 msgstr ""
 
@@ -651,52 +651,52 @@ msgstr ""
 msgid "Plain text"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/FromRow.qml:59
+#: qml/pages/compose/ComposePage.qml:39 qml/pages/compose/FromRow.qml:59
 #: qml/pages/reader/HeaderBlock.qml:17 crates/envio-core/src/text/compose.rs:41
 msgid "From"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:374
+#: qml/pages/compose/ComposePage.qml:39 qml/pages/compose/ComposePage.qml:378
 #: qml/pages/reader/HeaderBlock.qml:18 crates/envio-core/src/text/compose.rs:44
 msgid "To"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:391
+#: qml/pages/compose/ComposePage.qml:39 qml/pages/compose/ComposePage.qml:395
 #: qml/pages/reader/HeaderBlock.qml:19
 msgid "Cc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/ComposePage.qml:405
+#: qml/pages/compose/ComposePage.qml:39 qml/pages/compose/ComposePage.qml:409
 msgid "Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:35 qml/pages/compose/SubjectRow.qml:27
+#: qml/pages/compose/ComposePage.qml:39 qml/pages/compose/SubjectRow.qml:27
 #: crates/envio-core/src/text/compose.rs:43
 msgid "Subject"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:275
+#: qml/pages/compose/ComposePage.qml:279
 msgid "Write"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:283
+#: qml/pages/compose/ComposePage.qml:287
 msgid "Attach a file"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:291 qml/pages/inbox/SelectionBar.qml:56
-#: qml/pages/reader/ReaderPage.qml:351
+#: qml/pages/compose/ComposePage.qml:295 qml/pages/inbox/SelectionBar.qml:56
+#: qml/pages/reader/ReaderPage.qml:355
 msgid "More actions"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:302
+#: qml/pages/compose/ComposePage.qml:306
 msgid "Send"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:375
+#: qml/pages/compose/ComposePage.qml:379
 msgid "Cc Bcc"
 msgstr ""
 
-#: qml/pages/compose/ComposePage.qml:433
+#: qml/pages/compose/ComposePage.qml:437
 msgid "Write your message"
 msgstr ""
 
@@ -793,23 +793,23 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:154
+#: qml/pages/inbox/InboxPage.qml:158
 msgid "Search"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:163 qml/pages/inbox/PullIndicator.qml:24
+#: qml/pages/inbox/InboxPage.qml:167 qml/pages/inbox/PullIndicator.qml:24
 msgid "Refreshing"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:163
+#: qml/pages/inbox/InboxPage.qml:167
 msgid "Refresh"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:171
+#: qml/pages/inbox/InboxPage.qml:175
 msgid "Open menu"
 msgstr ""
 
-#: qml/pages/inbox/InboxPage.qml:284 qml/pages/reader/ReaderPage.qml:598
+#: qml/pages/inbox/InboxPage.qml:299 qml/pages/reader/ReaderPage.qml:608
 msgid "Undo"
 msgstr ""
 
@@ -1024,7 +1024,7 @@ msgstr ""
 msgid "Add sender to Contacts"
 msgstr ""
 
-#: qml/pages/reader/ReaderPage.qml:502
+#: qml/pages/reader/ReaderPage.qml:506
 msgid "Loading…"
 msgstr ""
 

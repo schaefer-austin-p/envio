@@ -13,7 +13,7 @@ Item {
 
     Theme { id: thm }
     AppButton { id: btn; theme: thm; text: "Go"; primary: true; width: 200 }
-    Toast { id: toast; theme: thm; width: 300 }
+    Toast { id: toast; theme: thm }
     Chip { id: chip; theme: thm; text: "Work" }
     Field { id: field; theme: thm; width: 300 }
     AppDialog { id: dialog; theme: thm }

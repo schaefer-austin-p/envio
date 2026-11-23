@@ -609,6 +609,19 @@ Item {
             verify(!toast.visible)
         }
 
+        function test_toasts_are_centred_pills_above_the_footer() {
+            const footer = find("inboxFooter", page)
+            for (const name of ["undoToast", "noticeToast"]) {
+                const toast = find(name, page)
+                toast.show("Archived", name === "undoToast" ? "Undo" : undefined)
+                wait(50)
+                fuzzyCompare(toast.x + toast.width / 2, page.width / 2, 1, name + " is centred")
+                verify(toast.width < page.width - thm.gu(2), name + " is a pill")
+                fuzzyCompare(toast.y + toast.height + thm.toastBottomMargin, footer.y, 1, name + " sits above the footer")
+                toast.hide()
+            }
+        }
+
         function test_reader_offer_does_not_show_in_inbox() {
             const toast = find("undoToast", page)
             core.undoOffer(9, "Replied: accepted", "reader")
