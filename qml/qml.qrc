@@ -31,6 +31,7 @@
         <file>pages/compose/RecipientField.qml</file>
         <file>pages/compose/Suggestions.qml</file>
         <file>pages/compose/QuoteFold.qml</file>
+        <file>pages/compose/ComposeFooter.qml</file>
         <file>pages/compose/AttachmentChips.qml</file>
         <file>pages/compose/FromRow.qml</file>
         <file>pages/compose/SubjectRow.qml</file>

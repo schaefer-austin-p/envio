@@ -359,3 +359,23 @@ fn the_sign_in_events_become_signals_with_every_field() {
     assert_eq!(email, "ada@outlook.com");
     assert_eq!(*outcome, OAuthOutcome::Failed(OAuthFailure::Offline));
 }
+
+#[test]
+fn a_draft_store_reaches_qml_with_its_time() {
+    let mut ui = Ui::new();
+    let c = ComposeId(4);
+    let outs = feed(
+        &mut ui,
+        Event::DraftStored {
+            compose: c,
+            at_ms: 1_700_000_000_000,
+        },
+    );
+    assert_eq!(
+        signals(&outs),
+        vec![&Signal::DraftStored {
+            compose: c,
+            at_ms: 1_700_000_000_000
+        }]
+    );
+}

@@ -64,8 +64,11 @@ Item {
     // What the core says about this compose (an edited copy of a draft); shown
     // under the top bar while it is open.
     property string note: ""
+    // When the core last wrote this draft (Unix ms); 0 before the first save.
+    property real savedAtMs: 0
 
     function reset() {
+        savedAtMs = 0
         filled = false
         sending = false
         showCc = false
@@ -311,7 +314,7 @@ Item {
     Flickable {
         id: flick
         objectName: "composeFlick"
-        anchors { top: errorBanner.bottom; bottom: parent.bottom; left: parent.left; right: parent.right }
+        anchors { top: errorBanner.bottom; bottom: footer.top; left: parent.left; right: parent.right }
         clip: true
         contentHeight: column.height
         boundsBehavior: Flickable.StopAtBounds
@@ -424,6 +427,15 @@ Item {
         }
     }
 
+    ComposeFooter {
+        id: footer
+        anchors { left: parent.left; right: parent.right }
+        theme: root.theme
+        savedAtMs: root.savedAtMs
+        wide: root.wide
+        maxContent: root.theme.gu(90)
+    }
+
     Toast {
         id: toast
         objectName: "composeToast"
@@ -453,6 +465,9 @@ Item {
         target: root.core
         function onComposeReady(compose, draft, quote, noteText) {
             if (compose === root.compose) root.fill(draft, quote, noteText)
+        }
+        function onDraftStored(compose, atMs) {
+            if (compose === root.compose) root.savedAtMs = atMs
         }
         function onComposeRefused(compose, text) {
             if (compose !== root.compose) return

@@ -325,6 +325,7 @@ pub fn signal_of(event: &Event) -> Option<Signal> {
             note,
         },
         Event::DraftSaved { compose, .. } => Signal::DraftSaved { compose },
+        Event::DraftStored { compose, at_ms } => Signal::DraftStored { compose, at_ms },
         Event::ComposeRefused { compose, text } => Signal::ComposeRefused { compose, text },
         Event::Queued { compose, text, .. } => Signal::Queued { compose, text },
         Event::Attached {

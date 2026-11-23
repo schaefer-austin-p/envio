@@ -255,6 +255,11 @@ impl qobject::EnvioCore {
                 self.compose_ready(compose_num(compose), &map, &q(&quoted), &q(&note));
             }
             Signal::DraftSaved { compose } => self.draft_saved(compose_num(compose)),
+            Signal::DraftStored { compose, at_ms } => {
+                // Unix milliseconds fit a double exactly (QML's `real`).
+                #[allow(clippy::cast_precision_loss)]
+                self.draft_stored(compose_num(compose), at_ms as f64);
+            }
             Signal::ComposeRefused { compose, text } => {
                 self.compose_refused(compose_num(compose), &q(&text));
             }
