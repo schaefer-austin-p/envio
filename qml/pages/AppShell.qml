@@ -650,6 +650,7 @@ Item {
             messages: root.messages
             outbox: root.outbox
             showOpen: root.paneCompose === 0
+            toastHost: root.wide ? root : null
             drawerInline: root.veryWide
             Component.onCompleted: root.inboxItem = inboxRoot
             Component.onDestruction: if (root.inboxItem === inboxRoot) root.inboxItem = null
@@ -715,6 +716,7 @@ Item {
             core: root.core
             accounts: root.accounts
             folders: root.folders
+            toastHost: root.wide ? root : null
             onBackRequested: root.readerBack(reader)
             onComposeOpened: function(compose) { root.composeOpened(compose) }
         }
@@ -797,6 +799,7 @@ Item {
                 if (done && StackView.status === StackView.Active)
                     Qt.callLater(function() { if (stack.currentItem === page) root.composeDone(page) })
             }
+            toastHost: root.wide ? root : null
             theme: root.theme
             core: root.core
             accounts: root.accounts
@@ -877,7 +880,9 @@ Item {
         objectName: "sentToast"
         theme: root.theme
         z: 5
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: root.theme.frameInset + root.theme.gu(2) }
+        stackRank: 2
+        x: Math.round((parent.width - width) / 2)
+        y: parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - lift
     }
 
     Connections {

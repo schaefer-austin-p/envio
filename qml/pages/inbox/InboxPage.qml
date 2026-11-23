@@ -18,6 +18,10 @@ Item {
     required property var outbox
     // "" is the unified inbox, else an account key (its Inbox) or "folder".
     property string tab: ""
+    // The window-level item the toasts sit on in the wide layout (the board:
+    // centred at the bottom of the whole window, not of a pane); null on the
+    // phone, where they sit above the footer.
+    property Item toastHost: null
     property string title: qsTr("Inbox")
     property bool unified: true
     // Whether the row of the open message is marked; the wide shell turns it off while a compose is in the pane.
@@ -225,6 +229,7 @@ Item {
 
     PageFooter {
         id: footer
+        objectName: "inboxFooter"
         theme: root.theme
         AppButton {
             id: newMessage
@@ -242,14 +247,24 @@ Item {
         id: undoToast
         objectName: "undoToast"
         theme: root.theme
-        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        parent: root.toastHost !== null ? root.toastHost : root
+        stackRank: 0
+        z: 5
+        x: Math.round((parent.width - width) / 2)
+        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - undoToast.lift
+                                   : footer.y - height - root.theme.toastBottomMargin
         onActionTriggered: root.core.undo(root.undoId)
     }
     Toast {
         id: noticeToast
         objectName: "noticeToast"
         theme: root.theme
-        anchors { left: parent.left; right: parent.right; bottom: footer.top; margins: root.theme.gu(2) }
+        parent: root.toastHost !== null ? root.toastHost : root
+        stackRank: 0
+        z: 5
+        x: Math.round((parent.width - width) / 2)
+        y: root.toastHost !== null ? parent.height - height - root.theme.frameInset - root.theme.toastBottomMargin - noticeToast.lift
+                                   : footer.y - height - root.theme.toastBottomMargin
     }
 
     FoldersDrawer {

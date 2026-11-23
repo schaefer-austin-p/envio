@@ -46,7 +46,7 @@ Item {
     }
     SignalSpy { id: boundClicked; target: boundRow; signalName: "clicked" }
 
-    Toast { id: toast; theme: thm; width: 300 }
+    Toast { id: toast; theme: thm }
     SignalSpy { id: toastExpired; target: toast; signalName: "expired" }
     SignalSpy { id: toastAction; target: toast; signalName: "actionTriggered" }
 
@@ -274,6 +274,7 @@ Item {
 
         function test_toast_action_hides_and_signals() {
             toast.show("Archived", "Undo")
+            wait(50)
             mouseClick(toast, toast.width - 20, toast.height / 2)
             compare(toastAction.count, 1)
             compare(toast.visible, false)
