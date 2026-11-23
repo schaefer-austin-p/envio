@@ -25,7 +25,7 @@ impl Ends {
         // Open elements: name and the offset of their start tag.
         let mut open: Vec<(String, usize)> = Vec::new();
         let mut pos = 0;
-        while let Some(offset) = html[pos..].find('<') {
+        while let Some(offset) = crate::work::find_lt(&html[pos..]) {
             let start = pos + offset;
             let len = tag_len(&html[start..]);
             let raw = &html[start..start + len];
