@@ -826,6 +826,8 @@ Item {
             compare(find("appPasswordHint").text, googleHint)
             verify(find("appPasswordHelpLink").visible)
             compare(find("appPasswordHelpLink").text, "Create an app password")
+            // The boards: the link is the primary colour, like the buttons.
+            compare(find("appPasswordHelpLink").children[0].children[0].color, thm.primary)
             compare(find("passwordField").label, "App password")
         }
 
@@ -833,6 +835,7 @@ Item {
             detectGmail("ispdb", googleHint, googleUrl)
             const opened = []
             find("signInUri").opener = function(u) { opened.push(String(u)); return true }
+            waitForRendering(wizard)
             mouseClick(find("appPasswordHelpLink"))
             compare(opened, [googleUrl])
         }

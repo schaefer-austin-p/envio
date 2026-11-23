@@ -108,53 +108,59 @@ Item {
                 enabled: !root.busy
                 onClicked: root.editServersRequested()
             }
-            Text {
-                textFormat: Text.PlainText
-                objectName: "appPasswordHint"
-                width: parent.width
-                visible: !root.oauth && root.appPassword
-                text: root.appHint
-                wrapMode: Text.WordWrap
-                color: root.theme.text
-                font.family: root.theme.fontUi
-                font.pixelSize: 14
-                lineHeight: 1.3
-            }
-            // A text link on purpose: the hint is one contextual line, not a
-            // card or a second button beside "Continue".
-            Item {
-                objectName: "appPasswordHelpLink"
+            // The hint and its link are one block (the boards: about 2 px
+            // between them), not two steps of the column's spacing.
+            Column {
+                objectName: "appPasswordBlock"
                 visible: !root.oauth && root.appPassword
                 width: parent.width
-                height: root.theme.gu(5.5)
-                readonly property alias text: linkText.text
-                Row {
-                    spacing: root.theme.gu(0.75)
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        id: linkText
-                        textFormat: Text.PlainText
-                        text: qsTr("Create an app password")
-                        color: root.theme.text
-                        font.family: root.theme.fontUi
-                        font.pixelSize: 15
-                        font.weight: Font.DemiBold
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Icon {
-                        theme: root.theme
-                        name: "external"
-                        size: 18
-                        color: root.theme.text
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                spacing: root.theme.gu(0.25)
+                Text {
+                    textFormat: Text.PlainText
+                    objectName: "appPasswordHint"
+                    width: parent.width
+                    text: root.appHint
+                    wrapMode: Text.WordWrap
+                    color: root.theme.text
+                    font.family: root.theme.fontUi
+                    font.pixelSize: 14
+                    lineHeight: 1.4
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: uri.open(root.appHelpUrl)
+                // A text link on purpose: the hint is one contextual line, not a
+                // card or a second button beside "Continue".
+                Item {
+                    objectName: "appPasswordHelpLink"
+                    width: parent.width
+                    height: root.theme.gu(5.5)
+                    readonly property alias text: linkText.text
+                    Row {
+                        spacing: root.theme.gu(0.75)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            id: linkText
+                            textFormat: Text.PlainText
+                            text: qsTr("Create an app password")
+                            color: root.theme.primary
+                            font.family: root.theme.fontUi
+                            font.pixelSize: 15
+                            font.weight: Font.DemiBold
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Icon {
+                            theme: root.theme
+                            name: "external"
+                            size: 18
+                            color: root.theme.primary
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: uri.open(root.appHelpUrl)
+                    }
+                    Accessible.role: Accessible.Link
+                    Accessible.name: linkText.text
                 }
-                Accessible.role: Accessible.Link
-                Accessible.name: linkText.text
             }
             Field {
                 id: passwordField
