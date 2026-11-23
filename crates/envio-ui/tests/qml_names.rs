@@ -76,86 +76,213 @@ fn files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// The double-quoted strings on a line.
-fn quoted(line: &str) -> Vec<&str> {
-    line.split('"').skip(1).step_by(2).collect()
-}
-
 type Uses = Vec<(String, String)>;
 
-/// The outcome names one (trimmed) line compares against or sends.
+/// The string literal that starts `s` (after spaces), if any.
+fn string_after(s: &str) -> Option<&str> {
+    let rest = s.trim_start().strip_prefix('"')?;
+    rest.split('"').next()
+}
+
+/// The string literal that ends `s` (before spaces), if any.
+fn string_before(s: &str) -> Option<&str> {
+    let rest = s.trim_end().strip_suffix('"')?;
+    rest.rsplit('"').next()
+}
+
+fn is_ident(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '.'
+}
+
+/// `outcome` as a whole word at the end of `s`.
+fn ends_with_outcome(s: &str) -> bool {
+    s.trim_end()
+        .strip_suffix("outcome")
+        .is_some_and(|before| !before.ends_with(is_ident))
+}
+
+/// `outcome` as a whole word at the start of `s`.
+fn starts_with_outcome(s: &str) -> bool {
+    s.trim_start()
+        .strip_prefix("outcome")
+        .is_some_and(|after| !after.starts_with(is_ident))
+}
+
+/// The strings of a `[...]` list in `s` (up to the first `]`).
+fn list_strings(s: &str) -> Vec<&str> {
+    let inner = s.split(']').next().unwrap_or(s);
+    let inner = inner.rsplit('[').next().unwrap_or(inner);
+    inner.split(',').filter_map(string_after).collect()
+}
+
+/// The outcome names one (trimmed) line compares against or sends: the
+/// string next to `outcome` with `===`, `!==`, `==` or `!=` (either side),
+/// the list of `[...].indexOf(outcome)` and `for (const outcome of [...])`,
+/// and the second argument of `oauthDone(...)`.
 fn outcomes_on(t: &str) -> Vec<&str> {
     let mut v = Vec::new();
-    if t.contains("outcome ===")
-        || t.contains("outcome !==")
-        || t.contains(".indexOf(outcome)")
-        || t.contains("const outcome of")
-    {
-        v.extend(quoted(t));
+    // "===" and "!==" are read at their "==" and "!=": one position each.
+    for (at, op) in t.match_indices("==").chain(t.match_indices("!=")) {
+        if op == "!=" && t[at + 2..].starts_with('=') {
+            continue; // the "!==" is read at its "=="
+        }
+        let left = &t[..at];
+        let right = &t[at + op.len()..];
+        let right = right.strip_prefix('=').unwrap_or(right);
+        let left = left.strip_suffix('!').unwrap_or(left);
+        if ends_with_outcome(left) {
+            v.extend(string_after(right));
+        }
+        if starts_with_outcome(right) {
+            v.extend(string_before(left));
+        }
+    }
+    if let Some((before, _)) = t.split_once(".indexOf(outcome)") {
+        v.extend(list_strings(before.rsplit_once('[').map_or("", |(_, l)| l)));
+    }
+    if let Some((_, after)) = t.split_once("const outcome of ") {
+        v.extend(list_strings(after));
     }
     // oauthDone(email, "outcome", text): the second argument.
-    if let Some(rest) = t.split("oauthDone(").nth(1)
-        && let Some(s) = rest
-            .split(',')
-            .nth(1)
-            .and_then(|a| quoted(a).first().copied())
-    {
-        v.push(s);
+    if let Some(rest) = t.split("oauthDone(").nth(1) {
+        v.extend(rest.split(',').nth(1).and_then(string_after));
     }
     v
 }
 
-/// The kind strings one (trimmed) line passes or sets.
-fn kinds_on(t: &str, in_session: bool) -> Vec<&str> {
+/// The kind strings one (trimmed) line passes or sets: `oauthKind = "x"` or
+/// `oauthKind = cond ? "x" : "y"`, a `startOAuth` call's third argument in a
+/// QML test, and `kind: "x"` set directly on an `OAuthSession` (`direct`).
+fn kinds_on(t: &str, direct: bool) -> Vec<&str> {
     let mut v = Vec::new();
     if let Some(rest) = t.split("oauthKind =").nth(1) {
-        // `oauthKind = id === "x" ? "graph" : "imap"`: only the values.
-        v.extend(quoted(rest.split('?').next_back().unwrap_or(rest)));
+        match rest.rsplit_once('?') {
+            Some((_, values)) => v.extend(values.split(':').filter_map(string_after)),
+            None => v.extend(string_after(rest)),
+        }
     }
     if t.contains("startOAuth")
         && let Some(rest) = t.split("args[2],").nth(1)
     {
-        v.extend(quoted(rest));
+        v.extend(string_after(rest));
     }
-    if in_session && t.starts_with("kind: \"") {
-        v.extend(quoted(t));
+    if direct && let Some(rest) = t.strip_prefix("kind:") {
+        v.extend(string_after(rest));
     }
     v
 }
 
-/// What QML and its tests use as an outcome name and as a kind.
+fn brace_change(t: &str) -> i32 {
+    t.matches('{').count() as i32 - t.matches('}').count() as i32
+}
+
+/// The outcome names and kinds one QML file's text uses. An `OAuthSession`
+/// block is found by counting braces, so `OAuthSession{` and any
+/// indentation work.
+fn scan(text: &str) -> (Vec<String>, Vec<String>) {
+    let (mut outcomes, mut kinds) = (Vec::new(), Vec::new());
+    let (mut depth, mut session) = (0, None::<i32>);
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with("//") {
+            continue;
+        }
+        if session.is_none()
+            && t.strip_prefix("OAuthSession")
+                .is_some_and(|r| r.trim_start().starts_with('{'))
+        {
+            session = Some(depth);
+        }
+        let direct = session.is_some_and(|d| depth == d + 1);
+        outcomes.extend(outcomes_on(t).into_iter().map(String::from));
+        kinds.extend(kinds_on(t, direct).into_iter().map(String::from));
+        depth += brace_change(t);
+        if session.is_some_and(|d| depth <= d) {
+            session = None;
+        }
+    }
+    (outcomes, kinds)
+}
+
+/// What QML and its tests use as an outcome name and as a kind, with the
+/// file of each.
 fn used_names() -> (Uses, Uses) {
     let mut all = Vec::new();
     files(&root().join("qml"), &mut all);
     files(&root().join("tests/qml"), &mut all);
     let (mut outcomes, mut kinds) = (Uses::new(), Uses::new());
     for path in all {
-        let text = fs::read_to_string(&path).unwrap();
-        // Indent of the open `OAuthSession {` block, if inside one.
-        let mut session: Option<usize> = None;
+        let (o, k) = scan(&fs::read_to_string(&path).unwrap());
         let at = path.display().to_string();
-        for line in text.lines() {
-            let t = line.trim();
-            let indent = line.len() - line.trim_start().len();
-            if session.is_some_and(|i| !t.is_empty() && indent <= i) {
-                session = None;
-            }
-            if t.starts_with("OAuthSession {") {
-                session = Some(indent);
-            }
-            if t.starts_with("//") {
-                continue;
-            }
-            let in_session = session.is_some_and(|i| indent == i + 4);
-            for s in outcomes_on(t) {
-                outcomes.push((at.clone(), s.to_string()));
-            }
-            for s in kinds_on(t, in_session) {
-                kinds.push((at.clone(), s.to_string()));
-            }
-        }
+        outcomes.extend(o.into_iter().map(|s| (at.clone(), s)));
+        kinds.extend(k.into_iter().map(|s| (at.clone(), s)));
     }
     (outcomes, kinds)
+}
+
+#[test]
+fn outcomes_are_read_next_to_the_operator_only() {
+    assert_eq!(
+        outcomes_on(r#"if (outcome === "cancelled") return { "kind": "info" }"#),
+        ["cancelled"]
+    );
+    assert_eq!(outcomes_on(r#"if (outcome !== "admin") x()"#), ["admin"]);
+    assert_eq!(outcomes_on(r#"if (outcome == "failed") x()"#), ["failed"]);
+    assert_eq!(outcomes_on(r#"if (outcome != "work") x()"#), ["work"]);
+    assert_eq!(
+        outcomes_on(r#"if ("mismatch" === outcome) x()"#),
+        ["mismatch"]
+    );
+    assert_eq!(outcomes_on(r#"if ("added" !== outcome) x()"#), ["added"]);
+    assert_eq!(outcomes_on(r#"if ("resumed" == outcome) x()"#), ["resumed"]);
+    assert_eq!(outcomes_on(r#"if ("updated" != outcome) x()"#), ["updated"]);
+    assert_eq!(
+        outcomes_on(r#"outcome === "admin" || outcome === "work""#),
+        ["admin", "work"]
+    );
+    assert_eq!(
+        outcomes_on(r#"if (["added", "admin"].indexOf(outcome) >= 0)"#),
+        ["added", "admin"]
+    );
+    assert_eq!(
+        outcomes_on(r#"for (const outcome of ["admin", "mismatch"]) {"#),
+        ["admin", "mismatch"]
+    );
+    assert_eq!(
+        outcomes_on(r#"core.oauthDone("a@b", "failed", "text")"#),
+        ["failed"]
+    );
+    assert!(outcomes_on(r#"x === "other""#).is_empty());
+    assert!(outcomes_on(r#"myoutcome === "other""#).is_empty());
+}
+
+#[test]
+fn kinds_are_read_next_to_their_setter() {
+    assert_eq!(kinds_on(r#"kind: "graph""#, true), ["graph"]);
+    assert!(kinds_on(r#"kind: "warning""#, false).is_empty());
+    assert_eq!(
+        kinds_on(r#"oauthKind = id === "outlook" ? "graph" : "imap""#, false),
+        ["graph", "imap"]
+    );
+    assert_eq!(kinds_on(r#"oauthKind = "imap""#, false), ["imap"]);
+    assert_eq!(
+        kinds_on(
+            r#"compare(core.called("startOAuth")[0].args[2], "imap")"#,
+            false
+        ),
+        ["imap"]
+    );
+}
+
+#[test]
+fn a_session_block_is_found_whatever_its_spacing_or_indent() {
+    for opener in ["OAuthSession {", "OAuthSession{", "        OAuthSession  {"] {
+        let text = format!(
+            "Page {{\n{opener}\n  id: s\n\t\tkind: \"graph\"\n  onDeclined: function(o) {{\n kind: \"nested\"\n }}\n}}\nkind: \"after\"\n}}\n"
+        );
+        let (_, kinds) = scan(&text);
+        assert_eq!(kinds, ["graph"], "{opener:?}");
+    }
 }
 
 #[test]
@@ -170,6 +297,9 @@ fn qml_and_its_tests_use_only_pinned_outcome_names() {
     }
 }
 
+/// Limit: only string literals are read. A kind or outcome built by an
+/// expression other than the `cond ? "x" : "y"` form (a variable, a
+/// concatenation) is not seen.
 #[test]
 fn qml_and_its_tests_use_only_pinned_kind_names() {
     let (_, kinds) = used_names();
