@@ -129,14 +129,11 @@ Item {
             compare(alpha(c, 100, 150), 0)
         }
 
-        // The default binding, which init() overrides for the other tests: the
-        // display counts as rounded when the Suru loader answered. The CI image
-        // has the Suru style, so it does here; a platform without it gets
-        // false and radius 0.
-        function test_default_display_follows_the_suru_loader() {
+        // The default: square; Main binds it from DisplayCorners (#348).
+        function test_default_display_is_square() {
             const t = freshTheme.createObject(root)
-            compare(t.roundedDisplay, true)
-            compare(t.frameOuterRadius, 30)
+            compare(t.roundedDisplay, false)
+            compare(t.frameOuterRadius, 0)
             t.destroy()
         }
 

@@ -65,6 +65,7 @@
         <file>platform/ut/GridUnit.qml</file>
         <file>platform/ut/PhoneFullscreen.qml</file>
         <file>platform/WindowMode.qml</file>
+        <file>platform/DisplayCorners.qml</file>
         <file>platform/Content.qml</file>
         <file>platform/ut/ContentExport.qml</file>
         <file>platform/ut/ContentImport.qml</file>
